@@ -1,0 +1,53 @@
+version: "3.9"
+
+# Local development stack.
+#   docker compose up db        → just Postgres (run api/web with pnpm dev)
+#   docker compose up           → full stack
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jumpstart
+      POSTGRES_PASSWORD: jumpstart_dev_password
+      POSTGRES_DB: jumpstart
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jumpstart -d jumpstart"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://jumpstart:jumpstart_dev_password@db:5432/jumpstart?schema=public
+      SESSION_SECRET: ${SESSION_SECRET:-local-dev-only-secret-do-not-use-in-production}
+      WEB_ORIGIN: http://localhost:8080
+      API_PORT: 3001
+      NODE_ENV: production
+      TURNSTILE_DEV_BYPASS: "true"
+    ports:
+      - "3001:3001"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:

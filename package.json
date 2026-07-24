@@ -1,0 +1,22 @@
+{
+  "name": "jumpstart-usa-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "JUMPSTART USA Operations Management Platform — one centralized application for a nationwide nonprofit prison re-entry ministry",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @jumpstart/api --filter @jumpstart/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @jumpstart/database generate",
+    "db:migrate": "pnpm --filter @jumpstart/database migrate:dev",
+    "db:deploy": "pnpm --filter @jumpstart/database migrate:deploy",
+    "db:seed": "pnpm --filter @jumpstart/database seed",
+    "db:reset": "pnpm --filter @jumpstart/database migrate:reset"
+  }
+}

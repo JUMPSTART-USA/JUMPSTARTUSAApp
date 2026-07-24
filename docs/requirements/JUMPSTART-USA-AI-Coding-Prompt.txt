@@ -1,0 +1,880 @@
+JUMPSTART USA AI Coding Prompt
+You are a senior full-stack software architect and production software engineer.
+
+Build a complete web-based operations management platform for JUMPSTART USA, a nationwide nonprofit prison re-entry ministry. The application must manage inside prison programming, outside re-entry programming, transitional housing, participants, volunteers, donors, vendors, employers, vehicles, case management services, fundraising, events, and ministry operations.
+
+This should be built as a professional, production-ready line-of-business application suitable for a national nonprofit organization.
+
+PROJECT NAME
+JUMPSTART USA Operations Management Platform
+
+PRIMARY GOAL
+Create one centralized application to manage all operations of a nationwide nonprofit prison re-entry ministry.
+
+The system must support:
+- Inside prison programming
+- Outside prison re-entry programming
+- Transitional housing
+- Participant case management
+- Volunteer management
+- Institution management
+- Donor and vendor CRM
+- Fundraising campaigns
+- Events
+- Employer tracking
+- Employment history
+- Ministry vehicle tracking
+- Vehicle maintenance records
+- Reporting and dashboards
+
+TARGET USERS
+The application should support multiple user roles:
+
+1. System Administrator
+   - Full access to all modules
+   - User management
+   - Role and permission management
+   - System settings
+
+2. Executive Leadership
+   - View organization-wide dashboards
+   - View reports
+   - Access donor, campaign, participant, and program performance data
+
+3. Inside Program Staff
+   - Manage prison institutions
+   - Manage inside classes
+   - Track class participants
+   - Track class completion status and assessments
+
+4. Outside Program Staff / Case Managers
+   - Manage outside participants
+   - Track onboarding
+   - Track case management services
+   - Manage transitional housing enrollment
+   - Track treatment classes, life skills classes, soft skills classes, Bible studies, and support services
+
+5. Housing Staff
+   - Manage transitional homes
+   - Track resident enrollment
+   - Track move-in and move-out dates
+   - Track reasons for leaving
+   - Track completion assessments
+
+6. Volunteer Coordinator
+   - Manage volunteers
+   - Track volunteer training status
+   - Track volunteer assignments
+   - Track inside and outside class service roles
+
+7. Development / Fundraising Staff
+   - Manage donors
+   - Manage vendors
+   - Track donations
+   - Manage fundraising campaigns
+   - Manage events
+
+8. Employment Coordinator
+   - Manage employers
+   - Track participant employment history
+   - Track employment status and employer relationships
+
+9. Transportation / Fleet Manager
+   - Manage ministry vehicles
+   - Track vehicle information
+   - Track maintenance records
+
+RECOMMENDED TECHNOLOGY STACK
+Use a modern, maintainable full-stack architecture.
+
+Preferred stack:
+- Frontend: React with TypeScript
+- Backend: Node.js with Express or NestJS
+- Database: PostgreSQL
+- ORM: Prisma
+- Authentication: Role-based authentication using JWT or session-based auth
+- UI Framework: Tailwind CSS with a clean admin dashboard design
+- Forms: React Hook Form with validation
+- Validation: Zod
+- Charts/Dashboards: Recharts or similar
+- File Uploads: Support document attachments in future-ready structure
+- Deployment-ready: Docker-compatible structure
+- Testing: Include unit and integration test structure
+
+If using another stack, maintain the same architecture quality and feature completeness.
+
+APPLICATION MODULES
+
+1. Dashboard Module
+Create a main dashboard with role-based widgets.
+
+Dashboard should show:
+- Active inside classes
+- Active outside classes/programs
+- Active participants
+- Participants currently in transitional housing
+- Participants who completed programs
+- Participants who left early
+- Volunteer count
+- Donor count
+- Donation totals
+- Active fundraising campaigns
+- Upcoming events
+- Active employers
+- Active ministry vehicles
+- Vehicles needing maintenance
+- Recent case management activity
+
+Include filters for:
+- Date range
+- State/region
+- Institution
+- Program type
+- Participant status
+
+2. Participant Management Module
+Create a comprehensive participant record.
+
+Participant fields should include:
+- Participant ID
+- First name
+- Middle name
+- Last name
+- Preferred name
+- Date of birth
+- Gender
+- Phone
+- Email
+- Current address
+- Emergency contact name
+- Emergency contact phone
+- Inside program status
+- Outside program status
+- Current phase/status
+- Intake date
+- Release date, if applicable
+- Assigned case manager
+- Notes
+- Created date
+- Updated date
+
+Participants must be able to have:
+- Multiple inside class enrollments
+- Multiple outside program enrollments
+- Multiple transitional housing enrollments
+- Multiple employers over time
+- Multiple case management service records
+- Multiple notes
+- Multiple assessments
+- Multiple attachments in a future-ready design
+
+3. Inside Prison Programming Module
+This module manages preparation classes taken prior to release.
+
+Create entities for:
+- Prison institutions
+- Inside classes
+- Class enrollments
+- Class attendance/status
+- Participant class completion assessments
+
+Institution fields:
+- Institution ID
+- Institution name
+- Institution type
+- Address
+- City
+- State
+- ZIP code
+- Main phone
+- Chaplain name
+- Chaplain phone
+- Chaplain email
+- Primary contact name
+- Primary contact role
+- Primary contact phone
+- Primary contact email
+- Notes
+- Active/inactive status
+
+Inside class fields:
+- Class ID
+- Institution
+- Class name
+- Class type
+- Start date
+- End date
+- Class status: planned, active, completed, canceled
+- Instructor/staff lead
+- Volunteer roles
+- Notes
+
+Inside class participant enrollment fields:
+- Participant
+- Inside class
+- Enrollment date
+- Completion status: enrolled, active, completed, left early, removed, transferred
+- Date left early
+- Reason for leaving early
+- Final assessment: Blue, Green, Yellow, Red
+- Assessment notes
+- Completion date
+
+Important business rule:
+If a participant leaves early, the system must require the date they left and the reason for leaving.
+
+Important business rule:
+If a participant completes the class, the system must allow or require a final assessment of Blue, Green, Yellow, or Red.
+
+4. Outside Re-Entry Programming Module
+This module manages programming outside prison after release.
+
+Outside programs may include:
+- Transitional housing
+- Treatment classes
+- Life skills classes
+- Soft skills classes
+- Bible studies
+- Mentoring
+- Transportation services
+- Employment assistance
+- Case management services
+
+Create entities for:
+- Outside programs
+- Program enrollments
+- Program attendance/status
+- Program completion assessments
+
+Outside program fields:
+- Program ID
+- Program name
+- Program type
+- Location
+- Start date
+- End date
+- Recurring schedule
+- Staff lead
+- Volunteer lead
+- Capacity
+- Status
+- Notes
+
+Outside program enrollment fields:
+- Participant
+- Program
+- Enrollment date
+- Status: enrolled, active, completed, left early, removed, transferred
+- Completion date
+- Date left early
+- Reason for leaving
+- Completion assessment
+- Notes
+
+5. Transitional Housing Module
+Create a complete housing management module.
+
+The system must track all transitional homes and all participants enrolled in each home.
+
+Transitional home fields:
+- Home ID
+- Home name
+- Address
+- City
+- State
+- ZIP code
+- Phone
+- House manager
+- House manager phone
+- House manager email
+- Capacity
+- Active/inactive status
+- Notes
+
+Housing enrollment fields:
+- Participant
+- Transitional home
+- Move-in date
+- Move-out date
+- Current status: active, completed, left early, removed, transferred
+- Reason for leaving
+- Completion assessment
+- Notes
+
+Important business rule:
+Each participant may be enrolled in more than one transitional home during their participation in the outside program.
+
+Important business rule:
+Housing records must preserve history and not overwrite prior housing placements.
+
+6. Case Management Module
+Create a professional case management module for outside participants.
+
+Case management features:
+- Intake/onboarding checklist
+- Assigned case manager
+- Service plans
+- Case notes
+- Goals
+- Tasks
+- Referrals
+- Follow-ups
+- Risk/needs assessments
+- Support services provided
+- Milestones
+
+Onboarding checklist examples:
+- Intake form completed
+- Identity documents collected
+- Release paperwork collected
+- Emergency contact confirmed
+- Housing need assessed
+- Employment need assessed
+- Transportation need assessed
+- Treatment need assessed
+- Life skills need assessed
+- Bible study/mentoring interest recorded
+- Case manager assigned
+- Service plan created
+
+Case note fields:
+- Participant
+- Case manager
+- Note date
+- Contact type: phone, in person, email, text, video, other
+- Category: housing, employment, treatment, transportation, life skills, spiritual support, legal, family, financial, general
+- Note content
+- Follow-up required
+- Follow-up date
+- Confidential flag
+
+Service record fields:
+- Participant
+- Service type
+- Service date
+- Provider/staff member
+- Description
+- Outcome
+- Follow-up required
+- Notes
+
+7. Volunteer Management Module
+Create a volunteer management module.
+
+Volunteer fields:
+- Volunteer ID
+- First name
+- Last name
+- Phone
+- Email
+- Address
+- City
+- State
+- ZIP code
+- Active/inactive status
+- Background check status
+- Training status
+- Training completion date
+- Volunteer role
+- Availability
+- Notes
+
+Volunteer assignments:
+- Volunteer
+- Assignment type: inside class, outside class, Bible study, event, transportation, mentoring, administration, other
+- Institution, if applicable
+- Program, if applicable
+- Event, if applicable
+- Role
+- Start date
+- End date
+- Status
+- Notes
+
+The system must track:
+- Where volunteers serve
+- When they serve
+- Their training status
+- Their role in inside or outside classes
+
+8. Donor, Vendor, Campaign, and Event CRM Module
+Create a comprehensive CRM-style module.
+
+Donor fields:
+- Donor ID
+- Donor type: individual, organization, church, business, foundation
+- Name
+- Contact person
+- Phone
+- Email
+- Address
+- City
+- State
+- ZIP code
+- Donor status
+- Notes
+
+Donation fields:
+- Donation ID
+- Donor
+- Donation date
+- Amount
+- Payment method
+- Campaign
+- Event
+- Fund/designation
+- Receipt sent status
+- Notes
+
+Vendor fields:
+- Vendor ID
+- Vendor name
+- Contact person
+- Phone
+- Email
+- Address
+- Services/products provided
+- Active/inactive status
+- Notes
+
+Fundraising campaign fields:
+- Campaign ID
+- Campaign name
+- Description
+- Start date
+- End date
+- Goal amount
+- Amount raised
+- Status
+- Notes
+
+Event fields:
+- Event ID
+- Event name
+- Event type
+- Date
+- Location
+- Campaign
+- Description
+- Attendance count
+- Revenue
+- Expenses
+- Notes
+
+CRM reporting should include:
+- Total donations by date range
+- Total donations by campaign
+- Total donations by donor
+- Donor history
+- Campaign progress
+- Event revenue and expense summaries
+
+9. Employer and Employment Tracking Module
+Create an employment tracking module.
+
+Employer fields:
+- Employer ID
+- Employer name
+- Contact person
+- Phone
+- Email
+- Address
+- City
+- State
+- ZIP code
+- Industry
+- Hiring status
+- Notes
+
+Participant employment record fields:
+- Participant
+- Employer
+- Job title
+- Employment start date
+- Employment end date
+- Current employment status: applied, interviewing, hired, active, terminated, resigned, completed, unknown
+- Pay rate
+- Hours per week
+- Supervisor name
+- Supervisor phone
+- Notes
+
+Important business rule:
+Participants may have multiple employers throughout their participation in the program.
+
+Important business rule:
+Employment history must be preserved and not overwritten.
+
+10. Ministry Vehicle and Maintenance Module
+Create a fleet management module for ministry vehicles used to provide transportation.
+
+Vehicle fields:
+- Vehicle ID
+- Make
+- Model
+- Year
+- Color
+- License plate/tag
+- VIN
+- Mileage
+- Assigned location
+- Active/inactive status
+- Insurance expiration date
+- Registration expiration date
+- Notes
+
+Maintenance record fields:
+- Vehicle
+- Maintenance date
+- Maintenance type
+- Mileage at service
+- Vendor
+- Cost
+- Description
+- Next service due date
+- Next service due mileage
+- Receipt/document attachment field placeholder
+- Notes
+
+Dashboard should alert for:
+- Vehicles with upcoming maintenance
+- Vehicles with expired or soon-to-expire registration
+- Vehicles with expired or soon-to-expire insurance
+
+DATABASE DESIGN REQUIREMENTS
+Create a relational database using PostgreSQL.
+
+Core tables should include, at minimum:
+- users
+- roles
+- permissions
+- participants
+- institutions
+- inside_classes
+- inside_class_enrollments
+- outside_programs
+- outside_program_enrollments
+- transitional_homes
+- housing_enrollments
+- case_notes
+- case_services
+- onboarding_checklists
+- volunteers
+- volunteer_assignments
+- donors
+- donations
+- vendors
+- campaigns
+- events
+- employers
+- participant_employments
+- vehicles
+- vehicle_maintenance_records
+- audit_logs
+
+Use proper relationships, foreign keys, indexes, timestamps, soft-delete where appropriate, and audit fields.
+
+Every major table should include:
+- id
+- created_at
+- updated_at
+- created_by
+- updated_by
+- deleted_at, if using soft deletes
+
+AUTHENTICATION AND SECURITY
+Implement secure authentication and authorization.
+
+Requirements:
+- Login/logout
+- Password hashing
+- Role-based access control
+- Route protection
+- API endpoint protection
+- Session/JWT expiration
+- Audit logging for sensitive changes
+- Input validation
+- Server-side authorization checks
+- Protection against common web vulnerabilities
+
+Recommended roles:
+- Admin
+- Executive
+- Inside Program Staff
+- Outside Program Staff
+- Case Manager
+- Housing Staff
+- Volunteer Coordinator
+- Development Staff
+- Employment Coordinator
+- Fleet Manager
+- Read Only
+
+REPORTING REQUIREMENTS
+Create reports and export capabilities.
+
+Reports should include:
+- Active participants
+- Participant status summary
+- Inside class roster
+- Inside class completion report
+- Inside class assessment report
+- Institution activity report
+- Outside program enrollment report
+- Transitional housing occupancy report
+- Housing completion/exit report
+- Case management activity report
+- Volunteer assignment report
+- Volunteer training report
+- Donor giving history
+- Campaign performance
+- Event financial summary
+- Employer participation report
+- Participant employment history
+- Vehicle maintenance report
+- Upcoming vehicle maintenance report
+
+Exports:
+- CSV export
+- Excel-compatible export
+- PDF export if reasonable
+- Filterable reports by date range, location, status, staff member, institution, program, campaign, or participant
+
+USER INTERFACE REQUIREMENTS
+Build a clean, professional administrative interface.
+
+UI should include:
+- Left-side navigation menu
+- Global search
+- Dashboard cards
+- Tables with sorting, filtering, and pagination
+- Detail pages for each major record
+- Create/edit forms
+- Status badges
+- Tabs for related records
+- Timeline/activity history for participants
+- Responsive design for desktop and tablets
+
+Participant profile page should include tabs:
+- Overview
+- Inside Classes
+- Outside Programs
+- Housing
+- Case Management
+- Employment
+- Services
+- Notes
+- Documents placeholder
+- Activity History
+
+Institution profile page should include:
+- Contact information
+- Classes held there
+- Participants served
+- Volunteers assigned
+- Notes
+
+Donor profile page should include:
+- Contact information
+- Donation history
+- Campaign involvement
+- Event involvement
+- Notes
+
+Employer profile page should include:
+- Contact information
+- Participants employed
+- Employment outcomes
+- Notes
+
+Vehicle profile page should include:
+- Vehicle details
+- Maintenance history
+- Upcoming service alerts
+- Notes
+
+API REQUIREMENTS
+Create RESTful API endpoints or equivalent service layer.
+
+Example endpoint groups:
+- /api/auth
+- /api/users
+- /api/participants
+- /api/institutions
+- /api/inside-classes
+- /api/inside-class-enrollments
+- /api/outside-programs
+- /api/outside-program-enrollments
+- /api/transitional-homes
+- /api/housing-enrollments
+- /api/case-notes
+- /api/case-services
+- /api/volunteers
+- /api/volunteer-assignments
+- /api/donors
+- /api/donations
+- /api/vendors
+- /api/campaigns
+- /api/events
+- /api/employers
+- /api/employment-records
+- /api/vehicles
+- /api/vehicle-maintenance
+- /api/reports
+
+Each API should support:
+- Create
+- Read
+- Update
+- Delete or soft delete
+- Filtering
+- Sorting
+- Pagination
+- Validation
+- Authorization
+
+AUDIT LOGGING
+Implement audit logging for major changes.
+
+Track:
+- User who made change
+- Date/time
+- Entity changed
+- Record ID
+- Old value
+- New value
+- Action type: create, update, delete, login, export, permission change
+
+DATA VALIDATION RULES
+Implement front-end and back-end validation.
+
+Examples:
+- Required fields must be enforced
+- Email fields must be valid email addresses
+- Dates must be valid
+- End dates cannot be before start dates
+- Donation amount must be positive
+- Vehicle year must be valid
+- If status is “left early,” require left date and reason
+- If class completion status is “completed,” allow/require final assessment
+- If housing status is moved out, require move-out date and reason
+- If maintenance has next service date or mileage, show upcoming alerts
+
+SEED DATA
+Include realistic seed data for development/demo purposes.
+
+Seed data should include:
+- Admin user
+- Example institutions
+- Example inside classes
+- Example participants
+- Example transitional homes
+- Example outside programs
+- Example volunteers
+- Example donors
+- Example campaigns
+- Example events
+- Example employers
+- Example vehicles
+- Example maintenance records
+
+Do not use real sensitive personal information in seed data.
+
+DELIVERABLES
+Generate a complete working project with:
+- Full source code
+- Database schema
+- Prisma models or equivalent ORM models
+- Database migration files
+- Seed script
+- API routes/controllers/services
+- Frontend pages/components
+- Authentication system
+- Role-based permissions
+- Dashboard
+- Reporting pages
+- Export functionality
+- README file
+- Environment variable template
+- Dockerfile and docker-compose file, if appropriate
+- Testing structure
+- Deployment instructions
+
+PROJECT STRUCTURE
+Use a clean, scalable folder structure.
+
+Example:
+
+/jumpstart-usa-platform
+  /apps
+    /web
+    /api
+  /packages
+    /database
+    /shared
+  /prisma
+    schema.prisma
+    seed.ts
+  /docs
+    architecture.md
+    database.md
+    api.md
+  docker-compose.yml
+  README.md
+  .env.example
+
+If not using a monorepo, use an equally clean structure.
+
+CODING REQUIREMENTS
+Code must be:
+- Production-ready
+- Type-safe
+- Modular
+- Maintainable
+- Secure
+- Well-documented
+- Easy to extend
+- Consistent in naming
+- Designed around real nonprofit operations
+
+Use:
+- Clear service layer
+- Reusable components
+- Central validation schemas
+- Central permission definitions
+- Error handling middleware
+- Logging
+- Environment-based configuration
+
+ACCEPTANCE CRITERIA
+The project is complete when:
+
+1. A user can log in securely.
+2. Users only see modules allowed by their role.
+3. An admin can manage users and roles.
+4. Staff can create and manage participants.
+5. Staff can manage prison institutions and inside classes.
+6. Staff can enroll participants in inside classes.
+7. Staff can track whether participants completed, left early, or were removed from inside classes.
+8. Staff can record Blue, Green, Yellow, or Red assessments for completed inside classes.
+9. Staff can manage outside programs.
+10. Staff can enroll participants in outside programs.
+11. Staff can manage transitional homes.
+12. Staff can track multiple housing enrollments per participant.
+13. Case managers can manage onboarding checklists, case notes, service records, goals, and follow-ups.
+14. Volunteer coordinators can manage volunteers, training status, and assignments.
+15. Development staff can manage donors, donations, vendors, campaigns, and events.
+16. Employment staff can manage employers and participant employment history.
+17. Fleet staff can manage vehicles and maintenance records.
+18. Reports can be filtered and exported.
+19. Dashboard metrics accurately summarize the database.
+20. All major changes are audit logged.
+21. The application can be run locally from the README instructions.
+22. Database migrations and seed data work correctly.
+23. The user interface is clean, professional, and suitable for business use.
+
+IMPORTANT DESIGN PRINCIPLES
+This is not just a simple CRM. It is an operations platform for a prison re-entry ministry.
+
+The participant should be the central record.
+ 

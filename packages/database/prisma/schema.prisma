@@ -1,0 +1,2107 @@
+// JUMPSTART USA Operations Platform — database schema
+//
+// Design principles (see docs/database.md and the architecture plan):
+//   * One person, many roles: `persons` is the identity root; participant and
+//     volunteer profiles attach 1:1. Alumni-to-mentor is a status change, not a
+//     new record.
+//   * History is never overwritten: housing, employment, enrollments and status
+//     changes append; soft deletes everywhere operationally meaningful.
+//   * Audit columns: createdById/updatedById are logical references to users.id
+//     (plain uuids, no FK) to keep the relation graph tractable; domain-level
+//     user references (assigned case manager, note author) are true FKs.
+//   * All Phase 1–3 tables ship now so historical data accumulates from day one.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum Gender {
+  male
+  female
+  other
+  unspecified
+}
+
+enum InsideStatus {
+  not_applicable
+  enrolled
+  active
+  completed
+  released
+  withdrawn
+}
+
+enum OutsideStatus {
+  not_applicable
+  intake
+  active
+  completed
+  inactive
+  withdrawn
+}
+
+enum AlumniStatus {
+  not_applicable
+  alumni
+  alumni_engaged
+}
+
+enum EnrollmentStatus {
+  enrolled
+  active
+  completed
+  assessment_pending
+  left_early
+  removed
+  transferred
+}
+
+enum HousingStatus {
+  active
+  completed
+  assessment_pending
+  left_early
+  removed
+  transferred
+}
+
+enum FinalAssessment {
+  blue
+  green
+  yellow
+  red
+}
+
+enum ClassStatus {
+  planned
+  active
+  completed
+  canceled
+}
+
+enum ProgramType {
+  transitional_housing
+  treatment
+  life_skills
+  soft_skills
+  bible_study
+  mentoring
+  transportation
+  employment_assistance
+  case_management
+  other
+}
+
+enum ContactType {
+  phone
+  in_person
+  email
+  text
+  video
+  other
+}
+
+enum NoteCategory {
+  housing
+  employment
+  treatment
+  transportation
+  life_skills
+  spiritual_support
+  legal
+  family
+  financial
+  general
+}
+
+enum ChecklistItemStatus {
+  pending
+  in_progress
+  completed
+  not_applicable
+}
+
+enum GoalStatus {
+  not_started
+  in_progress
+  achieved
+  abandoned
+}
+
+enum TaskStatus {
+  open
+  in_progress
+  completed
+  canceled
+}
+
+enum VolunteerStatus {
+  applicant
+  active
+  inactive
+  suspended
+}
+
+enum AssignmentType {
+  inside_class
+  outside_class
+  bible_study
+  event
+  transportation
+  mentoring
+  administration
+  other
+}
+
+enum AssignmentStatus {
+  proposed
+  active
+  completed
+  ended
+}
+
+enum BackgroundCheckResult {
+  pending
+  clear
+  review
+  not_cleared
+}
+
+enum ClearanceRequirementType {
+  background_check
+  training
+  document
+  approval
+  medical
+  other
+}
+
+enum ClearanceStatus {
+  pending
+  satisfied
+  expired
+  rejected
+}
+
+enum MentorScreeningStage {
+  applied
+  interview
+  background_check
+  references
+  mentor_training
+  panel_approval
+  approved
+  rejected
+  withdrawn
+}
+
+enum MentorAssignmentStatus {
+  proposed
+  active
+  paused
+  ended
+}
+
+enum SessionMode {
+  in_person
+  phone
+  video
+}
+
+enum EngagementType {
+  event_attendance
+  check_in_call
+  newsletter
+  volunteer_service
+  gave_testimony
+  donated
+  other
+}
+
+enum CheckinWave {
+  day_30
+  month_6
+  month_12
+  month_24
+  month_36
+}
+
+enum CheckinMethod {
+  call
+  sms
+  mail
+  event
+  self_report
+  in_person
+}
+
+enum VerificationLevel {
+  self_reported
+  staff_verified
+  doc_verified
+}
+
+enum DonorType {
+  individual
+  organization
+  church
+  business
+  foundation
+}
+
+enum EmploymentStatus {
+  applied
+  interviewing
+  hired
+  active
+  terminated
+  resigned
+  completed
+  unknown
+}
+
+enum HiringStatus {
+  prospect
+  partner
+  actively_hiring
+  paused
+  inactive
+}
+
+enum CommChannel {
+  email
+  sms
+  letter
+}
+
+enum CommStatus {
+  queued
+  sent
+  delivered
+  failed
+  returned
+}
+
+enum IntakeStatus {
+  pending
+  in_review
+  approved
+  rejected
+  spam
+}
+
+enum ReferrerType {
+  self
+  family
+  chaplain
+  agency
+  church
+  other
+}
+
+enum AttachmentSensitivity {
+  standard
+  sensitive
+  confidential
+}
+
+enum AuditAction {
+  create
+  update
+  delete
+  login
+  logout
+  login_failed
+  export
+  permission_change
+  read_confidential
+  merge
+}
+
+enum UserStatus {
+  invited
+  active
+  deactivated
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IDENTITY CORE — one person, many roles (§5 of the architecture plan)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Person {
+  id                String    @id @default(uuid())
+  firstName         String
+  middleName        String?
+  lastName          String
+  preferredName     String?
+  suffix            String?
+  dateOfBirth       DateTime? @db.Date
+  gender            Gender    @default(unspecified)
+  preferredLanguage String    @default("en")
+
+  primaryPhone String?
+  primaryEmail String?
+
+  // Current mailing address (history in PersonAddress)
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  zip          String?
+
+  // Communication preferences & consent (TCPA: smsConsentAt is the timestamp
+  // explicit SMS opt-in was recorded; STOP handling clears smsOk)
+  emailOk      Boolean   @default(true)
+  smsOk        Boolean   @default(false)
+  smsConsentAt DateTime?
+  mailOnly     Boolean   @default(false)
+  doNotContact Boolean   @default(false)
+
+  deceasedAt DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  participantProfile ParticipantProfile?
+  volunteerProfile   VolunteerProfile?
+  user               User?
+  contacts           PersonContact[]
+  addresses          PersonAddress[]
+  backgroundChecks   BackgroundCheck[]
+  testimonyConsents  TestimonyConsent[]
+  communications     Communication[]
+  eventRegistrations EventRegistration[]
+  donors             Donor[]
+
+  @@index([lastName, firstName])
+  @@index([primaryEmail])
+  @@index([primaryPhone])
+  @@map("persons")
+}
+
+model PersonAddress {
+  id           String    @id @default(uuid())
+  personId     String
+  person       Person    @relation(fields: [personId], references: [id])
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  zip          String
+  addressType  String? // home, transitional home, facility, mailing…
+  isCurrent    Boolean   @default(false)
+  validFrom    DateTime? @db.Date
+  validTo      DateTime? @db.Date
+  notes        String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([personId])
+  @@map("person_addresses")
+}
+
+// Emergency contacts & family members. Minors NEVER become Person records —
+// they exist only here with an isMinor flag and minimal fields (§7.4).
+model PersonContact {
+  id            String  @id @default(uuid())
+  personId      String
+  person        Person  @relation(fields: [personId], references: [id])
+  name          String
+  relationship  String
+  phone         String?
+  email         String?
+  isEmergency   Boolean @default(false)
+  isMinor       Boolean @default(false)
+  guardianName  String? // when isMinor, phone belongs to the guardian
+  notes         String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([personId])
+  @@map("person_contacts")
+}
+
+// Consent to use a person's name/story in development & marketing (§7.4).
+model TestimonyConsent {
+  id        String    @id @default(uuid())
+  personId  String
+  person    Person    @relation(fields: [personId], references: [id])
+  scope     String // e.g. "newsletter", "website", "grant reports", "all"
+  grantedAt DateTime  @db.Date
+  revokedAt DateTime? @db.Date
+  notes     String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([personId])
+  @@map("testimony_consents")
+}
+
+model ParticipantProfile {
+  id                String  @id @default(uuid())
+  personId          String  @unique
+  person            Person  @relation(fields: [personId], references: [id])
+  // Human-readable ID, e.g. P-2026-00341 — staff/DOC-speakable, not a DB key
+  participantNumber String  @unique
+
+  insideStatus  InsideStatus  @default(not_applicable)
+  outsideStatus OutsideStatus @default(not_applicable)
+  phase         String? // program-defined phase label
+  alumniStatus  AlumniStatus  @default(not_applicable)
+
+  intakeDate     DateTime? @db.Date
+  releaseDate    DateTime? @db.Date
+  graduationDate DateTime? @db.Date
+
+  assignedCaseManagerId String?
+  assignedCaseManager   User?   @relation("CaseManagerParticipants", fields: [assignedCaseManagerId], references: [id])
+
+  notes String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  docIds              ParticipantDocId[]
+  statusHistory       ParticipantStatusHistory[]
+  insideEnrollments   InsideClassEnrollment[]
+  outsideEnrollments  OutsideProgramEnrollment[]
+  housingEnrollments  HousingEnrollment[]
+  onboardingChecklists OnboardingChecklist[]
+  caseNotes           CaseNote[]
+  caseServices        CaseService[]
+  servicePlans        ServicePlan[]
+  needsAssessments    NeedsAssessment[]
+  outboundReferrals   OutboundReferral[]
+  caseTasks           CaseTask[]
+  employments         ParticipantEmployment[]
+  alumniEngagements   AlumniEngagement[]
+  outcomeCheckins     OutcomeCheckin[]
+  mentorAssignments   MentorAssignment[] // as mentee
+  alumniFormTokens    AlumniFormToken[]
+  alumniUpdates       AlumniUpdate[]
+  referralInboxLinks  ReferralInboxItem[]
+
+  @@index([assignedCaseManagerId])
+  @@index([insideStatus])
+  @@index([outsideStatus])
+  @@index([alumniStatus])
+  @@map("participant_profiles")
+}
+
+// One participant can hold IDs in multiple state DOC systems. DOC-sourced
+// rows link to the data-sharing agreement they arrived under (§7.5).
+model ParticipantDocId {
+  id                     String                @id @default(uuid())
+  participantProfileId   String
+  participantProfile     ParticipantProfile    @relation(fields: [participantProfileId], references: [id])
+  state                  String
+  docNumber              String
+  source                 String                @default("staff_entered") // staff_entered | doc | import
+  dataSharingAgreementId String?
+  dataSharingAgreement   DataSharingAgreement? @relation(fields: [dataSharingAgreementId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([participantProfileId, state, docNumber])
+  @@index([docNumber])
+  @@map("participant_doc_ids")
+}
+
+// Append-only log of every status/phase transition. Cohort & outcome reports
+// read from here, never from the mutable current-status columns.
+model ParticipantStatusHistory {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  domain               String // inside_status | outside_status | phase | alumni_status
+  fromValue            String?
+  toValue              String
+  effectiveDate        DateTime           @db.Date
+  reason               String?
+  changedById          String?
+
+  createdAt DateTime @default(now())
+
+  @@index([participantProfileId, effectiveDate])
+  @@map("participant_status_history")
+}
+
+model VolunteerProfile {
+  id       String          @id @default(uuid())
+  personId String          @unique
+  person   Person          @relation(fields: [personId], references: [id])
+  status   VolunteerStatus @default(applicant)
+
+  isMentor     Boolean @default(false)
+  mentorStatus String? // e.g. "outside programs only" restrictions summary
+
+  volunteerRoles    String[] // interest/service areas
+  availability      String?
+  churchAffiliation String?
+  notes             String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  assignments      VolunteerAssignment[]
+  trainings        VolunteerTraining[]
+  clearances       VolunteerClearance[]
+  mentorScreenings MentorScreening[]
+  mentorAssignments MentorAssignment[] // as mentor
+
+  @@index([status])
+  @@index([isMentor])
+  @@map("volunteer_profiles")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// USERS, ROLES, PERMISSIONS, SESSIONS (§6.14)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  status       UserStatus @default(invited)
+  personId     String?    @unique
+  person       Person?    @relation(fields: [personId], references: [id])
+
+  totpSecret  String? // encrypted at rest by the app layer
+  totpEnabled Boolean   @default(false)
+  lastLoginAt DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  userRoles           UserRole[]
+  regionScopes        UserRegionScope[]
+  managedParticipants ParticipantProfile[] @relation("CaseManagerParticipants")
+  caseNotes           CaseNote[]
+  assignedTasks       CaseTask[]
+  insideClassesLed    InsideClass[]
+  outsideProgramsLed  OutsideProgram[]
+  auditLogs           AuditLog[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String  @id @default(uuid())
+  key         String  @unique // e.g. "case_manager"
+  name        String
+  description String?
+  isSystem    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  key         String  @unique // e.g. "participants.update", "case_notes.confidential.read"
+  description String?
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+// Row-level region scoping — table exists from day one, enforcement activates
+// when multi-state staffing needs it (§7.2).
+model UserRegionScope {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  state  String
+
+  @@unique([userId, state])
+  @@map("user_region_scopes")
+}
+
+// Server-side session store (connect-pg-simple shape): instant revocation on
+// staff departure — the reason this app uses sessions, not JWTs (§3.2).
+model Session {
+  sid    String   @id
+  sess   Json
+  expire DateTime
+
+  @@index([expire])
+  @@map("session")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INSTITUTIONS & INSIDE PROGRAMMING (§6.2)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Institution {
+  id              String  @id @default(uuid())
+  name            String
+  institutionType String? // state prison, federal, county jail, transition center…
+  addressLine1    String?
+  city            String?
+  state           String // indexed — drives regional filtering everywhere
+  zip             String?
+  mainPhone       String?
+
+  chaplainName  String?
+  chaplainPhone String?
+  chaplainEmail String?
+
+  primaryContactName  String?
+  primaryContactRole  String?
+  primaryContactPhone String?
+  primaryContactEmail String?
+
+  notes  String?
+  active Boolean @default(true)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  insideClasses         InsideClass[]
+  volunteerAssignments  VolunteerAssignment[]
+  clearanceRequirements FacilityClearanceRequirement[]
+
+  @@index([state])
+  @@index([active])
+  @@map("institutions")
+}
+
+model InsideClass {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id])
+  name          String
+  classType     String?
+  startDate     DateTime    @db.Date
+  endDate       DateTime?   @db.Date
+  status        ClassStatus @default(planned)
+  staffLeadId   String?
+  staffLead     User?       @relation(fields: [staffLeadId], references: [id])
+  notes         String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  enrollments          InsideClassEnrollment[]
+  sessions             InsideClassSession[]
+  volunteerAssignments VolunteerAssignment[]
+
+  @@index([institutionId])
+  @@index([status])
+  @@map("inside_classes")
+}
+
+model InsideClassEnrollment {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  insideClassId        String
+  insideClass          InsideClass        @relation(fields: [insideClassId], references: [id])
+
+  enrollmentDate   DateTime         @db.Date
+  completionStatus EnrollmentStatus @default(enrolled)
+  completionDate   DateTime?        @db.Date
+
+  // Business rule: left_early ⇒ both fields required (enforced in shared Zod
+  // schemas + service layer; DB stays permissive for migration/import)
+  leftEarlyDate   DateTime? @db.Date
+  leftEarlyReason String?
+
+  // Business rule: completed ⇒ finalAssessment required (assessment_pending
+  // is the interim status while assessments come in)
+  finalAssessment FinalAssessment?
+  assessmentNotes String?
+
+  notes String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  attendance SessionAttendance[]
+
+  @@unique([participantProfileId, insideClassId])
+  @@index([insideClassId])
+  @@index([completionStatus])
+  @@map("inside_class_enrollments")
+}
+
+// Per-session attendance (Phase 2 module; schema ships now)
+model InsideClassSession {
+  id            String      @id @default(uuid())
+  insideClassId String
+  insideClass   InsideClass @relation(fields: [insideClassId], references: [id])
+  sessionDate   DateTime    @db.Date
+  topic         String?
+  notes         String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  attendance SessionAttendance[]
+
+  @@index([insideClassId, sessionDate])
+  @@map("inside_class_sessions")
+}
+
+model SessionAttendance {
+  id           String                @id @default(uuid())
+  sessionId    String
+  session      InsideClassSession    @relation(fields: [sessionId], references: [id])
+  enrollmentId String
+  enrollment   InsideClassEnrollment @relation(fields: [enrollmentId], references: [id])
+  status       String // present | absent | excused
+  notes        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, enrollmentId])
+  @@map("inside_class_session_attendance")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OUTSIDE RE-ENTRY PROGRAMMING (§6.3)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model OutsideProgram {
+  id                String      @id @default(uuid())
+  name              String
+  programType       ProgramType
+  location          String?
+  state             String?
+  startDate         DateTime?   @db.Date
+  endDate           DateTime?   @db.Date
+  recurringSchedule String? // e.g. "Tuesdays 6:30pm"
+  staffLeadId       String?
+  staffLead         User?       @relation(fields: [staffLeadId], references: [id])
+  volunteerLeadName String?
+  capacity          Int?
+  status            String      @default("active") // active | inactive | completed
+  notes             String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  enrollments          OutsideProgramEnrollment[]
+  sessions             OutsideProgramSession[]
+  volunteerAssignments VolunteerAssignment[]
+
+  @@index([programType])
+  @@index([status])
+  @@index([state])
+  @@map("outside_programs")
+}
+
+model OutsideProgramEnrollment {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  outsideProgramId     String
+  outsideProgram       OutsideProgram     @relation(fields: [outsideProgramId], references: [id])
+
+  enrollmentDate DateTime         @db.Date
+  status         EnrollmentStatus @default(enrolled)
+  completionDate DateTime?        @db.Date
+
+  leftEarlyDate   DateTime? @db.Date
+  leftEarlyReason String?
+
+  completionAssessment FinalAssessment?
+  assessmentNotes      String?
+
+  notes String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  attendance         OutsideSessionAttendance[]
+  housingEnrollments HousingEnrollment[] // umbrella link (§6.4)
+
+  @@index([participantProfileId])
+  @@index([outsideProgramId])
+  @@index([status])
+  @@map("outside_program_enrollments")
+}
+
+model OutsideProgramSession {
+  id               String         @id @default(uuid())
+  outsideProgramId String
+  outsideProgram   OutsideProgram @relation(fields: [outsideProgramId], references: [id])
+  sessionDate      DateTime       @db.Date
+  topic            String?
+  notes            String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  attendance OutsideSessionAttendance[]
+
+  @@index([outsideProgramId, sessionDate])
+  @@map("outside_program_sessions")
+}
+
+model OutsideSessionAttendance {
+  id           String                   @id @default(uuid())
+  sessionId    String
+  session      OutsideProgramSession    @relation(fields: [sessionId], references: [id])
+  enrollmentId String
+  enrollment   OutsideProgramEnrollment @relation(fields: [enrollmentId], references: [id])
+  status       String // present | absent | excused
+  notes        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, enrollmentId])
+  @@map("outside_program_session_attendance")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRANSITIONAL HOUSING (§6.4)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model TransitionalHome {
+  id                String  @id @default(uuid())
+  name              String
+  addressLine1      String?
+  city              String?
+  state             String
+  zip               String?
+  phone             String?
+  houseManagerName  String?
+  houseManagerPhone String?
+  houseManagerEmail String?
+  capacity          Int
+  active            Boolean @default(true)
+  notes             String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  enrollments HousingEnrollment[]
+
+  @@index([state])
+  @@index([active])
+  @@map("transitional_homes")
+}
+
+// Sequential (even transfer-overlapping) enrollments are normal and preserved
+// forever. Business rule: moved-out ⇒ moveOutDate + reasonForLeaving required.
+model HousingEnrollment {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  homeId               String
+  home                 TransitionalHome   @relation(fields: [homeId], references: [id])
+
+  moveInDate  DateTime      @db.Date
+  moveOutDate DateTime?     @db.Date
+  status      HousingStatus @default(active)
+
+  reasonForLeaving     String?
+  completionAssessment FinalAssessment?
+  assessmentNotes      String?
+
+  // Optional umbrella outside-program enrollment for reporting (§6.4)
+  outsideProgramEnrollmentId String?
+  outsideProgramEnrollment   OutsideProgramEnrollment? @relation(fields: [outsideProgramEnrollmentId], references: [id])
+
+  notes String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([participantProfileId])
+  @@index([homeId])
+  @@index([status])
+  @@map("housing_enrollments")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CASE MANAGEMENT (§6.5) — the module that replaces Apricot
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Admin-editable checklist template; instantiated per participant at intake.
+model OnboardingChecklistTemplate {
+  id        String  @id @default(uuid())
+  name      String
+  isDefault Boolean @default(false)
+  active    Boolean @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  items      OnboardingChecklistTemplateItem[]
+  checklists OnboardingChecklist[]
+
+  @@map("onboarding_checklist_templates")
+}
+
+model OnboardingChecklistTemplateItem {
+  id         String                      @id @default(uuid())
+  templateId String
+  template   OnboardingChecklistTemplate @relation(fields: [templateId], references: [id])
+  label      String
+  sortOrder  Int
+  required   Boolean                     @default(true)
+
+  @@index([templateId])
+  @@map("onboarding_checklist_template_items")
+}
+
+model OnboardingChecklist {
+  id                   String                       @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile           @relation(fields: [participantProfileId], references: [id])
+  templateId           String?
+  template             OnboardingChecklistTemplate? @relation(fields: [templateId], references: [id])
+  startedAt            DateTime                     @default(now())
+  completedAt          DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  items OnboardingChecklistItem[]
+
+  @@index([participantProfileId])
+  @@map("onboarding_checklists")
+}
+
+model OnboardingChecklistItem {
+  id            String              @id @default(uuid())
+  checklistId   String
+  checklist     OnboardingChecklist @relation(fields: [checklistId], references: [id])
+  label         String
+  sortOrder     Int
+  status        ChecklistItemStatus @default(pending)
+  completedAt   DateTime?
+  completedById String?
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([checklistId])
+  @@map("onboarding_checklist_items")
+}
+
+// Confidential-flagged notes are readable ONLY by author, the participant's
+// current case manager, and holders of case_notes.confidential.read (§7.3).
+// Reads of confidential notes are themselves audit-logged.
+model CaseNote {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  caseManagerId        String
+  caseManager          User               @relation(fields: [caseManagerId], references: [id])
+  noteDate             DateTime           @db.Date
+  contactType          ContactType
+  category             NoteCategory
+  content              String
+  followUpRequired     Boolean            @default(false)
+  followUpDate         DateTime?          @db.Date
+  followUpDoneAt       DateTime?
+  confidential         Boolean            @default(false)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([participantProfileId, noteDate])
+  @@index([caseManagerId])
+  @@index([followUpRequired, followUpDate])
+  @@map("case_notes")
+}
+
+model CaseService {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  serviceType          String
+  serviceDate          DateTime           @db.Date
+  providerName         String? // staff member or external provider
+  description          String?
+  outcome              String?
+  followUpRequired     Boolean            @default(false)
+  followUpDate         DateTime?          @db.Date
+  notes                String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([participantProfileId, serviceDate])
+  @@map("case_services")
+}
+
+model ServicePlan {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  title                String             @default("Service Plan")
+  status               String             @default("active") // active | completed | archived
+  reviewDate           DateTime?          @db.Date
+  notes                String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  goals Goal[]
+
+  @@index([participantProfileId])
+  @@map("service_plans")
+}
+
+model Goal {
+  id            String      @id @default(uuid())
+  servicePlanId String
+  servicePlan   ServicePlan @relation(fields: [servicePlanId], references: [id])
+  category      NoteCategory
+  description   String
+  targetDate    DateTime?   @db.Date
+  status        GoalStatus  @default(not_started)
+  notes         String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  milestones GoalMilestone[]
+  tasks      CaseTask[]
+
+  @@index([servicePlanId])
+  @@map("goals")
+}
+
+model GoalMilestone {
+  id          String    @id @default(uuid())
+  goalId      String
+  goal        Goal      @relation(fields: [goalId], references: [id])
+  description String
+  dueDate     DateTime? @db.Date
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([goalId])
+  @@map("goal_milestones")
+}
+
+// Staff to-dos: feeds each case manager's "my follow-ups" home screen.
+model CaseTask {
+  id                   String              @id @default(uuid())
+  title                String
+  details              String?
+  assignedToId         String
+  assignedTo           User                @relation(fields: [assignedToId], references: [id])
+  dueDate              DateTime?           @db.Date
+  status               TaskStatus          @default(open)
+  completedAt          DateTime?
+  participantProfileId String?
+  participantProfile   ParticipantProfile? @relation(fields: [participantProfileId], references: [id])
+  goalId               String?
+  goal                 Goal?               @relation(fields: [goalId], references: [id])
+  outboundReferralId   String?
+  outboundReferral     OutboundReferral?   @relation(fields: [outboundReferralId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([assignedToId, status, dueDate])
+  @@index([participantProfileId])
+  @@map("case_tasks")
+}
+
+// Outbound referrals to clinical/community providers. Jumpstart refers out
+// for treatment rather than providing it (assumption #5).
+model OutboundReferral {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  vendorId             String?
+  vendor               Vendor?            @relation(fields: [vendorId], references: [id])
+  providerName         String? // free text when provider not in vendors
+  reason               String
+  referralDate         DateTime           @db.Date
+  outcome              String?
+  notes                String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  tasks CaseTask[]
+
+  @@index([participantProfileId])
+  @@map("outbound_referrals")
+}
+
+model NeedsAssessment {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  instrumentName       String
+  administeredAt       DateTime           @db.Date
+  administeredByName   String?
+  domainScores         Json? // { housing: 3, employment: 2, ... }
+  summary              String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([participantProfileId, administeredAt])
+  @@map("needs_assessments")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VOLUNTEERS, SCREENING & CLEARANCES (§6.6)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model VolunteerAssignment {
+  id                 String           @id @default(uuid())
+  volunteerProfileId String
+  volunteerProfile   VolunteerProfile @relation(fields: [volunteerProfileId], references: [id])
+  assignmentType     AssignmentType
+
+  institutionId    String?
+  institution      Institution?    @relation(fields: [institutionId], references: [id])
+  insideClassId    String?
+  insideClass      InsideClass?    @relation(fields: [insideClassId], references: [id])
+  outsideProgramId String?
+  outsideProgram   OutsideProgram? @relation(fields: [outsideProgramId], references: [id])
+  eventId          String?
+  event            Event?          @relation(fields: [eventId], references: [id])
+
+  role      String?
+  startDate DateTime         @db.Date
+  endDate   DateTime?        @db.Date
+  status    AssignmentStatus @default(active)
+  notes     String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([volunteerProfileId])
+  @@index([institutionId])
+  @@index([outsideProgramId])
+  @@index([status])
+  @@map("volunteer_assignments")
+}
+
+// Adjudication result ONLY — the raw report stays at the screening vendor.
+// The platform never stores criminal-history detail (§7.4).
+model BackgroundCheck {
+  id          String                @id @default(uuid())
+  personId    String
+  person      Person                @relation(fields: [personId], references: [id])
+  vendor      String // e.g. "Sterling Volunteers"
+  package     String?
+  orderedAt   DateTime              @db.Date
+  completedAt DateTime?             @db.Date
+  result      BackgroundCheckResult @default(pending)
+  expiresAt   DateTime?             @db.Date
+  notes       String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([personId])
+  @@index([expiresAt])
+  @@map("background_checks")
+}
+
+model VolunteerTraining {
+  id                 String           @id @default(uuid())
+  volunteerProfileId String
+  volunteerProfile   VolunteerProfile @relation(fields: [volunteerProfileId], references: [id])
+  trainingType       String // orientation, PREA awareness, facility-specific, mentor training…
+  completedAt        DateTime         @db.Date
+  expiresAt          DateTime?        @db.Date
+  notes              String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([volunteerProfileId])
+  @@index([expiresAt])
+  @@map("volunteer_trainings")
+}
+
+// Per-facility clearance requirements as DATA, not code — every DOC differs
+// (assumption #11). hardBlock: block un-cleared inside assignments outright
+// vs. soft-block with override + reason.
+model FacilityClearanceRequirement {
+  id              String                   @id @default(uuid())
+  institutionId   String
+  institution     Institution              @relation(fields: [institutionId], references: [id])
+  name            String // "DOC volunteer application", "PREA training", "TB test"…
+  requirementType ClearanceRequirementType
+  description     String?
+  renewalMonths   Int? // null = never expires
+  hardBlock       Boolean                  @default(false)
+  active          Boolean                  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  clearances VolunteerClearance[]
+
+  @@index([institutionId])
+  @@map("facility_clearance_requirements")
+}
+
+// person × institution × requirement. Facility eligibility is COMPUTED:
+// eligible at X iff every active requirement of X is satisfied & unexpired.
+model VolunteerClearance {
+  id                 String                       @id @default(uuid())
+  volunteerProfileId String
+  volunteerProfile   VolunteerProfile             @relation(fields: [volunteerProfileId], references: [id])
+  requirementId      String
+  requirement        FacilityClearanceRequirement @relation(fields: [requirementId], references: [id])
+  status             ClearanceStatus              @default(pending)
+  issuedAt           DateTime?                    @db.Date
+  expiresAt          DateTime?                    @db.Date
+  notes              String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([volunteerProfileId, requirementId])
+  @@index([expiresAt])
+  @@map("volunteer_clearances")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ALUMNI-TO-MENTOR PROGRAM (§6.7) — Phase 3 workflows, Phase 1 schema
+// ═══════════════════════════════════════════════════════════════════════════
+
+model AlumniEngagement {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  engagementType       EngagementType
+  engagementDate       DateTime           @db.Date
+  notes                String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([participantProfileId, engagementDate])
+  @@map("alumni_engagements")
+}
+
+// Auto-scheduled on graduation at 30d/6/12/24/36mo. Feeds outcome &
+// recidivism reporting (§9.3) with explicit verification levels.
+model OutcomeCheckin {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  wave                 CheckinWave
+  dueDate              DateTime           @db.Date
+  completedDate        DateTime?          @db.Date
+  method               CheckinMethod?
+  collectedById        String?
+
+  employmentStatus String? // employed_ft | employed_pt | seeking | unable | unknown
+  housingStatus    String? // stable | transitional | unstable | incarcerated | unknown
+  wellbeingFields  Json?
+
+  reArrested        Boolean?
+  reConvicted       Boolean?
+  reIncarcerated    Boolean?
+  justiceVerification VerificationLevel?
+  justiceNotes      String?
+
+  notes String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([participantProfileId, wave])
+  @@index([dueDate, completedDate])
+  @@map("outcome_checkins")
+}
+
+// Stage-tracked screening pipeline. Alumni-aware: links to the person's
+// participant history via the shared person model; conditions capture
+// restrictions like "outside programs only" (§6.7).
+model MentorScreening {
+  id                 String               @id @default(uuid())
+  volunteerProfileId String
+  volunteerProfile   VolunteerProfile     @relation(fields: [volunteerProfileId], references: [id])
+  stage              MentorScreeningStage @default(applied)
+  approvedAt         DateTime?            @db.Date
+  approvedById       String?
+  conditions         String?
+  notes              String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  steps MentorScreeningStep[]
+
+  @@index([volunteerProfileId])
+  @@index([stage])
+  @@map("mentor_screenings")
+}
+
+model MentorScreeningStep {
+  id          String               @id @default(uuid())
+  screeningId String
+  screening   MentorScreening      @relation(fields: [screeningId], references: [id])
+  stage       MentorScreeningStage
+  outcome     String? // passed | failed | waived | pending
+  completedAt DateTime?            @db.Date
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([screeningId])
+  @@map("mentor_screening_steps")
+}
+
+model MentorAssignment {
+  id                   String                 @id @default(uuid())
+  mentorProfileId      String
+  mentorProfile        VolunteerProfile       @relation(fields: [mentorProfileId], references: [id])
+  participantProfileId String
+  participantProfile   ParticipantProfile     @relation(fields: [participantProfileId], references: [id])
+  matchedById          String?
+  startDate            DateTime?              @db.Date
+  endDate              DateTime?              @db.Date
+  status               MentorAssignmentStatus @default(proposed)
+  endReason            String?
+  matchRationale       String?
+  meetingCadence       String? // e.g. "weekly", "biweekly"
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  sessionLogs MentorSessionLog[]
+
+  @@index([mentorProfileId])
+  @@index([participantProfileId])
+  @@index([status])
+  @@map("mentor_assignments")
+}
+
+model MentorSessionLog {
+  id                  String           @id @default(uuid())
+  mentorAssignmentId  String
+  mentorAssignment    MentorAssignment @relation(fields: [mentorAssignmentId], references: [id])
+  sessionDate         DateTime         @db.Date
+  mode                SessionMode
+  durationMinutes     Int?
+  participantProgress String? // structured flag: improving | steady | struggling
+  concernsEscalated   Boolean          @default(false)
+  notes               String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([mentorAssignmentId, sessionDate])
+  @@map("mentor_session_logs")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DONORS, VENDORS, CAMPAIGNS & EVENTS (§6.8)
+// Donors/donations are a READ-MOSTLY MIRROR of Bloomerang — edits happen in
+// Bloomerang and sync back. The platform owns campaigns/events/vendors and
+// the links from donations to them.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Donor {
+  id            String    @id @default(uuid())
+  bloomerangId  String?   @unique
+  donorType     DonorType @default(individual)
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  addressLine1  String?
+  city          String?
+  state         String?
+  zip           String?
+  status        String    @default("active") // active | lapsed | inactive
+  personId      String? // set when a donor is also a volunteer/alumnus (§5)
+  person        Person?   @relation(fields: [personId], references: [id])
+  notes         String? // local notes; Bloomerang fields sync over their own
+  lastSyncedAt  DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  donations Donation[]
+
+  @@index([name])
+  @@index([personId])
+  @@map("donors")
+}
+
+model Donation {
+  id            String   @id @default(uuid())
+  bloomerangId  String?  @unique
+  donorId       String
+  donor         Donor    @relation(fields: [donorId], references: [id])
+  donationDate  DateTime @db.Date
+  amount        Decimal  @db.Decimal(12, 2)
+  paymentMethod String?
+  fund          String? // fund/designation
+  isRecurring   Boolean  @default(false)
+  receiptSent   Boolean  @default(false)
+  campaignId    String?
+  campaign      Campaign? @relation(fields: [campaignId], references: [id])
+  eventId       String?
+  event         Event?    @relation(fields: [eventId], references: [id])
+  notes         String?
+  lastSyncedAt  DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([donorId])
+  @@index([donationDate])
+  @@index([campaignId])
+  @@index([eventId])
+  @@map("donations")
+}
+
+model Campaign {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  startDate   DateTime? @db.Date
+  endDate     DateTime? @db.Date
+  goalAmount  Decimal?  @db.Decimal(12, 2)
+  // amount raised is COMPUTED from mirrored donations — no second source of truth
+  status      String    @default("active") // planned | active | completed | canceled
+  notes       String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  donations Donation[]
+  events    Event[]
+
+  @@index([status])
+  @@map("campaigns")
+}
+
+model Event {
+  id              String    @id @default(uuid())
+  name            String
+  eventType       String? // fundraiser, alumni event, volunteer appreciation, graduation…
+  eventDate       DateTime  @db.Date
+  location        String?
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id])
+  description     String?
+  attendanceCount Int?
+  revenue         Decimal?  @db.Decimal(12, 2)
+  expenses        Decimal?  @db.Decimal(12, 2)
+  notes           String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  donations            Donation[]
+  registrations        EventRegistration[]
+  volunteerAssignments VolunteerAssignment[]
+
+  @@index([eventDate])
+  @@index([campaignId])
+  @@map("events")
+}
+
+model EventRegistration {
+  id           String    @id @default(uuid())
+  eventId      String
+  event        Event     @relation(fields: [eventId], references: [id])
+  personId     String? // internal person (alumnus, volunteer…)
+  person       Person?   @relation(fields: [personId], references: [id])
+  externalName String? // or an outside guest
+  externalEmail String?
+  status       String    @default("registered") // registered | attended | no_show | canceled
+  checkedInAt  DateTime?
+  notes        String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([eventId])
+  @@index([personId])
+  @@map("event_registrations")
+}
+
+// Vendors double as the referral-partner directory (§6.5) and fleet service
+// vendors (§6.10).
+model Vendor {
+  id                String  @id @default(uuid())
+  name              String
+  contactPerson     String?
+  phone             String?
+  email             String?
+  addressLine1      String?
+  city              String?
+  state             String?
+  zip               String?
+  servicesProvided  String?
+  isReferralPartner Boolean @default(false)
+  active            Boolean @default(true)
+  notes             String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  maintenanceRecords VehicleMaintenanceRecord[]
+  outboundReferrals  OutboundReferral[]
+
+  @@index([name])
+  @@map("vendors")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EMPLOYERS & EMPLOYMENT (§6.9)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Employer {
+  id            String       @id @default(uuid())
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  addressLine1  String?
+  city          String?
+  state         String?
+  zip           String?
+  industry      String?
+  hiringStatus  HiringStatus @default(prospect)
+  notes         String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  employments ParticipantEmployment[]
+
+  @@index([hiringStatus])
+  @@index([state])
+  @@map("employers")
+}
+
+// History preserved, never overwritten: a job change is a NEW record; status
+// changes append to EmploymentStatusHistory. Pay rate/hours are sensitive
+// fields gated by field-level permissions (§7.2).
+model ParticipantEmployment {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  employerId           String
+  employer             Employer           @relation(fields: [employerId], references: [id])
+  jobTitle             String
+  startDate            DateTime?          @db.Date
+  endDate              DateTime?          @db.Date
+  status               EmploymentStatus   @default(applied)
+  payRate              Decimal?           @db.Decimal(10, 2)
+  payPeriod            String?            @default("hourly") // hourly | weekly | annual
+  hoursPerWeek         Int?
+  supervisorName       String?
+  supervisorPhone      String?
+  notes                String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  statusHistory EmploymentStatusHistory[]
+
+  @@index([participantProfileId])
+  @@index([employerId])
+  @@index([status])
+  @@map("participant_employments")
+}
+
+model EmploymentStatusHistory {
+  id           String                @id @default(uuid())
+  employmentId String
+  employment   ParticipantEmployment @relation(fields: [employmentId], references: [id])
+  fromStatus   EmploymentStatus?
+  toStatus     EmploymentStatus
+  effectiveDate DateTime             @db.Date
+  changedById  String?
+  notes        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([employmentId])
+  @@map("employment_status_history")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MINISTRY VEHICLES & MAINTENANCE (§6.10)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Vehicle {
+  id                     String    @id @default(uuid())
+  make                   String
+  model                  String
+  year                   Int
+  color                  String?
+  licensePlate           String?
+  vin                    String?   @unique
+  mileage                Int?
+  assignedLocation       String?
+  active                 Boolean   @default(true)
+  insuranceExpiration    DateTime? @db.Date
+  registrationExpiration DateTime? @db.Date
+  notes                  String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  maintenanceRecords VehicleMaintenanceRecord[]
+
+  @@index([active])
+  @@map("vehicles")
+}
+
+model VehicleMaintenanceRecord {
+  id                   String    @id @default(uuid())
+  vehicleId            String
+  vehicle              Vehicle   @relation(fields: [vehicleId], references: [id])
+  maintenanceDate      DateTime  @db.Date
+  maintenanceType      String
+  mileageAtService     Int?
+  vendorId             String?
+  vendor               Vendor?   @relation(fields: [vendorId], references: [id])
+  cost                 Decimal?  @db.Decimal(10, 2)
+  description          String?
+  nextServiceDueDate   DateTime? @db.Date
+  nextServiceDueMileage Int?
+  notes                String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([vehicleId, maintenanceDate])
+  @@index([nextServiceDueDate])
+  @@map("vehicle_maintenance_records")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMMUNICATIONS (§6.12) — email / SMS / physical-mail letter batches
+// ═══════════════════════════════════════════════════════════════════════════
+
+model CommunicationTemplate {
+  id      String      @id @default(uuid())
+  name    String
+  channel CommChannel
+  subject String? // email only
+  body    String // merge fields like {{firstName}}
+  active  Boolean     @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  communications Communication[]
+
+  @@map("communication_templates")
+}
+
+model CommunicationBatch {
+  id             String      @id @default(uuid())
+  name           String
+  channel        CommChannel
+  audienceFilter Json? // the filter used to build the audience, for the record
+  status         String      @default("draft") // draft | queued | sent
+  sentAt         DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  communications Communication[]
+
+  @@map("communication_batches")
+}
+
+model Communication {
+  id         String                 @id @default(uuid())
+  personId   String
+  person     Person                 @relation(fields: [personId], references: [id])
+  channel    CommChannel
+  templateId String?
+  template   CommunicationTemplate? @relation(fields: [templateId], references: [id])
+  batchId    String?
+  batch      CommunicationBatch?    @relation(fields: [batchId], references: [id])
+  subject    String?
+  body       String
+  status     CommStatus             @default(queued)
+  statusDetail String? // provider error, returned-mail note…
+  relatedEntityType String? // event | outcome_checkin | mentor_assignment | clearance…
+  relatedEntityId   String?
+  sentById   String?
+  sentAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([personId, createdAt])
+  @@index([status])
+  @@index([batchId])
+  @@map("communications")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PUBLIC INTAKE QUEUES (§6.11) — public forms NEVER create operational
+// records directly; staff review, dedupe, and approve.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model VolunteerApplication {
+  id                String       @id @default(uuid())
+  submittedAt       DateTime     @default(now())
+  firstName         String
+  lastName          String
+  email             String?
+  phone             String?
+  city              String?
+  state             String?
+  interestAreas     String[]
+  availability      String?
+  churchAffiliation String?
+  message           String?
+  consentAt         DateTime? // agreed to background check / communications
+  status            IntakeStatus @default(pending)
+  reviewedById      String?
+  reviewedAt        DateTime?
+  reviewNotes       String?
+  linkedPersonId    String? // set on approval
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, submittedAt])
+  @@map("volunteer_applications")
+}
+
+// "Get help / refer someone" front door. Contains third-party PII about
+// justice-involved people: restricted to case-management + admin roles,
+// excluded from exports, rejected rows purged per retention schedule (§7.6).
+model ReferralInboxItem {
+  id                  String       @id @default(uuid())
+  submittedAt         DateTime     @default(now())
+  referrerType        ReferrerType
+  referrerName        String?
+  referrerPhone       String?
+  referrerEmail       String?
+  subjectFirstName    String
+  subjectLastName     String
+  subjectPhone        String?
+  facilityName        String? // if currently inside
+  state               String?
+  expectedReleaseDate DateTime?    @db.Date
+  needs               String
+  status              IntakeStatus @default(pending)
+  reviewedById        String?
+  reviewedAt          DateTime?
+  reviewNotes         String?
+
+  linkedParticipantProfileId String?
+  linkedParticipantProfile   ParticipantProfile? @relation(fields: [linkedParticipantProfileId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, submittedAt])
+  @@map("referrals_inbox")
+}
+
+// Tokenized alumni self-update form (Phase 3): no login, single-use links.
+model AlumniFormToken {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  token                String             @unique
+  expiresAt            DateTime
+  usedAt               DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([participantProfileId])
+  @@map("alumni_form_tokens")
+}
+
+model AlumniUpdate {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  submittedAt          DateTime           @default(now())
+  employmentStatus     String?
+  housingStatus        String?
+  newPhone             String?
+  newEmail             String?
+  newAddress           String?
+  message              String?
+  status               IntakeStatus       @default(pending)
+  reviewedById         String?
+  reviewedAt           DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("alumni_updates")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPLIANCE & INFRASTRUCTURE
+// ═══════════════════════════════════════════════════════════════════════════
+
+// DOC data-sharing agreements (§7.5): makes "we comply with our DOC
+// agreements" a query instead of a hope.
+model DataSharingAgreement {
+  id                       String    @id @default(uuid())
+  stateOrAgency            String
+  effectiveDate            DateTime  @db.Date
+  expiryDate               DateTime? @db.Date
+  permittedUses            String?
+  reDisclosureRestrictions String?
+  requiredSafeguards       String?
+  purgeOnTermination       Boolean   @default(false)
+  active                   Boolean   @default(true)
+  notes                    String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  docIds ParticipantDocId[]
+
+  @@map("data_sharing_agreements")
+}
+
+// Polymorphic attachments (R2/S3 object keys; server-generated signed URLs).
+model Attachment {
+  id          String                @id @default(uuid())
+  entityType  String // participant_profile | case_note | vehicle_maintenance_record | ...
+  entityId    String
+  fileKey     String // object storage key — files are never public
+  filename    String
+  contentType String?
+  sizeBytes   Int?
+  sensitivity AttachmentSensitivity @default(standard)
+  uploadedById String?
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([entityType, entityId])
+  @@map("attachments")
+}
+
+// Append-only. No update or delete path exists in the application layer.
+model AuditLog {
+  id         String      @id @default(uuid())
+  userId     String?
+  user       User?       @relation(fields: [userId], references: [id])
+  action     AuditAction
+  entityType String
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
+  metadata   Json? // export filters, IP, user agent, etc.
+  createdAt  DateTime    @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+// System settings (org info, states list, configurable options) (§6.14).
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedById String?
+
+  @@map("app_settings")
+}
+
+// Bloomerang (and future) sync bookkeeping — dashboards show last-synced.
+model SyncRun {
+  id         String    @id @default(uuid())
+  target     String // "bloomerang"
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  status     String    @default("running") // running | success | failed
+  stats      Json? // counts created/updated/skipped
+  error      String?
+
+  @@index([target, startedAt])
+  @@map("sync_runs")
+}
