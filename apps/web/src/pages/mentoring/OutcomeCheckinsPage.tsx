@@ -1,0 +1,430 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  CHECKIN_METHODS,
+  CHECKIN_WAVES,
+  OUTCOME_EMPLOYMENT_STATUSES,
+  OUTCOME_HOUSING_STATUSES,
+  VERIFICATION_LEVELS,
+  outcomeCheckinCompleteSchema,
+} from '@jumpstart/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useForm, type Resolver, type UseFormReturn } from 'react-hook-form';
+import { Link } from 'react-router-dom';
+import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { FormField } from '@/components/FormField';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input, Select, Textarea } from '@/components/ui/input';
+import { ErrorState } from '@/components/ui/spinner';
+import { api, qs, type Paged } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { formatDate, humanize } from '@/lib/utils';
+import { applyApiErrors, emptyToUndefined, isOverdue, type CheckinView } from './types';
+
+interface CheckinFormValues {
+  completedDate: string;
+  method?: string;
+  employmentStatus?: string;
+  housingStatus?: string;
+  reArrested?: boolean;
+  reArrestedVerification?: string;
+  reConvicted?: boolean;
+  reConvictedVerification?: string;
+  reIncarcerated?: boolean;
+  reIncarceratedVerification?: string;
+  justiceNotes?: string;
+  notes?: string;
+}
+
+type JusticeField = 'reArrested' | 'reConvicted' | 'reIncarcerated';
+type JusticeVerificationField =
+  | 'reArrestedVerification'
+  | 'reConvictedVerification'
+  | 'reIncarceratedVerification';
+
+/**
+ * Three-state justice answer (§9.3): unknown/yes/no maps to undefined/true/
+ * false, and answering reveals the per-field verification level.
+ */
+function JusticeQuestion({
+  label,
+  field,
+  verificationField,
+  form,
+}: {
+  label: string;
+  field: JusticeField;
+  verificationField: JusticeVerificationField;
+  form: UseFormReturn<CheckinFormValues>;
+}) {
+  const value = form.watch(field);
+  const answered = value !== undefined;
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <FormField label={label}>
+        <Select
+          value={value === undefined ? '' : value ? 'yes' : 'no'}
+          onChange={(e) => {
+            const v = e.target.value;
+            form.setValue(field, v === '' ? undefined : v === 'yes');
+            if (v === '') {
+              form.setValue(verificationField, undefined);
+              form.clearErrors(verificationField);
+            }
+          }}
+        >
+          <option value="">Unknown / not asked</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </Select>
+      </FormField>
+      {answered ? (
+        <FormField
+          label="Verified by"
+          required
+          error={form.formState.errors[verificationField]}
+        >
+          <Select {...form.register(verificationField, { setValueAs: emptyToUndefined })}>
+            <option value="">Select…</option>
+            {VERIFICATION_LEVELS.map((v) => (
+              <option key={v} value={v}>
+                {humanize(v)}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+      ) : null}
+    </div>
+  );
+}
+
+function CompleteCheckinDialog({
+  checkin,
+  onClose,
+}: {
+  checkin: CheckinView;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [topError, setTopError] = useState<string | null>(null);
+
+  const form = useForm<CheckinFormValues>({
+    // Client resolver mirrors the API's schema; dates stay strings — the
+    // schema coerces on both sides.
+    resolver: zodResolver(outcomeCheckinCompleteSchema) as unknown as Resolver<CheckinFormValues>,
+    defaultValues: {
+      completedDate: new Date().toISOString().slice(0, 10),
+      method: checkin.method ?? undefined,
+      employmentStatus: checkin.employmentStatus ?? undefined,
+      housingStatus: checkin.housingStatus ?? undefined,
+      reArrested: checkin.reArrested ?? undefined,
+      reArrestedVerification: checkin.reArrestedVerification ?? undefined,
+      reConvicted: checkin.reConvicted ?? undefined,
+      reConvictedVerification: checkin.reConvictedVerification ?? undefined,
+      reIncarcerated: checkin.reIncarcerated ?? undefined,
+      reIncarceratedVerification: checkin.reIncarceratedVerification ?? undefined,
+      justiceNotes: checkin.justiceNotes ?? undefined,
+      notes: checkin.notes ?? undefined,
+    },
+  });
+
+  const mutation = useMutation({
+    mutationFn: (values: CheckinFormValues) =>
+      api.put(`/outcome-checkins/${checkin.id}/complete`, values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mentoring'] });
+      onClose();
+    },
+    onError: (err) => setTopError(applyApiErrors(err, (n, e) => form.setError(n as never, e))),
+  });
+
+  const person = checkin.participantProfile.person;
+
+  return (
+    <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            {checkin.completedDate ? 'Revise' : 'Complete'} {humanize(checkin.wave)} check-in
+          </DialogTitle>
+          <DialogDescription>
+            {person.firstName} {person.lastName} · {checkin.participantProfile.participantNumber}{' '}
+            · due {formatDate(checkin.dueDate)}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          className="space-y-4"
+          onSubmit={form.handleSubmit((values) => {
+            setTopError(null);
+            mutation.mutate(values);
+          })}
+        >
+          {topError ? <ErrorState error={new Error(topError)} /> : null}
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Completed date" required error={form.formState.errors.completedDate}>
+              <Input type="date" {...form.register('completedDate')} />
+            </FormField>
+            <FormField label="Method" required error={form.formState.errors.method}>
+              <Select {...form.register('method', { setValueAs: emptyToUndefined })}>
+                <option value="">Select…</option>
+                {CHECKIN_METHODS.map((m) => (
+                  <option key={m} value={m}>
+                    {humanize(m)}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Employment" error={form.formState.errors.employmentStatus}>
+              <Select {...form.register('employmentStatus', { setValueAs: emptyToUndefined })}>
+                <option value="">Not collected</option>
+                {OUTCOME_EMPLOYMENT_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {humanize(s)}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Housing" error={form.formState.errors.housingStatus}>
+              <Select {...form.register('housingStatus', { setValueAs: emptyToUndefined })}>
+                <option value="">Not collected</option>
+                {OUTCOME_HOUSING_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {humanize(s)}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+
+          <div className="space-y-3 rounded-md border p-3">
+            <p className="text-sm font-semibold">Justice outcomes</p>
+            <p className="text-xs text-muted-foreground">
+              Each answer records its own verification level (§9.3) — re-arrest may be
+              self-reported while re-incarceration is DOC-verified.
+            </p>
+            <JusticeQuestion
+              label="Re-arrested"
+              field="reArrested"
+              verificationField="reArrestedVerification"
+              form={form}
+            />
+            <JusticeQuestion
+              label="Re-convicted"
+              field="reConvicted"
+              verificationField="reConvictedVerification"
+              form={form}
+            />
+            <JusticeQuestion
+              label="Re-incarcerated"
+              field="reIncarcerated"
+              verificationField="reIncarceratedVerification"
+              form={form}
+            />
+            <FormField label="Justice notes" error={form.formState.errors.justiceNotes}>
+              <Textarea rows={2} {...form.register('justiceNotes')} />
+            </FormField>
+          </div>
+
+          <FormField label="Notes" error={form.formState.errors.notes}>
+            <Textarea rows={2} {...form.register('notes')} />
+          </FormField>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? 'Saving…' : 'Save check-in'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function OutcomeCheckinsPage() {
+  const { can } = useAuth();
+  const [state, setState] = useState<ListState>({ ...initialListState, sortBy: 'dueDate' });
+  const [due, setDue] = useState<'overdue' | 'upcoming' | ''>('overdue');
+  const [wave, setWave] = useState('');
+  const [search, setSearch] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const [completing, setCompleting] = useState<CheckinView | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebounced(search);
+      setState((s) => ({ ...s, page: 1 }));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const query = useQuery({
+    queryKey: ['mentoring', 'checkins', state, due, wave, debounced],
+    queryFn: () =>
+      api.get<Paged<CheckinView>>(
+        `/outcome-checkins${qs({
+          page: state.page,
+          pageSize: state.pageSize,
+          sortBy: state.sortBy,
+          sortDir: state.sortDir,
+          due: due || undefined,
+          wave: wave || undefined,
+          search: debounced,
+        })}`,
+      ),
+  });
+
+  const columns: Column<CheckinView>[] = [
+    {
+      key: 'participant',
+      header: 'Participant',
+      render: (c) => (
+        <span>
+          <Link
+            to={`/participants/${c.participantProfile.id}`}
+            className="font-medium text-primary hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {c.participantProfile.person.firstName} {c.participantProfile.person.lastName}
+          </Link>{' '}
+          <span className="text-muted-foreground">
+            · {c.participantProfile.participantNumber}
+          </span>
+        </span>
+      ),
+    },
+    { key: 'wave', header: 'Wave', sortKey: 'wave', render: (c) => humanize(c.wave) },
+    {
+      key: 'graduated',
+      header: 'Graduated',
+      render: (c) => formatDate(c.participantProfile.graduationDate),
+    },
+    {
+      key: 'dueDate',
+      header: 'Due',
+      sortKey: 'dueDate',
+      render: (c) =>
+        isOverdue(c) ? (
+          <span className="font-medium text-destructive">{formatDate(c.dueDate)}</span>
+        ) : (
+          formatDate(c.dueDate)
+        ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortKey: 'completedDate',
+      render: (c) =>
+        c.completedDate ? (
+          <span>
+            <Badge variant="success">Completed</Badge>{' '}
+            <span className="text-muted-foreground">{formatDate(c.completedDate)}</span>
+          </span>
+        ) : isOverdue(c) ? (
+          <Badge variant="destructive">Overdue</Badge>
+        ) : (
+          <Badge variant="secondary">Upcoming</Badge>
+        ),
+    },
+    {
+      key: 'method',
+      header: 'Method',
+      render: (c) => (c.method ? humanize(c.method) : '—'),
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'text-right',
+      render: (c) =>
+        can('alumni.update') ? (
+          <Button
+            size="sm"
+            variant={c.completedDate ? 'outline' : 'default'}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCompleting(c);
+            }}
+          >
+            {c.completedDate ? 'Revise' : 'Complete'}
+          </Button>
+        ) : null,
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Outcome Check-ins</h1>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          className="w-64"
+          placeholder="Search participant name or number…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <Select
+          className="w-40"
+          value={due}
+          onChange={(e) => {
+            setDue(e.target.value as typeof due);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        >
+          <option value="overdue">Overdue</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="">All</option>
+        </Select>
+        <Select
+          className="w-40"
+          value={wave}
+          onChange={(e) => {
+            setWave(e.target.value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        >
+          <option value="">All waves</option>
+          {CHECKIN_WAVES.map((w) => (
+            <option key={w} value={w}>
+              {humanize(w)}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {query.isError ? (
+        <ErrorState error={query.error} />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={query.data}
+          isLoading={query.isLoading}
+          state={state}
+          onStateChange={setState}
+          emptyMessage="No check-ins match these filters"
+        />
+      )}
+
+      {completing ? (
+        <CompleteCheckinDialog checkin={completing} onClose={() => setCompleting(null)} />
+      ) : null}
+    </div>
+  );
+}

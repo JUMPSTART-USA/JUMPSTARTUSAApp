@@ -1,0 +1,143 @@
+import { US_STATES } from '@jumpstart/shared';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input, Select } from '@/components/ui/input';
+import { ErrorState } from '@/components/ui/spinner';
+import { api, qs, type Paged } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { InstitutionFormDialog } from './InstitutionFormDialog';
+import { useDebounced } from './helpers';
+import type { InstitutionListItem } from './types';
+
+const columns: Column<InstitutionListItem>[] = [
+  {
+    key: 'name',
+    header: 'Name',
+    sortKey: 'name',
+    render: (row) => <span className="font-medium">{row.name}</span>,
+  },
+  {
+    key: 'institutionType',
+    header: 'Type',
+    sortKey: 'institutionType',
+    render: (row) => row.institutionType ?? '—',
+  },
+  { key: 'city', header: 'City', sortKey: 'city', render: (row) => row.city ?? '—' },
+  { key: 'state', header: 'State', sortKey: 'state', render: (row) => row.state },
+  { key: 'chaplain', header: 'Chaplain', render: (row) => row.chaplainName ?? '—' },
+  {
+    key: 'classes',
+    header: 'Classes',
+    className: 'text-right',
+    render: (row) => row._count.insideClasses,
+  },
+  {
+    key: 'active',
+    header: 'Status',
+    render: (row) =>
+      row.active ? <Badge variant="success">Active</Badge> : <Badge variant="outline">Inactive</Badge>,
+  },
+];
+
+export function InstitutionListPage() {
+  const { can } = useAuth();
+  const navigate = useNavigate();
+  const [listState, setListState] = useState<ListState>(initialListState);
+  const [search, setSearch] = useState('');
+  const [stateFilter, setStateFilter] = useState('');
+  const [activeFilter, setActiveFilter] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const debouncedSearch = useDebounced(search);
+
+  const query = useQuery({
+    queryKey: ['institutions', 'list', listState, debouncedSearch, stateFilter, activeFilter],
+    queryFn: () =>
+      api.get<Paged<InstitutionListItem>>(
+        `/institutions${qs({
+          page: listState.page,
+          pageSize: listState.pageSize,
+          sortBy: listState.sortBy,
+          sortDir: listState.sortDir,
+          search: debouncedSearch,
+          state: stateFilter,
+          active: activeFilter,
+        })}`,
+      ),
+    placeholderData: keepPreviousData,
+  });
+
+  const resetPage = () => setListState((s) => ({ ...s, page: 1 }));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">Institutions</h1>
+        {can('institutions.create') ? (
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" /> New institution
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          className="w-64"
+          placeholder="Search name, city, chaplain…"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            resetPage();
+          }}
+        />
+        <Select
+          className="w-40"
+          value={stateFilter}
+          onChange={(e) => {
+            setStateFilter(e.target.value);
+            resetPage();
+          }}
+        >
+          <option value="">All states</option>
+          {US_STATES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </Select>
+        <Select
+          className="w-40"
+          value={activeFilter}
+          onChange={(e) => {
+            setActiveFilter(e.target.value);
+            resetPage();
+          }}
+        >
+          <option value="">All statuses</option>
+          <option value="true">Active</option>
+          <option value="false">Inactive</option>
+        </Select>
+      </div>
+
+      {query.isError ? (
+        <ErrorState error={query.error} />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={query.data}
+          isLoading={query.isLoading}
+          state={listState}
+          onStateChange={setListState}
+          onRowClick={(row) => navigate(row.id)}
+          emptyMessage="No institutions found"
+        />
+      )}
+
+      <InstitutionFormDialog open={createOpen} onOpenChange={setCreateOpen} />
+    </div>
+  );
+}
