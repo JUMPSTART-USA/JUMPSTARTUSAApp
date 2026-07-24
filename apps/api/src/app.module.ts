@@ -49,7 +49,11 @@ import { PrismaModule } from './prisma/prisma.module';
     ReportsModule,
     AdminModule,
     // Global baseline rate limit; hot endpoints tighten with @Throttle.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
+    // Disabled under test — suites log in far more often than a human.
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 300 }],
+      skipIf: () => process.env.NODE_ENV === 'test',
+    }),
   ],
   controllers: [HealthController],
   providers: [
