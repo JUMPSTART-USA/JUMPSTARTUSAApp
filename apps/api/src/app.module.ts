@@ -8,7 +8,22 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 import { SessionAuthGuard } from './common/guards/session-auth.guard';
 import { OriginCheckMiddleware } from './common/middleware/origin-check.middleware';
 import { HealthController } from './health/health.controller';
+import { AdminModule } from './modules/admin/admin.module';
+import { CaseManagementModule } from './modules/case-management/case-management.module';
+import { CommunicationsModule } from './modules/communications/communications.module';
+import { CrmModule } from './modules/crm/crm.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { EmploymentModule } from './modules/employment/employment.module';
+import { FleetModule } from './modules/fleet/fleet.module';
+import { HousingModule } from './modules/housing/housing.module';
+import { InsideClassesModule } from './modules/inside-classes/inside-classes.module';
 import { InstitutionsModule } from './modules/institutions/institutions.module';
+import { MentoringModule } from './modules/mentoring/mentoring.module';
+import { OutsideProgramsModule } from './modules/outside-programs/outside-programs.module';
+import { ParticipantsModule } from './modules/participants/participants.module';
+import { PublicIntakeModule } from './modules/public-intake/public-intake.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { VolunteersModule } from './modules/volunteers/volunteers.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -16,7 +31,23 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
     AuditModule,
     AuthModule,
+    // Domain modules (§6.1–§6.14)
+    ParticipantsModule,
     InstitutionsModule,
+    InsideClassesModule,
+    OutsideProgramsModule,
+    HousingModule,
+    CaseManagementModule,
+    VolunteersModule,
+    MentoringModule,
+    CrmModule,
+    EmploymentModule,
+    FleetModule,
+    PublicIntakeModule,
+    CommunicationsModule,
+    DashboardModule,
+    ReportsModule,
+    AdminModule,
     // Global baseline rate limit; hot endpoints tighten with @Throttle.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
   ],

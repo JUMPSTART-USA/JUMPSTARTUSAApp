@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: jumpstart
+          POSTGRES_PASSWORD: jumpstart_dev_password
+          POSTGRES_DB: jumpstart
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jumpstart"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://jumpstart:jumpstart_dev_password@localhost:5432/jumpstart?schema=public
+      SESSION_SECRET: ci-only-session-secret-0123456789abcdef0123456789abcdef
+      TURNSTILE_DEV_BYPASS: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm --filter @jumpstart/shared build && pnpm --filter @jumpstart/database build
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Apply migrations
+        run: pnpm --filter @jumpstart/database migrate:deploy
+
+      - name: Seed
+        run: pnpm --filter @jumpstart/database seed
+
+      - name: Unit + API tests
+        run: pnpm -r test
+
+      - name: Build apps
+        run: pnpm --filter @jumpstart/api build && pnpm --filter @jumpstart/web build

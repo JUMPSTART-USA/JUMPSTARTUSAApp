@@ -28,8 +28,24 @@ export type Env = z.infer<typeof envSchema>;
 
 let cached: Env | undefined;
 
+/**
+ * Local dev convenience: load the repo-root .env (Node ≥20.12 built-in; does
+ * NOT override variables already set, so PaaS/docker env always wins).
+ */
+function loadDotEnvFile() {
+  for (const candidate of ['.env', '../.env', '../../.env']) {
+    try {
+      process.loadEnvFile(candidate);
+      return;
+    } catch {
+      // missing file — try the next location
+    }
+  }
+}
+
 export function loadEnv(): Env {
   if (!cached) {
+    loadDotEnvFile();
     const parsed = envSchema.safeParse(process.env);
     if (!parsed.success) {
       const issues = parsed.error.issues

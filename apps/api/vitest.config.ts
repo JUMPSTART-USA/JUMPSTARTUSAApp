@@ -12,6 +12,8 @@ export default defineConfig({
     testTimeout: 60_000,
   },
   plugins: [
+    // vitest 2 ships vite-5 types while unplugin-swc targets vite 6 — runtime
+    // compatible, so bridge the nominal type clash.
     swc.vite({
       module: { type: 'commonjs' },
       jsc: {
@@ -19,6 +21,6 @@ export default defineConfig({
         transform: { legacyDecorator: true, decoratorMetadata: true },
         target: 'es2022',
       },
-    }),
+    }) as never,
   ],
 });

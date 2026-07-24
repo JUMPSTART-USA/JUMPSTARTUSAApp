@@ -59,7 +59,9 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    if (user.status !== 'active') {
+    // 'invited' users may log in with their temporary password (admin invite
+    // flow, §6.14) — first successful login activates the account below.
+    if (user.status !== 'active' && user.status !== 'invited') {
       await this.audit.log({
         userId: user.id,
         action: 'login_failed',
@@ -90,7 +92,7 @@ export class AuthService {
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date(), ...(user.status === 'invited' ? { status: 'active' } : {}) },
     });
     await this.audit.log({
       userId: user.id,
