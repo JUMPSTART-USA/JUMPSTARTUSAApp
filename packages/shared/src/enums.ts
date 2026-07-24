@@ -58,8 +58,18 @@ export const HOUSING_STATUSES = [
 ] as const;
 export type HousingStatus = (typeof HOUSING_STATUSES)[number];
 
-/** Housing statuses that mean the resident has moved out. */
-export const HOUSING_EXIT_STATUSES = ['completed', 'left_early', 'removed', 'transferred'] as const;
+/**
+ * Housing statuses that mean the resident has moved out. Includes
+ * assessment_pending: the resident is physically out (move-out date + reason
+ * required) even while the Blue/Green/Yellow/Red assessment is still due.
+ */
+export const HOUSING_EXIT_STATUSES = [
+  'completed',
+  'assessment_pending',
+  'left_early',
+  'removed',
+  'transferred',
+] as const;
 
 export const FINAL_ASSESSMENTS = ['blue', 'green', 'yellow', 'red'] as const;
 export type FinalAssessment = (typeof FINAL_ASSESSMENTS)[number];
@@ -191,6 +201,29 @@ export type CheckinMethod = (typeof CHECKIN_METHODS)[number];
 
 export const VERIFICATION_LEVELS = ['self_reported', 'staff_verified', 'doc_verified'] as const;
 export type VerificationLevel = (typeof VERIFICATION_LEVELS)[number];
+
+/**
+ * Canonical outcome vocabularies. Every surface that feeds outcome reporting
+ * (staff check-ins, the tokenized alumni self-update form, imports) MUST use
+ * these values or a documented subset — cohort reports group by them (§9.3).
+ */
+export const OUTCOME_EMPLOYMENT_STATUSES = [
+  'employed_ft',
+  'employed_pt',
+  'seeking',
+  'unable',
+  'unknown',
+] as const;
+export type OutcomeEmploymentStatus = (typeof OUTCOME_EMPLOYMENT_STATUSES)[number];
+
+export const OUTCOME_HOUSING_STATUSES = [
+  'stable',
+  'transitional',
+  'unstable',
+  'incarcerated',
+  'unknown',
+] as const;
+export type OutcomeHousingStatus = (typeof OUTCOME_HOUSING_STATUSES)[number];
 
 export const DONOR_TYPES = [
   'individual',

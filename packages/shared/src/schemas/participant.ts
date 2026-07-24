@@ -5,7 +5,13 @@ import {
   OUTSIDE_STATUSES,
   US_STATES,
 } from '../enums';
-import { optionalDate, optionalTrimmed, uuid } from './common';
+import {
+  clearableDate,
+  clearableUuid,
+  optionalDate,
+  optionalTrimmed,
+  uuid,
+} from './common';
 import { personCorePartialSchema, personCoreSchema } from './person';
 
 export const participantProfileFieldsSchema = z.object({
@@ -29,9 +35,31 @@ export const participantCreateSchema = z.object({
 });
 export type ParticipantCreateInput = z.infer<typeof participantCreateSchema>;
 
+/**
+ * Update semantics: null = clear the field, undefined = no change (dates and
+ * the case-manager assignment are clearable — data-entry mistakes happen).
+ * When any status/phase field changes, the service appends to
+ * participant_status_history; statusEffectiveDate/statusChangeReason feed that
+ * row — after-the-fact (backdated) entry is the norm for inside programming
+ * (plan assumption #10).
+ */
+export const participantProfileUpdateFieldsSchema = z.object({
+  insideStatus: z.enum(INSIDE_STATUSES).optional(),
+  outsideStatus: z.enum(OUTSIDE_STATUSES).optional(),
+  phase: optionalTrimmed,
+  alumniStatus: z.enum(ALUMNI_STATUSES).optional(),
+  intakeDate: clearableDate,
+  releaseDate: clearableDate,
+  graduationDate: clearableDate,
+  assignedCaseManagerId: clearableUuid,
+  notes: optionalTrimmed,
+  statusEffectiveDate: optionalDate,
+  statusChangeReason: optionalTrimmed,
+});
+
 export const participantUpdateSchema = z.object({
   person: personCorePartialSchema.optional(),
-  profile: participantProfileFieldsSchema.partial().optional(),
+  profile: participantProfileUpdateFieldsSchema.optional(),
 });
 export type ParticipantUpdateInput = z.infer<typeof participantUpdateSchema>;
 

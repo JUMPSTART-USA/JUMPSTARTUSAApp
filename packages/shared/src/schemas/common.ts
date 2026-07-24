@@ -19,6 +19,21 @@ export const optionalTrimmed = z.preprocess(
   z.string().trim().max(10_000).optional(),
 );
 
+/**
+ * Clearable variants for UPDATE payloads: null means "clear this field",
+ * undefined means "no change". (ZodNullable short-circuits before date
+ * coercion, so null never reaches `new Date(null)`.)
+ */
+export const clearableDate = z.preprocess(
+  (v) => (v === '' ? undefined : v),
+  z.coerce.date().nullable().optional(),
+);
+export const clearableUuid = z.string().uuid().nullable().optional();
+export const clearableTrimmed = z.preprocess(
+  (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+  z.string().trim().max(10_000).nullable().optional(),
+);
+
 export const requiredTrimmed = z.string().trim().min(1, 'Required').max(10_000);
 
 export const optionalEmail = z.preprocess(

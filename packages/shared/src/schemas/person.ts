@@ -1,22 +1,32 @@
 import { z } from 'zod';
 import { GENDERS, US_STATES } from '../enums';
 import {
+  endNotBeforeStart,
   optionalDate,
   optionalEmail,
   optionalPhone,
   optionalTrimmed,
+  requiredDate,
   requiredTrimmed,
 } from './common';
 
-const dobNotInFuture = (
-  val: { dateOfBirth?: Date | undefined },
+const personDatesValid = (
+  val: { dateOfBirth?: Date | undefined; deceasedAt?: Date | undefined },
   ctx: z.RefinementCtx,
 ) => {
-  if (val.dateOfBirth && val.dateOfBirth > new Date()) {
+  const now = new Date();
+  if (val.dateOfBirth && val.dateOfBirth > now) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Date of birth cannot be in the future',
       path: ['dateOfBirth'],
+    });
+  }
+  if (val.deceasedAt && val.deceasedAt > now) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Date of death cannot be in the future',
+      path: ['deceasedAt'],
     });
   }
 };
@@ -42,12 +52,13 @@ export const personCoreBaseSchema = z.object({
   smsOk: z.boolean().default(false),
   mailOnly: z.boolean().default(false),
   doNotContact: z.boolean().default(false),
+  deceasedAt: optionalDate,
 });
 
-export const personCoreSchema = personCoreBaseSchema.superRefine(dobNotInFuture);
+export const personCoreSchema = personCoreBaseSchema.superRefine(personDatesValid);
 export const personCorePartialSchema = personCoreBaseSchema
   .partial()
-  .superRefine(dobNotInFuture);
+  .superRefine(personDatesValid);
 
 export type PersonCoreInput = z.infer<typeof personCoreSchema>;
 
@@ -72,3 +83,33 @@ export const personContactSchema = z.object({
 });
 
 export type PersonContactInput = z.infer<typeof personContactSchema>;
+
+/** Address-history rows (staff-managed; the service also snapshots on change). */
+export const personAddressSchema = z
+  .object({
+    addressLine1: requiredTrimmed.pipe(z.string().max(300)),
+    addressLine2: optionalTrimmed,
+    city: requiredTrimmed.pipe(z.string().max(100)),
+    state: z.enum(US_STATES),
+    zip: requiredTrimmed.pipe(z.string().max(20)),
+    addressType: optionalTrimmed,
+    isCurrent: z.boolean().default(false),
+    validFrom: optionalDate,
+    validTo: optionalDate,
+    notes: optionalTrimmed,
+  })
+  .superRefine(endNotBeforeStart('validFrom', 'validTo'));
+export type PersonAddressInput = z.infer<typeof personAddressSchema>;
+
+/** §7.4 alumni dignity: consent to use a person's name/story, revocable. */
+export const testimonyConsentSchema = z
+  .object({
+    scope: requiredTrimmed.pipe(z.string().max(200)),
+    grantedAt: requiredDate,
+    revokedAt: optionalDate,
+    notes: optionalTrimmed,
+  })
+  .superRefine(
+    endNotBeforeStart('grantedAt', 'revokedAt', 'Revocation date cannot be before grant date'),
+  );
+export type TestimonyConsentInput = z.infer<typeof testimonyConsentSchema>;

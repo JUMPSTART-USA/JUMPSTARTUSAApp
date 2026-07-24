@@ -70,7 +70,7 @@ function enrollmentRules(val: {
   leftEarlyDate?: Date;
   leftEarlyReason?: string;
   finalAssessment?: (typeof FINAL_ASSESSMENTS)[number];
-}, ctx: z.RefinementCtx) {
+}, ctx: z.RefinementCtx, assessmentPath = 'finalAssessment') {
   if (val.status === 'left_early') {
     if (!val.leftEarlyDate) {
       ctx.addIssue({
@@ -92,7 +92,7 @@ function enrollmentRules(val: {
       code: z.ZodIssueCode.custom,
       message:
         'A final assessment (Blue/Green/Yellow/Red) is required to mark completed — use "assessment pending" until it is in',
-      path: ['finalAssessment'],
+      path: [assessmentPath],
     });
   }
   if (val.completionDate && val.completionDate < val.enrollmentDate) {
@@ -189,7 +189,35 @@ export const outsideProgramSchema = z
   .superRefine(endNotBeforeStart('startDate', 'endDate'));
 export type OutsideProgramInput = z.infer<typeof outsideProgramSchema>;
 
+/**
+ * Outside enrollments name the assessment `completionAssessment` (matching the
+ * requirements' field list and the Prisma column) — same rules as inside.
+ */
 export const outsideEnrollmentSchema = z
-  .object({ ...enrollmentBase, outsideProgramId: uuid })
-  .superRefine(enrollmentRules);
+  .object({
+    participantProfileId: uuid,
+    outsideProgramId: uuid,
+    enrollmentDate: requiredDate,
+    status: z.enum(ENROLLMENT_STATUSES).default('enrolled'),
+    completionDate: optionalDate,
+    leftEarlyDate: optionalDate,
+    leftEarlyReason: optionalTrimmed,
+    completionAssessment: z.enum(FINAL_ASSESSMENTS).optional(),
+    assessmentNotes: optionalTrimmed,
+    notes: optionalTrimmed,
+  })
+  .superRefine((val, ctx) =>
+    enrollmentRules(
+      {
+        status: val.status,
+        enrollmentDate: val.enrollmentDate,
+        completionDate: val.completionDate,
+        leftEarlyDate: val.leftEarlyDate,
+        leftEarlyReason: val.leftEarlyReason,
+        finalAssessment: val.completionAssessment,
+      },
+      ctx,
+      'completionAssessment',
+    ),
+  );
 export type OutsideEnrollmentInput = z.infer<typeof outsideEnrollmentSchema>;

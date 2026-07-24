@@ -64,6 +64,14 @@ export const housingEnrollmentSchema = z
         });
       }
     }
+    if (val.status === 'completed' && !val.completionAssessment) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'A completion assessment (Blue/Green/Yellow/Red) is required to mark completed — use "assessment pending" until it is in',
+        path: ['completionAssessment'],
+      });
+    }
     if (val.moveOutDate && val.moveOutDate < val.moveInDate) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

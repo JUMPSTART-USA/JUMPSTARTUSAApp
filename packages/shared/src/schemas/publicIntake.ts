@@ -67,13 +67,18 @@ export const publicReferralSchema = z.object({
 });
 export type PublicReferralInput = z.infer<typeof publicReferralSchema>;
 
-/** Tokenized alumni self-update (Phase 3) — no login, single-use link. */
+/**
+ * Tokenized alumni self-update (Phase 3) — no login, single-use link.
+ * Status values are a documented subset of the canonical outcome vocabularies
+ * (OUTCOME_*_STATUSES in enums.ts) so approved updates map losslessly into
+ * outcome check-ins; 'unknown' is omitted because a self-reporter knows.
+ */
 export const publicAlumniUpdateSchema = z.object({
   token: z.string().min(16).max(128),
   employmentStatus: z
-    .enum(['employed_ft', 'employed_pt', 'seeking', 'unable', 'other'])
+    .enum(['employed_ft', 'employed_pt', 'seeking', 'unable'])
     .optional(),
-  housingStatus: z.enum(['stable', 'transitional', 'unstable', 'other']).optional(),
+  housingStatus: z.enum(['stable', 'transitional', 'unstable', 'incarcerated']).optional(),
   newPhone: optionalPhone,
   newEmail: optionalEmail,
   newAddress: z.string().trim().max(500).optional(),

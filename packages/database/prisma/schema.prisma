@@ -365,6 +365,9 @@ model Person {
   smsConsentAt DateTime?
   mailOnly     Boolean   @default(false)
   doNotContact Boolean   @default(false)
+  // Deliverability, NOT consent: set by Postmark bounce/complaint webhooks;
+  // emailOk stays strictly the opt-in/opt-out preference (TCPA comment above)
+  emailBouncedAt DateTime?
 
   deceasedAt DateTime?
 
@@ -384,6 +387,7 @@ model Person {
   communications     Communication[]
   eventRegistrations EventRegistration[]
   donors             Donor[]
+  volunteerApplications VolunteerApplication[]
 
   @@index([lastName, firstName])
   @@index([primaryEmail])
@@ -404,6 +408,8 @@ model PersonAddress {
   isCurrent    Boolean   @default(false)
   validFrom    DateTime? @db.Date
   validTo      DateTime? @db.Date
+  // Deliverability, NOT consent: set when physical mail comes back (§6.12)
+  returnedMailAt DateTime?
   notes        String?
 
   createdAt   DateTime @default(now())
@@ -628,8 +634,10 @@ model Role {
   description String?
   isSystem    Boolean @default(true)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
 
   rolePermissions RolePermission[]
   userRoles       UserRole[]
@@ -641,6 +649,11 @@ model Permission {
   id          String  @id @default(uuid())
   key         String  @unique // e.g. "participants.update", "case_notes.confidential.read"
   description String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
 
   rolePermissions RolePermission[]
 
@@ -1066,6 +1079,10 @@ model OnboardingChecklistItem {
   checklist     OnboardingChecklist @relation(fields: [checklistId], references: [id])
   label         String
   sortOrder     Int
+  // Snapshot of the template item at instantiation (templates are mutable;
+  // history is not). templateItemId is provenance only, no FK.
+  required      Boolean             @default(true)
+  templateItemId String?
   status        ChecklistItemStatus @default(pending)
   completedAt   DateTime?
   completedById String?
@@ -1288,6 +1305,11 @@ model VolunteerAssignment {
   status    AssignmentStatus @default(active)
   notes     String?
 
+  // Soft-block override when clearances are incomplete (§6.6) — kept on the
+  // record so the coordinator dashboard can surface standing overrides.
+  clearanceOverride       Boolean @default(false)
+  clearanceOverrideReason String?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   createdById String?
@@ -1429,11 +1451,15 @@ model OutcomeCheckin {
   housingStatus    String? // stable | transitional | unstable | incarcerated | unknown
   wellbeingFields  Json?
 
-  reArrested        Boolean?
-  reConvicted       Boolean?
-  reIncarcerated    Boolean?
-  justiceVerification VerificationLevel?
-  justiceNotes      String?
+  // Verification level is PER FIELD (§9.3): re-arrest may be self-reported
+  // while re-incarceration is DOC-verified on the same check-in.
+  reArrested                Boolean?
+  reArrestedVerification    VerificationLevel?
+  reConvicted               Boolean?
+  reConvictedVerification   VerificationLevel?
+  reIncarcerated            Boolean?
+  reIncarceratedVerification VerificationLevel?
+  justiceNotes              String?
 
   notes String?
 
@@ -1447,6 +1473,38 @@ model OutcomeCheckin {
   @@map("outcome_checkins")
 }
 
+// Admin-editable screening criteria template (§6.7): alumni-specific criteria
+// like "≥ 12 months post-graduation" or "case-manager endorsement" are DATA,
+// mirroring the onboarding-checklist template pattern (§6.5).
+model MentorScreeningTemplate {
+  id        String  @id @default(uuid())
+  name      String
+  isDefault Boolean @default(false)
+  active    Boolean @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  items      MentorScreeningTemplateItem[]
+  screenings MentorScreening[]
+
+  @@map("mentor_screening_templates")
+}
+
+model MentorScreeningTemplateItem {
+  id         String                  @id @default(uuid())
+  templateId String
+  template   MentorScreeningTemplate @relation(fields: [templateId], references: [id])
+  label      String
+  sortOrder  Int
+  required   Boolean                 @default(true)
+
+  @@index([templateId])
+  @@map("mentor_screening_template_items")
+}
+
 // Stage-tracked screening pipeline. Alumni-aware: links to the person's
 // participant history via the shared person model; conditions capture
 // restrictions like "outside programs only" (§6.7).
@@ -1455,6 +1513,8 @@ model MentorScreening {
   volunteerProfileId String
   volunteerProfile   VolunteerProfile     @relation(fields: [volunteerProfileId], references: [id])
   stage              MentorScreeningStage @default(applied)
+  templateId         String?
+  template           MentorScreeningTemplate? @relation(fields: [templateId], references: [id])
   approvedAt         DateTime?            @db.Date
   approvedById       String?
   conditions         String?
@@ -1465,11 +1525,33 @@ model MentorScreening {
   createdById String?
   updatedById String?
 
-  steps MentorScreeningStep[]
+  steps    MentorScreeningStep[]
+  criteria MentorScreeningCriterion[]
 
   @@index([volunteerProfileId])
   @@index([stage])
   @@map("mentor_screenings")
+}
+
+// Criterion rows materialized from the template at screening creation —
+// snapshot semantics, so later template edits never rewrite history.
+model MentorScreeningCriterion {
+  id            String              @id @default(uuid())
+  screeningId   String
+  screening     MentorScreening     @relation(fields: [screeningId], references: [id])
+  label         String
+  sortOrder     Int
+  required      Boolean             @default(true)
+  status        ChecklistItemStatus @default(pending)
+  completedAt   DateTime?
+  completedById String?
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([screeningId])
+  @@map("mentor_screening_criteria")
 }
 
 model MentorScreeningStep {
@@ -1499,6 +1581,7 @@ model MentorAssignment {
   endDate              DateTime?              @db.Date
   status               MentorAssignmentStatus @default(proposed)
   endReason            String?
+  pauseReason          String? // §6.7: pausing, like ending, requires a reason
   matchRationale       String?
   meetingCadence       String? // e.g. "weekly", "biweekly"
 
@@ -1939,6 +2022,7 @@ model VolunteerApplication {
   reviewedAt        DateTime?
   reviewNotes       String?
   linkedPersonId    String? // set on approval
+  linkedPerson      Person?      @relation(fields: [linkedPersonId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

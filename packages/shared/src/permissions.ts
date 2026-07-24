@@ -39,6 +39,9 @@ export type Action = (typeof ACTIONS)[number];
  *    their own — enforced in the service layer, not by this permission.)
  *  - fields.justice.read: DOC numbers, offense-related and justice-history fields
  *  - fields.pay.read: pay rate / hours on employment records
+ *  - fields.background_checks.read: background-check adjudication results
+ *    (clear/review/not-cleared) — the fourth §7.2 field class; module-level
+ *    volunteers.read alone must never expose adjudications
  *  - person.merge: run the duplicate-merge tool (Phase 2)
  *  - admin.users / admin.roles / admin.settings / admin.templates: administration
  *  - audit.read: audit-log viewer
@@ -49,6 +52,7 @@ export const SPECIAL_PERMISSIONS = [
   'case_notes.confidential.read',
   'fields.justice.read',
   'fields.pay.read',
+  'fields.background_checks.read',
   'person.merge',
   'admin.users',
   'admin.roles',
@@ -191,6 +195,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
   volunteer_coordinator: [
     ...read('dashboard'),
     ...crue('volunteers'),
+    'fields.background_checks.read', // operates the screening pipeline (§6.6)
     ...crue('mentoring'),
     ...read('participants'), // mentor matching needs mentee basics, not case files
     ...read('institutions'),
