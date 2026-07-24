@@ -12,6 +12,7 @@
     "migrate:reset": "prisma migrate reset --force",
     "validate": "prisma validate",
     "seed": "tsx prisma/seed.ts",
+    "db:local": "tsx scripts/dev-db.ts",
     "typecheck": "tsc --noEmit"
   },
   "prisma": {
@@ -22,10 +23,11 @@
   },
   "devDependencies": {
     "@jumpstart/shared": "workspace:*",
+    "@types/node": "^22.10.5",
+    "argon2": "^0.41.1",
+    "embedded-postgres": "17.5.0-beta.15",
     "prisma": "^6.2.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3",
-    "@types/node": "^22.10.5",
-    "argon2": "^0.41.1"
+    "typescript": "^5.7.3"
   }
 }
