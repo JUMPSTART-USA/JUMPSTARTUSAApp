@@ -1,0 +1,164 @@
+import { transitionalHomeSchema, US_STATES } from '@jumpstart/shared';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { FormField } from '@/components/FormField';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
+import { api } from '@/lib/api';
+import { applyApiError, FormErrorNotice, formResolver } from '@/pages/outside-programs/shared';
+import type { TransitionalHome } from './types';
+
+interface HomeFormValues {
+  name: string;
+  addressLine1?: string;
+  city?: string;
+  state: string;
+  zip?: string;
+  phone?: string;
+  houseManagerName?: string;
+  houseManagerPhone?: string;
+  houseManagerEmail?: string;
+  capacity: number | string;
+  active: boolean;
+  notes?: string;
+}
+
+function toDefaults(home: TransitionalHome | null): HomeFormValues {
+  return {
+    name: home?.name ?? '',
+    addressLine1: home?.addressLine1 ?? '',
+    city: home?.city ?? '',
+    state: home?.state ?? 'SC',
+    zip: home?.zip ?? '',
+    phone: home?.phone ?? '',
+    houseManagerName: home?.houseManagerName ?? '',
+    houseManagerPhone: home?.houseManagerPhone ?? '',
+    houseManagerEmail: home?.houseManagerEmail ?? '',
+    capacity: home?.capacity ?? '',
+    active: home?.active ?? true,
+    notes: home?.notes ?? '',
+  };
+}
+
+export function HomeFormDialog({
+  open,
+  onOpenChange,
+  home,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** When set the dialog edits; otherwise it creates. */
+  home: TransitionalHome | null;
+}) {
+  const queryClient = useQueryClient();
+  const [topError, setTopError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors },
+  } = useForm<HomeFormValues>({
+    resolver: formResolver<HomeFormValues>(transitionalHomeSchema),
+    defaultValues: toDefaults(home),
+  });
+
+  useEffect(() => {
+    if (open) {
+      reset(toDefaults(home));
+      setTopError(null);
+    }
+  }, [open, home, reset]);
+
+  const mutation = useMutation({
+    mutationFn: (values: HomeFormValues) =>
+      home
+        ? api.patch<TransitionalHome>(`/transitional-homes/${home.id}`, values)
+        : api.post<TransitionalHome>('/transitional-homes', values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['housing'] });
+      onOpenChange(false);
+    },
+    onError: (err) => setTopError(applyApiError(err, setError)),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{home ? 'Edit home' : 'New transitional home'}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
+          <FormErrorNotice message={topError} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField label="Name" required error={errors.name} className="sm:col-span-2">
+              <Input {...register('name')} autoFocus />
+            </FormField>
+            <FormField label="Address" error={errors.addressLine1}>
+              <Input {...register('addressLine1')} />
+            </FormField>
+            <FormField label="City" error={errors.city}>
+              <Input {...register('city')} />
+            </FormField>
+            <FormField label="State" required error={errors.state}>
+              <Select {...register('state')}>
+                {US_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Zip" error={errors.zip}>
+              <Input {...register('zip')} />
+            </FormField>
+            <FormField label="Phone" error={errors.phone}>
+              <Input {...register('phone')} />
+            </FormField>
+            <FormField
+              label="Capacity (beds)"
+              required
+              error={errors.capacity as { message?: string } | undefined}
+              hint="Over-capacity move-ins warn, never block (§6.4)"
+            >
+              <Input type="number" min={1} {...register('capacity')} />
+            </FormField>
+            <FormField label="House manager" error={errors.houseManagerName}>
+              <Input {...register('houseManagerName')} />
+            </FormField>
+            <FormField label="Manager phone" error={errors.houseManagerPhone}>
+              <Input {...register('houseManagerPhone')} />
+            </FormField>
+            <FormField label="Manager email" error={errors.houseManagerEmail}>
+              <Input type="email" {...register('houseManagerEmail')} />
+            </FormField>
+            <div className="flex items-center gap-2 self-end pb-1.5">
+              <Checkbox id="home-active" {...register('active')} />
+              <Label htmlFor="home-active">Active</Label>
+            </div>
+            <FormField label="Notes" error={errors.notes} className="sm:col-span-2">
+              <Textarea rows={3} {...register('notes')} />
+            </FormField>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? 'Saving…' : home ? 'Save changes' : 'Create home'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

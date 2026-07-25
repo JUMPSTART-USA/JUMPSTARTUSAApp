@@ -1,0 +1,390 @@
+import { useQuery } from '@tanstack/react-query';
+import { Lock } from 'lucide-react';
+import { Badge, StatusBadge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { api, qs, type Paged } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { formatDate, formatMoney, humanize } from '@/lib/utils';
+import type {
+  CaseNoteRow,
+  CaseServiceRow,
+  EmploymentRow,
+  HousingEnrollmentRow,
+  TimelineEventRow,
+} from './types';
+
+/**
+ * Neither inside-classes nor outside-programs exposes a per-participant
+ * enrollment list endpoint — the §6.1 timeline is the read model for a
+ * participant's enrollment history, so both tabs derive from one shared fetch.
+ */
+function useFullTimeline(participantId: string) {
+  return useQuery({
+    queryKey: ['participants', participantId, 'timeline', 'full'],
+    queryFn: () =>
+      api.get<Paged<TimelineEventRow>>(
+        `/participants/${participantId}/timeline${qs({ page: 1, pageSize: 200 })}`,
+      ),
+  });
+}
+
+function TabShell({
+  isLoading,
+  error,
+  children,
+}: {
+  isLoading: boolean;
+  error: unknown;
+  children: React.ReactNode;
+}) {
+  if (isLoading) return <PageLoader />;
+  if (error) return <ErrorState error={error} />;
+  return <>{children}</>;
+}
+
+function NoAccess({ what }: { what: string }) {
+  return (
+    <EmptyState
+      title={`No access to ${what}`}
+      hint="Your role does not include permission to view these records."
+    />
+  );
+}
+
+function OverflowNote({ shown, total }: { shown: number; total: number }) {
+  if (total <= shown) return null;
+  return (
+    <p className="mt-2 text-xs text-muted-foreground">
+      Showing the most recent {shown} of {total} records.
+    </p>
+  );
+}
+
+// ── Inside classes / outside programs (timeline-derived) ────────────────────
+
+function EnrollmentTable({
+  events,
+  titlePrefix,
+  header,
+  empty,
+}: {
+  events: TimelineEventRow[];
+  titlePrefix: RegExp;
+  header: string;
+  empty: string;
+}) {
+  if (events.length === 0) return <EmptyState title={empty} />;
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{header}</TableHead>
+          <TableHead>Enrolled</TableHead>
+          <TableHead>Status</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {events.map((e) => (
+          <TableRow key={e.entityId}>
+            <TableCell className="font-medium">{e.title.replace(titlePrefix, '')}</TableCell>
+            <TableCell>{formatDate(e.date)}</TableCell>
+            <TableCell>
+              <StatusBadge status={e.detail ?? null} />
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+export function InsideClassesTab({ participantId }: { participantId: string }) {
+  const query = useFullTimeline(participantId);
+  const events = (query.data?.items ?? []).filter((e) => e.type === 'inside_enrollment');
+  return (
+    <TabShell isLoading={query.isLoading} error={query.error}>
+      <EnrollmentTable
+        events={events}
+        titlePrefix={/^Inside class: /}
+        header="Class"
+        empty="No inside class enrollments"
+      />
+    </TabShell>
+  );
+}
+
+export function OutsideProgramsTab({ participantId }: { participantId: string }) {
+  const query = useFullTimeline(participantId);
+  const events = (query.data?.items ?? []).filter((e) => e.type === 'outside_enrollment');
+  return (
+    <TabShell isLoading={query.isLoading} error={query.error}>
+      <EnrollmentTable
+        events={events}
+        titlePrefix={/^Outside program: /}
+        header="Program"
+        empty="No outside program enrollments"
+      />
+    </TabShell>
+  );
+}
+
+// ── Housing ─────────────────────────────────────────────────────────────────
+
+export function HousingTab({ participantId }: { participantId: string }) {
+  const { can } = useAuth();
+  const canRead = can('housing.read');
+  const query = useQuery({
+    queryKey: ['participants', participantId, 'housing'],
+    queryFn: () =>
+      api.get<Paged<HousingEnrollmentRow>>(
+        `/housing-enrollments${qs({ participantProfileId: participantId, pageSize: 100, sortBy: 'moveInDate', sortDir: 'desc' })}`,
+      ),
+    enabled: canRead,
+  });
+
+  if (!canRead) return <NoAccess what="housing records" />;
+  return (
+    <TabShell isLoading={query.isLoading} error={query.error}>
+      {!query.data || query.data.items.length === 0 ? (
+        <EmptyState title="No housing enrollments" />
+      ) : (
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Home</TableHead>
+                <TableHead>Move in</TableHead>
+                <TableHead>Move out</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Assessment</TableHead>
+                <TableHead>Reason for leaving</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {query.data.items.map((h) => (
+                <TableRow key={h.id}>
+                  <TableCell className="font-medium">
+                    {h.home.name} <span className="text-xs text-muted-foreground">({h.home.state})</span>
+                  </TableCell>
+                  <TableCell>{formatDate(h.moveInDate)}</TableCell>
+                  <TableCell>{formatDate(h.moveOutDate)}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={h.status} />
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={h.completionAssessment} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {h.reasonForLeaving ?? '—'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <OverflowNote shown={query.data.items.length} total={query.data.total} />
+        </>
+      )}
+    </TabShell>
+  );
+}
+
+// ── Employment ──────────────────────────────────────────────────────────────
+
+export function EmploymentTab({ participantId }: { participantId: string }) {
+  const { can } = useAuth();
+  const canRead = can('employment.read');
+  // §7.2: pay columns render only for fields.pay.read holders — the API
+  // strips the values for everyone else anyway.
+  const canPay = can('fields.pay.read');
+  const query = useQuery({
+    queryKey: ['participants', participantId, 'employment'],
+    queryFn: () =>
+      api.get<Paged<EmploymentRow>>(
+        `/employments${qs({ participantProfileId: participantId, pageSize: 100 })}`,
+      ),
+    enabled: canRead,
+  });
+
+  if (!canRead) return <NoAccess what="employment records" />;
+  return (
+    <TabShell isLoading={query.isLoading} error={query.error}>
+      {!query.data || query.data.items.length === 0 ? (
+        <EmptyState title="No employment records" />
+      ) : (
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Employer</TableHead>
+                <TableHead>Job title</TableHead>
+                <TableHead>Start</TableHead>
+                <TableHead>End</TableHead>
+                <TableHead>Status</TableHead>
+                {canPay ? <TableHead>Pay</TableHead> : null}
+                {canPay ? <TableHead>Hrs/wk</TableHead> : null}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {query.data.items.map((e) => (
+                <TableRow key={e.id}>
+                  <TableCell className="font-medium">{e.employer.name}</TableCell>
+                  <TableCell>{e.jobTitle}</TableCell>
+                  <TableCell>{formatDate(e.startDate)}</TableCell>
+                  <TableCell>{formatDate(e.endDate)}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={e.status} />
+                  </TableCell>
+                  {canPay ? (
+                    <TableCell>
+                      {e.payRate != null ? (
+                        <span>
+                          {formatMoney(e.payRate)}
+                          {e.payPeriod ? (
+                            <span className="text-xs text-muted-foreground"> /{e.payPeriod}</span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </TableCell>
+                  ) : null}
+                  {canPay ? <TableCell>{e.hoursPerWeek ?? '—'}</TableCell> : null}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <OverflowNote shown={query.data.items.length} total={query.data.total} />
+        </>
+      )}
+    </TabShell>
+  );
+}
+
+// ── Case services ───────────────────────────────────────────────────────────
+
+export function ServicesTab({ participantId }: { participantId: string }) {
+  const { can } = useAuth();
+  const canRead = can('case_management.read');
+  const query = useQuery({
+    queryKey: ['participants', participantId, 'case-services'],
+    queryFn: () =>
+      api.get<Paged<CaseServiceRow>>(
+        `/case-services${qs({ participantProfileId: participantId, pageSize: 100 })}`,
+      ),
+    enabled: canRead,
+  });
+
+  if (!canRead) return <NoAccess what="case services" />;
+  return (
+    <TabShell isLoading={query.isLoading} error={query.error}>
+      {!query.data || query.data.items.length === 0 ? (
+        <EmptyState title="No services recorded" />
+      ) : (
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Service</TableHead>
+                <TableHead>Provider</TableHead>
+                <TableHead>Outcome</TableHead>
+                <TableHead>Follow-up</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {query.data.items.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell>{formatDate(s.serviceDate)}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{s.serviceType}</div>
+                    {s.description ? (
+                      <div className="max-w-md truncate text-xs text-muted-foreground">
+                        {s.description}
+                      </div>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>{s.providerName ?? '—'}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.outcome ?? '—'}</TableCell>
+                  <TableCell>
+                    {s.followUpRequired ? formatDate(s.followUpDate) : '—'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <OverflowNote shown={query.data.items.length} total={query.data.total} />
+        </>
+      )}
+    </TabShell>
+  );
+}
+
+// ── Case notes ──────────────────────────────────────────────────────────────
+
+export function NotesTab({ participantId }: { participantId: string }) {
+  const { can } = useAuth();
+  const canRead = can('case_management.read');
+  const query = useQuery({
+    queryKey: ['participants', participantId, 'case-notes'],
+    queryFn: () =>
+      api.get<Paged<CaseNoteRow>>(
+        `/case-notes${qs({ participantProfileId: participantId, pageSize: 50 })}`,
+      ),
+    enabled: canRead,
+  });
+
+  if (!canRead) return <NoAccess what="case notes" />;
+  return (
+    <TabShell isLoading={query.isLoading} error={query.error}>
+      {!query.data || query.data.items.length === 0 ? (
+        <EmptyState title="No case notes" />
+      ) : (
+        <div className="space-y-3">
+          {query.data.items.map((n) => {
+            // §7.3: unauthorized viewers receive a dated stub — render it as-is.
+            const isStub = n.confidential && n.content === '[Confidential note]';
+            return (
+              <Card key={n.id}>
+                <CardContent className="pt-4">
+                  <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{formatDate(n.noteDate)}</span>
+                    <Badge variant="secondary">{humanize(n.category)}</Badge>
+                    {n.contactType ? <span>{humanize(n.contactType)}</span> : null}
+                    <span>· {n.caseManagerName}</span>
+                    {n.confidential ? (
+                      <Badge variant="warning">
+                        <Lock className="mr-1 h-3 w-3" /> Confidential
+                      </Badge>
+                    ) : null}
+                    {n.followUpRequired && n.followUpDate ? (
+                      <span>Follow-up {formatDate(n.followUpDate)}</span>
+                    ) : null}
+                  </div>
+                  <p
+                    className={
+                      isStub
+                        ? 'text-sm italic text-muted-foreground'
+                        : 'whitespace-pre-wrap text-sm'
+                    }
+                  >
+                    {n.content}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
+          <OverflowNote shown={query.data.items.length} total={query.data.total} />
+        </div>
+      )}
+    </TabShell>
+  );
+}

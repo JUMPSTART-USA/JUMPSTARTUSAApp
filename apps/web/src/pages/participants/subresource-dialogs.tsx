@@ -1,0 +1,515 @@
+import {
+  participantDocIdSchema,
+  personAddressSchema,
+  personContactSchema,
+  testimonyConsentSchema,
+  US_STATES,
+} from '@jumpstart/shared';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useForm, type FieldValues, type UseFormSetError } from 'react-hook-form';
+import { FormField } from '@/components/FormField';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
+import { ErrorState } from '@/components/ui/spinner';
+import { api } from '@/lib/api';
+import { humanize } from '@/lib/utils';
+import { AmberNotice, applyApiError, schemaResolver, toDateInput } from './shared';
+import type { DocIdRow, PersonAddressRow, PersonContactRow, TestimonyConsentRow } from './types';
+
+/**
+ * Dialogs for the person-level sub-resources reached through the participant
+ * record. PATCH bodies for contacts/addresses/consents validate the FULL
+ * shared schema (whole-record replacement — omitted optionals clear), so each
+ * dialog always submits the complete form.
+ */
+
+interface SubresourceDialogProps<T> {
+  participantId: string;
+  existing: T | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function useSaveMutation<T extends FieldValues>(
+  participantId: string,
+  path: string,
+  existingId: string | undefined,
+  setError: UseFormSetError<T>,
+  setTopError: (m: string | null) => void,
+  onOpenChange: (open: boolean) => void,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: object) =>
+      existingId
+        ? api.patch(`/participants/${participantId}/${path}/${existingId}`, body)
+        : api.post(`/participants/${participantId}/${path}`, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['participants', participantId] });
+      onOpenChange(false);
+    },
+    onError: (err) => {
+      const message = applyApiError(err, setError);
+      if (message) setTopError(message);
+    },
+  });
+}
+
+// ── Contacts (§7.4: minors carry minimal data) ──────────────────────────────
+
+interface ContactFormValues {
+  name: string;
+  relationship: string;
+  phone: string;
+  email: string;
+  isEmergency: boolean;
+  isMinor: boolean;
+  guardianName: string;
+  notes: string;
+}
+
+function contactDefaults(existing: PersonContactRow | null): ContactFormValues {
+  return {
+    name: existing?.name ?? '',
+    relationship: existing?.relationship ?? '',
+    phone: existing?.phone ?? '',
+    email: existing?.email ?? '',
+    isEmergency: existing?.isEmergency ?? false,
+    isMinor: existing?.isMinor ?? false,
+    guardianName: existing?.guardianName ?? '',
+    notes: existing?.notes ?? '',
+  };
+}
+
+export function ContactDialog({
+  participantId,
+  existing,
+  open,
+  onOpenChange,
+}: SubresourceDialogProps<PersonContactRow>) {
+  const [topError, setTopError] = useState<string | null>(null);
+  const form = useForm<ContactFormValues>({
+    resolver: schemaResolver<ContactFormValues>(personContactSchema),
+    defaultValues: contactDefaults(existing),
+  });
+  useEffect(() => {
+    if (open) {
+      form.reset(contactDefaults(existing));
+      setTopError(null);
+    }
+  }, [open, existing, form]);
+
+  const save = useSaveMutation(
+    participantId,
+    'contacts',
+    existing?.id,
+    form.setError,
+    setTopError,
+    onOpenChange,
+  );
+  const errors = form.formState.errors;
+  const isMinor = form.watch('isMinor');
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{existing ? 'Edit contact' : 'Add contact'}</DialogTitle>
+          <DialogDescription>Emergency contacts and family members.</DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void form.handleSubmit((raw) => save.mutate(raw as object))();
+          }}
+          className="space-y-4"
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="Name" required error={errors.name}>
+              <Input {...form.register('name')} />
+            </FormField>
+            <FormField label="Relationship" required error={errors.relationship}>
+              <Input {...form.register('relationship')} placeholder="Mother, friend, pastor…" />
+            </FormField>
+            <FormField label="Phone" error={errors.phone}>
+              <Input {...form.register('phone')} />
+            </FormField>
+            <FormField label="Email" error={errors.email}>
+              <Input {...form.register('email')} />
+            </FormField>
+          </div>
+          <div className="flex gap-6">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox {...form.register('isEmergency')} /> Emergency contact
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox {...form.register('isMinor')} /> Minor
+            </label>
+          </div>
+          {isMinor ? (
+            <FormField
+              label="Guardian name"
+              error={errors.guardianName}
+              hint="For a minor, any phone recorded must belong to the guardian named here."
+            >
+              <Input {...form.register('guardianName')} />
+            </FormField>
+          ) : null}
+          <FormField label="Notes" error={errors.notes}>
+            <Textarea rows={2} {...form.register('notes')} />
+          </FormField>
+          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Addresses (history table — no delete, §4.1.6) ───────────────────────────
+
+interface AddressFormValues {
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  zip: string;
+  addressType: string;
+  isCurrent: boolean;
+  validFrom: string;
+  validTo: string;
+  notes: string;
+}
+
+function addressDefaults(existing: PersonAddressRow | null): AddressFormValues {
+  return {
+    addressLine1: existing?.addressLine1 ?? '',
+    addressLine2: existing?.addressLine2 ?? '',
+    city: existing?.city ?? '',
+    state: existing?.state ?? '',
+    zip: existing?.zip ?? '',
+    addressType: existing?.addressType ?? '',
+    isCurrent: existing?.isCurrent ?? false,
+    validFrom: toDateInput(existing?.validFrom),
+    validTo: toDateInput(existing?.validTo),
+    notes: existing?.notes ?? '',
+  };
+}
+
+export function AddressDialog({
+  participantId,
+  existing,
+  open,
+  onOpenChange,
+}: SubresourceDialogProps<PersonAddressRow>) {
+  const [topError, setTopError] = useState<string | null>(null);
+  const form = useForm<AddressFormValues>({
+    resolver: schemaResolver<AddressFormValues>(personAddressSchema),
+    defaultValues: addressDefaults(existing),
+  });
+  useEffect(() => {
+    if (open) {
+      form.reset(addressDefaults(existing));
+      setTopError(null);
+    }
+  }, [open, existing, form]);
+
+  const save = useSaveMutation(
+    participantId,
+    'addresses',
+    existing?.id,
+    form.setError,
+    setTopError,
+    onOpenChange,
+  );
+  const errors = form.formState.errors;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{existing ? 'Edit address' : 'Add address'}</DialogTitle>
+          <DialogDescription>
+            Marking an address current mirrors it onto the mailing address and clears the current
+            flag from other addresses.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void form.handleSubmit((raw) => save.mutate(raw as object))();
+          }}
+          className="space-y-4"
+        >
+          <FormField label="Address line 1" required error={errors.addressLine1}>
+            <Input {...form.register('addressLine1')} />
+          </FormField>
+          <FormField label="Address line 2" error={errors.addressLine2}>
+            <Input {...form.register('addressLine2')} />
+          </FormField>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <FormField label="City" required error={errors.city}>
+              <Input {...form.register('city')} />
+            </FormField>
+            <FormField label="State" required error={errors.state}>
+              <Select {...form.register('state')}>
+                <option value="">—</option>
+                {US_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="ZIP" required error={errors.zip}>
+              <Input {...form.register('zip')} />
+            </FormField>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <FormField label="Type" error={errors.addressType}>
+              <Input {...form.register('addressType')} placeholder="home, facility, mailing…" />
+            </FormField>
+            <FormField label="Valid from" error={errors.validFrom}>
+              <Input type="date" {...form.register('validFrom')} />
+            </FormField>
+            <FormField label="Valid to" error={errors.validTo}>
+              <Input type="date" {...form.register('validTo')} />
+            </FormField>
+          </div>
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox {...form.register('isCurrent')} /> Current address
+          </label>
+          <FormField label="Notes" error={errors.notes}>
+            <Textarea rows={2} {...form.register('notes')} />
+          </FormField>
+          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── DOC IDs (justice-history field class — §7.2, §7.5) ──────────────────────
+
+interface DocIdFormValues {
+  state: string;
+  docNumber: string;
+  source: string;
+}
+
+const DOC_ID_SOURCES = ['staff_entered', 'doc', 'import'] as const;
+
+export function DocIdDialog({
+  participantId,
+  existing,
+  open,
+  onOpenChange,
+}: SubresourceDialogProps<DocIdRow>) {
+  const [topError, setTopError] = useState<string | null>(null);
+  const defaults = (): DocIdFormValues => ({
+    state: existing?.state ?? '',
+    docNumber: existing?.docNumber ?? '',
+    source: existing?.source ?? 'staff_entered',
+  });
+  const form = useForm<DocIdFormValues>({
+    resolver: schemaResolver<DocIdFormValues>(participantDocIdSchema),
+    defaultValues: defaults(),
+  });
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        state: existing?.state ?? '',
+        docNumber: existing?.docNumber ?? '',
+        source: existing?.source ?? 'staff_entered',
+      });
+      setTopError(null);
+    }
+  }, [open, existing, form]);
+
+  const save = useSaveMutation(
+    participantId,
+    'doc-ids',
+    existing?.id,
+    form.setError,
+    setTopError,
+    onOpenChange,
+  );
+  const errors = form.formState.errors;
+  const masked = Boolean(existing) && existing?.docNumber === undefined;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{existing ? 'Edit DOC ID' : 'Add DOC ID'}</DialogTitle>
+          <DialogDescription>
+            Department of Corrections identifier for this participant in a state system.
+          </DialogDescription>
+        </DialogHeader>
+        {masked ? (
+          <AmberNotice>
+            The existing DOC number is hidden from your account (justice-history field class). A
+            value entered below will replace it.
+          </AmberNotice>
+        ) : null}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void form.handleSubmit((raw) => save.mutate(raw as object))();
+          }}
+          className="space-y-4"
+        >
+          <div className="grid gap-4 sm:grid-cols-3">
+            <FormField label="State" required error={errors.state}>
+              <Select {...form.register('state')}>
+                <option value="">—</option>
+                {US_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="DOC number" required error={errors.docNumber}>
+              <Input {...form.register('docNumber')} />
+            </FormField>
+            <FormField label="Source" error={errors.source}>
+              <Select {...form.register('source')}>
+                {DOC_ID_SOURCES.map((s) => (
+                  <option key={s} value={s}>
+                    {humanize(s)}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Testimony consents (revocable, never deleted — §7.4) ────────────────────
+
+interface ConsentFormValues {
+  scope: string;
+  grantedAt: string;
+  revokedAt: string;
+  notes: string;
+}
+
+function consentDefaults(existing: TestimonyConsentRow | null): ConsentFormValues {
+  return {
+    scope: existing?.scope ?? '',
+    grantedAt: toDateInput(existing?.grantedAt),
+    revokedAt: toDateInput(existing?.revokedAt),
+    notes: existing?.notes ?? '',
+  };
+}
+
+export function ConsentDialog({
+  participantId,
+  existing,
+  open,
+  onOpenChange,
+}: SubresourceDialogProps<TestimonyConsentRow>) {
+  const [topError, setTopError] = useState<string | null>(null);
+  const form = useForm<ConsentFormValues>({
+    resolver: schemaResolver<ConsentFormValues>(testimonyConsentSchema),
+    defaultValues: consentDefaults(existing),
+  });
+  useEffect(() => {
+    if (open) {
+      form.reset(consentDefaults(existing));
+      setTopError(null);
+    }
+  }, [open, existing, form]);
+
+  const save = useSaveMutation(
+    participantId,
+    'testimony-consents',
+    existing?.id,
+    form.setError,
+    setTopError,
+    onOpenChange,
+  );
+  const errors = form.formState.errors;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{existing ? 'Edit testimony consent' : 'Add testimony consent'}</DialogTitle>
+          <DialogDescription>
+            Consent to use this person&apos;s name or story. Set a revocation date to revoke —
+            consents are never deleted.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void form.handleSubmit((raw) => save.mutate(raw as object))();
+          }}
+          className="space-y-4"
+        >
+          <FormField label="Scope" required error={errors.scope} hint='e.g. "newsletter", "website", "grant reports", "all"'>
+            <Input {...form.register('scope')} />
+          </FormField>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="Granted" required error={errors.grantedAt}>
+              <Input type="date" {...form.register('grantedAt')} />
+            </FormField>
+            <FormField label="Revoked" error={errors.revokedAt}>
+              <Input type="date" {...form.register('revokedAt')} />
+            </FormField>
+          </div>
+          <FormField label="Notes" error={errors.notes}>
+            <Textarea rows={2} {...form.register('notes')} />
+          </FormField>
+          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

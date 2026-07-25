@@ -1,0 +1,328 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { classCloseOutSchema, FINAL_ASSESSMENTS, type ClassStatus } from '@jumpstart/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft } from 'lucide-react';
+import { useState } from 'react';
+import { useForm, type Resolver } from 'react-hook-form';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { z } from 'zod';
+import { StatusBadge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input, Select, Textarea } from '@/components/ui/input';
+import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { api } from '@/lib/api';
+import { formatDate, fullName, humanize } from '@/lib/utils';
+import { applyApiError, toDateInput } from './helpers';
+import type { InsideClassDetail } from './types';
+
+/** Statuses a close-out row may take (from closeOutRowSchema). */
+const CLOSE_OUT_STATUSES = [
+  'completed',
+  'assessment_pending',
+  'left_early',
+  'removed',
+  'transferred',
+] as const;
+
+interface CloseOutRowValues {
+  enrollmentId: string;
+  status: string;
+  completionDate: string;
+  leftEarlyDate: string;
+  leftEarlyReason: string;
+  finalAssessment: string;
+  assessmentNotes: string;
+}
+
+interface CloseOutFormValues {
+  rows: CloseOutRowValues[];
+}
+
+// The assessment select posts '' for "none yet" — normalize before the shared
+// schema so the enum only sees real Blue/Green/Yellow/Red values.
+const closeOutFormSchema = z.preprocess((raw) => {
+  const value = (raw ?? { rows: [] }) as CloseOutFormValues;
+  return {
+    rows: (value.rows ?? []).map((row) => ({
+      ...row,
+      finalAssessment: row.finalAssessment === '' ? undefined : row.finalAssessment,
+    })),
+  };
+}, classCloseOutSchema);
+
+interface CloseOutResult {
+  rows: unknown[];
+  classStatus: ClassStatus;
+  openEnrollments: number;
+}
+
+function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [topError, setTopError] = useState<string | null>(null);
+  const [result, setResult] = useState<CloseOutResult | null>(null);
+
+  const defaultRows: CloseOutRowValues[] = insideClass.enrollments.map((enrollment) => ({
+    enrollmentId: enrollment.id,
+    // Rows still enrolled/active default to completed; already-exited rows keep their status.
+    status: (CLOSE_OUT_STATUSES as readonly string[]).includes(enrollment.completionStatus)
+      ? enrollment.completionStatus
+      : 'completed',
+    completionDate:
+      toDateInput(enrollment.completionDate) || toDateInput(insideClass.endDate) || '',
+    leftEarlyDate: toDateInput(enrollment.leftEarlyDate),
+    leftEarlyReason: enrollment.leftEarlyReason ?? '',
+    finalAssessment: enrollment.finalAssessment ?? '',
+    assessmentNotes: enrollment.assessmentNotes ?? '',
+  }));
+
+  const {
+    register,
+    handleSubmit,
+    setError,
+    watch,
+    formState: { errors },
+  } = useForm<CloseOutFormValues>({
+    resolver: zodResolver(closeOutFormSchema) as unknown as Resolver<CloseOutFormValues>,
+    defaultValues: { rows: defaultRows },
+  });
+
+  const rowValues = watch('rows');
+
+  const mutation = useMutation({
+    mutationFn: (values: CloseOutFormValues) =>
+      api.post<CloseOutResult>(`/inside-classes/${insideClass.id}/close-out`, values),
+    onSuccess: (res) => {
+      void queryClient.invalidateQueries({ queryKey: ['inside-classes'] });
+      setResult(res);
+    },
+    onError: (err) => applyApiError(err, setError, setTopError),
+  });
+
+  if (result) {
+    const completed = result.classStatus === 'completed';
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Close-out saved</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm">
+            {result.rows.length} enrollment{result.rows.length === 1 ? '' : 's'} updated.
+          </p>
+          {completed ? (
+            <div className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              Every enrollment is closed — the class is now marked Completed.
+            </div>
+          ) : (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {result.openEnrollments} enrollment{result.openEnrollments === 1 ? '' : 's'} still
+              open (including assessment pending) — the class stays{' '}
+              {humanize(result.classStatus)} until every assessment is in.
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button onClick={() => navigate(`/inside-classes/${insideClass.id}`)}>
+              Back to class
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit((values) => {
+        setTopError(null);
+        mutation.mutate(values);
+      })}
+      className="space-y-4"
+      noValidate
+    >
+      <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        Completed rows require a Blue/Green/Yellow/Red assessment — use{' '}
+        <span className="font-medium">Assessment pending</span> while assessments are still coming
+        in. Left-early rows require both a date and a reason. The class flips to Completed only
+        once every row is terminal.
+      </div>
+
+      <div className="overflow-x-auto rounded-md border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-48">Participant</TableHead>
+              <TableHead className="min-w-40">Status</TableHead>
+              <TableHead className="min-w-36">Completion date</TableHead>
+              <TableHead className="min-w-36">Left date</TableHead>
+              <TableHead className="min-w-44">Left reason</TableHead>
+              <TableHead className="min-w-36">Assessment</TableHead>
+              <TableHead className="min-w-48">Assessment notes</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {insideClass.enrollments.map((enrollment, index) => {
+              const rowErrors = errors.rows?.[index];
+              const status = rowValues?.[index]?.status;
+              return (
+                <TableRow key={enrollment.id}>
+                  <TableCell>
+                    <input type="hidden" {...register(`rows.${index}.enrollmentId`)} />
+                    <p className="font-medium">{fullName(enrollment.participantProfile.person)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Enrolled {formatDate(enrollment.enrollmentDate)}
+                    </p>
+                    <StatusBadge status={enrollment.completionStatus} />
+                  </TableCell>
+                  <TableCell className="align-top">
+                    <Select className="h-8" {...register(`rows.${index}.status`)}>
+                      {CLOSE_OUT_STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {humanize(s)}
+                        </option>
+                      ))}
+                    </Select>
+                    {rowErrors?.status?.message ? (
+                      <p className="mt-1 text-xs text-destructive">{rowErrors.status.message}</p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="align-top">
+                    <Input type="date" className="h-8" {...register(`rows.${index}.completionDate`)} />
+                    {rowErrors?.completionDate?.message ? (
+                      <p className="mt-1 text-xs text-destructive">
+                        {rowErrors.completionDate.message}
+                      </p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="align-top">
+                    <Input
+                      type="date"
+                      className="h-8"
+                      disabled={status !== 'left_early'}
+                      {...register(`rows.${index}.leftEarlyDate`)}
+                    />
+                    {rowErrors?.leftEarlyDate?.message ? (
+                      <p className="mt-1 text-xs text-destructive">
+                        {rowErrors.leftEarlyDate.message}
+                      </p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="align-top">
+                    <Input
+                      className="h-8"
+                      disabled={status !== 'left_early'}
+                      placeholder={status === 'left_early' ? 'Required' : ''}
+                      {...register(`rows.${index}.leftEarlyReason`)}
+                    />
+                    {rowErrors?.leftEarlyReason?.message ? (
+                      <p className="mt-1 text-xs text-destructive">
+                        {rowErrors.leftEarlyReason.message}
+                      </p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="align-top">
+                    <Select className="h-8" {...register(`rows.${index}.finalAssessment`)}>
+                      <option value="">None yet</option>
+                      {FINAL_ASSESSMENTS.map((a) => (
+                        <option key={a} value={a}>
+                          {humanize(a)}
+                        </option>
+                      ))}
+                    </Select>
+                    {rowErrors?.finalAssessment?.message ? (
+                      <p className="mt-1 text-xs text-destructive">
+                        {rowErrors.finalAssessment.message}
+                      </p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="align-top">
+                    <Textarea
+                      rows={1}
+                      className="min-h-8"
+                      {...register(`rows.${index}.assessmentNotes`)}
+                    />
+                    {rowErrors?.assessmentNotes?.message ? (
+                      <p className="mt-1 text-xs text-destructive">
+                        {rowErrors.assessmentNotes.message}
+                      </p>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      {topError ? <ErrorState error={new Error(topError)} /> : null}
+
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => navigate(`/inside-classes/${insideClass.id}`)}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending ? 'Saving…' : 'Save close-out'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** §6.2 close-out workflow: one roster grid, one submit — not a form per participant. */
+export function InsideClassCloseOutPage() {
+  const { id = '' } = useParams();
+
+  const query = useQuery({
+    queryKey: ['inside-classes', id],
+    queryFn: () => api.get<InsideClassDetail>(`/inside-classes/${id}`),
+    enabled: !!id,
+  });
+
+  if (query.isLoading) return <PageLoader />;
+  if (query.isError) return <ErrorState error={query.error} />;
+  if (!query.data) return null;
+
+  const insideClass = query.data;
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <Link
+          to={`/inside-classes/${insideClass.id}`}
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> {insideClass.name}
+        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Close out class</h1>
+          <StatusBadge status={insideClass.status} />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {insideClass.institution.name} · {formatDate(insideClass.startDate)} –{' '}
+          {formatDate(insideClass.endDate)}
+        </p>
+      </div>
+
+      {insideClass.status === 'canceled' ? (
+        <ErrorState error={new Error('A canceled class cannot be closed out')} />
+      ) : insideClass.enrollments.length === 0 ? (
+        <EmptyState title="No enrollments to close out" />
+      ) : (
+        <CloseOutForm insideClass={insideClass} />
+      )}
+    </div>
+  );
+}

@@ -152,6 +152,8 @@ export function ParticipantPicker({
           placeholder="Search by name or participant number…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          // The picker lives inside dialog forms — Enter must not submit them.
+          onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
         />
         {isFetching ? <Spinner className="absolute right-2.5 top-2.5 h-4 w-4" /> : null}
       </div>

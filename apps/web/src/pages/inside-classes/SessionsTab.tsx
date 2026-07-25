@@ -138,7 +138,10 @@ function AttendanceGrid({
   }, [session, roster]);
 
   const setRow = (enrollmentId: string, patch: Partial<AttendanceRowState>) => {
-    setRows((prev) => ({ ...prev, [enrollmentId]: { ...prev[enrollmentId], ...patch } }));
+    setRows((prev) => {
+      const current = prev[enrollmentId] ?? { status: '' as const, notes: '' };
+      return { ...prev, [enrollmentId]: { ...current, ...patch } };
+    });
     setSaved(false);
   };
 
