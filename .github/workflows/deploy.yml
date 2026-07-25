@@ -1,0 +1,208 @@
+name: Deploy
+
+# Staging deploys on every push to main; production requires approval on the
+# GitHub "production" environment, then deploys via slot swap.
+#
+# Each GitHub environment (staging, production) must define:
+#   vars:    AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
+#            AZURE_RG, ACR_NAME, WEBAPP_NAME, KEYVAULT_NAME,
+#            JOBS_SUBNET_ID, JOBS_IDENTITY_ID
+#   secrets: SWA_DEPLOY_TOKEN
+# Values come from the Bicep deployment outputs — see infra/README.md.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Server-side builds: no docker daemon needed, auth is implicit.
+      - name: Build + push API image
+        run: |
+          az acr build --registry "$ACR_NAME" \
+            --image "jumpstart-api:$TAG" \
+            --target runtime \
+            --file apps/api/Dockerfile .
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+
+      - name: Build + push migration image
+        run: |
+          az acr build --registry "$ACR_NAME" \
+            --image "jumpstart-migrate:$TAG" \
+            --target migrate \
+            --file apps/api/Dockerfile .
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+
+      - name: Run database migrations (one-off container in the VNet)
+        run: bash .github/scripts/run-migration-job.sh
+        env:
+          AZURE_RG: ${{ vars.AZURE_RG }}
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          KEYVAULT_NAME: ${{ vars.KEYVAULT_NAME }}
+          JOBS_SUBNET_ID: ${{ vars.JOBS_SUBNET_ID }}
+          JOBS_IDENTITY_ID: ${{ vars.JOBS_IDENTITY_ID }}
+          IMAGE_TAG: ${{ github.sha }}
+          JOB_NAME: migrate-${{ github.run_number }}
+
+      - name: Deploy API container
+        run: |
+          az webapp config container set \
+            --resource-group "${{ vars.AZURE_RG }}" \
+            --name "${{ vars.WEBAPP_NAME }}" \
+            --container-image-name "${{ vars.ACR_NAME }}.azurecr.io/jumpstart-api:$TAG"
+
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 \
+              "https://${{ vars.WEBAPP_NAME }}.azurewebsites.net/api/health" || true)
+            [ "$code" = "200" ] && echo "healthy" && exit 0
+            sleep 5
+          done
+          echo "API did not become healthy" && exit 1
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Build web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @jumpstart/shared build
+          pnpm --filter @jumpstart/web build
+
+      - name: Deploy SPA to Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOY_TOKEN }}
+          action: upload
+          app_location: apps/web/dist
+          skip_app_build: true
+          skip_api_build: true
+
+      - name: Smoke test through the SWA front door
+        run: |
+          host=$(az staticwebapp show -g "${{ vars.AZURE_RG }}" \
+            -n "$(az staticwebapp list -g "${{ vars.AZURE_RG }}" --query '[0].name' -o tsv)" \
+            --query defaultHostname -o tsv)
+          code=$(curl -s -o /dev/null -w "%{http_code}" -m 10 "https://$host/api/health")
+          [ "$code" = "200" ] || { echo "SWA->API proxy unhealthy ($code)"; exit 1; }
+
+  production:
+    runs-on: ubuntu-latest
+    needs: staging
+    environment: production
+    env:
+      TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build + push API image
+        run: |
+          az acr build --registry "$ACR_NAME" \
+            --image "jumpstart-api:$TAG" \
+            --target runtime \
+            --file apps/api/Dockerfile .
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+
+      - name: Build + push migration image
+        run: |
+          az acr build --registry "$ACR_NAME" \
+            --image "jumpstart-migrate:$TAG" \
+            --target migrate \
+            --file apps/api/Dockerfile .
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+
+      - name: Run database migrations (one-off container in the VNet)
+        run: bash .github/scripts/run-migration-job.sh
+        env:
+          AZURE_RG: ${{ vars.AZURE_RG }}
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          KEYVAULT_NAME: ${{ vars.KEYVAULT_NAME }}
+          JOBS_SUBNET_ID: ${{ vars.JOBS_SUBNET_ID }}
+          JOBS_IDENTITY_ID: ${{ vars.JOBS_IDENTITY_ID }}
+          IMAGE_TAG: ${{ github.sha }}
+          JOB_NAME: migrate-prod-${{ github.run_number }}
+
+      - name: Deploy API container to the staging slot
+        run: |
+          az webapp config container set \
+            --resource-group "${{ vars.AZURE_RG }}" \
+            --name "${{ vars.WEBAPP_NAME }}" \
+            --slot staging \
+            --container-image-name "${{ vars.ACR_NAME }}.azurecr.io/jumpstart-api:$TAG"
+
+      - name: Wait for slot health
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 \
+              "https://${{ vars.WEBAPP_NAME }}-staging.azurewebsites.net/api/health" || true)
+            [ "$code" = "200" ] && echo "healthy" && exit 0
+            sleep 5
+          done
+          echo "Slot did not become healthy" && exit 1
+
+      - name: Swap slot into production
+        run: |
+          az webapp deployment slot swap \
+            --resource-group "${{ vars.AZURE_RG }}" \
+            --name "${{ vars.WEBAPP_NAME }}" \
+            --slot staging \
+            --target-slot production
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Build web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @jumpstart/shared build
+          pnpm --filter @jumpstart/web build
+
+      - name: Deploy SPA to Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOY_TOKEN }}
+          action: upload
+          app_location: apps/web/dist
+          skip_app_build: true
+          skip_api_build: true

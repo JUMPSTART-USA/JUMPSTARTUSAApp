@@ -15,7 +15,13 @@ RUN pnpm --filter @jumpstart/shared build \
   && pnpm --filter @jumpstart/api build \
   && pnpm --filter @jumpstart/api --prod deploy /out
 
-FROM node:24-alpine
+# Release-time migration job (CI runs this image to completion before each
+# deploy): full workspace with the prisma CLI + migrations folder.
+FROM build AS migrate
+WORKDIR /app/packages/database
+CMD ["pnpm", "exec", "prisma", "migrate", "deploy"]
+
+FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /out ./
