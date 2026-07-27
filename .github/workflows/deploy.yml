@@ -75,16 +75,9 @@ jobs:
             --name "${{ vars.WEBAPP_NAME }}" \
             --container-image-name "${{ vars.ACR_NAME }}.azurecr.io/jumpstart-api:$TAG"
 
-      - name: Wait for API health
-        run: |
-          for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 \
-              "https://${{ vars.WEBAPP_NAME }}.azurewebsites.net/api/health" || true)
-            [ "$code" = "200" ] && echo "healthy" && exit 0
-            sleep 5
-          done
-          echo "API did not become healthy" && exit 1
-
+      # Linking the App Service as the SWA backend enables Easy Auth on it, so
+      # the *.azurewebsites.net host always answers 401 — health is only
+      # observable through the SWA front door, after the SPA deploy below.
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
@@ -107,13 +100,18 @@ jobs:
           skip_app_build: true
           skip_api_build: true
 
-      - name: Smoke test through the SWA front door
+      - name: Wait for API health through the SWA front door
         run: |
           host=$(az staticwebapp show -g "${{ vars.AZURE_RG }}" \
             -n "$(az staticwebapp list -g "${{ vars.AZURE_RG }}" --query '[0].name' -o tsv)" \
             --query defaultHostname -o tsv)
-          code=$(curl -s -o /dev/null -w "%{http_code}" -m 10 "https://$host/api/health")
-          [ "$code" = "200" ] || { echo "SWA->API proxy unhealthy ($code)"; exit 1; }
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 10 \
+              "https://$host/api/health" || true)
+            [ "$code" = "200" ] && echo "healthy" && exit 0
+            sleep 5
+          done
+          echo "SWA->API proxy did not become healthy (last: $code)" && exit 1
 
   production:
     runs-on: ubuntu-latest
