@@ -1,7 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { CHAPTER_STATES, usChapterMap } from '@/assets/brand/chapters';
+import logoColor from '@/assets/brand/jumpstart-logo.png';
+import logoTaglineWhite from '@/assets/brand/jumpstart-usa-tagline-white.png';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -40,16 +43,33 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-xl font-bold text-primary-foreground">
-            J
+    <div className="flex min-h-screen">
+      {/* Brand panel — palette and chapter map from jumpstartvision.org */}
+      <div className="hidden flex-col justify-between bg-gradient-to-br from-navy-deep to-navy p-10 lg:flex lg:w-[46%]">
+        <img src={logoTaglineWhite} alt="JUMPSTART USA — Transforming the lives of prisoners from the inside out" className="w-72 self-start" />
+        <img src={usChapterMap} alt="Map of JUMPSTART chapter states" className="mx-auto w-full max-w-md drop-shadow-lg" />
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-gold">
+            Serving six state chapters
           </div>
-          <CardTitle>JUMPSTART USA</CardTitle>
-          <p className="text-sm text-muted-foreground">Operations Platform</p>
-        </CardHeader>
-        <CardContent>
+          <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-sm text-white/80">
+            {CHAPTER_STATES.map((s, i) => (
+              <span key={s.code}>
+                {s.name}
+                {i < CHAPTER_STATES.length - 1 && <span className="ml-2 text-gold">·</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-1 items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="items-center text-center">
+            <img src={logoColor} alt="JUMPSTART" className="mb-1 w-56" />
+            <p className="text-sm text-muted-foreground">Operations Platform</p>
+          </CardHeader>
+          <CardContent>
           <form onSubmit={submit} className="space-y-4">
             {!totpRequired ? (
               <>
@@ -100,8 +120,9 @@ export function LoginPage() {
               {busy ? 'Signing in…' : totpRequired ? 'Verify' : 'Sign in'}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

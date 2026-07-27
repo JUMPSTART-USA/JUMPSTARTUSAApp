@@ -2,26 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Clean admin-dashboard theme (shadcn-style tokens). */
+/* JUMPSTART brand theme (shadcn-style tokens). Palette lifted from
+   jumpstartvision.org: navy #283F6B / deep navy #141F36, gold #FDB835. */
 @layer base {
   :root {
     --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    --foreground: 221 46% 15%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --primary: 220 70% 32%;
+    --card-foreground: 221 46% 15%;
+    --primary: 220 46% 29%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 94%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 94%;
-    --muted-foreground: 215 16% 44%;
-    --accent: 210 40% 92%;
-    --accent-foreground: 222 47% 11%;
+    --secondary: 219 31% 93%;
+    --secondary-foreground: 221 46% 15%;
+    --muted: 219 31% 93%;
+    --muted-foreground: 220 19% 44%;
+    --accent: 219 31% 91%;
+    --accent-foreground: 221 46% 15%;
     --destructive: 0 72% 45%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 88%;
-    --input: 214 32% 84%;
-    --ring: 220 70% 32%;
+    --border: 219 31% 87%;
+    --input: 219 31% 83%;
+    --ring: 220 46% 29%;
     --radius: 0.5rem;
   }
 
@@ -29,6 +30,6 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background font-sans text-foreground antialiased;
   }
 }

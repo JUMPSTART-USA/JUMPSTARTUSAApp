@@ -2170,7 +2170,12 @@ async function seedCompliance(participants: PRec[], users: SeedUsers): Promise<v
         updatedById: users.adminId,
       },
       { key: 'mentoring.maxActiveMentees', value: 2, updatedById: users.adminId },
-      { key: 'states.active', value: ['TN', 'SC', 'GA', 'TX'], updatedById: users.adminId },
+      // The six JUMPSTART state chapters (jumpstartvision.org)
+      {
+        key: 'states.active',
+        value: ['FL', 'GA', 'NC', 'OH', 'SC', 'TX'],
+        updatedById: users.adminId,
+      },
     ],
   });
 

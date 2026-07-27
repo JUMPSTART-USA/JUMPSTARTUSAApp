@@ -18,6 +18,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
@@ -92,15 +93,10 @@ export function AppLayout() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r bg-card">
-        <div className="flex h-14 items-center gap-2 border-b px-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            J
-          </div>
-          <div className="leading-tight">
-            <div className="text-sm font-semibold">JUMPSTART USA</div>
-            <div className="text-[11px] text-muted-foreground">Operations Platform</div>
-          </div>
+      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col bg-navy-deep text-white">
+        <div className="flex h-14 flex-col justify-center border-b border-white/10 px-4">
+          <img src={logoWhite} alt="JUMPSTART" className="h-4 w-auto self-start" />
+          <div className="mt-1 text-[11px] tracking-wide text-white/50">Operations Platform</div>
         </div>
 
         <nav className="flex-1 space-y-4 overflow-y-auto p-3">
@@ -109,7 +105,7 @@ export function AppLayout() {
             if (visible.length === 0) return null;
             return (
               <div key={section.title}>
-                <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-white/40">
                   {section.title}
                 </div>
                 <div className="space-y-0.5">
@@ -120,8 +116,9 @@ export function AppLayout() {
                       end={item.to === '/'}
                       className={({ isActive }) =>
                         cn(
-                          'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-                          isActive && 'bg-accent font-medium text-foreground',
+                          'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white',
+                          isActive &&
+                            'bg-white/10 font-medium text-white shadow-[inset_3px_0_0_0_#FDB835]',
                         )
                       }
                     >
@@ -135,14 +132,19 @@ export function AppLayout() {
           })}
         </nav>
 
-        <div className="border-t p-3">
+        <div className="border-t border-white/10 p-3">
           <div className="mb-2 px-2 leading-tight">
-            <div className="text-sm font-medium">
+            <div className="text-sm font-medium text-white">
               {user.firstName} {user.lastName}
             </div>
-            <div className="truncate text-xs text-muted-foreground">{user.email}</div>
+            <div className="truncate text-xs text-white/50">{user.email}</div>
           </div>
-          <Button variant="ghost" size="sm" className="w-full justify-start" onClick={logout}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-white/70 hover:bg-white/10 hover:text-white"
+            onClick={logout}
+          >
             <LogOut className="h-4 w-4" /> Sign out
           </Button>
         </div>

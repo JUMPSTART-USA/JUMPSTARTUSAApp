@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fontsource-variable/raleway": "^5.3.0",
     "@hookform/resolvers": "^3.10.0",
     "@jumpstart/shared": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.4",
