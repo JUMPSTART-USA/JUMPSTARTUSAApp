@@ -99,7 +99,7 @@ export function AppLayout() {
           <img
             src={logoWhite}
             alt="JUMPSTART"
-            className="h-5 w-auto self-start [filter:brightness(0)_invert(1)]"
+            className="h-7 w-auto self-start [filter:brightness(0)_invert(1)]"
           />
           <div className="mt-1 text-[11px] tracking-wide text-white/50">Operations Platform</div>
         </div>
