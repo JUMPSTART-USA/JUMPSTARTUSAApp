@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import { needsAssessmentSchema } from '@jumpstart/shared';
+import { backTo } from '@/components/BackLink';
+import { EditAssessmentDialog } from './edit-dialogs';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
@@ -209,6 +212,9 @@ export function NeedsAssessmentsPage() {
   const [participant, setParticipant] = useState<ParticipantRef | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewing, setViewing] = useState<NeedsAssessmentRow | null>(null);
+  const [editing, setEditing] = useState<NeedsAssessmentRow | null>(null);
+  const canEdit = can('case_management.update');
+  const canOpenParticipant = can('participants.read');
 
   const params = qs({
     page: listState.page,
@@ -234,7 +240,19 @@ export function NeedsAssessmentsPage() {
     {
       key: 'participant',
       header: 'Participant',
-      render: (a) => fullName(a.participantProfile.person),
+      render: (a) =>
+        canOpenParticipant ? (
+          <Link
+            to={`/participants/${a.participantProfileId}`}
+            {...backTo('/case-management/assessments', 'Assessments')}
+            className="font-medium text-primary hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {fullName(a.participantProfile.person)}
+          </Link>
+        ) : (
+          fullName(a.participantProfile.person)
+        ),
     },
     {
       key: 'instrumentName',
@@ -261,6 +279,28 @@ export function NeedsAssessmentsPage() {
       className: 'max-w-sm',
       render: (a) => <span className="line-clamp-2">{a.summary ?? '—'}</span>,
     },
+    ...(canEdit
+      ? [
+          {
+            key: 'actions',
+            header: '',
+            className: 'w-10',
+            render: (a: NeedsAssessmentRow) => (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Edit assessment"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditing(a);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            ),
+          } satisfies Column<NeedsAssessmentRow>,
+        ]
+      : []),
   ];
 
   return (
@@ -304,6 +344,7 @@ export function NeedsAssessmentsPage() {
         />
       ) : null}
       <AssessmentViewDialog assessment={viewing} onClose={() => setViewing(null)} />
+      <EditAssessmentDialog assessment={editing} onClose={() => setEditing(null)} />
     </div>
   );
 }

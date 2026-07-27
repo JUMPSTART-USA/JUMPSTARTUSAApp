@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { BackLink } from '@/components/BackLink';
+import { BackLink, backTo } from '@/components/BackLink';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -191,8 +191,13 @@ export function EmployerProfilePage() {
                 {employments.map((row) => (
                   <TableRow
                     key={row.id}
-                    className="cursor-pointer"
-                    onClick={() => navigate(`/participants/${row.participantProfile.id}`)}
+                    className="cursor-pointer transition-colors hover:bg-muted/60"
+                    onClick={() =>
+                      navigate(
+                        `/participants/${row.participantProfile.id}`,
+                        backTo(`/employers/${employer.id}`, 'Employer record'),
+                      )
+                    }
                   >
                     <TableCell className="font-medium">
                       {row.participantProfile.person.firstName}{' '}

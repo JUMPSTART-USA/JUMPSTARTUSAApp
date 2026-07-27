@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import { caseServiceSchema } from '@jumpstart/shared';
+import { backTo } from '@/components/BackLink';
+import { EditServiceDialog } from './edit-dialogs';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
@@ -165,7 +168,10 @@ export function CaseServicesPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editService, setEditService] = useState<CaseServiceRow | null>(null);
   const debouncedSearch = useDebounced(search);
+  const canEdit = can('case_management.update');
+  const canOpenParticipant = can('participants.read');
 
   const params = qs({
     page: listState.page,
@@ -194,7 +200,19 @@ export function CaseServicesPage() {
     {
       key: 'participant',
       header: 'Participant',
-      render: (s) => fullName(s.participantProfile.person),
+      render: (s) =>
+        canOpenParticipant ? (
+          <Link
+            to={`/participants/${s.participantProfileId}`}
+            {...backTo('/case-management/services', 'Services')}
+            className="font-medium text-primary hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {fullName(s.participantProfile.person)}
+          </Link>
+        ) : (
+          fullName(s.participantProfile.person)
+        ),
     },
     { key: 'serviceType', header: 'Service', sortKey: 'serviceType', render: (s) => s.serviceType },
     {
@@ -214,6 +232,28 @@ export function CaseServicesPage() {
           '—'
         ),
     },
+    ...(canEdit
+      ? [
+          {
+            key: 'actions',
+            header: '',
+            className: 'w-10',
+            render: (s: CaseServiceRow) => (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Edit service"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditService(s);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            ),
+          } satisfies Column<CaseServiceRow>,
+        ]
+      : []),
   ];
 
   return (
@@ -281,6 +321,7 @@ export function CaseServicesPage() {
           initialParticipant={participant}
         />
       ) : null}
+      <EditServiceDialog service={editService} onClose={() => setEditService(null)} />
     </div>
   );
 }

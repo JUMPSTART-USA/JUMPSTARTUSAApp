@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, GraduationCap, Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
+import type { BackNavState } from '@/components/BackLink';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
@@ -50,6 +51,8 @@ const TAB_VALUES = [
 export function ParticipantProfilePage() {
   const { id = '' } = useParams();
   const { can } = useAuth();
+  const location = useLocation();
+  const back = (location.state as BackNavState | null)?.back;
   const [editOpen, setEditOpen] = useState(false);
   const [graduateOpen, setGraduateOpen] = useState(false);
   // The active tab lives in ?tab= so deep links out of the tabs (class,
@@ -80,10 +83,10 @@ export function ParticipantProfilePage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <Link
-            to="/participants"
+            to={back?.to ?? '/participants'}
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
-            <ArrowLeft className="h-4 w-4" /> Participants
+            <ArrowLeft className="h-4 w-4" /> {back?.label ?? 'Participants'}
           </Link>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <h1 className="text-2xl font-semibold">{fullName(person)}</h1>

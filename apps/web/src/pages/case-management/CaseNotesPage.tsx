@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Lock, Plus } from 'lucide-react';
+import { Lock, Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
+import { backTo } from '@/components/BackLink';
+import { EditNoteDialog } from './edit-dialogs';
 import {
   caseNoteSchema,
   CONTACT_TYPES,
@@ -289,6 +292,9 @@ export function CaseNotesPage() {
   const [to, setTo] = useState('');
   const [newOpen, setNewOpen] = useState(false);
   const [viewId, setViewId] = useState<string | null>(null);
+  const [editNote, setEditNote] = useState<CaseNoteRow | null>(null);
+  const canEdit = can('case_management.update');
+  const canOpenParticipant = can('participants.read');
 
   const params = qs({
     page: listState.page,
@@ -318,7 +324,18 @@ export function CaseNotesPage() {
       key: 'participant',
       header: 'Participant',
       render: (n) =>
-        n.participantName ?? <span className="text-muted-foreground">—</span>,
+        n.participantProfileId && n.participantName && canOpenParticipant ? (
+          <Link
+            to={`/participants/${n.participantProfileId}`}
+            {...backTo('/case-management/notes', 'Case Notes')}
+            className="font-medium text-primary hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {n.participantName}
+          </Link>
+        ) : (
+          (n.participantName ?? <span className="text-muted-foreground">—</span>)
+        ),
     },
     {
       key: 'category',
@@ -363,6 +380,29 @@ export function CaseNotesPage() {
           '—'
         ),
     },
+    ...(canEdit
+      ? [
+          {
+            key: 'actions',
+            header: '',
+            className: 'w-10',
+            render: (n: CaseNoteRow) =>
+              isConfidentialStub(n) ? null : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Edit note"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditNote(n);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              ),
+          } satisfies Column<CaseNoteRow>,
+        ]
+      : []),
   ];
 
   return (
@@ -434,6 +474,7 @@ export function CaseNotesPage() {
         <NewNoteDialog open={newOpen} onOpenChange={setNewOpen} initialParticipant={participant} />
       ) : null}
       <NoteViewDialog noteId={viewId} onClose={() => setViewId(null)} />
+      <EditNoteDialog note={editNote} onClose={() => setEditNote(null)} />
     </div>
   );
 }

@@ -14,9 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { backTo } from '@/components/BackLink';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { formatDate, humanize } from '@/lib/utils';
+import { cn, formatDate, humanize } from '@/lib/utils';
 import { InstitutionFormDialog } from './InstitutionFormDialog';
 import type { InstitutionProfile } from './types';
 
@@ -51,6 +52,7 @@ export function InstitutionProfilePage() {
   const { can } = useAuth();
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
+  const canOpenVolunteer = can('volunteers.read');
 
   const query = useQuery({
     queryKey: ['institutions', id, 'profile'],
@@ -221,8 +223,22 @@ export function InstitutionProfilePage() {
               </TableHeader>
               <TableBody>
                 {volunteerAssignments.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">
+                  <TableRow
+                    key={row.id}
+                    className={cn(
+                      canOpenVolunteer && 'cursor-pointer transition-colors hover:bg-muted/60',
+                    )}
+                    onClick={
+                      canOpenVolunteer
+                        ? () =>
+                            navigate(
+                              `/volunteers/${row.volunteerProfile.id}`,
+                              backTo(`/institutions/${institution.id}`, 'Institution profile'),
+                            )
+                        : undefined
+                    }
+                  >
+                    <TableCell className={cn('font-medium', canOpenVolunteer && 'text-primary')}>
                       {row.volunteerProfile.person.firstName} {row.volunteerProfile.person.lastName}
                     </TableCell>
                     <TableCell>{humanize(row.assignmentType)}</TableCell>

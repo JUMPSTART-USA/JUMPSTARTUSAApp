@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ClipboardCheck, Pencil, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { BackLink } from '@/components/BackLink';
+import { BackLink, backTo } from '@/components/BackLink';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { formatDate, fullName, humanize } from '@/lib/utils';
+import { cn, formatDate, fullName, humanize } from '@/lib/utils';
 import { BatchEnrollDialog } from './BatchEnrollDialog';
 import { EnrollmentEditDialog } from './EnrollmentEditDialog';
 import { InsideClassFormDialog } from './InsideClassFormDialog';
@@ -38,6 +38,7 @@ export function InsideClassDetailPage() {
   const { id = '' } = useParams();
   const { can } = useAuth();
   const navigate = useNavigate();
+  const canOpenVolunteer = can('volunteers.read');
   const [editOpen, setEditOpen] = useState(false);
   const [batchOpen, setBatchOpen] = useState(false);
   const [editingEnrollment, setEditingEnrollment] = useState<RosterEnrollment | null>(null);
@@ -220,8 +221,22 @@ export function InsideClassDetailPage() {
               </TableHeader>
               <TableBody>
                 {insideClass.volunteerAssignments.map((assignment) => (
-                  <TableRow key={assignment.id}>
-                    <TableCell className="font-medium">
+                  <TableRow
+                    key={assignment.id}
+                    className={cn(
+                      canOpenVolunteer && 'cursor-pointer transition-colors hover:bg-muted/60',
+                    )}
+                    onClick={
+                      canOpenVolunteer
+                        ? () =>
+                            navigate(
+                              `/volunteers/${assignment.volunteerProfile.id}`,
+                              backTo(`/inside-classes/${insideClass.id}`, 'Class record'),
+                            )
+                        : undefined
+                    }
+                  >
+                    <TableCell className={cn('font-medium', canOpenVolunteer && 'text-primary')}>
                       {assignment.volunteerProfile.person.firstName}{' '}
                       {assignment.volunteerProfile.person.lastName}
                     </TableCell>

@@ -12,7 +12,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
+import type { BackNavState } from '@/components/BackLink';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -51,6 +52,8 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 export function VolunteerDetailPage() {
   const { id = '' } = useParams();
   const { can } = useAuth();
+  const location = useLocation();
+  const back = (location.state as BackNavState | null)?.back;
   const [editOpen, setEditOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
@@ -70,8 +73,8 @@ export function VolunteerDetailPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link
-            to="/volunteers"
-            title="Back to volunteers"
+            to={back?.to ?? '/volunteers'}
+            title={back ? `Back to ${back.label.toLowerCase()}` : 'Back to volunteers'}
             className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"
           >
             <ArrowLeft className="h-4 w-4" />
