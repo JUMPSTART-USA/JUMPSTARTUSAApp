@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { backTo } from '@/components/BackLink';
 import { EmploymentFormDialog } from '@/pages/employment/EmploymentFormDialog';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -76,6 +77,10 @@ function OverflowNote({ shown, total }: { shown: number; total: number }) {
 
 const clickableRow = 'cursor-pointer transition-colors hover:bg-muted/60';
 
+/** Back-state for deep links out of a participant tab (restores the tab). */
+const fromParticipantTab = (participantId: string, tab: string) =>
+  backTo(`/participants/${participantId}?tab=${tab}`, 'Participant record');
+
 // ── Inside classes / outside programs (timeline-derived) ────────────────────
 
 function EnrollmentTable({
@@ -84,6 +89,7 @@ function EnrollmentTable({
   header,
   empty,
   rowHref,
+  backState,
 }: {
   events: TimelineEventRow[];
   titlePrefix: RegExp;
@@ -91,6 +97,7 @@ function EnrollmentTable({
   empty: string;
   /** Destination for a row click, when the viewer may open the parent. */
   rowHref: (e: TimelineEventRow) => string | null;
+  backState: { state: unknown };
 }) {
   const navigate = useNavigate();
   if (events.length === 0) return <EmptyState title={empty} />;
@@ -110,7 +117,7 @@ function EnrollmentTable({
             <TableRow
               key={e.entityId}
               className={cn(href && clickableRow)}
-              onClick={href ? () => navigate(href) : undefined}
+              onClick={href ? () => navigate(href, backState) : undefined}
             >
               <TableCell className={cn('font-medium', href && 'text-primary')}>
                 {e.title.replace(titlePrefix, '')}
@@ -140,6 +147,7 @@ export function InsideClassesTab({ participantId }: { participantId: string }) {
         header="Class"
         empty="No inside class enrollments"
         rowHref={(e) => (canOpen && e.refId ? `/inside-classes/${e.refId}` : null)}
+        backState={fromParticipantTab(participantId, 'inside')}
       />
     </TabShell>
   );
@@ -158,6 +166,7 @@ export function OutsideProgramsTab({ participantId }: { participantId: string })
         header="Program"
         empty="No outside program enrollments"
         rowHref={(e) => (canOpen && e.refId ? `/outside-programs/${e.refId}` : null)}
+        backState={fromParticipantTab(participantId, 'outside')}
       />
     </TabShell>
   );
@@ -201,7 +210,9 @@ export function HousingTab({ participantId }: { participantId: string }) {
                 <TableRow
                   key={h.id}
                   className={clickableRow}
-                  onClick={() => navigate(`/housing/homes/${h.home.id}`)}
+                  onClick={() =>
+                    navigate(`/housing/homes/${h.home.id}`, fromParticipantTab(participantId, 'housing'))
+                  }
                 >
                   <TableCell className="font-medium text-primary">
                     {h.home.name}{' '}
@@ -276,7 +287,15 @@ export function EmploymentTab({ participantId }: { participantId: string }) {
                 <TableRow
                   key={e.id}
                   className={cn(canOpenEmployer && clickableRow)}
-                  onClick={canOpenEmployer ? () => navigate(`/employers/${e.employer.id}`) : undefined}
+                  onClick={
+                    canOpenEmployer
+                      ? () =>
+                          navigate(
+                            `/employers/${e.employer.id}`,
+                            fromParticipantTab(participantId, 'employment'),
+                          )
+                      : undefined
+                  }
                 >
                   <TableCell
                     className={cn('font-medium', canOpenEmployer && 'text-primary')}

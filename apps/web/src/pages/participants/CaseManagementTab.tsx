@@ -12,15 +12,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { backTo, type BackNavState } from '@/components/BackLink';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
 import type { ChecklistRow, ServicePlanRow } from './types';
 
-function ManageLink({ to, label }: { to: string; label: string }) {
+function ManageLink({
+  to,
+  label,
+  state,
+}: {
+  to: string;
+  label: string;
+  state?: unknown;
+}) {
   return (
     <Link
       to={to}
+      state={state}
       className="inline-flex items-center gap-0.5 text-xs font-medium text-primary hover:underline"
     >
       {label} <ArrowUpRight className="h-3 w-3" />
@@ -83,6 +93,10 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
   const { can } = useAuth();
   const navigate = useNavigate();
   const canRead = can('case_management.read');
+  const back: { state: BackNavState } = backTo(
+    `/participants/${participantId}?tab=case-management`,
+    'Participant record',
+  );
 
   const checklists = useQuery({
     queryKey: ['participants', participantId, 'checklists'],
@@ -120,7 +134,7 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Onboarding checklists
           </h2>
-          <ManageLink to="/case-management/onboarding" label="Manage checklist" />
+          <ManageLink to="/case-management/onboarding" label="Manage checklist" state={back.state} />
         </div>
         {!checklists.data || checklists.data.items.length === 0 ? (
           <EmptyState title="No onboarding checklist started" />
@@ -134,7 +148,7 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Service plans
           </h2>
-          <ManageLink to="/case-management/plans" label="Manage plans" />
+          <ManageLink to="/case-management/plans" label="Manage plans" state={back.state} />
         </div>
         {!plans.data || plans.data.items.length === 0 ? (
           <EmptyState title="No service plans" />
@@ -154,7 +168,7 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
                 <TableRow
                   key={p.id}
                   className="cursor-pointer transition-colors hover:bg-muted/60"
-                  onClick={() => navigate('/case-management/plans')}
+                  onClick={() => navigate('/case-management/plans', back)}
                 >
                   <TableCell>
                     <div className="font-medium text-primary">{p.title}</div>

@@ -1,8 +1,9 @@
 import { HOUSING_STATUSES } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRightLeft, Pencil, Trash2, UserPlus } from 'lucide-react';
+import { ArrowRightLeft, Pencil, Trash2, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { BackLink } from '@/components/BackLink';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -167,12 +168,7 @@ export function HomeDetailPage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link
-            to="/housing"
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Housing
-          </Link>
+          <BackLink fallbackTo="/housing" fallbackLabel="Housing" />
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{home.name}</h1>
             <StatusBadge status={home.active ? 'active' : 'inactive'} />

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, GraduationCap, Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
@@ -34,11 +34,32 @@ function headerBadge(label: string, status: string) {
   );
 }
 
+const TAB_VALUES = [
+  'overview',
+  'inside',
+  'outside',
+  'housing',
+  'employment',
+  'services',
+  'notes',
+  'case-management',
+  'documents',
+  'activity',
+] as const;
+
 export function ParticipantProfilePage() {
   const { id = '' } = useParams();
   const { can } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [graduateOpen, setGraduateOpen] = useState(false);
+  // The active tab lives in ?tab= so deep links out of the tabs (class,
+  // home, employer…) can offer a Back that restores this exact view.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab') ?? 'overview';
+  const activeTab = (TAB_VALUES as readonly string[]).includes(tabParam) ? tabParam : 'overview';
+  const setActiveTab = (value: string) => {
+    setSearchParams(value === 'overview' ? {} : { tab: value }, { replace: true });
+  };
 
   const query = useQuery({
     queryKey: ['participants', id],
@@ -108,7 +129,7 @@ export function ParticipantProfilePage() {
         ) : null}
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="inside">Inside Classes</TabsTrigger>

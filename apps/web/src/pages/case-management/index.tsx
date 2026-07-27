@@ -1,4 +1,5 @@
 import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { BackLink } from '@/components/BackLink';
 import { cn } from '@/lib/utils';
 import { CaseloadSummaryPage } from './CaseloadSummaryPage';
 import { CaseManagementHome } from './CaseManagementHome';
@@ -25,6 +26,9 @@ const SECTIONS: { to: string; label: string; end?: boolean }[] = [
 function CaseManagementLayout() {
   return (
     <div className="space-y-5">
+      {/* Renders only when arriving via a deep link that carries back-state
+          (e.g. from a participant record). */}
+      <BackLink />
       <h1 className="text-2xl font-semibold tracking-tight">Case Management</h1>
       <nav className="flex flex-wrap gap-1 border-b pb-2">
         {SECTIONS.map((s) => (

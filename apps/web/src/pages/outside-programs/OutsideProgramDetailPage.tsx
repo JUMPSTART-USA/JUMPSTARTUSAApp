@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { BackLink } from '@/components/BackLink';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -87,7 +88,8 @@ export function OutsideProgramDetailPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="space-y-1">
+          <BackLink fallbackTo="/outside-programs" fallbackLabel="Outside programs" />
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{program.name}</h1>
             <StatusBadge status={program.status} />

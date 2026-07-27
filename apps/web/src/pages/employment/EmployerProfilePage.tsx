@@ -1,8 +1,9 @@
 import { HIRING_STATUSES } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { BackLink } from '@/components/BackLink';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,12 +60,7 @@ export function EmployerProfilePage() {
         : err;
     return (
       <div className="space-y-4">
-        <Link
-          to="/employers"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Employers
-        </Link>
+        <BackLink fallbackTo="/employers" fallbackLabel="Employers" />
         <ErrorState error={friendly} />
       </div>
     );
@@ -77,12 +73,7 @@ export function EmployerProfilePage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <Link
-            to="/employers"
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Employers
-          </Link>
+          <BackLink fallbackTo="/employers" fallbackLabel="Employers" />
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{employer.name}</h1>
             <HiringStatusBadge status={employer.hiringStatus} />
