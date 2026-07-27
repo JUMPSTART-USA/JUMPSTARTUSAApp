@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { ArrowUpRight } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { StatusBadge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
@@ -12,8 +14,19 @@ import {
 } from '@/components/ui/table';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { formatDate, humanize } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import type { ChecklistRow, ServicePlanRow } from './types';
+
+function ManageLink({ to, label }: { to: string; label: string }) {
+  return (
+    <Link
+      to={to}
+      className="inline-flex items-center gap-0.5 text-xs font-medium text-primary hover:underline"
+    >
+      {label} <ArrowUpRight className="h-3 w-3" />
+    </Link>
+  );
+}
 
 function ChecklistCard({ checklist }: { checklist: ChecklistRow }) {
   // not_applicable items don't count against progress.
@@ -68,6 +81,7 @@ function ChecklistCard({ checklist }: { checklist: ChecklistRow }) {
 
 export function CaseManagementTab({ participantId }: { participantId: string }) {
   const { can } = useAuth();
+  const navigate = useNavigate();
   const canRead = can('case_management.read');
 
   const checklists = useQuery({
@@ -102,9 +116,12 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
   return (
     <div className="space-y-4">
       <div className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Onboarding checklists
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Onboarding checklists
+          </h2>
+          <ManageLink to="/case-management/onboarding" label="Manage checklist" />
+        </div>
         {!checklists.data || checklists.data.items.length === 0 ? (
           <EmptyState title="No onboarding checklist started" />
         ) : (
@@ -113,9 +130,12 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Service plans
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Service plans
+          </h2>
+          <ManageLink to="/case-management/plans" label="Manage plans" />
+        </div>
         {!plans.data || plans.data.items.length === 0 ? (
           <EmptyState title="No service plans" />
         ) : (
@@ -131,9 +151,13 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
             </TableHeader>
             <TableBody>
               {plans.data.items.map((p) => (
-                <TableRow key={p.id}>
+                <TableRow
+                  key={p.id}
+                  className="cursor-pointer transition-colors hover:bg-muted/60"
+                  onClick={() => navigate('/case-management/plans')}
+                >
                   <TableCell>
-                    <div className="font-medium">{p.title}</div>
+                    <div className="font-medium text-primary">{p.title}</div>
                     {p.notes ? (
                       <div className="max-w-md truncate text-xs text-muted-foreground">
                         {p.notes}
@@ -152,8 +176,8 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
           </Table>
         )}
         <p className="text-xs text-muted-foreground">
-          Checklist items and plan goals are managed in {humanize('case_management')} — this tab is
-          a read-only summary.
+          Checklist items and plan goals are managed in Case Management — use the links above to
+          edit them there.
         </p>
       </div>
     </div>

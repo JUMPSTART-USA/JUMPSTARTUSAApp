@@ -1,6 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
-import { Lock } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Lock, Pencil } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
@@ -11,9 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmploymentFormDialog } from '@/pages/employment/EmploymentFormDialog';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { formatDate, formatMoney, humanize } from '@/lib/utils';
+import { cn, formatDate, formatMoney, humanize } from '@/lib/utils';
+import { NoteEditDialog, ServiceEditDialog } from './record-dialogs';
 import type {
   CaseNoteRow,
   CaseServiceRow,
@@ -69,6 +74,8 @@ function OverflowNote({ shown, total }: { shown: number; total: number }) {
   );
 }
 
+const clickableRow = 'cursor-pointer transition-colors hover:bg-muted/60';
+
 // ── Inside classes / outside programs (timeline-derived) ────────────────────
 
 function EnrollmentTable({
@@ -76,12 +83,16 @@ function EnrollmentTable({
   titlePrefix,
   header,
   empty,
+  rowHref,
 }: {
   events: TimelineEventRow[];
   titlePrefix: RegExp;
   header: string;
   empty: string;
+  /** Destination for a row click, when the viewer may open the parent. */
+  rowHref: (e: TimelineEventRow) => string | null;
 }) {
+  const navigate = useNavigate();
   if (events.length === 0) return <EmptyState title={empty} />;
   return (
     <Table>
@@ -93,23 +104,34 @@ function EnrollmentTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {events.map((e) => (
-          <TableRow key={e.entityId}>
-            <TableCell className="font-medium">{e.title.replace(titlePrefix, '')}</TableCell>
-            <TableCell>{formatDate(e.date)}</TableCell>
-            <TableCell>
-              <StatusBadge status={e.detail ?? null} />
-            </TableCell>
-          </TableRow>
-        ))}
+        {events.map((e) => {
+          const href = rowHref(e);
+          return (
+            <TableRow
+              key={e.entityId}
+              className={cn(href && clickableRow)}
+              onClick={href ? () => navigate(href) : undefined}
+            >
+              <TableCell className={cn('font-medium', href && 'text-primary')}>
+                {e.title.replace(titlePrefix, '')}
+              </TableCell>
+              <TableCell>{formatDate(e.date)}</TableCell>
+              <TableCell>
+                <StatusBadge status={e.detail ?? null} />
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
   );
 }
 
 export function InsideClassesTab({ participantId }: { participantId: string }) {
+  const { can } = useAuth();
   const query = useFullTimeline(participantId);
   const events = (query.data?.items ?? []).filter((e) => e.type === 'inside_enrollment');
+  const canOpen = can('inside_classes.read');
   return (
     <TabShell isLoading={query.isLoading} error={query.error}>
       <EnrollmentTable
@@ -117,14 +139,17 @@ export function InsideClassesTab({ participantId }: { participantId: string }) {
         titlePrefix={/^Inside class: /}
         header="Class"
         empty="No inside class enrollments"
+        rowHref={(e) => (canOpen && e.refId ? `/inside-classes/${e.refId}` : null)}
       />
     </TabShell>
   );
 }
 
 export function OutsideProgramsTab({ participantId }: { participantId: string }) {
+  const { can } = useAuth();
   const query = useFullTimeline(participantId);
   const events = (query.data?.items ?? []).filter((e) => e.type === 'outside_enrollment');
+  const canOpen = can('outside_programs.read');
   return (
     <TabShell isLoading={query.isLoading} error={query.error}>
       <EnrollmentTable
@@ -132,6 +157,7 @@ export function OutsideProgramsTab({ participantId }: { participantId: string })
         titlePrefix={/^Outside program: /}
         header="Program"
         empty="No outside program enrollments"
+        rowHref={(e) => (canOpen && e.refId ? `/outside-programs/${e.refId}` : null)}
       />
     </TabShell>
   );
@@ -141,6 +167,7 @@ export function OutsideProgramsTab({ participantId }: { participantId: string })
 
 export function HousingTab({ participantId }: { participantId: string }) {
   const { can } = useAuth();
+  const navigate = useNavigate();
   const canRead = can('housing.read');
   const query = useQuery({
     queryKey: ['participants', participantId, 'housing'],
@@ -171,9 +198,14 @@ export function HousingTab({ participantId }: { participantId: string }) {
             </TableHeader>
             <TableBody>
               {query.data.items.map((h) => (
-                <TableRow key={h.id}>
-                  <TableCell className="font-medium">
-                    {h.home.name} <span className="text-xs text-muted-foreground">({h.home.state})</span>
+                <TableRow
+                  key={h.id}
+                  className={clickableRow}
+                  onClick={() => navigate(`/housing/homes/${h.home.id}`)}
+                >
+                  <TableCell className="font-medium text-primary">
+                    {h.home.name}{' '}
+                    <span className="text-xs text-muted-foreground">({h.home.state})</span>
                   </TableCell>
                   <TableCell>{formatDate(h.moveInDate)}</TableCell>
                   <TableCell>{formatDate(h.moveOutDate)}</TableCell>
@@ -201,10 +233,15 @@ export function HousingTab({ participantId }: { participantId: string }) {
 
 export function EmploymentTab({ participantId }: { participantId: string }) {
   const { can } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const canRead = can('employment.read');
   // §7.2: pay columns render only for fields.pay.read holders — the API
   // strips the values for everyone else anyway.
   const canPay = can('fields.pay.read');
+  const canEdit = can('employment.update');
+  const canOpenEmployer = can('employers.read');
+  const [editRow, setEditRow] = useState<EmploymentRow | null>(null);
   const query = useQuery({
     queryKey: ['participants', participantId, 'employment'],
     queryFn: () =>
@@ -231,12 +268,21 @@ export function EmploymentTab({ participantId }: { participantId: string }) {
                 <TableHead>Status</TableHead>
                 {canPay ? <TableHead>Pay</TableHead> : null}
                 {canPay ? <TableHead>Hrs/wk</TableHead> : null}
+                {canEdit ? <TableHead className="w-10" /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {query.data.items.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell className="font-medium">{e.employer.name}</TableCell>
+                <TableRow
+                  key={e.id}
+                  className={cn(canOpenEmployer && clickableRow)}
+                  onClick={canOpenEmployer ? () => navigate(`/employers/${e.employer.id}`) : undefined}
+                >
+                  <TableCell
+                    className={cn('font-medium', canOpenEmployer && 'text-primary')}
+                  >
+                    {e.employer.name}
+                  </TableCell>
                   <TableCell>{e.jobTitle}</TableCell>
                   <TableCell>{formatDate(e.startDate)}</TableCell>
                   <TableCell>{formatDate(e.endDate)}</TableCell>
@@ -258,6 +304,21 @@ export function EmploymentTab({ participantId }: { participantId: string }) {
                     </TableCell>
                   ) : null}
                   {canPay ? <TableCell>{e.hoursPerWeek ?? '—'}</TableCell> : null}
+                  {canEdit ? (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Edit employment record"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          setEditRow(e);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>
@@ -265,6 +326,22 @@ export function EmploymentTab({ participantId }: { participantId: string }) {
           <OverflowNote shown={query.data.items.length} total={query.data.total} />
         </>
       )}
+      {canEdit ? (
+        <EmploymentFormDialog
+          open={editRow !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditRow(null);
+              // The dialog invalidates the employment area's keys; refresh
+              // this tab's participant-scoped copy too.
+              void queryClient.invalidateQueries({
+                queryKey: ['participants', participantId, 'employment'],
+              });
+            }
+          }}
+          employment={editRow ?? undefined}
+        />
+      ) : null}
     </TabShell>
   );
 }
@@ -274,6 +351,8 @@ export function EmploymentTab({ participantId }: { participantId: string }) {
 export function ServicesTab({ participantId }: { participantId: string }) {
   const { can } = useAuth();
   const canRead = can('case_management.read');
+  const canEdit = can('case_management.update');
+  const [editService, setEditService] = useState<CaseServiceRow | null>(null);
   const query = useQuery({
     queryKey: ['participants', participantId, 'case-services'],
     queryFn: () =>
@@ -298,11 +377,16 @@ export function ServicesTab({ participantId }: { participantId: string }) {
                 <TableHead>Provider</TableHead>
                 <TableHead>Outcome</TableHead>
                 <TableHead>Follow-up</TableHead>
+                {canEdit ? <TableHead className="w-10" /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {query.data.items.map((s) => (
-                <TableRow key={s.id}>
+                <TableRow
+                  key={s.id}
+                  className={cn(canEdit && clickableRow)}
+                  onClick={canEdit ? () => setEditService(s) : undefined}
+                >
                   <TableCell>{formatDate(s.serviceDate)}</TableCell>
                   <TableCell>
                     <div className="font-medium">{s.serviceType}</div>
@@ -317,6 +401,21 @@ export function ServicesTab({ participantId }: { participantId: string }) {
                   <TableCell>
                     {s.followUpRequired ? formatDate(s.followUpDate) : '—'}
                   </TableCell>
+                  {canEdit ? (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Edit service"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          setEditService(s);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>
@@ -324,6 +423,11 @@ export function ServicesTab({ participantId }: { participantId: string }) {
           <OverflowNote shown={query.data.items.length} total={query.data.total} />
         </>
       )}
+      <ServiceEditDialog
+        service={editService}
+        participantId={participantId}
+        onClose={() => setEditService(null)}
+      />
     </TabShell>
   );
 }
@@ -333,6 +437,8 @@ export function ServicesTab({ participantId }: { participantId: string }) {
 export function NotesTab({ participantId }: { participantId: string }) {
   const { can } = useAuth();
   const canRead = can('case_management.read');
+  const canEdit = can('case_management.update');
+  const [editNote, setEditNote] = useState<CaseNoteRow | null>(null);
   const query = useQuery({
     queryKey: ['participants', participantId, 'case-notes'],
     queryFn: () =>
@@ -350,7 +456,8 @@ export function NotesTab({ participantId }: { participantId: string }) {
       ) : (
         <div className="space-y-3">
           {query.data.items.map((n) => {
-            // §7.3: unauthorized viewers receive a dated stub — render it as-is.
+            // §7.3: unauthorized viewers receive a dated stub — render it
+            // as-is, with no edit affordance (there is nothing to edit).
             const isStub = n.confidential && n.content === '[Confidential note]';
             return (
               <Card key={n.id}>
@@ -367,6 +474,17 @@ export function NotesTab({ participantId }: { participantId: string }) {
                     ) : null}
                     {n.followUpRequired && n.followUpDate ? (
                       <span>Follow-up {formatDate(n.followUpDate)}</span>
+                    ) : null}
+                    {canEdit && !isStub ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ml-auto h-6 px-2"
+                        aria-label="Edit note"
+                        onClick={() => setEditNote(n)}
+                      >
+                        <Pencil className="mr-1 h-3 w-3" /> Edit
+                      </Button>
                     ) : null}
                   </div>
                   <p
@@ -385,6 +503,11 @@ export function NotesTab({ participantId }: { participantId: string }) {
           <OverflowNote shown={query.data.items.length} total={query.data.total} />
         </div>
       )}
+      <NoteEditDialog
+        note={editNote}
+        participantId={participantId}
+        onClose={() => setEditNote(null)}
+      />
     </TabShell>
   );
 }

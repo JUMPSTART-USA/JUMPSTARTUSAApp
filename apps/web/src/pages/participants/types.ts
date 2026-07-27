@@ -166,6 +166,8 @@ export interface TimelineEventRow {
   title: string;
   detail?: string | null;
   entityId: string;
+  /** Parent entity for navigation (inside class / outside program id). */
+  refId?: string;
 }
 
 // ── Tab endpoints from other modules ─────────────────────────────────────────
@@ -180,18 +182,11 @@ export interface HousingEnrollmentRow {
   home: { id: string; name: string; state: string };
 }
 
-export interface EmploymentRow {
-  id: string;
-  jobTitle: string;
-  startDate: string | null;
-  endDate: string | null;
-  status: string;
-  /** §7.2 pay field class — absent unless the viewer holds fields.pay.read. */
-  payRate?: string | number | null;
-  payPeriod?: string | null;
-  hoursPerWeek?: number | null;
-  employer: { id: string; name: string };
-}
+/**
+ * The /employments list returns the employment module's full row shape —
+ * reuse its type so rows can feed EmploymentFormDialog for in-place edits.
+ */
+export type { EmploymentListItem as EmploymentRow } from '@/pages/employment/types';
 
 export interface CaseServiceRow {
   id: string;
@@ -202,6 +197,7 @@ export interface CaseServiceRow {
   outcome: string | null;
   followUpRequired: boolean;
   followUpDate: string | null;
+  notes?: string | null;
 }
 
 /** Confidential notes arrive as dated stubs with content '[Confidential note]'. */

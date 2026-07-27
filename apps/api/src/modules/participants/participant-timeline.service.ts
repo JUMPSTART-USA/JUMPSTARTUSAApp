@@ -18,6 +18,8 @@ export interface TimelineEvent {
   title: string;
   detail?: string;
   entityId: string;
+  /** Parent entity for navigation (inside class / outside program id). */
+  refId?: string;
 }
 
 /**
@@ -92,6 +94,7 @@ export class ParticipantTimelineService {
         title: `Inside class: ${e.insideClass.name}`,
         detail: e.completionStatus,
         entityId: e.id,
+        refId: e.insideClassId,
       })),
       ...outside.map((e): TimelineEvent => ({
         type: 'outside_enrollment',
@@ -99,6 +102,7 @@ export class ParticipantTimelineService {
         title: `Outside program: ${e.outsideProgram.name}`,
         detail: e.status,
         entityId: e.id,
+        refId: e.outsideProgramId,
       })),
       ...housing.map((h): TimelineEvent => ({
         type: 'housing_enrollment',
