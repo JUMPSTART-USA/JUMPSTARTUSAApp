@@ -94,14 +94,14 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen">
       <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col bg-navy-deep text-white">
-        <div className="flex h-14 flex-col justify-center border-b border-white/10 px-4">
+        <div className="flex h-20 flex-col justify-center border-b border-white/10 px-4">
           {/* brightness(0) invert(1) flattens the PNG's antialiased grays to pure white */}
           <img
             src={logoWhite}
             alt="JUMPSTART"
-            className="h-7 w-auto self-start [filter:brightness(0)_invert(1)]"
+            className="h-10 w-auto self-start [filter:brightness(0)_invert(1)]"
           />
-          <div className="mt-1 text-[11px] tracking-wide text-white/50">Operations Platform</div>
+          <div className="mt-1.5 text-[11px] tracking-wide text-white/50">Operations Platform</div>
         </div>
 
         <nav className="flex-1 space-y-4 overflow-y-auto p-3">
