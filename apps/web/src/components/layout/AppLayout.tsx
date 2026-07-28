@@ -22,6 +22,7 @@ import {
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
+import { useRecordScreenHistory } from '@/components/BackLink';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
@@ -89,6 +90,7 @@ export function AppLayout() {
   const { user, can, logout } = useAuth();
   const navigate = useNavigate();
   const [navOpen, setNavOpen] = useState(false);
+  useRecordScreenHistory();
 
   if (!user) {
     navigate('/login');

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Download, Play } from 'lucide-react';
+import { Download, Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FormField } from '@/components/FormField';
@@ -17,6 +17,7 @@ import {
 import { EmptyState, ErrorState, PageLoader, Spinner } from '@/components/ui/spinner';
 import { api, qs } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { BackLink } from '@/components/BackLink';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
 import {
   useCampaignOptions,
@@ -81,9 +82,7 @@ export function ReportRunnerPage() {
   if (!report) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
-          <ArrowLeft className="h-4 w-4" /> Back to reports
-        </Button>
+        <BackLink fallbackTo="/reports" fallbackLabel="Reports" />
         <EmptyState
           title="Report not found"
           hint="It may not exist, or your account may not hold the permission it requires."
@@ -212,9 +211,7 @@ function RunnerInner({ report }: { report: ReportSummary }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <BackLink fallbackTo="/reports" fallbackLabel="Reports" />
           <h1 className="text-xl font-semibold">{report.name}</h1>
         </div>
         {can('reports.export') ? (

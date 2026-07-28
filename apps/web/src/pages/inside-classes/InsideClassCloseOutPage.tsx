@@ -1,10 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { classCloseOutSchema, FINAL_ASSESSMENTS, type ClassStatus } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { z } from 'zod';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +22,7 @@ import { api } from '@/lib/api';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import { applyApiError, toDateInput } from './helpers';
 import type { InsideClassDetail } from './types';
+import { BackLink } from '@/components/BackLink';
 
 /** Statuses a close-out row may take (from closeOutRowSchema). */
 const CLOSE_OUT_STATUSES = [
@@ -300,12 +300,7 @@ export function InsideClassCloseOutPage() {
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <Link
-          to={`/inside-classes/${insideClass.id}`}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> {insideClass.name}
-        </Link>
+        <BackLink fallbackTo={`/inside-classes/${insideClass.id}`} fallbackLabel={insideClass.name} />
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Close out class</h1>
           <StatusBadge status={insideClass.status} />

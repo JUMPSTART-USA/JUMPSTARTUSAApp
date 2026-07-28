@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, GraduationCap, Pencil } from 'lucide-react';
+import { GraduationCap, Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import type { BackNavState } from '@/components/BackLink';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import {
 } from './ProgramTabs';
 import { TimelineTab } from './TimelineTab';
 import type { ParticipantDetail } from './types';
+import { BackLink } from '@/components/BackLink';
 
 /** 'not_applicable' is the default in every status domain — noise as a badge. */
 function headerBadge(label: string, status: string) {
@@ -52,7 +53,6 @@ export function ParticipantProfilePage() {
   const { id = '' } = useParams();
   const { can } = useAuth();
   const location = useLocation();
-  const back = (location.state as BackNavState | null)?.back;
   const [editOpen, setEditOpen] = useState(false);
   const [graduateOpen, setGraduateOpen] = useState(false);
   // The active tab lives in ?tab= so deep links out of the tabs (class,
@@ -82,12 +82,7 @@ export function ParticipantProfilePage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <Link
-            to={back?.to ?? '/participants'}
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" /> {back?.label ?? 'Participants'}
-          </Link>
+          <BackLink fallbackTo="/participants" fallbackLabel="Participants" />
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <h1 className="text-2xl font-semibold">{fullName(person)}</h1>
             <span className="font-mono text-sm text-muted-foreground">

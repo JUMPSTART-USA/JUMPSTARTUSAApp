@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Pencil } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { backTo } from '@/components/BackLink';
+import { BackLink, backTo } from '@/components/BackLink';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, formatDate, humanize } from '@/lib/utils';
@@ -70,12 +70,7 @@ export function InstitutionProfilePage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <Link
-            to="/institutions"
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Institutions
-          </Link>
+          <BackLink fallbackTo="/institutions" fallbackLabel="Institutions" />
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{institution.name}</h1>
             {institution.active ? (

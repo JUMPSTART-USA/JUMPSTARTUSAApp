@@ -1,8 +1,7 @@
 import { EMPLOYMENT_STATUSES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
@@ -13,6 +12,7 @@ import { formatDate, formatMoney, humanize } from '@/lib/utils';
 import { EmploymentFormDialog } from './EmploymentFormDialog';
 import { EmploymentStatusBadge, PAY_SUFFIX, useDebounced } from './shared';
 import type { EmployerListItem, EmploymentListItem } from './types';
+import { BackLink } from '@/components/BackLink';
 
 export function EmploymentsListPage() {
   const { can } = useAuth();
@@ -142,12 +142,7 @@ export function EmploymentsListPage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <Link
-            to="/employers"
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Employers
-          </Link>
+          <BackLink fallbackTo="/employers" fallbackLabel="Employers" />
           <h1 className="text-2xl font-semibold tracking-tight">Placements</h1>
         </div>
         {can('employment.create') ? (

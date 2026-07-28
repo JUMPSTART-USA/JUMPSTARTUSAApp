@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { donorSchema } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
@@ -33,6 +33,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDate, formatMoney, fullName, humanize } from '@/lib/utils';
 import { applyApiErrors, InfoItem, PersonSearch, type PersonHit } from '../shared';
 import type { DonorDetail } from '../types';
+import { BackLink } from '@/components/BackLink';
 
 // Bloomerang owns everything else — the platform PATCHes only these (§6.8).
 const donorLocalSchema = donorSchema.pick({ personId: true, notes: true }).partial();
@@ -143,12 +144,7 @@ export function DonorProfilePage() {
 
   return (
     <div className="space-y-4">
-      <Link
-        to="/donors"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Donors
-      </Link>
+      <BackLink fallbackTo="/donors" fallbackLabel="Donors" />
 
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">

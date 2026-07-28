@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +18,7 @@ import { useAuth } from '@/lib/auth';
 import { cn, humanize } from '@/lib/utils';
 import { ExpiryBadge, WarningNotice } from './shared';
 import type { ExpirationsResult } from './types';
+import { BackLink } from '@/components/BackLink';
 
 const WINDOWS = [30, 60, 90] as const;
 
@@ -46,13 +46,7 @@ export function ExpirationsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link
-            to="/volunteers"
-            title="Back to volunteers"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+          <BackLink fallbackTo="/volunteers" fallbackLabel="Volunteers" />
           <div>
             <h1 className="text-xl font-semibold">Upcoming expirations</h1>
             <p className="text-sm text-muted-foreground">

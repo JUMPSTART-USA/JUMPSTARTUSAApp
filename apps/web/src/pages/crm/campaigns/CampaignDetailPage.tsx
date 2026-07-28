@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DataTable, type Column, type ListState } from '@/components/DataTable';
@@ -30,6 +30,7 @@ import { formatDate, formatMoney } from '@/lib/utils';
 import { InfoItem, ProgressBar } from '../shared';
 import type { CampaignDetail, Donation } from '../types';
 import { CampaignFormDialog } from './CampaignFormDialog';
+import { BackLink } from '@/components/BackLink';
 
 const donationColumns: Column<Donation>[] = [
   { key: 'donationDate', header: 'Date', sortKey: 'donationDate', render: (d) => formatDate(d.donationDate) },
@@ -116,12 +117,7 @@ export function CampaignDetailPage() {
 
   return (
     <div className="space-y-4">
-      <Link
-        to="/campaigns"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Campaigns
-      </Link>
+      <BackLink fallbackTo="/campaigns" fallbackLabel="Campaigns" />
 
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">

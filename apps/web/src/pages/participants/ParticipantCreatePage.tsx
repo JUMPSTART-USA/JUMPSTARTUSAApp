@@ -1,6 +1,5 @@
 import { participantCreateSchema, type ParticipantCreateInput } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
@@ -18,6 +17,7 @@ import {
 } from './person-form';
 import { AmberNotice, applyApiError, schemaResolver, useCaseManagerOptions } from './shared';
 import type { DuplicateCandidate, ParticipantDetail } from './types';
+import { BackLink } from '@/components/BackLink';
 
 export function ParticipantCreatePage() {
   const navigate = useNavigate();
@@ -91,12 +91,7 @@ export function ParticipantCreatePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <Link
-          to="/participants"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Participants
-        </Link>
+        <BackLink fallbackTo="/participants" fallbackLabel="Participants" />
         <h1 className="mt-1 text-2xl font-semibold">New participant</h1>
       </div>
 

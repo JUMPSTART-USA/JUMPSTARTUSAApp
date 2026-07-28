@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Check, Pencil } from 'lucide-react';
+import { Check, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +26,7 @@ import type {
   OutsideSessionDetail,
 } from './types';
 import { ATTENDANCE_STATUSES } from './types';
+import { BackLink } from '@/components/BackLink';
 
 interface RowState {
   status: '' | AttendanceStatus;
@@ -120,12 +121,7 @@ export function OutsideSessionDetailPage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link
-            to={`/outside-programs/${session.outsideProgram.id}`}
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> {session.outsideProgram.name}
-          </Link>
+          <BackLink fallbackTo={`/outside-programs/${session.outsideProgram.id}`} fallbackLabel={session.outsideProgram.name} />
           <h1 className="text-2xl font-semibold tracking-tight">
             Session — {formatDate(session.sessionDate)}
           </h1>

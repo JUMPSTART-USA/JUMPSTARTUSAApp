@@ -5,10 +5,9 @@ import {
   type ClearanceRequirementType,
 } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
-import { Link } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +28,7 @@ import { humanize } from '@/lib/utils';
 import { useInstitutionsLookup } from './lookups';
 import { applyApiFormErrors, ErrorNotice, useDebouncedValue } from './shared';
 import type { RequirementRow } from './types';
+import { BackLink } from '@/components/BackLink';
 
 /**
  * Per-facility clearance requirements are DATA, not code — every DOC differs
@@ -116,13 +116,7 @@ export function FacilityRequirementsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link
-            to="/volunteers"
-            title="Back to volunteers"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+          <BackLink fallbackTo="/volunteers" fallbackLabel="Volunteers" />
           <div>
             <h1 className="text-xl font-semibold">Facility clearance requirements</h1>
             <p className="text-sm text-muted-foreground">

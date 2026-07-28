@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
@@ -15,6 +14,7 @@ import { api } from '@/lib/api';
 import { formatDate, humanize } from '@/lib/utils';
 import { SeverityBadge, vehicleLabel } from './shared';
 import type { AlertSeverity, VehicleAlert } from './types';
+import { BackLink } from '@/components/BackLink';
 
 // Severity buckets mirror the dashboard's "attention needed" grouping (§6.10).
 const GROUPS: { severity: AlertSeverity; title: string; hint: string }[] = [
@@ -75,12 +75,7 @@ export function FleetAlertsPage() {
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <Link
-          to="/vehicles"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Vehicles
-        </Link>
+        <BackLink fallbackTo="/vehicles" fallbackLabel="Vehicles" />
         <h1 className="text-2xl font-semibold tracking-tight">Fleet alerts</h1>
         <p className="text-sm text-muted-foreground">
           Maintenance due, registration and insurance expirations across active vehicles.

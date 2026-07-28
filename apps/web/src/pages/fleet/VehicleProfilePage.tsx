@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Plus, Trash2, Wrench } from 'lucide-react';
+import { Pencil, Plus, Trash2, Wrench } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,7 @@ import { MaintenanceFormDialog } from './MaintenanceFormDialog';
 import { ConfirmDialog, SeverityBadge, vehicleLabel } from './shared';
 import { VehicleFormDialog } from './VehicleFormDialog';
 import type { MaintenanceRecord, MaintenanceSummary, VehicleProfile } from './types';
+import { BackLink } from '@/components/BackLink';
 
 function DetailRow({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -75,12 +76,7 @@ export function VehicleProfilePage() {
   if (query.isError) {
     return (
       <div className="space-y-4">
-        <Link
-          to="/vehicles"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Vehicles
-        </Link>
+        <BackLink fallbackTo="/vehicles" fallbackLabel="Vehicles" />
         <ErrorState error={query.error} />
       </div>
     );
@@ -94,12 +90,7 @@ export function VehicleProfilePage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <Link
-            to="/vehicles"
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Vehicles
-          </Link>
+          <BackLink fallbackTo="/vehicles" fallbackLabel="Vehicles" />
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{vehicleLabel(vehicle)}</h1>
             {vehicle.active ? (

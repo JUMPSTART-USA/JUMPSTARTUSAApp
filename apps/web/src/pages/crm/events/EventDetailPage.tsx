@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Plus, Trash2, UserCheck } from 'lucide-react';
+import { Pencil, Plus, Trash2, UserCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -29,6 +29,7 @@ import { InfoItem } from '../shared';
 import type { EventDetail, RegistrationStatus } from '../types';
 import { EventFormDialog } from './EventFormDialog';
 import { RegistrationDialog } from './RegistrationDialog';
+import { BackLink } from '@/components/BackLink';
 
 const REGISTRATION_VARIANTS: Record<RegistrationStatus, BadgeProps['variant']> = {
   registered: 'secondary',
@@ -82,12 +83,7 @@ export function EventDetailPage() {
 
   return (
     <div className="space-y-4">
-      <Link
-        to="/events"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Events
-      </Link>
+      <BackLink fallbackTo="/events" fallbackLabel="Events" />
 
       <div className="flex items-start justify-between gap-4">
         <div>
