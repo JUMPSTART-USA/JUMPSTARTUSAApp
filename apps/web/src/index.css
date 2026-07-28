@@ -2,28 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
-/* JUMPSTART brand theme (shadcn-style tokens). Palette lifted from
-   jumpstartvision.org: navy #283F6B / deep navy #141F36, gold #FDB835. */
+/* JUMPSTART SC brand theme (shadcn-style tokens). Palette lifted from
+   jumpstartsc.org: ink navy #07101F / #0F2346, gold #FDB835, warm cream
+   #FEF6E3 page background, IBM Plex Sans (+ Condensed for display). */
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 221 46% 15%;
-    --card: 0 0% 100%;
-    --card-foreground: 221 46% 15%;
-    --primary: 220 46% 29%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 219 31% 93%;
-    --secondary-foreground: 221 46% 15%;
-    --muted: 219 31% 93%;
-    --muted-foreground: 220 19% 44%;
-    --accent: 219 31% 91%;
-    --accent-foreground: 221 46% 15%;
+    --background: 42 93% 94%;
+    --foreground: 209 60% 7%;
+    --card: 40 60% 99%;
+    --card-foreground: 209 60% 7%;
+    --primary: 39 98% 60%;
+    --primary-foreground: 209 60% 7%;
+    --secondary: 42 36% 95%;
+    --secondary-foreground: 209 60% 7%;
+    --muted: 42 30% 92%;
+    --muted-foreground: 213 20% 38%;
+    --accent: 42 40% 90%;
+    --accent-foreground: 209 60% 7%;
     --destructive: 0 72% 45%;
     --destructive-foreground: 210 40% 98%;
-    --border: 219 31% 87%;
-    --input: 219 31% 83%;
-    --ring: 220 46% 29%;
-    --radius: 0.5rem;
+    --border: 40 28% 84%;
+    --input: 40 28% 78%;
+    --ring: 39 92% 45%;
+    --radius: 0.25rem;
   }
 
   * {
@@ -31,5 +32,8 @@
   }
   body {
     @apply bg-background font-sans text-foreground antialiased;
+  }
+  h1, h2, h3 {
+    @apply font-display;
   }
 }

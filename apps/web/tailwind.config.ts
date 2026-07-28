@@ -6,13 +6,14 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Raleway Variable"', ...defaultTheme.fontFamily.sans],
+        sans: ['"IBM Plex Sans"', ...defaultTheme.fontFamily.sans],
+        display: ['"IBM Plex Sans Condensed"', '"IBM Plex Sans"', ...defaultTheme.fontFamily.sans],
       },
       colors: {
-        // JUMPSTART brand (jumpstartvision.org): navy ramp + gold accents
+        // JUMPSTART SC brand (jumpstartsc.org): ink-navy ramp + gold on cream
         navy: {
-          DEFAULT: '#283F6B',
-          deep: '#141F36',
+          DEFAULT: '#0F2346',
+          deep: '#07101F',
           slate: '#637290',
           light: '#B8C4DA',
         },
