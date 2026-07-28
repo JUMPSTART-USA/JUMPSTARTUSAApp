@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BloomerangSyncService } from './bloomerang-sync.service';
+import { DonorCrmConfigService } from './donor-crm-config.service';
+import { NeonCrmSyncService } from './neoncrm-sync.service';
 import { CampaignsController } from './campaigns.controller';
 import { CampaignsService } from './campaigns.service';
 import { DonationsController } from './donations.controller';
@@ -30,6 +32,8 @@ import { VendorsService } from './vendors.service';
     EventsService,
     VendorsService,
     BloomerangSyncService,
+    NeonCrmSyncService,
+    DonorCrmConfigService,
   ],
   exports: [
     DonorsService,
@@ -38,6 +42,8 @@ import { VendorsService } from './vendors.service';
     EventsService,
     VendorsService,
     BloomerangSyncService,
+    NeonCrmSyncService,
+    DonorCrmConfigService,
   ],
 })
 export class CrmModule {}

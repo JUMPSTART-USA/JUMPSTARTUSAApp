@@ -9,7 +9,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { api, qs, type Paged } from '@/lib/api';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
 import { useDebouncedValue } from '../shared';
-import type { DonorListItem } from '../types';
+import type { DonorCrmStatus, DonorListItem } from '../types';
 import { DonorsNav } from './DonorsNav';
 import { SyncStatusChip } from './SyncStatusChip';
 
@@ -43,6 +43,12 @@ export function DonorsListPage() {
   const [status, setStatus] = useState('');
   const debouncedSearch = useDebouncedValue(search);
 
+  const crmStatus = useQuery({
+    queryKey: ['crm', 'sync', 'status'],
+    queryFn: () => api.get<DonorCrmStatus>('/sync/status'),
+  });
+  const crmName = crmStatus.data?.provider === 'none' ? null : crmStatus.data?.providerLabel;
+
   useEffect(() => {
     setState((s) => ({ ...s, page: 1 }));
   }, [debouncedSearch]);
@@ -67,7 +73,9 @@ export function DonorsListPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Donors</h1>
           <p className="text-sm text-muted-foreground">
-            Read-only mirror of Bloomerang — edits to giving data happen there.
+            {crmName
+              ? `Read-only mirror of ${crmName} — edits to giving data happen there.`
+              : 'Donor records — no external donor CRM is configured.'}
           </p>
         </div>
         <SyncStatusChip />

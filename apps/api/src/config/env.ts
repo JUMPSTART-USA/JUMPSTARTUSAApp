@@ -15,6 +15,8 @@ const envSchema = z.object({
     .optional()
     .transform((v) => v === 'true'),
   BLOOMERANG_API_KEY: z.string().optional(),
+  NEONCRM_ORG_ID: z.string().optional(),
+  NEONCRM_API_KEY: z.string().optional(),
   POSTMARK_SERVER_TOKEN: z.string().optional(),
   EMAIL_FROM: z.string().email().default('no-reply@jumpstartusa.org'),
   S3_ENDPOINT: z.string().optional(),

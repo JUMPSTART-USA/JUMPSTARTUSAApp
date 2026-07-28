@@ -109,3 +109,23 @@ export const vendorSchema = z.object({
   notes: optionalTrimmed,
 });
 export type VendorInput = z.infer<typeof vendorSchema>;
+
+// ── Donor CRM integration (Development module) ──────────────────────────────
+// Which external giving system the donors/donations mirror syncs from. The
+// provider choice lives in app_settings under DONOR_CRM_SETTING_KEY; API
+// credentials stay server-side environment variables (never in the database).
+
+export const DONOR_CRM_PROVIDERS = ['none', 'bloomerang', 'neoncrm'] as const;
+export const donorCrmProviderSchema = z.enum(DONOR_CRM_PROVIDERS);
+export type DonorCrmProvider = z.infer<typeof donorCrmProviderSchema>;
+
+export const DONOR_CRM_SETTING_KEY = 'integrations.donorCrm';
+
+export const DONOR_CRM_LABELS: Record<DonorCrmProvider, string> = {
+  none: 'None',
+  bloomerang: 'Bloomerang',
+  neoncrm: 'Neon CRM',
+};
+
+export const donorCrmSettingSchema = z.object({ provider: donorCrmProviderSchema });
+export type DonorCrmSetting = z.infer<typeof donorCrmSettingSchema>;

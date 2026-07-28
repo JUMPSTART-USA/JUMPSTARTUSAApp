@@ -161,3 +161,21 @@ export interface SyncRun {
   stats: unknown;
   error: string | null;
 }
+
+export interface DonorCrmStatus {
+  provider: 'none' | 'bloomerang' | 'neoncrm';
+  providerLabel: string;
+  configured: boolean;
+  latest: SyncRun | null;
+}
+
+export interface DonorCrmConfig {
+  provider: DonorCrmStatus['provider'];
+  settingKey: string;
+  providers: {
+    key: DonorCrmStatus['provider'];
+    label: string;
+    envReady: boolean;
+    envVars: string[];
+  }[];
+}

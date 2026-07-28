@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
-import type { SyncRun } from '../types';
+import type { DonorCrmStatus, SyncRun } from '../types';
 
 const RUN_VARIANTS: Record<SyncRun['status'], BadgeProps['variant']> = {
   running: 'warning',
@@ -14,22 +14,26 @@ const RUN_VARIANTS: Record<SyncRun['status'], BadgeProps['variant']> = {
   failed: 'destructive',
 };
 
-/** Latest Bloomerang mirror run (§6.8); Sync now is admin-only. */
+/**
+ * Latest donor-CRM mirror run for the configured provider (§6.8); Sync now is
+ * admin-only. Renders nothing when no provider is configured.
+ */
 export function SyncStatusChip() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
-  const runsQuery = useQuery({
-    queryKey: ['crm', 'sync', 'runs'],
-    queryFn: () => api.get<SyncRun[]>('/sync/runs'),
+  const statusQuery = useQuery({
+    queryKey: ['crm', 'sync', 'status'],
+    queryFn: () => api.get<DonorCrmStatus>('/sync/status'),
     refetchInterval: (query) =>
-      query.state.data?.[0]?.status === 'running' ? 5_000 : false,
+      query.state.data?.latest?.status === 'running' ? 5_000 : false,
   });
-  const latest = runsQuery.data?.[0];
+  const status = statusQuery.data;
+  const latest = status?.latest;
 
   const syncNow = useMutation({
-    mutationFn: () => api.post<SyncRun>('/sync/bloomerang'),
+    mutationFn: () => api.post<SyncRun>(`/sync/${status?.provider}`),
     onSuccess: () => {
       setError(null);
       queryClient.invalidateQueries({ queryKey: ['crm'] });
@@ -37,25 +41,28 @@ export function SyncStatusChip() {
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Sync failed'),
   });
 
+  if (!status || status.provider === 'none') return null;
+
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-2">
         {latest ? (
           <>
             <Badge variant={RUN_VARIANTS[latest.status]} title={latest.error ?? undefined}>
-              Bloomerang sync: {latest.status}
+              {status.providerLabel} sync: {latest.status}
             </Badge>
             <span className="text-xs text-muted-foreground">
               {formatDate(latest.finishedAt ?? latest.startedAt)}
             </span>
           </>
         ) : (
-          <Badge variant="outline">Bloomerang: never synced</Badge>
+          <Badge variant="outline">{status.providerLabel}: never synced</Badge>
         )}
         {can('admin.settings') ? (
           <Button
             variant="outline"
             size="sm"
+            title={status.configured ? undefined : 'API credentials not configured on the server'}
             disabled={syncNow.isPending || latest?.status === 'running'}
             onClick={() => syncNow.mutate()}
           >

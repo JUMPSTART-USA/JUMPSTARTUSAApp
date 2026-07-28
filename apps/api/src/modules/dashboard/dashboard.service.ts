@@ -258,14 +258,14 @@ export class DashboardService {
                   .then((rows) => rows.length)
               : this.prisma.donor.count({ where: { deletedAt: null } }),
             this.prisma.syncRun.findFirst({
-              where: { target: 'bloomerang', status: 'success' },
+              where: { target: { in: ['bloomerang', 'neoncrm'] }, status: 'success' },
               orderBy: { startedAt: 'desc' },
               select: { finishedAt: true },
             }),
           ]);
           data.donorCount = donorCount;
           data.donationTotal = sum._sum.amount ? Number(sum._sum.amount) : 0;
-          // §6.8: donors/donations are a Bloomerang mirror — surface staleness.
+          // §6.8: donors/donations mirror the configured donor CRM — surface staleness.
           data.donationsLastSyncedAt = lastSync?.finishedAt ?? null;
         })(),
       );
