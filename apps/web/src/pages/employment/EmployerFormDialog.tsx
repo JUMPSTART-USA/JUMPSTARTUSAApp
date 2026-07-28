@@ -132,7 +132,7 @@ export function EmployerFormDialog({
             <FormField label="City" error={errors.city}>
               <Input {...register('city')} />
             </FormField>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField label="State" error={errors.state}>
                 {/* state is an optional enum — '' must reach the schema as undefined */}
                 <Select {...register('state', { setValueAs: (v) => (v === '' ? undefined : v) })}>

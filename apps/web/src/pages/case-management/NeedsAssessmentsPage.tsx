@@ -117,7 +117,7 @@ function RecordAssessmentDialog({
               }}
             />
           </FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Instrument" required error={formState.errors.instrumentName}>
               <Input placeholder="e.g. Self-Sufficiency Matrix" {...register('instrumentName')} />
             </FormField>
@@ -130,7 +130,7 @@ function RecordAssessmentDialog({
           </FormField>
           <div className="space-y-1.5">
             <Label>Domain scores</Label>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-md border p-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 rounded-md border p-3 sm:grid-cols-3">
               {DOMAINS.map((domain) => (
                 <div key={domain} className="space-y-1">
                   <Label className="text-xs text-muted-foreground">{humanize(domain)}</Label>
@@ -185,7 +185,7 @@ function AssessmentViewDialog({
               </DialogDescription>
             </DialogHeader>
             {assessment.domainScores && Object.keys(assessment.domainScores).length > 0 ? (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:grid-cols-3">
                 {Object.entries(assessment.domainScores).map(([domain, score]) => (
                   <div key={domain} className="rounded-md border p-2 text-center">
                     <p className="text-xs text-muted-foreground">{humanize(domain)}</p>

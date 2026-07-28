@@ -281,7 +281,7 @@ export function VehicleProfilePage() {
               <ErrorState error={summaryQuery.error} />
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-3 rounded-md border bg-muted/30 p-3 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-md border bg-muted/30 p-3 text-center">
                   <div>
                     <p className="text-2xl font-semibold">{formatMoney(summary?.totalCost ?? 0)}</p>
                     <p className="text-xs text-muted-foreground">Total cost</p>

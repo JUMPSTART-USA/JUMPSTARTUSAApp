@@ -94,7 +94,7 @@ function ProposeAssignmentDialog({ onClose }: { onClose: () => void }) {
               }}
             />
           </FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Start date" error={form.formState.errors.startDate}>
               <Input type="date" {...form.register('startDate')} />
             </FormField>

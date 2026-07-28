@@ -119,7 +119,7 @@ export function OutsideProgramDetailPage() {
           <CardTitle>Program details</CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
             <InfoItem label="Schedule">{program.recurringSchedule ?? '—'}</InfoItem>
             <InfoItem label="Dates">
               {program.startDate || program.endDate

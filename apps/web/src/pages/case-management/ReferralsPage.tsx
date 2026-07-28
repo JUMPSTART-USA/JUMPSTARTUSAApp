@@ -139,7 +139,7 @@ function ReferralDialog({
               }}
             />
           </FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {canListVendors ? (
               <FormField label="Partner organization" error={formState.errors.vendorId}>
                 <Select
@@ -166,7 +166,7 @@ function ReferralDialog({
           <FormField label="Reason" required error={formState.errors.reason}>
             <Textarea rows={3} {...register('reason')} />
           </FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Referral date" required error={formState.errors.referralDate}>
               <Input type="date" {...register('referralDate')} />
             </FormField>

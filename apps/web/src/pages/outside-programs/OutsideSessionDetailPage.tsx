@@ -142,7 +142,7 @@ export function OutsideSessionDetailPage() {
           <CardTitle>Session details</CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
             <InfoItem label="Date">{formatDate(session.sessionDate)}</InfoItem>
             <InfoItem label="Topic">{session.topic ?? '—'}</InfoItem>
             <InfoItem label="Notes">{session.notes ?? '—'}</InfoItem>

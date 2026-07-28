@@ -120,7 +120,7 @@ export function VendorFormDialog({
           <FormField label="Name" required error={form.formState.errors.name}>
             <Input {...form.register('name')} />
           </FormField>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Contact person" error={form.formState.errors.contactPerson}>
               <Input {...form.register('contactPerson', optional)} />
             </FormField>
@@ -134,7 +134,7 @@ export function VendorFormDialog({
           <FormField label="Address" error={form.formState.errors.addressLine1}>
             <Input {...form.register('addressLine1', optional)} />
           </FormField>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <FormField label="City" error={form.formState.errors.city}>
               <Input {...form.register('city', optional)} />
             </FormField>

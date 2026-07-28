@@ -97,7 +97,7 @@ export function EventFormDialog({
           <FormField label="Name" required error={form.formState.errors.name}>
             <Input {...form.register('name')} />
           </FormField>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Date" required error={form.formState.errors.eventDate}>
               <Input type="date" {...form.register('eventDate')} />
             </FormField>
@@ -105,7 +105,7 @@ export function EventFormDialog({
               <Input {...form.register('eventType', optional)} />
             </FormField>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Location" error={form.formState.errors.location}>
               <Input {...form.register('location', optional)} />
             </FormField>
@@ -120,7 +120,7 @@ export function EventFormDialog({
               </Select>
             </FormField>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <FormField label="Attendance" error={form.formState.errors.attendanceCount}>
               <Input type="number" min="0" step="1" {...form.register('attendanceCount', optional)} />
             </FormField>

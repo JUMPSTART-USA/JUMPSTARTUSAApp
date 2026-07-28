@@ -168,7 +168,7 @@ export function CampaignDetailPage() {
             <CardTitle>Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-2 gap-3">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <InfoItem label="Start date">{formatDate(campaign.startDate)}</InfoItem>
               <InfoItem label="End date">{formatDate(campaign.endDate)}</InfoItem>
               <InfoItem label="Description">

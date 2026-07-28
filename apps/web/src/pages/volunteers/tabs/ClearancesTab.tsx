@@ -278,7 +278,7 @@ function ClearanceDialog({
               </FormField>
             </>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Status" error={formState.errors.status}>
               <Select {...register('status')}>
                 {CLEARANCE_STATUSES.map((s) => (

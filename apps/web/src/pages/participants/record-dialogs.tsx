@@ -98,7 +98,7 @@ export function ServiceEditDialog({
             update.mutate(values);
           })}
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Service type" required error={formState.errors.serviceType}>
               <Input {...register('serviceType')} />
             </FormField>
@@ -215,7 +215,7 @@ export function NoteEditDialog({
             update.mutate(values);
           })}
         >
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <FormField label="Date" required error={formState.errors.noteDate}>
               <Input type="date" {...register('noteDate')} />
             </FormField>

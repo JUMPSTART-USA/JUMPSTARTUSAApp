@@ -166,7 +166,7 @@ export function DonationFormDialog({
               }}
             />
           </FormField>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Date" required error={form.formState.errors.donationDate}>
               <Input type="date" {...form.register('donationDate')} />
             </FormField>
@@ -174,7 +174,7 @@ export function DonationFormDialog({
               <Input type="number" step="0.01" min="0" {...form.register('amount')} />
             </FormField>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Payment method" error={form.formState.errors.paymentMethod}>
               <Input {...form.register('paymentMethod', optional)} />
             </FormField>
@@ -182,7 +182,7 @@ export function DonationFormDialog({
               <Input {...form.register('fund', optional)} />
             </FormField>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Campaign" error={form.formState.errors.campaignId}>
               <Select {...form.register('campaignId', optional)}>
                 <option value="">None</option>

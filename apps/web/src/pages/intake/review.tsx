@@ -39,7 +39,7 @@ export function SubmittedAge({
 /** Label/value row used across the detail dialogs. */
 export function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-3 gap-2 py-1 text-sm">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1 text-sm">
       <span className="text-muted-foreground">{label}</span>
       <span className="col-span-2">{children ?? '—'}</span>
     </div>

@@ -79,7 +79,7 @@ function LogEngagementDialog({ onClose }: { onClose: () => void }) {
               }}
             />
           </FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Type" required error={form.formState.errors.engagementType}>
               <Select {...form.register('engagementType', { setValueAs: emptyToUndefined })}>
                 <option value="">Select…</option>

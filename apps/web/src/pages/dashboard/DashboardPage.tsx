@@ -236,7 +236,7 @@ export function DashboardPage() {
         <ErrorState error={query.error} />
       ) : data ? (
         <div className={cn('space-y-4 transition-opacity', query.isFetching && 'opacity-60')}>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
             {data.activeParticipants !== undefined ? (
               <StatCard
                 icon={Users}

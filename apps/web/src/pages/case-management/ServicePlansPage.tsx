@@ -86,7 +86,7 @@ function AddGoalDialog({
             create.mutate(values);
           })}
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Category" required error={formState.errors.category}>
               <Select {...register('category')}>
                 {NOTE_CATEGORIES.map((c) => (

@@ -143,7 +143,7 @@ export function InstitutionProfilePage() {
           <CardHeader>
             <CardTitle>At a glance</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-3 gap-3 text-center">
+          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
             <div>
               <p className="text-2xl font-semibold">{participantsServedCount}</p>
               <p className="text-xs text-muted-foreground">Participants served</p>

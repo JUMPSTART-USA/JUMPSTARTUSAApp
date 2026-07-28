@@ -195,7 +195,7 @@ function LogSessionDialog({
           })}
         >
           {topError ? <ErrorState error={new Error(topError)} /> : null}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Session date" required error={form.formState.errors.sessionDate}>
               <Input type="date" {...form.register('sessionDate')} />
             </FormField>
@@ -210,7 +210,7 @@ function LogSessionDialog({
               </Select>
             </FormField>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Duration (minutes)" error={form.formState.errors.durationMinutes}>
               <Input
                 type="number"

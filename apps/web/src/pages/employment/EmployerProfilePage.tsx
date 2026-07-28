@@ -159,7 +159,7 @@ export function EmployerProfilePage() {
           <CardTitle>Participants employed</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-3 gap-3 rounded-md border bg-muted/30 p-3 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-md border bg-muted/30 p-3 text-center">
             <div>
               <p className="text-2xl font-semibold">{outcomes.placements}</p>
               <p className="text-xs text-muted-foreground">Placements</p>

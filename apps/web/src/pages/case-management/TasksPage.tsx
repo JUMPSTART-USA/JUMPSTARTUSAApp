@@ -122,7 +122,7 @@ function TaskDialog({
           <FormField label="Details" error={formState.errors.details}>
             <Textarea rows={3} {...register('details')} />
           </FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Assigned to" required error={formState.errors.assignedToId}>
               {canPickAssignee && staff ? (
                 <Select {...register('assignedToId')}>

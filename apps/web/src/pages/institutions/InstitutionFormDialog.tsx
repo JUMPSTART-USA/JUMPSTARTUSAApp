@@ -126,7 +126,7 @@ export function InstitutionFormDialog({
             <FormField label="City" error={errors.city}>
               <Input {...register('city')} />
             </FormField>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField label="State" required error={errors.state}>
                 <Select {...register('state')}>
                   <option value="">Select…</option>
@@ -161,7 +161,7 @@ export function InstitutionFormDialog({
               <FormField label="Name" error={errors.primaryContactName}>
                 <Input {...register('primaryContactName')} />
               </FormField>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField label="Role" error={errors.primaryContactRole}>
                   <Input {...register('primaryContactRole')} />
                 </FormField>

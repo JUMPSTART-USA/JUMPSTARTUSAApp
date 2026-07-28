@@ -118,7 +118,7 @@ export function EventDetailPage() {
             <CardTitle>Event info</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-2 gap-3">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <InfoItem label="Campaign">
                 {event.campaign ? (
                   <Link to={`/campaigns/${event.campaign.id}`} className="text-primary hover:underline">
@@ -144,7 +144,7 @@ export function EventDetailPage() {
             <CardTitle>Financial summary</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-2 gap-3">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <InfoItem label="Revenue">
                 <span className="tabular-nums">{formatMoney(revenue)}</span>
               </InfoItem>

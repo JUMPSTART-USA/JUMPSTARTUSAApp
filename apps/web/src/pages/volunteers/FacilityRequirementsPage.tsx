@@ -318,7 +318,7 @@ function RequirementDialog({
               placeholder='e.g. "DOC volunteer application", "TB test"'
             />
           </FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Type" error={formState.errors.requirementType}>
               <Select {...register('requirementType')}>
                 {CLEARANCE_REQUIREMENT_TYPES.map((t) => (

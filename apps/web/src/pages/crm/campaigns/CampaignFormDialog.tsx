@@ -93,7 +93,7 @@ export function CampaignFormDialog({
           <FormField label="Name" required error={form.formState.errors.name}>
             <Input {...form.register('name')} />
           </FormField>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Status" required error={form.formState.errors.status}>
               <Select {...form.register('status')}>
                 {CAMPAIGN_STATUSES.map((s) => (
@@ -107,7 +107,7 @@ export function CampaignFormDialog({
               <Input type="number" step="0.01" min="0" {...form.register('goalAmount', optional)} />
             </FormField>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Start date" error={form.formState.errors.startDate}>
               <Input type="date" {...form.register('startDate', optional)} />
             </FormField>

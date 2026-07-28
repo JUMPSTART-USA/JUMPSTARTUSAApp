@@ -69,7 +69,7 @@ function JusticeQuestion({
   const value = form.watch(field);
   const answered = value !== undefined;
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <FormField label={label}>
         <Select
           value={value === undefined ? '' : value ? 'yes' : 'no'}
@@ -171,7 +171,7 @@ function CompleteCheckinDialog({
         >
           {topError ? <ErrorState error={new Error(topError)} /> : null}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Completed date" required error={form.formState.errors.completedDate}>
               <Input type="date" {...form.register('completedDate')} />
             </FormField>
@@ -187,7 +187,7 @@ function CompleteCheckinDialog({
             </FormField>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Employment" error={form.formState.errors.employmentStatus}>
               <Select {...form.register('employmentStatus', { setValueAs: emptyToUndefined })}>
                 <option value="">Not collected</option>

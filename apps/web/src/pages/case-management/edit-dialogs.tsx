@@ -106,7 +106,7 @@ export function EditNoteDialog({
             update.mutate(values);
           })}
         >
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <FormField label="Date" required error={formState.errors.noteDate}>
               <Input type="date" {...register('noteDate')} />
             </FormField>
@@ -229,7 +229,7 @@ export function EditServiceDialog({
             update.mutate(values);
           })}
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Service type" required error={formState.errors.serviceType}>
               <Input {...register('serviceType')} />
             </FormField>
@@ -363,7 +363,7 @@ export function EditAssessmentDialog({
             update.mutate(values);
           })}
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Instrument" required error={formState.errors.instrumentName}>
               <Input {...register('instrumentName')} />
             </FormField>
@@ -376,7 +376,7 @@ export function EditAssessmentDialog({
           </FormField>
           <div className="space-y-1.5">
             <Label>Domain scores</Label>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-md border p-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 rounded-md border p-3 sm:grid-cols-3">
               {[...DOMAINS, ...extraDomains].map((domain) => (
                 <div key={domain} className="space-y-1">
                   <Label className="text-xs text-muted-foreground">{humanize(domain)}</Label>

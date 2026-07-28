@@ -12,11 +12,14 @@ import {
   Inbox,
   LayoutDashboard,
   LogOut,
+  Menu,
   School,
   Settings,
   Users,
   UsersRound,
+  X,
 } from 'lucide-react';
+import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
 import { Button } from '@/components/ui/button';
@@ -85,6 +88,7 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
 export function AppLayout() {
   const { user, can, logout } = useAuth();
   const navigate = useNavigate();
+  const [navOpen, setNavOpen] = useState(false);
 
   if (!user) {
     navigate('/login');
@@ -93,7 +97,21 @@ export function AppLayout() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col bg-navy-deep text-white">
+      {/* Backdrop for the mobile nav drawer */}
+      {navOpen ? (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setNavOpen(false)}
+          aria-hidden="true"
+        />
+      ) : null}
+
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-navy-deep text-white transition-transform duration-200 lg:translate-x-0',
+          navOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
         <div className="flex h-20 flex-col justify-center border-b border-white/10 px-4">
           {/* brightness(0) invert(1) flattens the PNG's antialiased grays to pure white */}
           <img
@@ -102,6 +120,14 @@ export function AppLayout() {
             className="h-10 w-auto self-start [filter:brightness(0)_invert(1)]"
           />
           <div className="mt-1.5 text-[11px] tracking-wide text-white/50">Operations Platform</div>
+          <button
+            type="button"
+            className="absolute right-3 top-3 rounded-md p-1 text-white/70 hover:bg-white/10 hover:text-white lg:hidden"
+            onClick={() => setNavOpen(false)}
+            aria-label="Close navigation"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         <nav className="flex-1 space-y-4 overflow-y-auto p-3">
@@ -119,6 +145,7 @@ export function AppLayout() {
                       key={item.to}
                       to={item.to}
                       end={item.to === '/'}
+                      onClick={() => setNavOpen(false)}
                       className={({ isActive }) =>
                         cn(
                           'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white',
@@ -155,11 +182,19 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <div className="ml-60 flex min-h-screen flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b bg-background/95 px-6 backdrop-blur">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:ml-60">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur sm:px-6">
+          <button
+            type="button"
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open navigation"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <GlobalSearch />
         </header>
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-4 sm:p-6">
           <Outlet />
         </main>
       </div>

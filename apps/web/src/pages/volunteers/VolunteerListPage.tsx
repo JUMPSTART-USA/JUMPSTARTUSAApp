@@ -377,7 +377,7 @@ function CreateVolunteerDialog({
           </div>
         ) : (
           <form onSubmit={onSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <FormField label="First name" required error={personErrors.firstName}>
                 <Input {...register('person.firstName')} />
               </FormField>
@@ -420,7 +420,7 @@ function CreateVolunteerDialog({
               <FormField label="City" error={personErrors.city}>
                 <Input {...register('person.city')} />
               </FormField>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FormField label="State" error={personErrors.state}>
                   <Select
                     {...register('person.state', {

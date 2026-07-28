@@ -229,7 +229,7 @@ const inviteResolver = zodResolver(createUserSchema) as unknown as Resolver<Invi
 
 function RoleCheckboxes({ register }: { register: UseFormRegister<InviteFormValues> }) {
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
       {ROLE_KEYS.map((key) => (
         <Label key={key} className="flex items-center gap-2 font-normal">
           <Checkbox value={key} {...register('roles')} />
@@ -325,7 +325,7 @@ function InviteUserDialog({
             })}
             className="space-y-4"
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <FormField label="First name" required error={formState.errors.firstName}>
                 <Input {...register('firstName')} />
               </FormField>
@@ -419,7 +419,7 @@ function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () =
           })}
           className="space-y-4"
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="First name" required error={formState.errors.firstName}>
               <Input {...register('firstName')} />
             </FormField>

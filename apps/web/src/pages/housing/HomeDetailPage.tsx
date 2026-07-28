@@ -203,7 +203,7 @@ export function HomeDetailPage() {
             <CardTitle>Home details</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
               <InfoItem label="Phone">{home.phone ?? '—'}</InfoItem>
               <InfoItem label="House manager">{home.houseManagerName ?? '—'}</InfoItem>
               <InfoItem label="Manager contact">

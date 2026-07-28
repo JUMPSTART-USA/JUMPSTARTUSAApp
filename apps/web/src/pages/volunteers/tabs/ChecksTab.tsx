@@ -229,7 +229,7 @@ function CheckDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Vendor" required error={formState.errors.vendor}>
               <Input {...register('vendor')} placeholder="e.g. Sterling Volunteers" />
             </FormField>

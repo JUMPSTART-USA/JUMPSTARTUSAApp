@@ -294,7 +294,7 @@ function TemplateEditorDialog({
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 items-end gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 items-end gap-3">
             <FormField label="Name" required error={formState.errors.name}>
               <Input {...register('name')} />
             </FormField>

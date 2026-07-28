@@ -193,7 +193,7 @@ export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValu
         <FormField label="City" error={p?.city}>
           <Input {...register('person.city')} />
         </FormField>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="State" error={p?.state}>
             <Select {...register('person.state')}>
               <option value="">—</option>

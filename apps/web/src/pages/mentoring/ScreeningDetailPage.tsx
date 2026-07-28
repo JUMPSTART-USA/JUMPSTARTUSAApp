@@ -86,7 +86,7 @@ function AddStepDialog({
           })}
         >
           {topError ? <ErrorState error={new Error(topError)} /> : null}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Stage" required error={form.formState.errors.stage}>
               <Select {...form.register('stage', { setValueAs: emptyToUndefined })}>
                 {MENTOR_SCREENING_STAGES.map((s) => (
