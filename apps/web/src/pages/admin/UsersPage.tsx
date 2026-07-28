@@ -47,6 +47,7 @@ export function UsersPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [resendResult, setResendResult] = useState<InviteResult | null>(null);
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [deactivateUser, setDeactivateUser] = useState<AdminUser | null>(null);
   const debouncedSearch = useDebouncedValue(search);
@@ -71,6 +72,14 @@ export function UsersPage() {
   const reactivate = useMutation({
     mutationFn: (id: string) => api.post<AdminUser>(`/admin/users/${id}/reactivate`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
+  });
+
+  const resendInvite = useMutation({
+    mutationFn: (id: string) => api.post<InviteResult>(`/admin/users/${id}/resend-invite`),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      setResendResult(result);
+    },
   });
 
   // One chapter or all (§7.2): empty list = every chapter (admin/executive).
@@ -172,6 +181,16 @@ export function UsersPage() {
           <Button variant="outline" size="sm" onClick={() => setEditUser(row)}>
             Edit
           </Button>
+          {row.status === 'invited' ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={resendInvite.isPending}
+              onClick={() => resendInvite.mutate(row.id)}
+            >
+              Resend invite
+            </Button>
+          ) : null}
           {row.status === 'deactivated' ? (
             <Button
               variant="outline"
@@ -229,6 +248,39 @@ export function UsersPage() {
 
       {error ? <ErrorState error={error} /> : null}
       {reactivate.error ? <ErrorState error={reactivate.error} /> : null}
+      {resendInvite.error ? <ErrorState error={resendInvite.error} /> : null}
+
+      {resendResult ? (
+        <Dialog open onOpenChange={(next) => (!next ? setResendResult(null) : undefined)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Invite re-sent</DialogTitle>
+              <DialogDescription>
+                A new temporary password was generated for {resendResult.user.email} — the old
+                one no longer works.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              {resendResult.emailSent ? (
+                <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                  Invite email sent to {resendResult.user.email} from {resendResult.emailFrom}.
+                </p>
+              ) : (
+                <WarningNotice>
+                  No invite email was sent — outbound email is not configured. Hand the
+                  temporary password off out-of-band.
+                </WarningNotice>
+              )}
+              <code className="block rounded-md border bg-muted px-3 py-2 font-mono text-sm">
+                {resendResult.temporaryPassword}
+              </code>
+              <DialogFooter>
+                <Button onClick={() => setResendResult(null)}>Done</Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
 
       <DataTable
         columns={columns}
@@ -330,6 +382,16 @@ function InviteUserDialog({
 
         {invited ? (
           <div className="space-y-3">
+            {invited.emailSent ? (
+              <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                Invite email sent to {invited.user.email} from {invited.emailFrom}.
+              </p>
+            ) : (
+              <WarningNotice>
+                No invite email was sent — outbound email is not configured (see Admin →
+                Settings → Integrations). Hand the temporary password off out-of-band.
+              </WarningNotice>
+            )}
             <WarningNotice>
               Store this temporary password now — it is shown only this once and is never stored
               or displayed again. The user must change it at first login.

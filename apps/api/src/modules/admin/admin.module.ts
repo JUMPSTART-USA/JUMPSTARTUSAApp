@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminAuditLogsController } from './audit-logs.controller';
+import { AdminEmailController } from './email.controller';
 import { AdminAuditLogsService } from './audit-logs.service';
 import { AdminRolesController } from './roles.controller';
 import { AdminRolesService } from './roles.service';
@@ -13,6 +14,7 @@ import { AdminUsersService } from './users.service';
 @Module({
   controllers: [
     AdminUsersController,
+    AdminEmailController,
     AdminRolesController,
     AdminAuditLogsController,
     AdminSettingsController,

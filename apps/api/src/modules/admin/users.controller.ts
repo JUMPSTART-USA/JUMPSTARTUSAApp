@@ -92,6 +92,12 @@ export class AdminUsersController {
     return this.users.reactivate(id, user.id);
   }
 
+  @Post(':id/resend-invite')
+  @RequirePermission('admin.users')
+  resendInvite(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.users.resendInvite(id, user.id);
+  }
+
   @Get(':id/region-scopes')
   @RequirePermission('admin.users')
   getRegionScopes(@Param('id', ParseUUIDPipe) id: string) {

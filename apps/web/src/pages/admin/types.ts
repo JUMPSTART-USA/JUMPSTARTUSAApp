@@ -21,6 +21,15 @@ export interface AdminUser {
 export interface InviteResult {
   user: AdminUser;
   temporaryPassword: string;
+  emailSent: boolean;
+  emailFrom: string | null;
+}
+
+export interface EmailConfig {
+  configured: boolean;
+  fromAddress: string;
+  settingKey: string;
+  envVars: string[];
 }
 
 export interface DeactivateResult {

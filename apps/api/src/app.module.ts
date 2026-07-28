@@ -25,9 +25,11 @@ import { PublicIntakeModule } from './modules/public-intake/public-intake.module
 import { ReportsModule } from './modules/reports/reports.module';
 import { VolunteersModule } from './modules/volunteers/volunteers.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
+    MailModule,
     PrismaModule,
     AuditModule,
     AuthModule,

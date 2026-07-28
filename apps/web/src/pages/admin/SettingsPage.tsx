@@ -27,7 +27,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
 import type { DonorCrmConfig } from '../crm/types';
 import { ErrorNotice } from './shared';
-import type { AppSetting } from './types';
+import type { AppSetting, EmailConfig } from './types';
 
 /** Seed-known keys (admin/settings.service.ts) — offered even when not yet set. */
 const KNOWN_SETTINGS: Record<string, string> = {
@@ -35,6 +35,7 @@ const KNOWN_SETTINGS: Record<string, string> = {
   'mentoring.maxActiveMentees': 'Cap on active mentees per mentor, enforced by the mentoring module',
   'states.active': 'States/regions the organization operates in',
   'integrations.donorCrm': 'Active donor CRM for the Development module (see Integrations above)',
+  'email.fromAddress': 'Mailbox that invite emails are sent from (see Integrations above)',
 };
 
 const KEY_PATTERN = /^[a-z][a-zA-Z0-9_-]*(\.[a-zA-Z0-9_-]+)*$/;
@@ -234,6 +235,94 @@ function IntegrationsCard() {
       </div>
 
       {saveError ? <ErrorNotice>{saveError}</ErrorNotice> : null}
+
+      <EmailSection />
+    </div>
+  );
+}
+
+/**
+ * Outbound email (invites): Graph credential status plus the admin-assignable
+ * From account. The mailbox must exist in the Microsoft 365 tenant.
+ */
+function EmailSection() {
+  const queryClient = useQueryClient();
+  const [fromDraft, setFromDraft] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const { data: email } = useQuery({
+    queryKey: ['admin', 'email', 'config'],
+    queryFn: () => api.get<EmailConfig>('/admin/email/config'),
+  });
+
+  const saveFrom = useMutation({
+    mutationFn: (address: string) =>
+      api.put(`/admin/settings/${encodeURIComponent(email?.settingKey ?? 'email.fromAddress')}`, {
+        value: address,
+      }),
+    onSuccess: () => {
+      setNotice('From address saved.');
+      setFromDraft(null);
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+    },
+    onError: (err) => setNotice(err instanceof Error ? err.message : 'Save failed'),
+  });
+
+  const sendTest = useMutation({
+    mutationFn: () => api.post<{ sent: boolean; from: string; to: string }>('/admin/email/test'),
+    onSuccess: (r) =>
+      setNotice(
+        r.sent
+          ? `Test email sent to ${r.to} from ${r.from} — check the inbox.`
+          : 'Test email was NOT sent — check the Graph credentials on the server.',
+      ),
+    onError: (err) => setNotice(err instanceof Error ? err.message : 'Test failed'),
+  });
+
+  if (!email) return null;
+  const fromValue = fromDraft ?? email.fromAddress;
+
+  return (
+    <div className="mt-4 space-y-3 border-t pt-4">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="w-28 font-medium">Email (invites)</span>
+        <Badge variant={email.configured ? 'success' : 'outline'}>
+          {email.configured ? 'Credentials configured' : 'Credentials missing'}
+        </Badge>
+        <code className="text-xs text-muted-foreground">{email.envVars.join(', ')}</code>
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="w-72">
+          <div className="mb-1 text-sm font-medium">Send invites from</div>
+          <Input
+            type="email"
+            value={fromValue}
+            onChange={(e) => setFromDraft(e.target.value)}
+            placeholder="no-reply@jumpstartusa.org"
+          />
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={saveFrom.isPending || fromDraft === null || fromDraft === email.fromAddress}
+          onClick={() => saveFrom.mutate(fromValue)}
+        >
+          {saveFrom.isPending ? 'Saving…' : 'Save'}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={sendTest.isPending || !email.configured}
+          onClick={() => sendTest.mutate()}
+        >
+          {sendTest.isPending ? 'Sending…' : 'Send test email'}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Invites are sent through Microsoft 365 — the From account must be a real mailbox (or
+        shared mailbox) in the organization.
+      </p>
+      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
     </div>
   );
 }

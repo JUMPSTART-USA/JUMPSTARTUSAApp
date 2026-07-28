@@ -10,6 +10,7 @@ import type { Prisma, UserStatus } from '@jumpstart/database';
 import type { CreateUserInput, ListQuery, RoleKey, UpdateUserInput } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MailService } from '../../mail/mail.service';
 
 export interface UserListFilters {
   status?: UserStatus;
@@ -49,7 +50,8 @@ export class AdminUsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-  ) {}
+      private readonly mail: MailService,
+) {}
 
   async list(query: ListQuery, filters: UserListFilters) {
     const where: Prisma.UserWhereInput = {
@@ -132,7 +134,36 @@ export class AdminUsersService {
 
     const safe = toSafeUser(user);
     await this.audit.logCreate(userId, 'user', user.id, safe);
-    return { user: safe, temporaryPassword };
+    // Invite email (Graph). Unconfigured mail keeps the manual hand-off flow.
+    const email = await this.mail.sendInvite(user.email, user.firstName, temporaryPassword);
+    return { user: safe, temporaryPassword, emailSent: email.sent, emailFrom: email.from };
+  }
+
+  /**
+   * Re-issue an invite: only for accounts still in 'invited' status. The old
+   * temporary password is unrecoverable by design, so a new one is generated.
+   */
+  async resendInvite(id: string, userId: string) {
+    const existing = await this.getRaw(id);
+    if (existing.status !== 'invited') {
+      throw new BadRequestException('Only accounts that have never signed in can be re-invited');
+    }
+    const temporaryPassword = randomBytes(12).toString('base64url');
+    const passwordHash = await argon2.hash(temporaryPassword, { type: argon2.argon2id });
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: { passwordHash, updatedById: userId },
+      include: USER_ROLES_INCLUDE,
+    });
+    await this.audit.log({
+      userId,
+      action: 'update',
+      entityType: 'user',
+      entityId: id,
+      newValues: { resentInvite: true },
+    });
+    const email = await this.mail.sendInvite(user.email, user.firstName, temporaryPassword);
+    return { user: toSafeUser(user), temporaryPassword, emailSent: email.sent, emailFrom: email.from };
   }
 
   async update(id: string, input: UpdateUserInput, userId: string) {
