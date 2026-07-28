@@ -2,9 +2,12 @@ import {
   ALUMNI_STATUSES,
   GENDERS,
   INSIDE_STATUSES,
+  LEGACY_LANGUAGE_CODES,
   OUTSIDE_STATUSES,
+  PREFERRED_LANGUAGES,
   US_STATES,
 } from '@jumpstart/shared';
+import { useEffect } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { FormField } from '@/components/FormField';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
@@ -64,7 +67,7 @@ export function emptyParticipantFormValues(): ParticipantFormValues {
       suffix: '',
       dateOfBirth: '',
       gender: 'unspecified',
-      preferredLanguage: 'en',
+      preferredLanguage: 'English',
       primaryPhone: '',
       primaryEmail: '',
       addressLine1: '',
@@ -103,7 +106,10 @@ export function participantToFormValues(p: ParticipantDetail): ParticipantFormVa
       suffix: p.person.suffix ?? '',
       dateOfBirth: toDateInput(p.person.dateOfBirth),
       gender: p.person.gender,
-      preferredLanguage: p.person.preferredLanguage ?? 'en',
+      preferredLanguage:
+        LEGACY_LANGUAGE_CODES[p.person.preferredLanguage ?? ''] ??
+        p.person.preferredLanguage ??
+        'English',
       primaryPhone: p.person.primaryPhone ?? '',
       primaryEmail: p.person.primaryEmail ?? '',
       addressLine1: p.person.addressLine1 ?? '',
@@ -135,9 +141,26 @@ export function participantToFormValues(p: ParticipantDetail): ParticipantFormVa
 export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValues> }) {
   const {
     register,
+    watch,
+    setValue,
     formState: { errors },
   } = form;
   const p = errors.person;
+  const currentLanguage = watch('person.preferredLanguage');
+  const mailOnly = watch('person.mailOnly');
+  const doNotContact = watch('person.doNotContact');
+  const contactRestricted = mailOnly || doNotContact;
+
+  // Mail-only and do-not-contact switch the electronic contact methods off.
+  useEffect(() => {
+    if (contactRestricted) {
+      setValue('person.emailOk', false);
+      setValue('person.smsOk', false);
+    }
+    if (doNotContact) {
+      setValue('person.mailOnly', false);
+    }
+  }, [contactRestricted, doNotContact, setValue]);
 
   return (
     <div className="space-y-4">
@@ -170,7 +193,16 @@ export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValu
           </Select>
         </FormField>
         <FormField label="Preferred language" error={p?.preferredLanguage}>
-          <Input {...register('person.preferredLanguage')} placeholder="en" />
+          <Select {...register('person.preferredLanguage')}>
+            {currentLanguage && !(PREFERRED_LANGUAGES as readonly string[]).includes(currentLanguage) ? (
+              <option value={currentLanguage}>{currentLanguage}</option>
+            ) : null}
+            {PREFERRED_LANGUAGES.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </Select>
         </FormField>
       </div>
 
@@ -211,21 +243,25 @@ export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValu
       </div>
 
       <div className="flex flex-wrap gap-x-6 gap-y-2 pt-1">
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <Checkbox {...register('person.emailOk')} /> Email OK
+        <label className={contactRestricted ? 'flex items-center gap-2 text-sm text-muted-foreground' : 'flex cursor-pointer items-center gap-2 text-sm'}>
+          <Checkbox {...register('person.emailOk')} disabled={contactRestricted} /> Email OK
         </label>
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <Checkbox {...register('person.smsOk')} /> SMS OK
+        <label className={contactRestricted ? 'flex items-center gap-2 text-sm text-muted-foreground' : 'flex cursor-pointer items-center gap-2 text-sm'}>
+          <Checkbox {...register('person.smsOk')} disabled={contactRestricted} /> SMS OK
         </label>
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <Checkbox {...register('person.mailOnly')} /> Mail only
+        <label className={doNotContact ? 'flex items-center gap-2 text-sm text-muted-foreground' : 'flex cursor-pointer items-center gap-2 text-sm'}>
+          <Checkbox {...register('person.mailOnly')} disabled={doNotContact} /> Mail only
         </label>
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <Checkbox {...register('person.doNotContact')} /> Do not contact
         </label>
       </div>
       <p className="text-xs text-muted-foreground">
-        Checking SMS OK records the opt-in timestamp automatically (TCPA).
+        {doNotContact
+          ? 'Do not contact — all contact methods are switched off.'
+          : mailOnly
+            ? 'Mail only — email and SMS are switched off.'
+            : 'Checking SMS OK records the opt-in timestamp automatically (TCPA).'}
       </p>
     </div>
   );
@@ -242,9 +278,21 @@ export function ProfileFields({
 }) {
   const {
     register,
+    watch,
+    setValue,
     formState: { errors },
   } = form;
   const pr = errors.profile;
+  const insideStatus = watch('profile.insideStatus');
+  // Outside programming begins only after the inside chapter closes (§6.1).
+  const outsideUnlocked = insideStatus === 'completed' || insideStatus === 'released';
+
+  useEffect(() => {
+    if (!outsideUnlocked) {
+      setValue('profile.outsideStatus', 'not_applicable');
+      setValue('profile.alumniStatus', 'not_applicable');
+    }
+  }, [outsideUnlocked, setValue]);
 
   return (
     <div className="space-y-4">
@@ -258,8 +306,12 @@ export function ProfileFields({
             ))}
           </Select>
         </FormField>
-        <FormField label="Outside status" error={pr?.outsideStatus}>
-          <Select {...register('profile.outsideStatus')}>
+        <FormField
+          label="Outside status"
+          error={pr?.outsideStatus}
+          hint={outsideUnlocked ? undefined : 'Unlocks when inside status is Completed or Released.'}
+        >
+          <Select {...register('profile.outsideStatus')} disabled={!outsideUnlocked}>
             {OUTSIDE_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {humanize(s)}
@@ -270,8 +322,12 @@ export function ProfileFields({
         <FormField label="Phase" error={pr?.phase}>
           <Input {...register('profile.phase')} />
         </FormField>
-        <FormField label="Alumni status" error={pr?.alumniStatus}>
-          <Select {...register('profile.alumniStatus')}>
+        <FormField
+          label="Alumni status"
+          error={pr?.alumniStatus}
+          hint={outsideUnlocked ? undefined : 'Unlocks when inside status is Completed or Released.'}
+        >
+          <Select {...register('profile.alumniStatus')} disabled={!outsideUnlocked}>
             {ALUMNI_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {humanize(s)}

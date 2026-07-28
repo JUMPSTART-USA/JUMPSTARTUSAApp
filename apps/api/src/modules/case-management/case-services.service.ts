@@ -4,6 +4,7 @@ import type { CaseServiceInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { assertParticipant } from './participant.util';
+import { DEFAULT_SERVICE_TYPES } from '@jumpstart/shared';
 
 export interface CaseServiceListFilters {
   participantProfileId?: string;
@@ -102,6 +103,16 @@ export class CaseServicesService {
     });
     await this.audit.logUpdate(userId, 'case_service', id, existing, updated);
     return updated;
+  }
+
+  /** Admin-overridable service menu (`services.types` app setting). */
+  async serviceTypes(): Promise<{ types: string[] }> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: 'services.types' } });
+    const value = row?.value;
+    if (Array.isArray(value) && value.every((v) => typeof v === 'string') && value.length > 0) {
+      return { types: value };
+    }
+    return { types: [...DEFAULT_SERVICE_TYPES] };
   }
 
   async softDelete(id: string, userId: string) {

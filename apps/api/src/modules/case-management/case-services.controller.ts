@@ -42,6 +42,14 @@ export class CaseServicesController {
     return this.services.list(listQuery as ListQuery, { participantProfileId, serviceType, from, to });
   }
 
+  // Literal route before ':id'. The service menu: admin-overridable via the
+  // `services.types` app setting, defaulting to the standard reentry list.
+  @Get('types')
+  @RequirePermission('case_management.read')
+  types() {
+    return this.services.serviceTypes();
+  }
+
   @Get(':id')
   @RequirePermission('case_management.read')
   get(@Param('id', ParseUUIDPipe) id: string) {

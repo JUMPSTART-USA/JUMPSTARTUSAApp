@@ -36,6 +36,7 @@ const KNOWN_SETTINGS: Record<string, string> = {
   'states.active': 'States/regions the organization operates in',
   'integrations.donorCrm': 'Active donor CRM for the Development module (see Integrations above)',
   'email.fromAddress': 'Mailbox that invite emails are sent from (see Integrations above)',
+  'services.types': 'Service menu for participant case services (array of strings)',
 };
 
 const KEY_PATTERN = /^[a-z][a-zA-Z0-9_-]*(\.[a-zA-Z0-9_-]+)*$/;

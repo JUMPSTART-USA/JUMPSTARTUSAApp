@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { caseNoteSchema, caseServiceSchema, CONTACT_TYPES, NOTE_CATEGORIES } from '@jumpstart/shared';
@@ -56,15 +56,27 @@ export function ServiceEditDialog({
   const creating = service === 'new';
   const existing = service !== 'new' ? service : null;
 
-  const { register, handleSubmit, watch, setError, reset, formState } = useForm<ServiceFormValues>(
-    { resolver: schemaResolver(serviceEditSchema) },
-  );
+  const { register, handleSubmit, watch, setError, reset, setValue, formState } =
+    useForm<ServiceFormValues>({ resolver: schemaResolver(serviceEditSchema) });
   const followUpRequired = watch('followUpRequired');
+  const serviceType = watch('serviceType');
+
+  // Standard service menu (§6.5) with an admin-overridable list; "Other"
+  // switches to free text.
+  const typesQuery = useQuery({
+    queryKey: ['case-management', 'service-types'],
+    queryFn: () => api.get<{ types: string[] }>('/case-services/types'),
+    staleTime: 300_000,
+  });
+  const serviceTypes = typesQuery.data?.types ?? [];
+  const knownType = serviceTypes.includes(serviceType);
+  const [customType, setCustomType] = useState(false);
 
   useEffect(() => {
     if (service) {
       setTopError('');
       setConfirmDelete(false);
+      setCustomType(false);
       reset({
         serviceType: existing?.serviceType ?? '',
         serviceDate: existing ? toDateInput(existing.serviceDate) : toDateInput(new Date().toISOString()),
@@ -122,7 +134,33 @@ export function ServiceEditDialog({
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Service type" required error={formState.errors.serviceType}>
-              <Input {...register('serviceType')} />
+              <div className="space-y-2">
+                <Select
+                  value={customType || (serviceType && !knownType) ? '__other__' : serviceType}
+                  onChange={(e) => {
+                    if (e.target.value === '__other__') {
+                      setCustomType(true);
+                      setValue('serviceType', '');
+                    } else {
+                      setCustomType(false);
+                      setValue('serviceType', e.target.value, { shouldValidate: true });
+                    }
+                  }}
+                >
+                  <option value="">Select a service…</option>
+                  {serviceTypes
+                    .filter((t) => t !== 'Other')
+                    .map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  <option value="__other__">Other…</option>
+                </Select>
+                {customType || (serviceType && !knownType) ? (
+                  <Input {...register('serviceType')} placeholder="Describe the service" />
+                ) : null}
+              </div>
             </FormField>
             <FormField label="Service date" required error={formState.errors.serviceDate}>
               <Input type="date" {...register('serviceDate')} />

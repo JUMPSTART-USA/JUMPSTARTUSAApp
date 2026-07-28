@@ -296,3 +296,85 @@ export const US_STATES = [
   'DC',
 ] as const;
 export type UsState = (typeof US_STATES)[number];
+
+// ── Preferred languages (§6.1) ──────────────────────────────────────────────
+// The standard language list used on US government agency forms (Census
+// Bureau / federal LEP guidance), plus ASL and Other.
+export const PREFERRED_LANGUAGES = [
+  'English',
+  'Spanish',
+  'Chinese',
+  'Vietnamese',
+  'Korean',
+  'Tagalog',
+  'Russian',
+  'Arabic',
+  'Haitian Creole',
+  'French',
+  'Polish',
+  'Portuguese',
+  'Italian',
+  'German',
+  'Japanese',
+  'Persian (Farsi)',
+  'Hindi',
+  'Urdu',
+  'Bengali',
+  'Amharic',
+  'Somali',
+  'Swahili',
+  'Navajo',
+  'American Sign Language (ASL)',
+  'Other',
+] as const;
+
+/** Legacy ISO-ish codes stored before the dropdown existed. */
+export const LEGACY_LANGUAGE_CODES: Record<string, string> = {
+  en: 'English',
+  es: 'Spanish',
+  zh: 'Chinese',
+  vi: 'Vietnamese',
+  ko: 'Korean',
+  tl: 'Tagalog',
+  ru: 'Russian',
+  ar: 'Arabic',
+  ht: 'Haitian Creole',
+  fr: 'French',
+};
+
+// ── Case service types (§6.5) ───────────────────────────────────────────────
+// Standard service menu for participants in transitional housing / reentry.
+// Admins may override the list via the `services.types` app setting.
+export const DEFAULT_SERVICE_TYPES = [
+  'Case management session',
+  'Housing placement',
+  'Rental assistance',
+  'Utility assistance',
+  'Food assistance',
+  'Clothing assistance',
+  'Hygiene supplies',
+  'Furniture / household goods',
+  'Transportation assistance',
+  'Bus pass',
+  'Phone / phone minutes',
+  'ID / documents assistance',
+  'Benefits enrollment (SNAP, Medicaid…)',
+  'Health insurance enrollment',
+  'Medical / dental referral',
+  'Mental health counseling referral',
+  'Substance abuse treatment referral',
+  'Employment readiness',
+  'Job placement',
+  'Vocational training',
+  'Education / GED support',
+  'Life skills training',
+  'Financial literacy / budgeting',
+  'Legal aid referral',
+  'Child support assistance',
+  'Family reunification support',
+  'Mentoring',
+  'Spiritual support',
+  'Peer support group',
+  'Emergency financial assistance',
+  'Other',
+] as const;
