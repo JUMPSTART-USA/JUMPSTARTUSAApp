@@ -14,6 +14,7 @@ import { formatDate, humanize } from '@/lib/utils';
 import { ProgramFormDialog } from './ProgramFormDialog';
 import { useDebounced } from './shared';
 import type { OutsideProgramRow } from './types';
+import { BackLink } from '@/components/BackLink';
 
 const columns: Column<OutsideProgramRow>[] = [
   {
@@ -107,6 +108,7 @@ export function OutsideProgramListPage() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Outside Programs</h1>

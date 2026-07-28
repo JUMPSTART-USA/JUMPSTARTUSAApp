@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { backTo } from '@/components/BackLink';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -117,11 +118,11 @@ function StatCard({
       tabIndex={0}
       aria-label={`${label} — open`}
       className="cursor-pointer transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onClick={() => navigate(to)}
+      onClick={() => navigate(to, backTo('/', 'Dashboard'))}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          navigate(to);
+          navigate(to, backTo('/', 'Dashboard'));
         }
       }}
     >
@@ -158,11 +159,11 @@ function NavCard({
         'cursor-pointer transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         className,
       )}
-      onClick={() => navigate(to)}
+      onClick={() => navigate(to, backTo('/', 'Dashboard'))}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          navigate(to);
+          navigate(to, backTo('/', 'Dashboard'));
         }
       }}
     >
@@ -374,13 +375,13 @@ export function DashboardPage() {
                             'flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0',
                             to && 'cursor-pointer -mx-2 rounded-md px-2 transition-colors hover:bg-accent',
                           )}
-                          onClick={to ? () => navigate(to) : undefined}
+                          onClick={to ? () => navigate(to, backTo('/', 'Dashboard')) : undefined}
                           onKeyDown={
                             to
                               ? (e) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault();
-                                    navigate(to);
+                                    navigate(to, backTo('/', 'Dashboard'));
                                   }
                                 }
                               : undefined

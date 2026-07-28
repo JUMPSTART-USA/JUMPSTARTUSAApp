@@ -10,6 +10,7 @@ import { AlumniUpdatesTab } from './AlumniUpdatesTab';
 import { ReferralsTab } from './ReferralsTab';
 import { VolunteerApplicationsTab } from './VolunteerApplicationsTab';
 import { SLA_DAYS, type IntakeSummary } from './types';
+import { BackLink } from '@/components/BackLink';
 
 function SummaryCard({
   title,
@@ -63,6 +64,7 @@ export function IntakeQueuesPage() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <h1 className="text-2xl font-semibold">Intake Queues</h1>
 
       {summary.isError ? (

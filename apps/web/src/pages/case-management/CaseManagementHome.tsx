@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/utils';
 import type { FollowUpItem, FollowUpQueue } from './shared';
+import { BackLink } from '@/components/BackLink';
 
 function FollowUpRow({
   item,
@@ -130,6 +131,7 @@ export function CaseManagementHome() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <div>
         <h2 className="text-lg font-semibold">
           {user ? `${user.firstName}'s follow-up queue` : 'My follow-up queue'}

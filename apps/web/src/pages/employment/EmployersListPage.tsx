@@ -13,6 +13,7 @@ import { humanize } from '@/lib/utils';
 import { EmployerFormDialog } from './EmployerFormDialog';
 import { HiringStatusBadge, useDebounced } from './shared';
 import type { EmployerListItem } from './types';
+import { BackLink } from '@/components/BackLink';
 
 const columns: Column<EmployerListItem>[] = [
   {
@@ -81,6 +82,7 @@ export function EmployersListPage() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Employers</h1>
         <div className="flex items-center gap-2">

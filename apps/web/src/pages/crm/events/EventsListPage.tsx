@@ -14,6 +14,7 @@ import { SyncStatusChip } from '../donors/SyncStatusChip';
 import { useCampaignOptions, useDebouncedValue, useDonorCrm } from '../shared';
 import type { EventRecord } from '../types';
 import { EventFormDialog } from './EventFormDialog';
+import { BackLink } from '@/components/BackLink';
 
 const columns: Column<EventRecord>[] = [
   { key: 'name', header: 'Name', sortKey: 'name', render: (e) => <span className="font-medium">{e.name}</span> },
@@ -99,6 +100,7 @@ export function EventsListPage() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Events</h1>

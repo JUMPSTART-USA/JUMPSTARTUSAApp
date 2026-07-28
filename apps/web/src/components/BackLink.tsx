@@ -53,13 +53,17 @@ function previousScreenUrl(currentPathname: string): string | null {
 export function BackLink({
   fallbackTo,
   fallbackLabel,
+  stateOnly = false,
 }: {
   fallbackTo?: string;
   fallbackLabel?: string;
+  /** Render only when explicit back-state was passed (e.g. dashboard drill-ins). */
+  stateOnly?: boolean;
 }) {
   const location = useLocation();
   const back = (location.state as BackNavState | null)?.back;
   const prev = previousScreenUrl(location.pathname);
+  if (stateOnly && !back) return null;
   const to = back?.to ?? prev ?? fallbackTo;
   if (!to) return null;
   const label =

@@ -32,6 +32,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import { applyApiFormErrors, ErrorNotice, useDebouncedValue, WarningNotice } from './shared';
 import type { BackgroundCheckRow, DuplicateCandidate, VolunteerListItem } from './types';
+import { BackLink } from '@/components/BackLink';
 
 function latestCheckSummary(check: BackgroundCheckRow | null) {
   if (!check) return <span className="text-muted-foreground">—</span>;
@@ -40,7 +41,7 @@ function latestCheckSummary(check: BackgroundCheckRow | null) {
   if (check.result) {
     return (
       <div className="flex items-center gap-2">
-        <StatusBadge status={check.result} />
+              <StatusBadge status={check.result} />
         <span className="text-xs text-muted-foreground">
           {formatDate(check.completedAt ?? check.orderedAt)}
         </span>
@@ -131,6 +132,7 @@ export function VolunteerListPage() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Volunteers</h1>
         <div className="flex items-center gap-2">

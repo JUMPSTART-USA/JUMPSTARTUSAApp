@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/auth';
 import { SeverityBadge, useDebounced, vehicleLabel } from './shared';
 import { VehicleFormDialog } from './VehicleFormDialog';
 import type { AlertSeverity, VehicleAlert, VehicleListItem } from './types';
+import { BackLink } from '@/components/BackLink';
 
 const SEVERITY_ORDER: AlertSeverity[] = ['overdue', 'due_soon', 'upcoming'];
 
@@ -128,6 +129,7 @@ export function VehiclesListPage() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Vehicles</h1>
         <div className="flex items-center gap-2">

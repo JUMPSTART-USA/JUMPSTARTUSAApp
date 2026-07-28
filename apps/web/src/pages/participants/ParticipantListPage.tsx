@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import { useDebounced } from './shared';
 import type { ParticipantListItem } from './types';
+import { BackLink } from '@/components/BackLink';
 
 /** 'not_applicable' is the default in every status domain — noise as a badge. */
 function statusCell(status: string) {
@@ -123,6 +124,7 @@ export function ParticipantListPage() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">Participants</h1>
         {can('participants.create') ? (

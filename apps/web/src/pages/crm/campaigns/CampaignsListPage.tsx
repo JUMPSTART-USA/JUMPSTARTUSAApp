@@ -14,6 +14,7 @@ import { SyncStatusChip } from '../donors/SyncStatusChip';
 import { ProgressBar, useDebouncedValue, useDonorCrm } from '../shared';
 import type { CampaignListItem, CampaignStatus } from '../types';
 import { CampaignFormDialog } from './CampaignFormDialog';
+import { BackLink } from '@/components/BackLink';
 
 const CAMPAIGN_STATUSES: CampaignStatus[] = ['planned', 'active', 'completed', 'canceled'];
 
@@ -67,6 +68,7 @@ export function CampaignsListPage() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Campaigns</h1>

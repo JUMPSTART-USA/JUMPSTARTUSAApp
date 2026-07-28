@@ -14,6 +14,7 @@ import { formatDate, humanize } from '@/lib/utils';
 import { InsideClassFormDialog } from './InsideClassFormDialog';
 import { useDebounced, useInstitutionOptions } from './helpers';
 import type { InsideClassListItem } from './types';
+import { BackLink } from '@/components/BackLink';
 
 const columns: Column<InsideClassListItem>[] = [
   {
@@ -93,6 +94,7 @@ export function InsideClassListPage() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Inside Classes</h1>
         {can('inside_classes.create') ? (

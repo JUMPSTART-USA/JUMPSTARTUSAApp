@@ -17,6 +17,7 @@ import { useDebounced } from '@/pages/outside-programs/shared';
 import { HomeFormDialog } from './HomeFormDialog';
 import { MoveInDialog } from './MoveInDialog';
 import type { HomeRow, HousingEnrollmentRow, OccupancyEntry } from './types';
+import { BackLink } from '@/components/BackLink';
 
 /** Beds-used bar: green under, amber at, red over capacity (§6.4 surfaced, not blocked). */
 export function OccupancyBar({ occupied, capacity }: { occupied: number; capacity: number }) {
@@ -25,7 +26,7 @@ export function OccupancyBar({ occupied, capacity }: { occupied: number; capacit
   const full = occupied === capacity;
   return (
     <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-      <div
+          <div
         className={cn(
           'h-full rounded-full transition-all',
           over ? 'bg-red-500' : full ? 'bg-amber-500' : 'bg-emerald-500',
@@ -361,6 +362,7 @@ export function HousingPage() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Housing</h1>

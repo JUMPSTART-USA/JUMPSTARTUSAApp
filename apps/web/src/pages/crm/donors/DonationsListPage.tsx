@@ -15,6 +15,7 @@ import { useCampaignOptions, useDebouncedValue } from '../shared';
 import type { Donation, DonationSummary } from '../types';
 import { DonationFormDialog } from './DonationFormDialog';
 import { DonorsNav } from './DonorsNav';
+import { BackLink } from '@/components/BackLink';
 
 const columns: Column<Donation>[] = [
   { key: 'donationDate', header: 'Date', sortKey: 'donationDate', render: (d) => formatDate(d.donationDate) },
@@ -150,6 +151,7 @@ export function DonationsListPage() {
 
   return (
     <div className="space-y-4">
+      <BackLink stateOnly />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Donations</h1>
