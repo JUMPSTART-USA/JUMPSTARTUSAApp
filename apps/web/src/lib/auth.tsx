@@ -10,6 +10,7 @@ export interface Me {
   lastName: string;
   roles: RoleKey[];
   permissions: string[];
+  chapter: string | null;
 }
 
 interface AuthContextValue {

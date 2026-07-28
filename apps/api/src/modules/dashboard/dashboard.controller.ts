@@ -43,6 +43,10 @@ export class DashboardController {
     @Query(zodQuery(dashboardQuerySchema)) query: DashboardQuery,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.dashboard.overview(query, user);
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.dashboard.overview(
+      { ...query, state: (user.chapter ?? query.state) as DashboardQuery['state'] },
+      user,
+    );
   }
 }

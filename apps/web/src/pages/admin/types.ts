@@ -14,6 +14,8 @@ export interface AdminUser {
   createdAt: string;
   updatedAt: string;
   roles: RoleKey[];
+  /** Chapter scope: a state code, or null for all chapters. */
+  chapter: string | null;
 }
 
 export interface InviteResult {

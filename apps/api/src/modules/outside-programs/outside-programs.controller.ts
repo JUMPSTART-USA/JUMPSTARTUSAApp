@@ -78,12 +78,16 @@ export class OutsideProgramsController {
 
   @Get()
   @RequirePermission('outside_programs.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const { programType, status, state, staffLeadId, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.programs.list(listQuery as ListQuery, {
       programType,
       status,
-      state,
+      state: (user.chapter ?? state) as ListFilters['state'],
       staffLeadId,
     });
   }

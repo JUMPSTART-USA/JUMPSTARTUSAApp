@@ -1,4 +1,4 @@
-import type { PermissionKey } from '@jumpstart/shared';
+import { CHAPTER_NAMES, type ChapterState, type PermissionKey } from '@jumpstart/shared';
 import {
   BarChart3,
   Briefcase,
@@ -172,6 +172,11 @@ export function AppLayout() {
               {user.firstName} {user.lastName}
             </div>
             <div className="truncate text-xs text-white/50">{user.email}</div>
+            <div className="mt-0.5 text-[11px] font-medium text-gold">
+              {user.chapter
+                ? `${CHAPTER_NAMES[user.chapter as ChapterState] ?? user.chapter} chapter`
+                : 'All chapters'}
+            </div>
           </div>
           <Button
             variant="ghost"

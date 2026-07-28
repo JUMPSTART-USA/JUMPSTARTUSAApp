@@ -71,15 +71,20 @@ export class ParticipantsController {
 
   @Get()
   @RequirePermission('participants.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const {
       insideStatus,
       outsideStatus,
       alumniStatus,
-      state,
+      state: requestedState,
       assignedCaseManagerId,
       ...listQuery
     } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    const state = (user.chapter ?? requestedState) as ListFilters['state'];
     return this.participants.list(listQuery as ListQuery, {
       insideStatus,
       outsideStatus,

@@ -37,9 +37,16 @@ export class TransitionalHomesController {
 
   @Get()
   @RequirePermission('housing.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const { state, active, ...listQuery } = query;
-    return this.housing.listHomes(listQuery as ListQuery, { state, active });
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.housing.listHomes(listQuery as ListQuery, {
+      state: (user.chapter ?? state) as ListFilters['state'],
+      active,
+    });
   }
 
   /** Occupancy dashboard (§6.4) — declared before ':id' so it matches first. */

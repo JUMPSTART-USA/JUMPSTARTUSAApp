@@ -43,6 +43,7 @@ export class SessionAuthGuard implements CanActivate {
             role: { include: { rolePermissions: { include: { permission: true } } } },
           },
         },
+        regionScopes: true,
       },
     });
 
@@ -64,6 +65,8 @@ export class SessionAuthGuard implements CanActivate {
       roles,
       permissions,
       personId: user.personId,
+      // One scope row = that chapter; no rows = all chapters (§7.2).
+      chapter: user.regionScopes[0]?.state ?? null,
     };
     return true;
   }

@@ -1,5 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
+  CHAPTER_NAMES,
+  CHAPTER_STATES,
   createUserSchema,
   ROLE_KEYS,
   ROLE_NAMES,
@@ -71,6 +73,13 @@ export function UsersPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
   });
 
+  // One chapter or all (§7.2): empty list = every chapter (admin/executive).
+  const setChapter = useMutation({
+    mutationFn: ({ id, chapter }: { id: string; chapter: string }) =>
+      api.put(`/admin/users/${id}/region-scopes`, { states: chapter ? [chapter] : [] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
+  });
+
   if (!canWrite) {
     return <EmptyState title="No access" hint="Requires the admin.users permission." />;
   }
@@ -119,6 +128,27 @@ export function UsersPage() {
               </Badge>
             ))
           )}
+        </div>
+      ),
+    },
+    {
+      key: 'chapter',
+      header: 'Chapter',
+      render: (row) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <Select
+            className="w-40"
+            value={row.chapter ?? ''}
+            disabled={setChapter.isPending}
+            onChange={(e) => setChapter.mutate({ id: row.id, chapter: e.target.value })}
+          >
+            <option value="">All chapters</option>
+            {CHAPTER_STATES.map((s) => (
+              <option key={s} value={s}>
+                {CHAPTER_NAMES[s]}
+              </option>
+            ))}
+          </Select>
         </div>
       ),
     },

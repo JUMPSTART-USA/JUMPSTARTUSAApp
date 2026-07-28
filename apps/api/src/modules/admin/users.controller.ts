@@ -9,11 +9,10 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import {
+import { CHAPTER_STATES,
   createUserSchema,
   listQuerySchema,
   updateUserSchema,
-  US_STATES,
   USER_STATUSES,
   uuid,
   type CreateUserInput,
@@ -34,7 +33,10 @@ type ListFilters = z.infer<typeof listFiltersSchema>;
 const deactivateSchema = z.object({ reassignToUserId: uuid });
 type DeactivateInput = z.infer<typeof deactivateSchema>;
 
-const regionScopesSchema = z.object({ states: z.array(z.enum(US_STATES)) });
+// One chapter or all: at most one scope row; empty = all chapters (§7.2).
+const regionScopesSchema = z.object({
+  states: z.array(z.enum(CHAPTER_STATES)).max(1, 'Assign one chapter, or none for all chapters'),
+});
 type RegionScopesInput = z.infer<typeof regionScopesSchema>;
 
 @Controller('admin/users')

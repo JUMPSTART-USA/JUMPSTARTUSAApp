@@ -1,5 +1,6 @@
 export * from './enums';
 export * from './permissions';
+export * from './chapters';
 export * from './schemas/common';
 export * from './schemas/person';
 export * from './schemas/participant';

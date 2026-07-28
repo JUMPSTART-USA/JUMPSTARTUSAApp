@@ -19,7 +19,10 @@ export interface UserListFilters {
 // never reach Prisma unchecked.
 const SORTABLE = new Set(['email', 'firstName', 'lastName', 'status', 'lastLoginAt', 'createdAt']);
 
-const USER_ROLES_INCLUDE = { userRoles: { include: { role: true } } } as const;
+const USER_ROLES_INCLUDE = {
+  userRoles: { include: { role: true } },
+  regionScopes: true,
+} as const;
 type UserWithRoles = Prisma.UserGetPayload<{ include: typeof USER_ROLES_INCLUDE }>;
 
 /** Explicit field pick — passwordHash/totpSecret must never leave the API. */
@@ -36,6 +39,8 @@ function toSafeUser(user: UserWithRoles) {
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     roles: user.userRoles.map((ur) => ur.role.key),
+    // One scope row = that chapter; no rows = all chapters (§7.2).
+    chapter: user.regionScopes[0]?.state ?? null,
   };
 }
 

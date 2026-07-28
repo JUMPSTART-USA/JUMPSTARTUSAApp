@@ -61,9 +61,10 @@ export class VolunteersController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const { status, isMentor, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.volunteers.list(
       listQuery as ListQuery,
-      { status, isMentor, state },
+      { status, isMentor, state: (user.chapter ?? state) as ListFilters['state'] },
       canReadChecks(user),
     );
   }

@@ -77,12 +77,16 @@ export class InsideClassesController {
 
   @Get()
   @RequirePermission('inside_classes.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const { institutionId, status, state, from, to, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.insideClasses.list(listQuery as ListQuery, {
       institutionId,
       status,
-      state,
+      state: (user.chapter ?? state) as ListFilters['state'],
       from,
       to,
     });

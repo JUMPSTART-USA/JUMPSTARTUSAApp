@@ -21,6 +21,7 @@ export interface LoginResult {
     lastName: string;
     roles: string[];
     mustSetupTotp: boolean;
+    chapter: string | null;
   };
 }
 
@@ -34,7 +35,7 @@ export class AuthService {
   async validateLogin(email: string, password: string, totpCode?: string): Promise<LoginResult> {
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase() },
-      include: { userRoles: { include: { role: true } } },
+      include: { userRoles: { include: { role: true } }, regionScopes: true },
     });
 
     // Same failure message whether the account exists or not.
@@ -110,6 +111,7 @@ export class AuthService {
         lastName: user.lastName,
         roles,
         mustSetupTotp: totpMandatory && !user.totpEnabled,
+        chapter: user.regionScopes[0]?.state ?? null,
       },
     };
   }

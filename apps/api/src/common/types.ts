@@ -10,6 +10,8 @@ export interface AuthenticatedUser {
   roles: RoleKey[];
   permissions: Set<string>;
   personId: string | null;
+  /** Chapter scope (§7.2): a state code, or null when the user sees all chapters. */
+  chapter: string | null;
 }
 
 export interface AuthenticatedRequest extends Request {

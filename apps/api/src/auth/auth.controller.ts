@@ -73,6 +73,7 @@ export class AuthController {
       lastName: user.lastName,
       roles: user.roles,
       permissions: [...user.permissions],
+      chapter: user.chapter,
     };
   }
 

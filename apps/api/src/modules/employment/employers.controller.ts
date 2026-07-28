@@ -36,9 +36,17 @@ export class EmployersController {
 
   @Get()
   @RequirePermission('employers.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const { hiringStatus, industry, state, ...listQuery } = query;
-    return this.employers.list(listQuery as ListQuery, { hiringStatus, industry, state });
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.employers.list(listQuery as ListQuery, {
+      hiringStatus,
+      industry,
+      state: (user.chapter ?? state) as ListFilters['state'],
+    });
   }
 
   @Get(':id')
