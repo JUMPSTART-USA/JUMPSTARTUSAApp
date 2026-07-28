@@ -6,7 +6,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, fullName } from '@/lib/utils';
-import type { Campaign, PersonRef } from './types';
+import type { Campaign, DonorCrmStatus, PersonRef } from './types';
 
 export function useDebouncedValue<T>(value: T, delay = 300): T {
   const [debounced, setDebounced] = useState(value);
@@ -186,4 +186,23 @@ export function PersonSearch({
       ) : null}
     </div>
   );
+}
+
+/**
+ * Active donor CRM (§6.8). When a provider is configured, donors/donations/
+ * campaigns/events are read-only mirrors — pages hide create/edit/delete and
+ * offer local-field editing only.
+ */
+export function useDonorCrm() {
+  const query = useQuery({
+    queryKey: ['crm', 'sync', 'status'],
+    queryFn: () => api.get<DonorCrmStatus>('/sync/status'),
+  });
+  const provider = query.data?.provider;
+  return {
+    provider,
+    label: query.data?.providerLabel ?? null,
+    // Treat "unknown yet" as mirrored so edit affordances never flash in.
+    mirrored: provider === undefined ? true : provider !== 'none',
+  };
 }

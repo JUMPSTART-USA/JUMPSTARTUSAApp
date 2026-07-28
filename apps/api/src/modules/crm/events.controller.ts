@@ -21,6 +21,7 @@ import { z } from 'zod';
 import { CurrentUser, RequirePermission } from '../../common/decorators';
 import { zodBody, zodQuery } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser } from '../../common/types';
+import { DonorCrmConfigService } from './donor-crm-config.service';
 import {
   EventsService,
   type RegistrationCreate,
@@ -40,9 +41,17 @@ type ListFilters = z.infer<typeof listFiltersSchema>;
 const registrationCreateSchema = eventRegistrationSchema.innerType().omit({ eventId: true });
 const registrationUpdateSchema = registrationCreateSchema.partial();
 
+// With an active donor CRM, events are a read-only mirror (§6.8): create/
+// delete happen in the CRM, and PATCH may touch these local fields only.
+// Registrations stay fully platform-owned — they link local persons.
+const EVENT_LOCAL_FIELDS = ['campaignId', 'notes'] as const;
+
 @Controller('events')
 export class EventsController {
-  constructor(private readonly events: EventsService) {}
+  constructor(
+    private readonly events: EventsService,
+    private readonly crmConfig: DonorCrmConfigService,
+  ) {}
 
   @Get()
   @RequirePermission('events.read')
@@ -65,26 +74,29 @@ export class EventsController {
 
   @Post()
   @RequirePermission('events.create')
-  create(
+  async create(
     @Body(zodBody(eventSchema)) body: EventInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    await this.crmConfig.assertMirrorWritable('Events');
     return this.events.create(body, user.id);
   }
 
   @Patch(':id')
   @RequirePermission('events.update')
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body(zodBody(eventSchema.partial())) body: Partial<EventInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    await this.crmConfig.assertLocalOnlyUpdate(body, EVENT_LOCAL_FIELDS);
     return this.events.update(id, body, user.id);
   }
 
   @Delete(':id')
   @RequirePermission('events.delete')
-  remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+  async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    await this.crmConfig.assertMirrorWritable('Events');
     return this.events.softDelete(id, user.id);
   }
 

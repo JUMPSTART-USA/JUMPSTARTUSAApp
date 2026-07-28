@@ -10,7 +10,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
-import { useCampaignOptions, useDebouncedValue } from '../shared';
+import { SyncStatusChip } from '../donors/SyncStatusChip';
+import { useCampaignOptions, useDebouncedValue, useDonorCrm } from '../shared';
 import type { EventRecord } from '../types';
 import { EventFormDialog } from './EventFormDialog';
 
@@ -47,6 +48,7 @@ type EventTab = 'upcoming' | 'past';
 
 export function EventsListPage() {
   const { can } = useAuth();
+  const { label: crmLabel, mirrored } = useDonorCrm();
   const navigate = useNavigate();
   const [tab, setTab] = useState<EventTab>('upcoming');
   const [state, setState] = useState<ListState>({
@@ -101,10 +103,14 @@ export function EventsListPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Events</h1>
           <p className="text-sm text-muted-foreground">
-            Fundraising and community events, registrations, and financials.
+            {mirrored && crmLabel
+              ? `Read-only mirror of ${crmLabel} — events are managed there; registrations stay local.`
+              : 'Fundraising and community events, registrations, and financials.'}
           </p>
         </div>
-        {can('events.create') ? (
+        {mirrored ? (
+          <SyncStatusChip />
+        ) : can('events.create') ? (
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" /> New event
           </Button>

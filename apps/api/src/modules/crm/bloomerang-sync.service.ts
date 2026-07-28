@@ -45,15 +45,23 @@ export class BloomerangSyncService {
     try {
       const constituents = await this.fetchConstituents();
       const transactions = await this.fetchTransactions();
-      // TODO(phase-1 integration): upsert donors/donations by bloomerangId,
-      // stamping lastSyncedAt and never touching platform-owned fields
-      // (personId, notes, campaignId, eventId).
+      const campaigns = await this.fetchCampaigns();
+      const appeals = await this.fetchAppeals();
+      // TODO(phase-1 integration): upsert donors/donations by bloomerangId and
+      // campaigns/events by crmId, stamping lastSyncedAt and never touching
+      // platform-owned fields (personId, notes, campaignId links,
+      // registrations).
       return await this.prisma.syncRun.update({
         where: { id: run.id },
         data: {
           status: 'success',
           finishedAt: new Date(),
-          stats: { constituents: constituents.length, transactions: transactions.length },
+          stats: {
+            constituents: constituents.length,
+            transactions: transactions.length,
+            campaigns: campaigns.length,
+            appeals: appeals.length,
+          },
         },
       });
     } catch (err) {
@@ -90,6 +98,18 @@ export class BloomerangSyncService {
   // TODO(phase-1 integration): page GET /transactions, mapping Bloomerang
   // campaign/appeal fields onto local campaignId/eventId links.
   private async fetchTransactions(): Promise<unknown[]> {
+    return [];
+  }
+
+  // TODO(phase-1 integration): page GET /campaigns — mirrored into the local
+  // campaigns table by crmId (name, dates, goal, status).
+  private async fetchCampaigns(): Promise<unknown[]> {
+    return [];
+  }
+
+  // TODO(phase-1 integration): page GET /appeals — Bloomerang's closest event
+  // analog, mirrored into the local events table by crmId.
+  private async fetchAppeals(): Promise<unknown[]> {
     return [];
   }
 }

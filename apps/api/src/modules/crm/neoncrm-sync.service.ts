@@ -47,15 +47,23 @@ export class NeonCrmSyncService {
     try {
       const accounts = await this.fetchAccounts();
       const donations = await this.fetchDonations();
-      // TODO(phase-1 integration): upsert donors/donations by neonCrmId,
-      // stamping lastSyncedAt and never touching platform-owned fields
-      // (personId, notes, campaignId, eventId).
+      const campaigns = await this.fetchCampaigns();
+      const events = await this.fetchEvents();
+      // TODO(phase-1 integration): upsert donors/donations by neonCrmId and
+      // campaigns/events by crmId, stamping lastSyncedAt and never touching
+      // platform-owned fields (personId, notes, campaignId links,
+      // registrations).
       return await this.prisma.syncRun.update({
         where: { id: run.id },
         data: {
           status: 'success',
           finishedAt: new Date(),
-          stats: { accounts: accounts.length, donations: donations.length },
+          stats: {
+            accounts: accounts.length,
+            donations: donations.length,
+            campaigns: campaigns.length,
+            events: events.length,
+          },
         },
       });
     } catch (err) {
@@ -85,6 +93,18 @@ export class NeonCrmSyncService {
   // TODO(phase-1 integration): page GET /v2/donations, mapping Neon campaign/
   // fund fields onto local campaignId/eventId links.
   private async fetchDonations(): Promise<unknown[]> {
+    return [];
+  }
+
+  // TODO(phase-1 integration): page GET /v2/campaigns — mirrored into the
+  // local campaigns table by crmId (name, dates, goal, status).
+  private async fetchCampaigns(): Promise<unknown[]> {
+    return [];
+  }
+
+  // TODO(phase-1 integration): page GET /v2/events — mirrored into the local
+  // events table by crmId (name, date, location, financials).
+  private async fetchEvents(): Promise<unknown[]> {
     return [];
   }
 }

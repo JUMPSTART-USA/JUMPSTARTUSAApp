@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import {
   DONOR_CRM_LABELS,
   DONOR_CRM_PROVIDERS,
@@ -84,5 +84,35 @@ export class DonorCrmConfigService {
       orderBy: { startedAt: 'desc' },
       take: limit,
     });
+  }
+
+  /**
+   * Create/delete guard for CRM-owned record types (campaigns, events): with
+   * an active provider they are a read-only mirror; with provider 'none' the
+   * platform owns them and local CRUD stays available.
+   */
+  async assertMirrorWritable(what: string): Promise<void> {
+    const provider = await this.activeProvider();
+    if (provider !== 'none') {
+      throw new ForbiddenException(
+        `${what} are a read-only mirror of ${DONOR_CRM_LABELS[provider]} — make this change there and sync`,
+      );
+    }
+  }
+
+  /** Update guard: with an active provider, only platform-owned local fields. */
+  async assertLocalOnlyUpdate(
+    body: Record<string, unknown>,
+    localKeys: readonly string[],
+  ): Promise<void> {
+    const provider = await this.activeProvider();
+    if (provider === 'none') return;
+    const foreign = Object.keys(body).filter((k) => !localKeys.includes(k));
+    if (foreign.length > 0) {
+      throw new ForbiddenException(
+        `${foreign.join(', ')} ${foreign.length === 1 ? 'is' : 'are'} owned by ` +
+          `${DONOR_CRM_LABELS[provider]} — edit there; local fields: ${localKeys.join(', ')}`,
+      );
+    }
   }
 }

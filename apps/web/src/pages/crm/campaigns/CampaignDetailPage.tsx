@@ -24,10 +24,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FormField } from '@/components/FormField';
+import { Textarea } from '@/components/ui/input';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatMoney } from '@/lib/utils';
-import { InfoItem, ProgressBar } from '../shared';
+import { InfoItem, ProgressBar, useDonorCrm } from '../shared';
 import type { CampaignDetail, Donation } from '../types';
 import { CampaignFormDialog } from './CampaignFormDialog';
 import { BackLink } from '@/components/BackLink';
@@ -71,10 +73,12 @@ const donationColumns: Column<Donation>[] = [
 export function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { can } = useAuth();
+  const { label: crmLabel, mirrored } = useDonorCrm();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
   const [donationState, setDonationState] = useState<ListState>({
     page: 1,
     pageSize: 25,
@@ -125,16 +129,26 @@ export function CampaignDetailPage() {
           <StatusBadge status={campaign.status} />
         </div>
         <div className="flex items-center gap-2">
-          {can('campaigns.update') ? (
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-4 w-4" /> Edit
-            </Button>
-          ) : null}
-          {can('campaigns.delete') ? (
-            <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="h-4 w-4" /> Delete
-            </Button>
-          ) : null}
+          {mirrored ? (
+            can('campaigns.update') ? (
+              <Button variant="outline" onClick={() => setLocalOpen(true)}>
+                <Pencil className="h-4 w-4" /> Edit local fields
+              </Button>
+            ) : null
+          ) : (
+            <>
+              {can('campaigns.update') ? (
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+              ) : null}
+              {can('campaigns.delete') ? (
+                <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
 
@@ -235,6 +249,13 @@ export function CampaignDetailPage() {
       </Tabs>
 
       <CampaignFormDialog open={editOpen} onOpenChange={setEditOpen} campaign={campaign} />
+      <EditCampaignLocalDialog
+        open={localOpen}
+        onOpenChange={setLocalOpen}
+        campaignId={campaign.id}
+        currentNotes={campaign.notes}
+        crmLabel={crmLabel}
+      />
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
@@ -269,5 +290,62 @@ export function CampaignDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** With an active donor CRM, only local notes are editable here (§6.8). */
+function EditCampaignLocalDialog({
+  open,
+  onOpenChange,
+  campaignId,
+  currentNotes,
+  crmLabel,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  campaignId: string;
+  currentNotes: string | null;
+  crmLabel: string | null;
+}) {
+  const queryClient = useQueryClient();
+  const [notes, setNotes] = useState(currentNotes ?? '');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () => api.patch(`/campaigns/${campaignId}`, { notes: notes || undefined }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm', 'campaigns'] });
+      onOpenChange(false);
+    },
+    onError: (err) =>
+      setFormError(err instanceof ApiError ? err.message : 'Save failed'),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit local fields</DialogTitle>
+          <DialogDescription>
+            Only local notes are stored here — every other campaign field is managed in{' '}
+            {crmLabel ?? 'the donor CRM'}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <FormField label="Local notes">
+            <Textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </FormField>
+          {formError ? <ErrorState error={new Error(formError)} /> : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+              {mutation.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
