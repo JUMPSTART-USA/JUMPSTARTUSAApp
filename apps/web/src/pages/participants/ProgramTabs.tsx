@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Lock, Pencil } from 'lucide-react';
+import { Lock, Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
@@ -371,7 +371,8 @@ export function ServicesTab({ participantId }: { participantId: string }) {
   const { can } = useAuth();
   const canRead = can('case_management.read');
   const canEdit = can('case_management.update');
-  const [editService, setEditService] = useState<CaseServiceRow | null>(null);
+  const canCreate = can('case_management.create');
+  const [editService, setEditService] = useState<CaseServiceRow | 'new' | null>(null);
   const query = useQuery({
     queryKey: ['participants', participantId, 'case-services'],
     queryFn: () =>
@@ -384,6 +385,13 @@ export function ServicesTab({ participantId }: { participantId: string }) {
   if (!canRead) return <NoAccess what="case services" />;
   return (
     <TabShell isLoading={query.isLoading} error={query.error}>
+      {canCreate ? (
+        <div className="mb-3 flex justify-end">
+          <Button size="sm" onClick={() => setEditService('new')}>
+            <Plus className="h-4 w-4" /> Record service
+          </Button>
+        </div>
+      ) : null}
       {!query.data || query.data.items.length === 0 ? (
         <EmptyState title="No services recorded" />
       ) : (
@@ -457,7 +465,8 @@ export function NotesTab({ participantId }: { participantId: string }) {
   const { can } = useAuth();
   const canRead = can('case_management.read');
   const canEdit = can('case_management.update');
-  const [editNote, setEditNote] = useState<CaseNoteRow | null>(null);
+  const canCreate = can('case_management.create');
+  const [editNote, setEditNote] = useState<CaseNoteRow | 'new' | null>(null);
   const query = useQuery({
     queryKey: ['participants', participantId, 'case-notes'],
     queryFn: () =>
@@ -470,6 +479,13 @@ export function NotesTab({ participantId }: { participantId: string }) {
   if (!canRead) return <NoAccess what="case notes" />;
   return (
     <TabShell isLoading={query.isLoading} error={query.error}>
+      {canCreate ? (
+        <div className="mb-3 flex justify-end">
+          <Button size="sm" onClick={() => setEditNote('new')}>
+            <Plus className="h-4 w-4" /> Add note
+          </Button>
+        </div>
+      ) : null}
       {!query.data || query.data.items.length === 0 ? (
         <EmptyState title="No case notes" />
       ) : (

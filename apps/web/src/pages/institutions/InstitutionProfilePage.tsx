@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Pencil } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
@@ -15,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { BackLink, backTo } from '@/components/BackLink';
+import { AssignmentDialog, type AssignmentRowLite } from '../volunteers/AssignmentDialog';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, formatDate, humanize } from '@/lib/utils';
@@ -53,6 +54,8 @@ export function InstitutionProfilePage() {
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
   const canOpenVolunteer = can('volunteers.read');
+  const canManageVolunteers = can('volunteers.create');
+  const [assignmentState, setAssignmentState] = useState<AssignmentRowLite | 'new' | null>(null);
 
   const query = useQuery({
     queryKey: ['institutions', id, 'profile'],
@@ -198,8 +201,13 @@ export function InstitutionProfilePage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>Volunteers assigned</CardTitle>
+          {canManageVolunteers ? (
+            <Button size="sm" variant="outline" onClick={() => setAssignmentState('new')}>
+              <Plus className="h-4 w-4" /> Assign volunteer
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent>
           {volunteerAssignments.length === 0 ? (
@@ -214,6 +222,7 @@ export function InstitutionProfilePage() {
                   <TableHead>Start</TableHead>
                   <TableHead>End</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="w-16" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -243,6 +252,18 @@ export function InstitutionProfilePage() {
                     <TableCell>
                       <StatusBadge status={row.status} />
                     </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {can('volunteers.update') ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Edit assignment"
+                          onClick={() => setAssignmentState(row)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -252,6 +273,11 @@ export function InstitutionProfilePage() {
       </Card>
 
       <InstitutionFormDialog open={editOpen} onOpenChange={setEditOpen} institution={institution} />
+      <AssignmentDialog
+        context={{ institutionId: institution.id, invalidate: [['institutions', institution.id, 'profile']] }}
+        state={assignmentState}
+        onClose={() => setAssignmentState(null)}
+      />
     </div>
   );
 }

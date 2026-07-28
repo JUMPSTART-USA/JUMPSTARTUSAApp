@@ -189,4 +189,23 @@ export class InsideClassesController {
   listSessions(@Param('id', ParseUUIDPipe) id: string) {
     return this.insideClasses.listSessions(id);
   }
+
+  @Patch('sessions/:sessionId')
+  @RequirePermission('inside_classes.update')
+  updateSession(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Body(zodBody(insideSessionSchema.partial())) body: Partial<InsideSessionBody>,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.insideClasses.updateSession(sessionId, body, user.id);
+  }
+
+  @Delete('sessions/:sessionId')
+  @RequirePermission('inside_classes.delete')
+  removeSession(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.insideClasses.deleteSession(sessionId, user.id);
+  }
 }

@@ -32,49 +32,59 @@ interface AttendanceRowState {
   notes: string;
 }
 
-function AddSessionDialog({
-  open,
-  onOpenChange,
+function SessionDialog({
+  state,
+  onClose,
   classId,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  /** 'new' = create; a session = edit; null = closed. */
+  state: ClassSession | 'new' | null;
+  onClose: () => void;
   classId: string;
 }) {
   const queryClient = useQueryClient();
+  const creating = state === 'new';
+  const existing = state !== 'new' ? state : null;
   const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [topic, setTopic] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) {
-      setSessionDate(new Date().toISOString().slice(0, 10));
-      setTopic('');
-      setNotes('');
+    if (state) {
+      setSessionDate(existing?.sessionDate.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+      setTopic(existing?.topic ?? '');
+      setNotes(existing?.notes ?? '');
       setError(null);
     }
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.post<ClassSession>(`/inside-classes/${classId}/sessions`, {
-        sessionDate,
-        topic: topic || undefined,
-        notes: notes || undefined,
-      }),
+      creating
+        ? api.post<ClassSession>(`/inside-classes/${classId}/sessions`, {
+            sessionDate,
+            topic: topic || undefined,
+            notes: notes || undefined,
+          })
+        : api.patch<ClassSession>(`/inside-classes/sessions/${existing?.id}`, {
+            sessionDate,
+            topic: topic || undefined,
+            notes: notes || undefined,
+          }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['inside-classes', classId, 'sessions'] });
-      onOpenChange(false);
+      onClose();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not add session'),
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save session'),
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={state !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Add session</DialogTitle>
+          <DialogTitle>{creating ? 'Add session' : 'Edit session'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <FormField label="Session date" required>
@@ -92,11 +102,11 @@ function AddSessionDialog({
           </FormField>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button onClick={() => mutation.mutate()} disabled={!sessionDate || mutation.isPending}>
-              {mutation.isPending ? 'Adding…' : 'Add session'}
+              {mutation.isPending ? 'Saving…' : creating ? 'Add session' : 'Save changes'}
             </Button>
           </DialogFooter>
         </div>
@@ -109,12 +119,18 @@ function AttendanceGrid({
   session,
   roster,
   canUpdate,
+  canDelete,
   classId,
+  onEdit,
+  onDeleted,
 }: {
   session: ClassSession;
   roster: RosterEnrollment[];
   canUpdate: boolean;
+  canDelete: boolean;
   classId: string;
+  onEdit: () => void;
+  onDeleted: () => void;
 }) {
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<Record<string, AttendanceRowState>>({});
@@ -146,6 +162,17 @@ function AttendanceGrid({
   };
 
   const markedCount = Object.values(rows).filter((r) => r.status !== '').length;
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const removeSession = useMutation({
+    mutationFn: () => api.delete(`/inside-classes/sessions/${session.id}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['inside-classes', classId, 'sessions'] });
+      onDeleted();
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not delete session'),
+  });
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -173,24 +200,45 @@ function AttendanceGrid({
           {formatDate(session.sessionDate)}
           {session.topic ? <span className="text-muted-foreground"> — {session.topic}</span> : null}
         </p>
-        {canUpdate ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setRows((prev) =>
-                Object.fromEntries(
-                  Object.entries(prev).map(([id, row]) => [
-                    id,
-                    { ...row, status: 'present' as const },
-                  ]),
-                ),
-              )
-            }
-          >
-            Mark all present
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {canUpdate ? (
+            <>
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                Edit session
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setRows((prev) =>
+                    Object.fromEntries(
+                      Object.entries(prev).map(([id, row]) => [
+                        id,
+                        { ...row, status: 'present' as const },
+                      ]),
+                    ),
+                  )
+                }
+              >
+                Mark all present
+              </Button>
+            </>
+          ) : null}
+          {canDelete ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={removeSession.isPending}
+              onClick={() => (confirmDelete ? removeSession.mutate() : setConfirmDelete(true))}
+            >
+              {removeSession.isPending
+                ? 'Deleting…'
+                : confirmDelete
+                  ? 'Confirm delete'
+                  : 'Delete session'}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {roster.length === 0 ? (
@@ -271,7 +319,7 @@ export function SessionsTab({
 }) {
   const { can } = useAuth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
+  const [dialogState, setDialogState] = useState<ClassSession | 'new' | null>(null);
 
   const sessionsQuery = useQuery({
     queryKey: ['inside-classes', classId, 'sessions'],
@@ -291,7 +339,7 @@ export function SessionsTab({
           {sessions.length} session{sessions.length === 1 ? '' : 's'}
         </p>
         {can('inside_classes.create') ? (
-          <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setDialogState('new')}>
             <Plus className="h-4 w-4" /> Add session
           </Button>
         ) : null}
@@ -336,7 +384,10 @@ export function SessionsTab({
               session={selected}
               roster={roster}
               canUpdate={can('inside_classes.update')}
+              canDelete={can('inside_classes.delete')}
               classId={classId}
+              onEdit={() => setDialogState(selected)}
+              onDeleted={() => setSelectedId(null)}
             />
           ) : (
             <EmptyState title="Select a session" />
@@ -344,7 +395,7 @@ export function SessionsTab({
         </div>
       )}
 
-      <AddSessionDialog open={addOpen} onOpenChange={setAddOpen} classId={classId} />
+      <SessionDialog state={dialogState} onClose={() => setDialogState(null)} classId={classId} />
     </div>
   );
 }

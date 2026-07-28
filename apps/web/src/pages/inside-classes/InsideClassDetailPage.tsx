@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ClipboardCheck, Pencil, UserPlus } from 'lucide-react';
+import { ClipboardCheck, Pencil, Plus, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BackLink, backTo } from '@/components/BackLink';
@@ -23,6 +23,7 @@ import { BatchEnrollDialog } from './BatchEnrollDialog';
 import { EnrollmentEditDialog } from './EnrollmentEditDialog';
 import { InsideClassFormDialog } from './InsideClassFormDialog';
 import { SessionsTab } from './SessionsTab';
+import { AssignmentDialog, type AssignmentRowLite } from '../volunteers/AssignmentDialog';
 import type { InsideClassDetail, RosterEnrollment } from './types';
 
 function InfoItem({ label, children }: { label: string; children: React.ReactNode }) {
@@ -39,6 +40,7 @@ export function InsideClassDetailPage() {
   const { can } = useAuth();
   const navigate = useNavigate();
   const canOpenVolunteer = can('volunteers.read');
+  const [assignmentState, setAssignmentState] = useState<AssignmentRowLite | 'new' | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [batchOpen, setBatchOpen] = useState(false);
   const [editingEnrollment, setEditingEnrollment] = useState<RosterEnrollment | null>(null);
@@ -206,6 +208,13 @@ export function InsideClassDetailPage() {
         </TabsContent>
 
         <TabsContent value="volunteers">
+          {can('volunteers.create') ? (
+            <div className="mb-3 flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => setAssignmentState('new')}>
+                <Plus className="h-4 w-4" /> Assign volunteer
+              </Button>
+            </div>
+          ) : null}
           {insideClass.volunteerAssignments.length === 0 ? (
             <EmptyState title="No volunteers assigned to this class" />
           ) : (
@@ -217,6 +226,7 @@ export function InsideClassDetailPage() {
                   <TableHead>Start</TableHead>
                   <TableHead>End</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="w-16" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -246,6 +256,18 @@ export function InsideClassDetailPage() {
                     <TableCell>
                       <StatusBadge status={assignment.status} />
                     </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {can('volunteers.update') ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Edit assignment"
+                          onClick={() => setAssignmentState(assignment)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -255,6 +277,15 @@ export function InsideClassDetailPage() {
       </Tabs>
 
       <InsideClassFormDialog open={editOpen} onOpenChange={setEditOpen} insideClass={insideClass} />
+      <AssignmentDialog
+        context={{
+          institutionId: insideClass.institutionId,
+          insideClassId: insideClass.id,
+          invalidate: [['inside-classes', insideClass.id]],
+        }}
+        state={assignmentState}
+        onClose={() => setAssignmentState(null)}
+      />
       <BatchEnrollDialog
         open={batchOpen}
         onOpenChange={setBatchOpen}

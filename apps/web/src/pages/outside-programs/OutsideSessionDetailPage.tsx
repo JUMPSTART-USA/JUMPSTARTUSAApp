@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,7 +39,9 @@ export function OutsideSessionDetailPage() {
   const { can } = useAuth();
   const canUpdate = can('outside_programs.update');
 
+  const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [saved, setSaved] = useState(false);
 
@@ -75,6 +77,15 @@ export function OutsideSessionDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['outside-programs'] });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+    },
+  });
+
+  const removeSession = useMutation({
+    mutationFn: () => api.delete(`/outside-programs/sessions/${sessionId}`),
+    onSuccess: () => {
+      const programId = sessionQuery.data?.outsideProgram.id;
+      queryClient.invalidateQueries({ queryKey: ['outside-programs'] });
+      navigate(programId ? `/outside-programs/${programId}` : '/outside-programs');
     },
   });
 
@@ -126,11 +137,26 @@ export function OutsideSessionDetailPage() {
             Session — {formatDate(session.sessionDate)}
           </h1>
         </div>
-        {canUpdate ? (
-          <Button variant="outline" onClick={() => setEditOpen(true)}>
-            <Pencil className="h-4 w-4" /> Edit Session
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {canUpdate ? (
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              <Pencil className="h-4 w-4" /> Edit Session
+            </Button>
+          ) : null}
+          {can('outside_programs.delete') ? (
+            <Button
+              variant="destructive"
+              disabled={removeSession.isPending}
+              onClick={() => (confirmDelete ? removeSession.mutate() : setConfirmDelete(true))}
+            >
+              {removeSession.isPending
+                ? 'Deleting…'
+                : confirmDelete
+                  ? 'Confirm delete'
+                  : 'Delete session'}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <Card>

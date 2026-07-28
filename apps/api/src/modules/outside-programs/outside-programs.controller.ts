@@ -149,6 +149,15 @@ export class OutsideProgramsController {
     return this.programs.updateSession(sessionId, body, user.id);
   }
 
+  @Delete('sessions/:sessionId')
+  @RequirePermission('outside_programs.delete')
+  removeSession(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.programs.deleteSession(sessionId, user.id);
+  }
+
   @Post('sessions/:sessionId/attendance')
   @RequirePermission('outside_programs.update')
   recordAttendance(

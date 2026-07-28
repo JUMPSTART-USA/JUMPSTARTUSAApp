@@ -334,6 +334,20 @@ export class OutsideProgramsService {
     return updated;
   }
 
+  /** Hard delete — sessions have no soft-delete column; attendance goes with them. */
+  async deleteSession(sessionId: string, userId: string) {
+    const existing = await this.prisma.outsideProgramSession.findUnique({
+      where: { id: sessionId },
+    });
+    if (!existing) throw new NotFoundException('Session not found');
+    await this.prisma.$transaction([
+      this.prisma.outsideSessionAttendance.deleteMany({ where: { sessionId } }),
+      this.prisma.outsideProgramSession.delete({ where: { id: sessionId } }),
+    ]);
+    await this.audit.logDelete(userId, 'outside_program_session', sessionId, existing);
+    return { ok: true };
+  }
+
   /** Batch upsert — staff mark the whole roster in one save (§6.2 pattern). */
   async recordAttendance(sessionId: string, rows: AttendanceRowInput[], userId: string) {
     const session = await this.prisma.outsideProgramSession.findUnique({

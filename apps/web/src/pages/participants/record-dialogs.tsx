@@ -45,12 +45,16 @@ export function ServiceEditDialog({
   participantId,
   onClose,
 }: {
-  service: CaseServiceRow | null;
+  /** 'new' opens the dialog in create mode. */
+  service: CaseServiceRow | 'new' | null;
   participantId: string;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const [topError, setTopError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const creating = service === 'new';
+  const existing = service !== 'new' ? service : null;
 
   const { register, handleSubmit, watch, setError, reset, formState } = useForm<ServiceFormValues>(
     { resolver: schemaResolver(serviceEditSchema) },
@@ -60,25 +64,41 @@ export function ServiceEditDialog({
   useEffect(() => {
     if (service) {
       setTopError('');
+      setConfirmDelete(false);
       reset({
-        serviceType: service.serviceType,
-        serviceDate: toDateInput(service.serviceDate),
-        providerName: service.providerName ?? '',
-        description: service.description ?? '',
-        outcome: service.outcome ?? '',
-        followUpRequired: service.followUpRequired,
-        followUpDate: toDateInput(service.followUpDate),
-        notes: service.notes ?? '',
+        serviceType: existing?.serviceType ?? '',
+        serviceDate: existing ? toDateInput(existing.serviceDate) : toDateInput(new Date().toISOString()),
+        providerName: existing?.providerName ?? '',
+        description: existing?.description ?? '',
+        outcome: existing?.outcome ?? '',
+        followUpRequired: existing?.followUpRequired ?? false,
+        followUpDate: existing ? toDateInput(existing.followUpDate) : '',
+        notes: existing?.notes ?? '',
       });
     }
   }, [service, reset]);
 
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['participants', participantId] });
+    queryClient.invalidateQueries({ queryKey: ['case-management'] });
+  };
+
   const update = useMutation({
     mutationFn: (values: ServiceFormValues) =>
-      api.patch(`/case-services/${service?.id}`, values),
+      creating
+        ? api.post('/case-services', { ...values, participantProfileId: participantId })
+        : api.patch(`/case-services/${existing?.id}`, values),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['participants', participantId] });
-      queryClient.invalidateQueries({ queryKey: ['case-management'] });
+      invalidate();
+      onClose();
+    },
+    onError: (err) => setTopError(applyApiError(err, setError) ?? ''),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => api.delete(`/case-services/${existing?.id}`),
+    onSuccess: () => {
+      invalidate();
       onClose();
     },
     onError: (err) => setTopError(applyApiError(err, setError) ?? ''),
@@ -88,8 +108,10 @@ export function ServiceEditDialog({
     <Dialog open={service !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Edit service</DialogTitle>
-          <DialogDescription>Update this service record.</DialogDescription>
+          <DialogTitle>{creating ? 'Record service' : 'Edit service'}</DialogTitle>
+          <DialogDescription>
+            {creating ? 'Record a service provided to this participant.' : 'Update this service record.'}
+          </DialogDescription>
         </DialogHeader>
         <form
           className="space-y-4"
@@ -129,13 +151,31 @@ export function ServiceEditDialog({
             <Textarea rows={2} {...register('notes')} />
           </FormField>
           {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={formState.isSubmitting || update.isPending}>
-              {update.isPending ? 'Saving…' : 'Save changes'}
-            </Button>
+          <DialogFooter className="sm:justify-between">
+            {!creating ? (
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={remove.isPending}
+                onClick={() => (confirmDelete ? remove.mutate() : setConfirmDelete(true))}
+              >
+                {remove.isPending
+                  ? 'Deleting…'
+                  : confirmDelete
+                    ? 'Click again to confirm'
+                    : 'Delete'}
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={formState.isSubmitting || update.isPending}>
+                {update.isPending ? 'Saving…' : creating ? 'Record service' : 'Save changes'}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -162,12 +202,16 @@ export function NoteEditDialog({
   participantId,
   onClose,
 }: {
-  note: CaseNoteRow | null;
+  /** 'new' opens the dialog in create mode. */
+  note: CaseNoteRow | 'new' | null;
   participantId: string;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const [topError, setTopError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const creating = note === 'new';
+  const existing = note !== 'new' ? note : null;
 
   const { register, handleSubmit, watch, setError, reset, formState } = useForm<NoteFormValues>({
     resolver: schemaResolver(noteEditSchema),
@@ -177,23 +221,40 @@ export function NoteEditDialog({
   useEffect(() => {
     if (note) {
       setTopError('');
+      setConfirmDelete(false);
       reset({
-        noteDate: toDateInput(note.noteDate),
-        category: note.category,
-        contactType: note.contactType ?? CONTACT_TYPES[0],
-        content: note.content,
-        followUpRequired: note.followUpRequired ?? false,
-        followUpDate: toDateInput(note.followUpDate),
-        confidential: note.confidential,
+        noteDate: existing ? toDateInput(existing.noteDate) : toDateInput(new Date().toISOString()),
+        category: existing?.category ?? NOTE_CATEGORIES[0],
+        contactType: existing?.contactType ?? CONTACT_TYPES[0],
+        content: existing?.content ?? '',
+        followUpRequired: existing?.followUpRequired ?? false,
+        followUpDate: existing ? toDateInput(existing.followUpDate) : '',
+        confidential: existing?.confidential ?? false,
       });
     }
   }, [note, reset]);
 
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['participants', participantId] });
+    queryClient.invalidateQueries({ queryKey: ['case-management'] });
+  };
+
   const update = useMutation({
-    mutationFn: (values: NoteFormValues) => api.patch(`/case-notes/${note?.id}`, values),
+    mutationFn: (values: NoteFormValues) =>
+      creating
+        ? api.post('/case-notes', { ...values, participantProfileId: participantId })
+        : api.patch(`/case-notes/${existing?.id}`, values),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['participants', participantId] });
-      queryClient.invalidateQueries({ queryKey: ['case-management'] });
+      invalidate();
+      onClose();
+    },
+    onError: (err) => setTopError(applyApiError(err, setError) ?? ''),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => api.delete(`/case-notes/${existing?.id}`),
+    onSuccess: () => {
+      invalidate();
       onClose();
     },
     onError: (err) => setTopError(applyApiError(err, setError) ?? ''),
@@ -203,7 +264,7 @@ export function NoteEditDialog({
     <Dialog open={note !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Edit case note</DialogTitle>
+          <DialogTitle>{creating ? 'Add case note' : 'Edit case note'}</DialogTitle>
           <DialogDescription>
             Changes are audited; confidentiality rules still apply.
           </DialogDescription>
@@ -255,13 +316,31 @@ export function NoteEditDialog({
             </FormField>
           ) : null}
           {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={formState.isSubmitting || update.isPending}>
-              {update.isPending ? 'Saving…' : 'Save changes'}
-            </Button>
+          <DialogFooter className="sm:justify-between">
+            {!creating ? (
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={remove.isPending}
+                onClick={() => (confirmDelete ? remove.mutate() : setConfirmDelete(true))}
+              >
+                {remove.isPending
+                  ? 'Deleting…'
+                  : confirmDelete
+                    ? 'Click again to confirm'
+                    : 'Delete'}
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={formState.isSubmitting || update.isPending}>
+                {update.isPending ? 'Saving…' : creating ? 'Add note' : 'Save changes'}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

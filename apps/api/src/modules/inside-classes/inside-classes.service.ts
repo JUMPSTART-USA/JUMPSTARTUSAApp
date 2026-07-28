@@ -449,6 +449,29 @@ export class InsideClassesService {
     });
   }
 
+  async updateSession(sessionId: string, input: Partial<InsideSessionInput>, userId: string) {
+    const existing = await this.prisma.insideClassSession.findUnique({ where: { id: sessionId } });
+    if (!existing) throw new NotFoundException('Session not found');
+    const session = await this.prisma.insideClassSession.update({
+      where: { id: sessionId },
+      data: { ...input, updatedById: userId },
+    });
+    await this.audit.logUpdate(userId, 'inside_class_session', sessionId, existing, session);
+    return session;
+  }
+
+  /** Hard delete — sessions have no soft-delete column; attendance goes with them. */
+  async deleteSession(sessionId: string, userId: string) {
+    const existing = await this.prisma.insideClassSession.findUnique({ where: { id: sessionId } });
+    if (!existing) throw new NotFoundException('Session not found');
+    await this.prisma.$transaction([
+      this.prisma.sessionAttendance.deleteMany({ where: { sessionId } }),
+      this.prisma.insideClassSession.delete({ where: { id: sessionId } }),
+    ]);
+    await this.audit.logDelete(userId, 'inside_class_session', sessionId, existing);
+    return { ok: true };
+  }
+
   /** Upserts one SessionAttendance row per (session, enrollment) — re-submitting the grid corrects it. */
   async recordAttendance(sessionId: string, rows: AttendanceRowInput[], userId: string) {
     const session = await this.prisma.insideClassSession.findFirst({
