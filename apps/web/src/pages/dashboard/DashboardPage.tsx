@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -84,6 +85,14 @@ const ATTENTION_SEVERITY: Record<string, BadgeProps['variant']> = {
   intake_sla_breaches: 'destructive',
 };
 
+// Every dashboard widget links to the functional area its numbers come from.
+const ATTENTION_LINKS: Record<string, string> = {
+  vehicle_alerts: '/vehicles/alerts',
+  clearance_expirations: '/volunteers/expirations',
+  overdue_follow_ups: '/case-management',
+  intake_sla_breaches: '/intake',
+};
+
 const fmtCount = (n: number) => n.toLocaleString('en-US');
 const fmtDateTime = (value: string) => format(new Date(value), 'MMM d, yyyy h:mm a');
 
@@ -92,14 +101,30 @@ function StatCard({
   label,
   value,
   hint,
+  to,
 }: {
   icon: LucideIcon;
   label: string;
   value: number;
   hint?: string;
+  /** Functional area this number comes from — the whole card navigates there. */
+  to: string;
 }) {
+  const navigate = useNavigate();
   return (
-    <Card>
+    <Card
+      role="link"
+      tabIndex={0}
+      aria-label={`${label} — open`}
+      className="cursor-pointer transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={() => navigate(to)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          navigate(to);
+        }
+      }}
+    >
       <CardContent className="flex items-center gap-3 p-4">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
           <Icon className="h-4 w-4" />
@@ -114,7 +139,40 @@ function StatCard({
   );
 }
 
+/** Info-card wrapper that navigates to its functional area on click. */
+function NavCard({
+  to,
+  className,
+  children,
+}: {
+  to: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const navigate = useNavigate();
+  return (
+    <Card
+      role="link"
+      tabIndex={0}
+      className={cn(
+        'cursor-pointer transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        className,
+      )}
+      onClick={() => navigate(to)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          navigate(to);
+        }
+      }}
+    >
+      {children}
+    </Card>
+  );
+}
+
 export function DashboardPage() {
+  const navigate = useNavigate();
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [state, setState] = useState('');
@@ -242,26 +300,27 @@ export function DashboardPage() {
                 icon={Users}
                 label="Participants"
                 value={data.activeParticipants}
+                to="/participants"
                 hint={participantStatus ? `${humanize(participantStatus)} status` : 'Active inside or outside'}
               />
             ) : null}
             {data.participantsInHousing !== undefined ? (
-              <StatCard icon={Home} label="In housing" value={data.participantsInHousing} hint="Active enrollments" />
+              <StatCard icon={Home} label="In housing" value={data.participantsInHousing} hint="Active enrollments" to="/housing" />
             ) : null}
             {data.activeInsideClasses !== undefined ? (
-              <StatCard icon={School} label="Inside classes" value={data.activeInsideClasses} hint="Active" />
+              <StatCard icon={School} label="Inside classes" value={data.activeInsideClasses} hint="Active" to="/inside-classes" />
             ) : null}
             {data.activeOutsidePrograms !== undefined ? (
-              <StatCard icon={GraduationCap} label="Outside programs" value={data.activeOutsidePrograms} hint="Active" />
+              <StatCard icon={GraduationCap} label="Outside programs" value={data.activeOutsidePrograms} hint="Active" to="/outside-programs" />
             ) : null}
             {data.volunteersActive !== undefined ? (
-              <StatCard icon={HandHeart} label="Volunteers" value={data.volunteersActive} hint="Active" />
+              <StatCard icon={HandHeart} label="Volunteers" value={data.volunteersActive} hint="Active" to="/volunteers" />
             ) : null}
             {data.employedParticipants !== undefined ? (
-              <StatCard icon={Briefcase} label="Employed participants" value={data.employedParticipants} />
+              <StatCard icon={Briefcase} label="Employed participants" value={data.employedParticipants} to="/employers" />
             ) : null}
             {data.activeEmployers !== undefined ? (
-              <StatCard icon={Building2} label="Employer partners" value={data.activeEmployers} hint="Partner or hiring" />
+              <StatCard icon={Building2} label="Employer partners" value={data.activeEmployers} hint="Partner or hiring" to="/employers" />
             ) : null}
             {data.vehiclesActive !== undefined ? (
               <StatCard
@@ -269,6 +328,7 @@ export function DashboardPage() {
                 label="Vehicles"
                 value={data.vehiclesActive}
                 hint={data.vehicleAlerts ? `${fmtCount(data.vehicleAlerts)} with alerts` : 'No alerts'}
+                to="/vehicles"
               />
             ) : null}
             {data.completedPrograms !== undefined ? (
@@ -277,6 +337,7 @@ export function DashboardPage() {
                 label="Completions"
                 value={data.completedPrograms}
                 hint={hasPeriod ? 'In selected period' : 'All time'}
+                to="/participants"
               />
             ) : null}
             {data.leftEarly !== undefined ? (
@@ -285,6 +346,7 @@ export function DashboardPage() {
                 label="Left early"
                 value={data.leftEarly}
                 hint={hasPeriod ? 'In selected period' : 'All time'}
+                to="/participants"
               />
             ) : null}
           </div>
@@ -301,19 +363,41 @@ export function DashboardPage() {
                   <p className="text-sm text-muted-foreground">All clear — nothing needs attention right now.</p>
                 ) : (
                   <ul className="divide-y">
-                    {data.attentionNeeded.map((item) => (
-                      <li key={item.key} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
-                        <span className="text-sm">{item.label}</span>
-                        <Badge variant={ATTENTION_SEVERITY[item.key] ?? 'warning'}>{fmtCount(item.count)}</Badge>
-                      </li>
-                    ))}
+                    {data.attentionNeeded.map((item) => {
+                      const to = ATTENTION_LINKS[item.key];
+                      return (
+                        <li
+                          key={item.key}
+                          role={to ? 'link' : undefined}
+                          tabIndex={to ? 0 : undefined}
+                          className={cn(
+                            'flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0',
+                            to && 'cursor-pointer -mx-2 rounded-md px-2 transition-colors hover:bg-accent',
+                          )}
+                          onClick={to ? () => navigate(to) : undefined}
+                          onKeyDown={
+                            to
+                              ? (e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    navigate(to);
+                                  }
+                                }
+                              : undefined
+                          }
+                        >
+                          <span className="text-sm">{item.label}</span>
+                          <Badge variant={ATTENTION_SEVERITY[item.key] ?? 'warning'}>{fmtCount(item.count)}</Badge>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </CardContent>
             </Card>
 
             {data.donationTotal !== undefined ? (
-              <Card>
+              <NavCard to="/donors/donations">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <HandCoins className="h-4 w-4 text-primary" /> Donations
@@ -340,11 +424,11 @@ export function DashboardPage() {
                     )
                   ) : null}
                 </CardContent>
-              </Card>
+              </NavCard>
             ) : null}
 
             {data.intakeQueues ? (
-              <Card>
+              <NavCard to="/intake">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Inbox className="h-4 w-4 text-primary" /> Intake queue
@@ -376,11 +460,11 @@ export function DashboardPage() {
                   </div>
                   <p className="text-[11px] text-muted-foreground">Target: first review within 3 days.</p>
                 </CardContent>
-              </Card>
+              </NavCard>
             ) : null}
 
             {data.recentCaseActivity ? (
-              <Card>
+              <NavCard to="/case-management">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <HeartHandshake className="h-4 w-4 text-primary" /> Case activity
@@ -401,13 +485,13 @@ export function DashboardPage() {
                     <span className="font-semibold tabular-nums">{fmtCount(data.recentCaseActivity.total)}</span>
                   </div>
                 </CardContent>
-              </Card>
+              </NavCard>
             ) : null}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
             {data.activeCampaigns ? (
-              <Card className="lg:col-span-2">
+              <NavCard to="/campaigns" className="lg:col-span-2">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Campaign progress</CardTitle>
                   <CardDescription>Raised to date against goal — not period-filtered</CardDescription>
@@ -415,11 +499,11 @@ export function DashboardPage() {
                 <CardContent>
                   <CampaignProgressChart campaigns={data.activeCampaigns} />
                 </CardContent>
-              </Card>
+              </NavCard>
             ) : null}
 
             {data.upcomingEvents ? (
-              <Card className={cn(!data.activeCampaigns && 'lg:col-span-3')}>
+              <NavCard to="/events" className={cn(!data.activeCampaigns && 'lg:col-span-3')}>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <CalendarDays className="h-4 w-4 text-primary" /> Upcoming events
@@ -453,7 +537,7 @@ export function DashboardPage() {
                     </p>
                   ) : null}
                 </CardContent>
-              </Card>
+              </NavCard>
             ) : null}
           </div>
         </div>
