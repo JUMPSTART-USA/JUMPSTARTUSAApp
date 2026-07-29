@@ -56,6 +56,9 @@ const STATUS_VARIANTS: Record<string, BadgeProps['variant']> = {
   expired: 'destructive',
   open: 'secondary',
   in_progress: 'warning',
+  // support tickets
+  resolved: 'success',
+  closed: 'outline',
   paused: 'warning',
   ended: 'outline',
   proposed: 'secondary',

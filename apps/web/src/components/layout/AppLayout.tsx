@@ -11,6 +11,7 @@ import {
   Home,
   Inbox,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   Menu,
   School,
@@ -83,6 +84,10 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
   {
     title: 'Administration',
     items: [{ to: '/admin', label: 'Admin', icon: Settings, permission: 'admin.users' }],
+  },
+  {
+    title: 'Help',
+    items: [{ to: '/support', label: 'Support', icon: LifeBuoy, permission: 'support.access' }],
   },
 ];
 

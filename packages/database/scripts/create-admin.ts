@@ -41,7 +41,7 @@ async function ensureRbac(): Promise<Map<RoleKey, string>> {
   }
 
   console.log('empty database — creating permissions and roles');
-  await prisma.permission.createMany({ data: ALL_PERMISSIONS.map((key) => ({ key })) });
+  await prisma.permission.createMany({ data: ALL_PERMISSIONS.map((key) => ({ key })), skipDuplicates: true });
   const permIdByKey = new Map<string, string>(
     (await prisma.permission.findMany()).map((p) => [p.key, p.id]),
   );

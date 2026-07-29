@@ -91,6 +91,7 @@ async function wipe(): Promise<void> {
 async function seedRbac(): Promise<Map<RoleKey, string>> {
   await prisma.permission.createMany({
     data: ALL_PERMISSIONS.map((key) => ({ key })),
+    skipDuplicates: true,
   });
   const permIdByKey = new Map<string, string>(
     (await prisma.permission.findMany()).map((p) => [p.key, p.id]),

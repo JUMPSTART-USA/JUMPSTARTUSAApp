@@ -2,6 +2,7 @@ export * from './enums';
 export * from './permissions';
 export * from './chapters';
 export * from './schemas/common';
+export * from './schemas/support';
 export * from './schemas/person';
 export * from './schemas/participant';
 export * from './schemas/programs';

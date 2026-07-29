@@ -26,9 +26,11 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { VolunteersModule } from './modules/volunteers/volunteers.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
+import { SupportModule } from './modules/support/support.module';
 
 @Module({
   imports: [
+    SupportModule,
     MailModule,
     PrismaModule,
     AuditModule,

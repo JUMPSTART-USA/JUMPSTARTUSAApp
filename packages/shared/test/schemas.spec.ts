@@ -203,7 +203,11 @@ describe('permission matrix sanity (§6.14)', () => {
 
   it('read_only holds no write, delete, export, or special permissions', () => {
     for (const key of permissionsForRole('read_only')) {
-      expect(key.endsWith('.read'), `read_only should not hold ${key}`).toBe(true);
+      // support.access is deliberately universal — every role files tickets.
+      expect(
+        key.endsWith('.read') || key === 'support.access',
+        `read_only should not hold ${key}`,
+      ).toBe(true);
     }
   });
 

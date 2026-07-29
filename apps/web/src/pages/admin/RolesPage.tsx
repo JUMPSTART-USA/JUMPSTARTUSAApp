@@ -37,6 +37,7 @@ const SPECIAL_DESCRIPTIONS: Record<SpecialPermission, string> = {
   'admin.templates': 'Administer checklist and screening templates',
   'audit.read': 'View the audit log',
   'referral_inbox.read': 'Read the get-help referral inbox',
+  'support.access': 'File support tickets and read your own',
 };
 
 export function RolesPage() {

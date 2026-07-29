@@ -623,6 +623,8 @@ model User {
   insideClassesLed    InsideClass[]
   outsideProgramsLed  OutsideProgram[]
   auditLogs           AuditLog[]
+  supportTickets      SupportTicket[]  @relation("TicketCreator")
+  supportMessages     SupportMessage[]
 
   @@map("users")
 }
@@ -692,6 +694,43 @@ model UserRegionScope {
 
   @@unique([userId, state])
   @@map("user_region_scopes")
+}
+
+// ── Support tickets ─────────────────────────────────────────────────────────
+// Any signed-in user files bug reports / feature suggestions; administrators
+// respond. The opening description is the first SupportMessage of the thread.
+
+model SupportTicket {
+  id          String   @id @default(uuid())
+  number      Int      @unique @default(autoincrement()) // human-friendly #
+  category    String // bug | feature | question | other
+  subject     String
+  status      String   @default("open") // open | in_progress | resolved | closed
+  createdById String
+  createdBy   User     @relation("TicketCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages SupportMessage[]
+
+  @@index([createdById, updatedAt])
+  @@index([status, updatedAt])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id       String        @id @default(uuid())
+  ticketId String
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id])
+  authorId String
+  author   User          @relation(fields: [authorId], references: [id])
+  body     String
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
 }
 
 // Server-side session store (connect-pg-simple shape): instant revocation on

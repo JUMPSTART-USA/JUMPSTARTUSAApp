@@ -15,6 +15,7 @@ import { MentoringRoutes } from '@/pages/mentoring';
 import { OutsideProgramsRoutes } from '@/pages/outside-programs';
 import { ParticipantsRoutes } from '@/pages/participants';
 import { ReportsRoutes } from '@/pages/reports';
+import { SupportRoutes } from '@/pages/support';
 import { VolunteersRoutes } from '@/pages/volunteers';
 
 /**
@@ -34,6 +35,7 @@ export const moduleRoutes = (
       path="participants/*"
       element={gate('participants.read', <ParticipantsRoutes />)}
     />
+    <Route path="support/*" element={gate('support.access', <SupportRoutes />)} />
     <Route
       path="institutions/*"
       element={gate('institutions.read', <InstitutionsRoutes />)}

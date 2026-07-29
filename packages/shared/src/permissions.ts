@@ -47,6 +47,8 @@ export type Action = (typeof ACTIONS)[number];
  *  - audit.read: audit-log viewer
  *  - referral_inbox.read: the get-help queue holds third-party PII about
  *    justice-involved people — tighter than other intake queues (§6.11)
+ *  - support.access: file support tickets and read your own — held by every
+ *    role; administrators additionally work the whole queue (admin role)
  */
 export const SPECIAL_PERMISSIONS = [
   'case_notes.confidential.read',
@@ -60,6 +62,7 @@ export const SPECIAL_PERMISSIONS = [
   'admin.templates',
   'audit.read',
   'referral_inbox.read',
+  'support.access',
 ] as const;
 export type SpecialPermission = (typeof SPECIAL_PERMISSIONS)[number];
 
@@ -144,6 +147,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     ...read('employers'),
     ...read('employment'),
     ...read('vehicles'),
+    'support.access',
   ],
 
   inside_program_staff: [
@@ -154,6 +158,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     ...read('volunteers'),
     ...readExport('reports'),
     'fields.justice.read', // works with DOC ids and facilities daily
+    'support.access',
   ],
 
   outside_program_staff: [
@@ -164,6 +169,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     ...read('case_management'),
     ...read('volunteers'),
     ...readExport('reports'),
+    'support.access',
   ],
 
   case_manager: [
@@ -182,6 +188,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     ...readExport('reports'),
     'fields.justice.read',
     'referral_inbox.read',
+    'support.access',
   ],
 
   housing_staff: [
@@ -190,6 +197,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     ...read('participants'),
     ...read('case_management'),
     ...readExport('reports'),
+    'support.access',
   ],
 
   volunteer_coordinator: [
@@ -205,6 +213,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     ...crue('communications'),
     ...['intake_queues.read', 'intake_queues.update'] as ModulePermission[],
     ...readExport('reports'),
+    'support.access',
   ],
 
   development_staff: [
@@ -215,6 +224,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     ...crue('vendors'),
     ...crue('communications'),
     ...readExport('reports'),
+    'support.access',
   ],
 
   employment_coordinator: [
@@ -224,6 +234,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     ...read('participants'),
     ...readExport('reports'),
     'fields.pay.read',
+    'support.access',
   ],
 
   fleet_manager: [
@@ -232,6 +243,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     ...read('vendors'),
     ...['vendors.create'] as ModulePermission[],
     ...readExport('reports'),
+    'support.access',
   ],
 
   read_only: [
@@ -247,6 +259,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     ...read('employers'),
     ...read('vehicles'),
     ...read('reports'),
+    'support.access',
   ],
 };
 
