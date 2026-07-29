@@ -6,10 +6,13 @@ import { DataTable, initialListState, type Column, type ListState } from '@/comp
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { SeverityBadge, useDebounced, vehicleLabel } from './shared';
+import { useDebounced } from '@/lib/form';
+import { SeverityBadge, vehicleLabel } from './shared';
 import { VehicleFormDialog } from './VehicleFormDialog';
 import type { AlertSeverity, VehicleAlert, VehicleListItem } from './types';
 import { BackLink } from '@/components/BackLink';
@@ -130,28 +133,29 @@ export function VehiclesListPage() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Vehicles</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => navigate('/vehicles/alerts')}>
-            <AlertTriangle className="h-4 w-4" /> Alerts
-            {alertsQuery.data?.total ? (
-              <Badge variant="destructive" className="ml-1">
-                {alertsQuery.data.total}
-              </Badge>
-            ) : null}
-          </Button>
-          {can('vehicles.create') ? (
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" /> New vehicle
+      <PageHeader
+        title="Vehicles"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => navigate('/vehicles/alerts')}>
+              <AlertTriangle className="h-4 w-4" /> Alerts
+              {alertsQuery.data?.total ? (
+                <Badge variant="destructive" className="ml-1">
+                  {alertsQuery.data.total}
+                </Badge>
+              ) : null}
             </Button>
-          ) : null}
-        </div>
-      </div>
+            {can('vehicles.create') ? (
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" /> New vehicle
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-64"
+      <ListToolbar>
+        <SearchInput
           placeholder="Search make, model, plate…"
           value={search}
           onChange={(e) => {
@@ -160,7 +164,7 @@ export function VehiclesListPage() {
           }}
         />
         <Input
-          className="w-44"
+          className="w-full sm:w-44"
           placeholder="Location"
           value={location}
           onChange={(e) => {
@@ -169,7 +173,7 @@ export function VehiclesListPage() {
           }}
         />
         <Select
-          className="w-36"
+          className="w-full sm:w-44"
           value={active}
           onChange={(e) => {
             setActive(e.target.value);
@@ -180,7 +184,7 @@ export function VehiclesListPage() {
           <option value="true">Active</option>
           <option value="false">Inactive</option>
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.isError ? (
         <ErrorState error={query.error} />

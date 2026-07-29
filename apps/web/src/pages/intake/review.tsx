@@ -4,7 +4,7 @@ import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import { Label, Textarea } from '@/components/ui/input';
-import { ErrorState } from '@/components/ui/spinner';
+import { FormError } from '@/components/ui/notice';
 import { formatDate } from '@/lib/utils';
 import {
   SLA_DAYS,
@@ -36,16 +36,6 @@ export function SubmittedAge({
   );
 }
 
-/** Label/value row used across the detail dialogs. */
-export function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="col-span-2">{children ?? '—'}</span>
-    </div>
-  );
-}
-
 /**
  * §6.11 link-instead-of-create: duplicate candidates found for the submission,
  * with a "use existing person" choice that feeds existingPersonId on approve.
@@ -61,8 +51,8 @@ export function DuplicateCandidatePicker({
 }) {
   if (candidates.length === 0) return null;
   return (
-    <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3">
-      <p className="text-sm font-medium text-amber-800">
+    <div className="space-y-2 rounded-md border border-warning/30 bg-warning/10 p-3">
+      <p className="text-sm font-medium text-warning">
         {candidates.length} possible existing {candidates.length === 1 ? 'match' : 'matches'} —
         link instead of creating a duplicate person.
       </p>
@@ -167,7 +157,7 @@ export function ReviewControls({
 
   return (
     <div className="space-y-3">
-      {error ? <ErrorState error={new Error(error)} /> : null}
+      <FormError message={error} />
       {approveHint ? <p className="text-xs text-muted-foreground">{approveHint}</p> : null}
       <div className="space-y-1.5">
         <Label>Review notes</Label>

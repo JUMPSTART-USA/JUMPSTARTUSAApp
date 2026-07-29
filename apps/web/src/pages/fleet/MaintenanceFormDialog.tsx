@@ -13,9 +13,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiError, toDateInput } from './shared';
+import { applyApiError, toDateInput } from '@/lib/form';
 import type { MaintenanceRecord, VendorOption } from './types';
 
 interface MaintenanceFormValues {
@@ -101,12 +102,12 @@ export function MaintenanceFormDialog({
       void queryClient.invalidateQueries({ queryKey: ['fleet'] });
       onOpenChange(false);
     },
-    onError: (err) => applyApiError(err, setError, setTopError),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>{record ? 'Edit maintenance record' : 'Log maintenance'}</DialogTitle>
         </DialogHeader>
@@ -187,14 +188,14 @@ export function MaintenanceFormDialog({
             <Textarea rows={2} {...register('notes')} />
           </FormField>
 
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : record ? 'Save changes' : 'Log maintenance'}
+              {mutation.isPending ? 'Saving…' : record ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

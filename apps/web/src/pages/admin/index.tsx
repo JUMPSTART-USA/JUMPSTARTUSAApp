@@ -1,8 +1,9 @@
 import type { PermissionKey } from '@jumpstart/shared';
-import { Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/spinner';
+import { SubNav } from '@/components/ui/sub-nav';
 import { useAuth } from '@/lib/auth';
-import { cn } from '@/lib/utils';
 import { AuditLogPage } from './AuditLogPage';
 import { RolesPage } from './RolesPage';
 import { SettingsPage } from './SettingsPage';
@@ -23,25 +24,8 @@ function AdminLayout() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Administration</h1>
-      <nav className="flex flex-wrap items-center gap-1 border-b pb-2">
-        {visible.map((s) => (
-          <NavLink
-            key={s.path}
-            to={s.path}
-            className={({ isActive }) =>
-              cn(
-                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-              )
-            }
-          >
-            {s.label}
-          </NavLink>
-        ))}
-      </nav>
+      <PageHeader title="Administration" />
+      <SubNav items={visible.map((s) => ({ to: s.path, label: s.label }))} />
       <Outlet />
     </div>
   );

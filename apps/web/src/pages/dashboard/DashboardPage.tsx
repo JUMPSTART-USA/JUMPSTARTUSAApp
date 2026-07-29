@@ -26,8 +26,11 @@ import { backTo } from '@/components/BackLink';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input, Label, Select } from '@/components/ui/input';
+import { Input, Select } from '@/components/ui/input';
+import { Notice } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { ListToolbar, ToolbarSpacer } from '@/components/ui/toolbar';
 import { api, qs } from '@/lib/api';
 import { cn, formatDate, formatMoney, humanize } from '@/lib/utils';
 import { CampaignProgressChart, type DashboardCampaign } from './CampaignProgressChart';
@@ -97,6 +100,15 @@ const ATTENTION_LINKS: Record<string, string> = {
 const fmtCount = (n: number) => n.toLocaleString('en-US');
 const fmtDateTime = (value: string) => format(new Date(value), 'MMM d, yyyy h:mm a');
 
+/** The dashboard's one gold accent: an icon chip shared by stat and info cards. */
+function TitleIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return (
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gold/15 text-gold-dark">
+      <Icon className="h-3.5 w-3.5" />
+    </span>
+  );
+}
+
 function StatCard({
   icon: Icon,
   label,
@@ -127,12 +139,14 @@ function StatCard({
       }}
     >
       <CardContent className="flex items-center gap-3 p-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gold/15 text-gold-dark">
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <div className="text-2xl font-semibold leading-tight">{fmtCount(value)}</div>
-          <div className="truncate text-xs text-muted-foreground">{label}</div>
+          <div className="text-[11px] font-medium uppercase leading-tight tracking-wide text-muted-foreground">
+            {label}
+          </div>
+          <div className="font-display text-2xl font-semibold leading-tight">{fmtCount(value)}</div>
           {hint ? <div className="truncate text-[11px] text-muted-foreground/80">{hint}</div> : null}
         </div>
       </CardContent>
@@ -203,92 +217,72 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        {data ? (
-          <p className="text-xs text-muted-foreground">
-            Data as of {fmtDateTime(data.generatedAt)} · cached up to 5 minutes
-          </p>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description={
+          data ? `Data as of ${fmtDateTime(data.generatedAt)} · cached up to 5 minutes` : undefined
+        }
+      />
 
-      <Card>
-        <CardContent className="flex flex-wrap items-end gap-3 p-4">
-          <div className="space-y-1">
-            <Label htmlFor="dash-from" className="text-xs">
-              From
-            </Label>
-            <Input
-              id="dash-from"
-              type="date"
-              className="h-8 w-36"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="dash-to" className="text-xs">
-              To
-            </Label>
-            <Input
-              id="dash-to"
-              type="date"
-              className="h-8 w-36"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="dash-state" className="text-xs">
-              State
-            </Label>
-            <Select
-              id="dash-state"
-              className="h-8 w-32"
-              value={state}
-              onChange={(e) => setState(e.target.value)}
-            >
-              <option value="">All states</option>
-              {US_STATES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="dash-status" className="text-xs">
-              Participant status
-            </Label>
-            <Select
-              id="dash-status"
-              className="h-8 w-44"
-              value={participantStatus}
-              onChange={(e) => setParticipantStatus(e.target.value)}
-            >
-              <option value="">Active (default)</option>
-              {PARTICIPANT_STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {humanize(s)}
-                </option>
-              ))}
-            </Select>
-          </div>
-          {hasFilters ? (
-            <Button variant="ghost" size="sm" onClick={reset}>
-              Reset
-            </Button>
-          ) : null}
-          <p className="ml-auto self-center text-[11px] text-muted-foreground">
-            Filters apply only to widgets that carry the dimension.
-          </p>
-        </CardContent>
-      </Card>
+      <ListToolbar>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <Input
+            type="date"
+            aria-label="From date"
+            className="w-full sm:w-36"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+          <span className="text-sm text-muted-foreground">to</span>
+          <Input
+            type="date"
+            aria-label="To date"
+            className="w-full sm:w-36"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </div>
+        <Select
+          aria-label="State"
+          className="w-full sm:w-44"
+          value={state}
+          onChange={(e) => setState(e.target.value)}
+        >
+          <option value="">All states</option>
+          {US_STATES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </Select>
+        <Select
+          aria-label="Participant status"
+          className="w-full sm:w-44"
+          value={participantStatus}
+          onChange={(e) => setParticipantStatus(e.target.value)}
+        >
+          <option value="">Active (default)</option>
+          {PARTICIPANT_STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>
+              {humanize(s)}
+            </option>
+          ))}
+        </Select>
+        {hasFilters ? (
+          <Button variant="ghost" onClick={reset}>
+            Reset
+          </Button>
+        ) : null}
+        <ToolbarSpacer />
+        <p className="text-xs text-muted-foreground">
+          Filters apply only to widgets that carry the dimension.
+        </p>
+      </ListToolbar>
 
       {invalidRange ? (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <Notice variant="warning">
           The “from” date is after the “to” date — adjust the range to load the dashboard.
-        </div>
+        </Notice>
       ) : query.isPending ? (
         <PageLoader />
       ) : query.isError ? (
@@ -355,8 +349,8 @@ export function DashboardPage() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" /> Attention needed
+                <CardTitle>
+                  <TitleIcon icon={AlertTriangle} /> Attention needed
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -400,13 +394,15 @@ export function DashboardPage() {
             {data.donationTotal !== undefined ? (
               <NavCard to="/donors/donations">
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <HandCoins className="h-4 w-4 text-primary" /> Donations
+                  <CardTitle>
+                    <TitleIcon icon={HandCoins} /> Donations
                   </CardTitle>
                   <CardDescription>{hasPeriod ? 'Selected period' : 'All time'}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <div className="text-3xl font-semibold">{formatMoney(data.donationTotal)}</div>
+                  <div className="font-display text-3xl font-semibold">
+                    {formatMoney(data.donationTotal)}
+                  </div>
                   {data.donorCount !== undefined ? (
                     <p className="text-sm text-muted-foreground">
                       {fmtCount(data.donorCount)} {data.donorCount === 1 ? 'donor' : 'donors'}{' '}
@@ -419,7 +415,7 @@ export function DashboardPage() {
                         <Clock className="h-3 w-3" /> Bloomerang · last synced {fmtDateTime(data.donationsLastSyncedAt)}
                       </p>
                     ) : (
-                      <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
+                      <p className="rounded-md border border-warning/30 bg-warning/10 px-2 py-1.5 text-[11px] text-warning">
                         No successful Bloomerang sync on record — totals may be incomplete.
                       </p>
                     )
@@ -431,8 +427,8 @@ export function DashboardPage() {
             {data.intakeQueues ? (
               <NavCard to="/intake">
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Inbox className="h-4 w-4 text-primary" /> Intake queue
+                  <CardTitle>
+                    <TitleIcon icon={Inbox} /> Intake queue
                   </CardTitle>
                   <CardDescription>Pending submissions (counts only)</CardDescription>
                 </CardHeader>
@@ -467,8 +463,8 @@ export function DashboardPage() {
             {data.recentCaseActivity ? (
               <NavCard to="/case-management">
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <HeartHandshake className="h-4 w-4 text-primary" /> Case activity
+                  <CardTitle>
+                    <TitleIcon icon={HeartHandshake} /> Case activity
                   </CardTitle>
                   <CardDescription>Last 7 days (fixed window)</CardDescription>
                 </CardHeader>
@@ -494,7 +490,7 @@ export function DashboardPage() {
             {data.activeCampaigns ? (
               <NavCard to="/campaigns" className="lg:col-span-2">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Campaign progress</CardTitle>
+                  <CardTitle>Campaign progress</CardTitle>
                   <CardDescription>Raised to date against goal — not period-filtered</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -506,8 +502,8 @@ export function DashboardPage() {
             {data.upcomingEvents ? (
               <NavCard to="/events" className={cn(!data.activeCampaigns && 'lg:col-span-3')}>
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <CalendarDays className="h-4 w-4 text-primary" /> Upcoming events
+                  <CardTitle>
+                    <TitleIcon icon={CalendarDays} /> Upcoming events
                   </CardTitle>
                   <CardDescription>Next 60 days</CardDescription>
                 </CardHeader>

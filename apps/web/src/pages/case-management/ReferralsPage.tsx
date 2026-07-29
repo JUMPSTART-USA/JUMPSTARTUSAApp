@@ -15,20 +15,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { SectionHeader } from '@/components/ui/page-header';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, toDateInput, todayInput, useDebounced } from '@/lib/form';
 import { formatDate, fullName } from '@/lib/utils';
-import {
-  applyFormErrors,
-  dateInputValue,
-  ParticipantPicker,
-  todayStr,
-  useDebounced,
-  zodForm,
-  type ParticipantRef,
-  type ReferralRow,
-} from './shared';
+import { type ReferralRow } from './shared';
 
 interface VendorRow {
   id: string;
@@ -69,10 +65,10 @@ function ReferralDialog({
 }) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const [topError, setTopError] = useState('');
-  const [participant, setParticipant] = useState<ParticipantRef | null>(
+  const [topError, setTopError] = useState<string | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(
     referral
-      ? { id: referral.participantProfileId, name: fullName(referral.participantProfile.person) }
+      ? { id: referral.participantProfileId, label: fullName(referral.participantProfile.person) }
       : null,
   );
 
@@ -81,14 +77,14 @@ function ReferralDialog({
 
   const { register, handleSubmit, watch, setValue, setError, formState } =
     useForm<ReferralFormValues>({
-      resolver: zodForm<ReferralFormValues>(outboundReferralSchema),
+      resolver: formResolver<ReferralFormValues>(outboundReferralSchema),
       defaultValues: referral
         ? {
             participantProfileId: referral.participantProfileId,
             vendorId: referral.vendorId ?? undefined,
             providerName: referral.providerName ?? '',
             reason: referral.reason,
-            referralDate: dateInputValue(referral.referralDate),
+            referralDate: toDateInput(referral.referralDate),
             outcome: referral.outcome ?? '',
             notes: referral.notes ?? '',
           }
@@ -97,7 +93,7 @@ function ReferralDialog({
             vendorId: undefined,
             providerName: '',
             reason: '',
-            referralDate: todayStr(),
+            referralDate: todayInput(),
             outcome: '',
             notes: '',
           },
@@ -111,12 +107,12 @@ function ReferralDialog({
       queryClient.invalidateQueries({ queryKey: ['case-management'] });
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyFormErrors(err, setError)),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{referral ? 'Edit referral' : 'New referral'}</DialogTitle>
           <DialogDescription>
@@ -126,7 +122,7 @@ function ReferralDialog({
         <form
           className="space-y-4"
           onSubmit={handleSubmit((values) => {
-            setTopError('');
+            setTopError(null);
             save.mutate(values);
           })}
         >
@@ -177,13 +173,13 @@ function ReferralDialog({
           <FormField label="Notes" error={formState.errors.notes}>
             <Textarea rows={2} {...register('notes')} />
           </FormField>
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : referral ? 'Save changes' : 'Create referral'}
+              {save.isPending ? 'Saving…' : referral ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
@@ -195,7 +191,7 @@ function ReferralDialog({
 export function ReferralsPage() {
   const { can } = useAuth();
   const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [participant, setParticipant] = useState<ParticipantRef | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [vendorId, setVendorId] = useState('');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<ReferralRow | null>(null);
@@ -250,22 +246,24 @@ export function ReferralsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Referrals</h2>
-        {can('case_management.create') ? (
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setDialogOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" /> New referral
-          </Button>
-        ) : null}
-      </div>
+      <SectionHeader
+        title="Referrals"
+        actions={
+          can('case_management.create') ? (
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" /> New referral
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <Input
+      <ListToolbar>
+        <SearchInput
           placeholder="Search reason, provider, partner…"
           value={search}
           onChange={(e) => {
@@ -273,16 +271,18 @@ export function ReferralsPage() {
             setListState((s) => ({ ...s, page: 1 }));
           }}
         />
-        <ParticipantPicker
-          value={participant}
-          onChange={(p) => {
-            setParticipant(p);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
-          placeholder="Filter by participant…"
-        />
+        <div className="w-full sm:w-72">
+          <ParticipantPicker
+            value={participant}
+            onChange={(p) => {
+              setParticipant(p);
+              setListState((s) => ({ ...s, page: 1 }));
+            }}
+          />
+        </div>
         {canListVendors ? (
           <Select
+            className="w-full sm:w-44"
             value={vendorId}
             onChange={(e) => {
               setVendorId(e.target.value);
@@ -297,7 +297,7 @@ export function ReferralsPage() {
             ))}
           </Select>
         ) : null}
-      </div>
+      </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
       <DataTable

@@ -1,8 +1,7 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { CLASS_STATUSES, insideClassSchema } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,9 +12,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { applyApiError, formResolver, toDateInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
-import { applyApiError, toDateInput, useInstitutionOptions } from './helpers';
+import { useInstitutionOptions } from './helpers';
 import type { InsideClassDetail, InsideClassListItem } from './types';
 
 interface InsideClassFormValues {
@@ -65,7 +66,7 @@ export function InsideClassFormDialog({
     setError,
     formState: { errors, isSubmitting },
   } = useForm<InsideClassFormValues>({
-    resolver: zodResolver(insideClassSchema) as unknown as Resolver<InsideClassFormValues>,
+    resolver: formResolver<InsideClassFormValues>(insideClassSchema),
     defaultValues: buildDefaults(insideClass),
   });
 
@@ -85,7 +86,7 @@ export function InsideClassFormDialog({
       void queryClient.invalidateQueries({ queryKey: ['inside-classes'] });
       onOpenChange(false);
     },
-    onError: (err) => applyApiError(err, setError, setTopError),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
@@ -136,14 +137,14 @@ export function InsideClassFormDialog({
             <Textarea rows={3} {...register('notes')} />
           </FormField>
 
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : insideClass ? 'Save changes' : 'Create class'}
+              {mutation.isPending ? 'Saving…' : insideClass ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

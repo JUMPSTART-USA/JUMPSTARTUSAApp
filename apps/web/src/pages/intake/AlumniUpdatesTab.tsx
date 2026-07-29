@@ -1,11 +1,13 @@
 import { INTAKE_STATUSES } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import {
   Dialog,
   DialogContent,
@@ -15,22 +17,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Label, Select } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, ToolbarSpacer } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/utils';
-import { ReviewControls, Row, SubmittedAge } from './review';
+import { ReviewControls, SubmittedAge } from './review';
 import { apiErrorMessage, type AlumniUpdateItem, type ReviewPayload } from './types';
 
 // Public alumni self-update form on the marketing site (§6.7 tokenized links).
 // Integrator: point this at the real form URL if it differs.
 const ALUMNI_FORM_BASE = 'https://jumpstartusa.org/alumni-update';
-
-interface ParticipantHit {
-  id: string;
-  participantNumber: string;
-  person: { firstName: string; lastName: string };
-}
 
 interface IssuedToken {
   id: string;
@@ -43,24 +41,10 @@ interface IssuedToken {
  * token is a bearer secret shown exactly once — copy it before closing.
  */
 function GenerateLinkDialog({ onClose }: { onClose: () => void }) {
-  const [q, setQ] = useState('');
-  const [search, setSearch] = useState('');
-  const [participant, setParticipant] = useState<{ id: string; label: string } | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [issued, setIssued] = useState<IssuedToken | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => setSearch(q), 300);
-    return () => clearTimeout(t);
-  }, [q]);
-
-  const results = useQuery({
-    queryKey: ['intake', 'participant-picker', search],
-    queryFn: () =>
-      api.get<Paged<ParticipantHit>>(`/participants${qs({ search, pageSize: 8 })}`),
-    enabled: !participant && !issued && search.trim().length >= 2,
-  });
 
   const mutation = useMutation({
     mutationFn: (participantProfileId: string) =>
@@ -81,7 +65,7 @@ function GenerateLinkDialog({ onClose }: { onClose: () => void }) {
           </DialogDescription>
         </DialogHeader>
 
-        {error ? <ErrorState error={new Error(error)} /> : null}
+        <FormError message={error} />
 
         {issued ? (
           <div className="space-y-3">
@@ -113,51 +97,10 @@ function GenerateLinkDialog({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {participant ? (
-              <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-1.5 text-sm">
-                <span>{participant.label}</span>
-                <Button variant="ghost" size="sm" onClick={() => setParticipant(null)}>
-                  Change
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label>Participant</Label>
-                <Input
-                  placeholder="Search participants by name or number…"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                />
-                {search.trim().length >= 2 ? (
-                  <div className="max-h-44 divide-y overflow-y-auto rounded-md border bg-card">
-                    {results.isFetching ? (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">Searching…</div>
-                    ) : !results.data || results.data.items.length === 0 ? (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
-                    ) : (
-                      results.data.items.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          className="block w-full px-3 py-2 text-left text-sm hover:bg-accent"
-                          onClick={() =>
-                            setParticipant({
-                              id: p.id,
-                              label: `${p.person.firstName} ${p.person.lastName} · ${p.participantNumber}`,
-                            })
-                          }
-                        >
-                          {p.person.firstName} {p.person.lastName}{' '}
-                          <span className="text-muted-foreground">
-                            · {p.participantNumber}
-                          </span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            )}
+            <div className="space-y-1.5">
+              <Label>Participant</Label>
+              <ParticipantPicker value={participant} onChange={setParticipant} />
+            </div>
             <DialogFooter>
               <Button variant="outline" onClick={onClose}>
                 Cancel
@@ -214,7 +157,7 @@ function AlumniUpdateDialog({
 
   return (
     <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>
             Alumni update — {person.firstName} {person.lastName}
@@ -240,18 +183,20 @@ function AlumniUpdateDialog({
           </p>
         </div>
 
-        <div className="divide-y">
-          <Row label="Employment">
+        <DescriptionList>
+          <InfoItem label="Employment">
             {item.employmentStatus ? humanize(item.employmentStatus) : '—'}
-          </Row>
-          <Row label="Housing">{item.housingStatus ? humanize(item.housingStatus) : '—'}</Row>
-          <Row label="New phone">{item.newPhone ?? '—'}</Row>
-          <Row label="New email">{item.newEmail ?? '—'}</Row>
-          <Row label="New address">{item.newAddress ?? '—'}</Row>
-          <Row label="Message">
+          </InfoItem>
+          <InfoItem label="Housing">
+            {item.housingStatus ? humanize(item.housingStatus) : '—'}
+          </InfoItem>
+          <InfoItem label="New phone">{item.newPhone ?? '—'}</InfoItem>
+          <InfoItem label="New email">{item.newEmail ?? '—'}</InfoItem>
+          <InfoItem label="New address">{item.newAddress ?? '—'}</InfoItem>
+          <InfoItem label="Message" className="sm:col-span-2">
             <span className="whitespace-pre-wrap">{item.message ?? '—'}</span>
-          </Row>
-        </div>
+          </InfoItem>
+        </DescriptionList>
 
         <ReviewControls
           status={item.status}
@@ -337,9 +282,9 @@ export function AlumniUpdatesTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <ListToolbar>
         <Select
-          className="w-40"
+          className="w-full sm:w-44"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
@@ -353,12 +298,13 @@ export function AlumniUpdatesTab() {
             </option>
           ))}
         </Select>
+        <ToolbarSpacer />
         {can('alumni.update') ? (
           <Button variant="outline" onClick={() => setGenerating(true)}>
             Generate update link
           </Button>
         ) : null}
-      </div>
+      </ListToolbar>
 
       {query.isError ? (
         <ErrorState error={query.error} />

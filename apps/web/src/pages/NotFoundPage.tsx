@@ -1,28 +1,29 @@
 import { Link } from 'react-router-dom';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
-export function NotFoundPage() {
+/** Shared EmptyState-style screen for the 404/403 routes. */
+function ErrorScreen({ code, message }: { code: string; message: string }) {
   return (
-    <div className="flex h-64 flex-col items-center justify-center gap-3">
-      <p className="text-4xl font-bold">404</p>
-      <p className="text-muted-foreground">That page doesn&apos;t exist.</p>
-      <Link
-        to="/"
-        className="inline-flex h-9 items-center rounded-md border border-input bg-card px-4 text-sm font-medium hover:bg-accent"
-      >
+    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-card px-6 py-16 text-center">
+      <p className="font-display text-3xl font-semibold tracking-tight">{code}</p>
+      <p className="mt-2 max-w-md text-sm text-muted-foreground">{message}</p>
+      <Link to="/" className={cn(buttonVariants(), 'mt-4')}>
         Back to dashboard
       </Link>
     </div>
   );
 }
 
+export function NotFoundPage() {
+  return <ErrorScreen code="404" message="That page doesn't exist." />;
+}
+
 export function ForbiddenPage() {
   return (
-    <div className="flex h-64 flex-col items-center justify-center gap-3">
-      <p className="text-4xl font-bold">403</p>
-      <p className="text-muted-foreground">
-        Your role doesn&apos;t include access to this area. Ask an administrator if you believe this
-        is a mistake.
-      </p>
-    </div>
+    <ErrorScreen
+      code="403"
+      message="Your role doesn't include access to this area. Ask an administrator if you believe this is a mistake."
+    />
   );
 }

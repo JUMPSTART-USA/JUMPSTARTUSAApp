@@ -71,7 +71,7 @@ export function SyncStatusChip() {
         ) : null}
       </div>
       {error ? (
-        <p className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">{error}</p>
+        <p className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</p>
       ) : null}
     </div>
   );

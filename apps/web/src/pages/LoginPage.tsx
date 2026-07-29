@@ -6,6 +6,7 @@ import logoTaglineWhite from '@/assets/brand/jumpstart-usa-tagline-white.png';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -115,8 +116,8 @@ export function LoginPage() {
                 </p>
               </div>
             )}
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            <Button type="submit" className="w-full" disabled={busy}>
+            <FormError message={error} />
+            <Button type="submit" variant="accent" size="lg" className="w-full" disabled={busy}>
               {busy ? 'Signing in…' : totpRequired ? 'Verify' : 'Sign in'}
             </Button>
           </form>

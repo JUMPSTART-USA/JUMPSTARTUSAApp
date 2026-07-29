@@ -18,18 +18,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Label, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { SectionHeader } from '@/components/ui/page-header';
+import { ListToolbar } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
-import {
-  applyFormErrors,
-  ParticipantPicker,
-  todayStr,
-  zodForm,
-  type NeedsAssessmentRow,
-  type ParticipantRef,
-} from './shared';
+import { type NeedsAssessmentRow } from './shared';
 
 /** Standard assessment domains (§6.5) — stored as a domainScores record. */
 const DOMAINS = [
@@ -56,19 +54,19 @@ function RecordAssessmentDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialParticipant: ParticipantRef | null;
+  initialParticipant: PickerOption | null;
 }) {
   const queryClient = useQueryClient();
-  const [participant, setParticipant] = useState<ParticipantRef | null>(initialParticipant);
+  const [participant, setParticipant] = useState<PickerOption | null>(initialParticipant);
   const [scores, setScores] = useState<Record<string, string>>({});
-  const [topError, setTopError] = useState('');
+  const [topError, setTopError] = useState<string | null>(null);
 
   const { register, handleSubmit, setValue, setError, formState } = useForm<AssessmentFormValues>({
-    resolver: zodForm<AssessmentFormValues>(needsAssessmentSchema),
+    resolver: formResolver<AssessmentFormValues>(needsAssessmentSchema),
     defaultValues: {
       participantProfileId: initialParticipant?.id ?? '',
       instrumentName: '',
-      administeredAt: todayStr(),
+      administeredAt: todayInput(),
       administeredByName: '',
       summary: '',
     },
@@ -91,12 +89,12 @@ function RecordAssessmentDialog({
       queryClient.invalidateQueries({ queryKey: ['case-management'] });
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyFormErrors(err, setError)),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Record needs assessment</DialogTitle>
           <DialogDescription>Capture instrument results and domain scores.</DialogDescription>
@@ -104,7 +102,7 @@ function RecordAssessmentDialog({
         <form
           className="space-y-4"
           onSubmit={handleSubmit((values) => {
-            setTopError('');
+            setTopError(null);
             create.mutate(values);
           })}
         >
@@ -149,13 +147,13 @@ function RecordAssessmentDialog({
           <FormField label="Summary" error={formState.errors.summary}>
             <Textarea rows={3} {...register('summary')} />
           </FormField>
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? 'Saving…' : 'Record assessment'}
+              {create.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
@@ -209,7 +207,7 @@ function AssessmentViewDialog({
 export function NeedsAssessmentsPage() {
   const { can } = useAuth();
   const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [participant, setParticipant] = useState<ParticipantRef | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewing, setViewing] = useState<NeedsAssessmentRow | null>(null);
   const [editing, setEditing] = useState<NeedsAssessmentRow | null>(null);
@@ -305,25 +303,28 @@ export function NeedsAssessmentsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Needs Assessments</h2>
-        {can('case_management.create') ? (
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4" /> Record assessment
-          </Button>
-        ) : null}
-      </div>
+      <SectionHeader
+        title="Needs Assessments"
+        actions={
+          can('case_management.create') ? (
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4" /> Record assessment
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="w-72">
-        <ParticipantPicker
-          value={participant}
-          onChange={(p) => {
-            setParticipant(p);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
-          placeholder="Filter by participant…"
-        />
-      </div>
+      <ListToolbar>
+        <div className="w-full sm:w-72">
+          <ParticipantPicker
+            value={participant}
+            onChange={(p) => {
+              setParticipant(p);
+              setListState((s) => ({ ...s, page: 1 }));
+            }}
+          />
+        </div>
+      </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
       <DataTable

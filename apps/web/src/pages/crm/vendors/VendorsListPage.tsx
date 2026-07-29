@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
+import { Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebouncedValue } from '../shared';
+import { useDebounced } from '@/lib/form';
 import type { Vendor } from '../types';
 import { VendorFormDialog } from './VendorFormDialog';
 
@@ -51,7 +53,7 @@ export function VendorsListPage() {
   const [referralPartner, setReferralPartner] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Vendor | null>(null);
-  const debouncedSearch = useDebouncedValue(search);
+  const debouncedSearch = useDebounced(search);
 
   useEffect(() => {
     setState((s) => ({ ...s, page: 1 }));
@@ -75,31 +77,28 @@ export function VendorsListPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Vendors</h1>
-          <p className="text-sm text-muted-foreground">
-            Service providers and referral partners.
-          </p>
-        </div>
-        {can('vendors.create') ? (
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setDialogOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" /> New vendor
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Vendors"
+        description="Service providers and referral partners."
+        actions={
+          can('vendors.create') ? (
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" /> New vendor
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
+      <ListToolbar>
+        <SearchInput
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name, contact, or services…"
-          className="max-w-xs"
         />
         <Select
           value={active}
@@ -107,7 +106,7 @@ export function VendorsListPage() {
             setActive(e.target.value);
             setState((s) => ({ ...s, page: 1 }));
           }}
-          className="w-36"
+          className="w-full sm:w-44"
         >
           <option value="">All vendors</option>
           <option value="true">Active</option>
@@ -119,13 +118,13 @@ export function VendorsListPage() {
             setReferralPartner(e.target.value);
             setState((s) => ({ ...s, page: 1 }));
           }}
-          className="w-44"
+          className="w-full sm:w-44"
         >
           <option value="">All partner types</option>
           <option value="true">Referral partners</option>
           <option value="false">Non-referral</option>
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.isError ? <ErrorState error={query.error} /> : null}
       <DataTable

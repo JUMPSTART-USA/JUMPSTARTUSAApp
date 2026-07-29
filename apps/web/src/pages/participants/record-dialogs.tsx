@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { caseNoteSchema, caseServiceSchema, CONTACT_TYPES, NOTE_CATEGORIES } from '@jumpstart/shared';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -13,9 +14,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { applyApiError, formResolver, toDateInput, todayInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
-import { applyApiError, schemaResolver, toDateInput } from './shared';
 import type { CaseNoteRow, CaseServiceRow } from './types';
 
 /**
@@ -57,7 +59,7 @@ export function ServiceEditDialog({
   const existing = service !== 'new' ? service : null;
 
   const { register, handleSubmit, watch, setError, reset, setValue, formState } =
-    useForm<ServiceFormValues>({ resolver: schemaResolver(serviceEditSchema) });
+    useForm<ServiceFormValues>({ resolver: formResolver(serviceEditSchema) });
   const followUpRequired = watch('followUpRequired');
   const serviceType = watch('serviceType');
 
@@ -79,7 +81,7 @@ export function ServiceEditDialog({
       setCustomType(false);
       reset({
         serviceType: existing?.serviceType ?? '',
-        serviceDate: existing ? toDateInput(existing.serviceDate) : toDateInput(new Date().toISOString()),
+        serviceDate: existing ? toDateInput(existing.serviceDate) : todayInput(),
         providerName: existing?.providerName ?? '',
         description: existing?.description ?? '',
         outcome: existing?.outcome ?? '',
@@ -118,7 +120,7 @@ export function ServiceEditDialog({
 
   return (
     <Dialog open={service !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{creating ? 'Record service' : 'Edit service'}</DialogTitle>
           <DialogDescription>
@@ -188,20 +190,16 @@ export function ServiceEditDialog({
           <FormField label="Notes" error={formState.errors.notes}>
             <Textarea rows={2} {...register('notes')} />
           </FormField>
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <DialogFooter className="sm:justify-between">
             {!creating ? (
               <Button
                 type="button"
                 variant="destructive"
                 disabled={remove.isPending}
-                onClick={() => (confirmDelete ? remove.mutate() : setConfirmDelete(true))}
+                onClick={() => setConfirmDelete(true)}
               >
-                {remove.isPending
-                  ? 'Deleting…'
-                  : confirmDelete
-                    ? 'Click again to confirm'
-                    : 'Delete'}
+                {remove.isPending ? 'Deleting…' : 'Delete'}
               </Button>
             ) : (
               <span />
@@ -211,11 +209,21 @@ export function ServiceEditDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={formState.isSubmitting || update.isPending}>
-                {update.isPending ? 'Saving…' : creating ? 'Record service' : 'Save changes'}
+                {update.isPending ? 'Saving…' : creating ? 'Create' : 'Save'}
               </Button>
             </div>
           </DialogFooter>
         </form>
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Delete service record"
+          description="This removes the service record permanently."
+          isPending={remove.isPending}
+          onConfirm={() =>
+            remove.mutate(undefined, { onError: () => setConfirmDelete(false) })
+          }
+        />
       </DialogContent>
     </Dialog>
   );
@@ -252,7 +260,7 @@ export function NoteEditDialog({
   const existing = note !== 'new' ? note : null;
 
   const { register, handleSubmit, watch, setError, reset, formState } = useForm<NoteFormValues>({
-    resolver: schemaResolver(noteEditSchema),
+    resolver: formResolver(noteEditSchema),
   });
   const followUpRequired = watch('followUpRequired');
 
@@ -261,7 +269,7 @@ export function NoteEditDialog({
       setTopError('');
       setConfirmDelete(false);
       reset({
-        noteDate: existing ? toDateInput(existing.noteDate) : toDateInput(new Date().toISOString()),
+        noteDate: existing ? toDateInput(existing.noteDate) : todayInput(),
         category: existing?.category ?? NOTE_CATEGORIES[0],
         contactType: existing?.contactType ?? CONTACT_TYPES[0],
         content: existing?.content ?? '',
@@ -300,7 +308,7 @@ export function NoteEditDialog({
 
   return (
     <Dialog open={note !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{creating ? 'Add case note' : 'Edit case note'}</DialogTitle>
           <DialogDescription>
@@ -353,20 +361,16 @@ export function NoteEditDialog({
               <Input type="date" {...register('followUpDate')} />
             </FormField>
           ) : null}
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <DialogFooter className="sm:justify-between">
             {!creating ? (
               <Button
                 type="button"
                 variant="destructive"
                 disabled={remove.isPending}
-                onClick={() => (confirmDelete ? remove.mutate() : setConfirmDelete(true))}
+                onClick={() => setConfirmDelete(true)}
               >
-                {remove.isPending
-                  ? 'Deleting…'
-                  : confirmDelete
-                    ? 'Click again to confirm'
-                    : 'Delete'}
+                {remove.isPending ? 'Deleting…' : 'Delete'}
               </Button>
             ) : (
               <span />
@@ -376,11 +380,21 @@ export function NoteEditDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={formState.isSubmitting || update.isPending}>
-                {update.isPending ? 'Saving…' : creating ? 'Add note' : 'Save changes'}
+                {update.isPending ? 'Saving…' : creating ? 'Create' : 'Save'}
               </Button>
             </div>
           </DialogFooter>
         </form>
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Delete case note"
+          description="This removes the case note permanently."
+          isPending={remove.isPending}
+          onConfirm={() =>
+            remove.mutate(undefined, { onError: () => setConfirmDelete(false) })
+          }
+        />
       </DialogContent>
     </Dialog>
   );

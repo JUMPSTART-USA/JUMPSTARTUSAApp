@@ -1,14 +1,14 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { classCloseOutSchema, FINAL_ASSESSMENTS, type ClassStatus } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
-import { z } from 'zod';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -19,8 +19,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { api } from '@/lib/api';
+import { applyApiError, formResolver, toDateInput } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
-import { applyApiError, toDateInput } from './helpers';
 import type { InsideClassDetail } from './types';
 import { BackLink } from '@/components/BackLink';
 
@@ -46,18 +46,6 @@ interface CloseOutRowValues {
 interface CloseOutFormValues {
   rows: CloseOutRowValues[];
 }
-
-// The assessment select posts '' for "none yet" — normalize before the shared
-// schema so the enum only sees real Blue/Green/Yellow/Red values.
-const closeOutFormSchema = z.preprocess((raw) => {
-  const value = (raw ?? { rows: [] }) as CloseOutFormValues;
-  return {
-    rows: (value.rows ?? []).map((row) => ({
-      ...row,
-      finalAssessment: row.finalAssessment === '' ? undefined : row.finalAssessment,
-    })),
-  };
-}, classCloseOutSchema);
 
 interface CloseOutResult {
   rows: unknown[];
@@ -92,7 +80,9 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
     watch,
     formState: { errors },
   } = useForm<CloseOutFormValues>({
-    resolver: zodResolver(closeOutFormSchema) as unknown as Resolver<CloseOutFormValues>,
+    // formResolver's '' → undefined cleaning normalizes the "None yet"
+    // assessment select before the shared schema's enum sees it.
+    resolver: formResolver<CloseOutFormValues>(classCloseOutSchema),
     defaultValues: { rows: defaultRows },
   });
 
@@ -105,7 +95,7 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
       void queryClient.invalidateQueries({ queryKey: ['inside-classes'] });
       setResult(res);
     },
-    onError: (err) => applyApiError(err, setError, setTopError),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   if (result) {
@@ -120,15 +110,15 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
             {result.rows.length} enrollment{result.rows.length === 1 ? '' : 's'} updated.
           </p>
           {completed ? (
-            <div className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            <Notice variant="success">
               Every enrollment is closed — the class is now marked Completed.
-            </div>
+            </Notice>
           ) : (
-            <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <Notice variant="warning">
               {result.openEnrollments} enrollment{result.openEnrollments === 1 ? '' : 's'} still
               open (including assessment pending) — the class stays{' '}
               {humanize(result.classStatus)} until every assessment is in.
-            </div>
+            </Notice>
           )}
           <div className="flex justify-end">
             <Button onClick={() => navigate(`/inside-classes/${insideClass.id}`)}>
@@ -149,12 +139,12 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
       className="space-y-4"
       noValidate
     >
-      <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <Notice variant="warning">
         Completed rows require a Blue/Green/Yellow/Red assessment — use{' '}
         <span className="font-medium">Assessment pending</span> while assessments are still coming
         in. Left-early rows require both a date and a reason. The class flips to Completed only
         once every row is terminal.
-      </div>
+      </Notice>
 
       <div className="overflow-x-auto rounded-md border bg-card">
         <Table>
@@ -263,7 +253,7 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
         </Table>
       </div>
 
-      {topError ? <ErrorState error={new Error(topError)} /> : null}
+      <FormError message={topError} />
 
       <div className="flex justify-end gap-2">
         <Button
@@ -274,7 +264,7 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
           Cancel
         </Button>
         <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Saving…' : 'Save close-out'}
+          {mutation.isPending ? 'Saving…' : 'Save'}
         </Button>
       </div>
     </form>
@@ -301,14 +291,15 @@ export function InsideClassCloseOutPage() {
     <div className="space-y-4">
       <div className="space-y-1">
         <BackLink fallbackTo={`/inside-classes/${insideClass.id}`} fallbackLabel={insideClass.name} />
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Close out class</h1>
-          <StatusBadge status={insideClass.status} />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {insideClass.institution.name} · {formatDate(insideClass.startDate)} –{' '}
-          {formatDate(insideClass.endDate)}
-        </p>
+        <PageHeader
+          title={
+            <span className="inline-flex flex-wrap items-center gap-2">
+              Close out class
+              <StatusBadge status={insideClass.status} />
+            </span>
+          }
+          description={`${insideClass.institution.name} · ${formatDate(insideClass.startDate)} – ${formatDate(insideClass.endDate)}`}
+        />
       </div>
 
       {insideClass.status === 'canceled' ? (

@@ -13,8 +13,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
-import { applyApiError, dateInput, FormErrorNotice, formResolver, todayInput } from './shared';
+import { applyApiError, formResolver, toDateInput, todayInput } from '@/lib/form';
 import type { OutsideSession } from './types';
 
 // Sessions have no shared schema yet — composed from the shared primitives,
@@ -60,7 +61,7 @@ export function SessionFormDialog({
   useEffect(() => {
     if (open) {
       reset({
-        sessionDate: session ? dateInput(session.sessionDate) : todayInput(),
+        sessionDate: session ? toDateInput(session.sessionDate) : todayInput(),
         topic: session?.topic ?? '',
         notes: session?.notes ?? '',
       });
@@ -82,12 +83,12 @@ export function SessionFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>{session ? 'Edit session' : 'Add session'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
-          <FormErrorNotice message={topError} />
+          <FormError message={topError} />
           <FormField label="Session date" required error={errors.sessionDate}>
             <Input type="date" {...register('sessionDate')} autoFocus />
           </FormField>
@@ -102,7 +103,7 @@ export function SessionFormDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : session ? 'Save changes' : 'Add session'}
+              {mutation.isPending ? 'Saving…' : session ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

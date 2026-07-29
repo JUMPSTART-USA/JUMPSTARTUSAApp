@@ -12,6 +12,7 @@ import { DataTable, initialListState, type Column, type ListState } from '@/comp
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -21,12 +22,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, useDebounced } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import { useInstitutionsLookup } from './lookups';
-import { applyApiFormErrors, ErrorNotice, useDebouncedValue } from './shared';
 import type { RequirementRow } from './types';
 import { BackLink } from '@/components/BackLink';
 
@@ -43,7 +47,7 @@ export function FacilityRequirementsPage() {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<RequirementRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const debouncedSearch = useDebouncedValue(search);
+  const debouncedSearch = useDebounced(search);
   const institutions = useInstitutionsLookup();
 
   const params = {
@@ -114,33 +118,35 @@ export function FacilityRequirementsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <BackLink fallbackTo="/volunteers" fallbackLabel="Volunteers" />
-          <div>
-            <h1 className="text-xl font-semibold">Facility clearance requirements</h1>
-            <p className="text-sm text-muted-foreground">
-              Each institution's requirements as data — hard block prevents assignment outright;
-              otherwise coordinators may override with a reason.
-            </p>
-          </div>
-        </div>
-        {can('volunteers.create') ? (
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditing(null);
-              setDialogOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" /> New requirement
-          </Button>
-        ) : null}
-      </div>
+      <BackLink fallbackTo="/volunteers" fallbackLabel="Volunteers" />
+      <PageHeader
+        title="Facility clearance requirements"
+        description="Each institution's requirements as data — hard block prevents assignment outright; otherwise coordinators may override with a reason."
+        actions={
+          can('volunteers.create') ? (
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" /> New requirement
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
+      <ListToolbar>
+        <SearchInput
+          placeholder="Search requirements…"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
+        />
         <Select
-          className="w-64"
+          className="w-full sm:w-56"
           value={institutionId}
           onChange={(e) => {
             setInstitutionId(e.target.value);
@@ -155,7 +161,7 @@ export function FacilityRequirementsPage() {
           ))}
         </Select>
         <Select
-          className="w-40"
+          className="w-full sm:w-44"
           value={active}
           onChange={(e) => {
             setActive(e.target.value);
@@ -166,16 +172,7 @@ export function FacilityRequirementsPage() {
           <option value="true">Active only</option>
           <option value="false">Retired only</option>
         </Select>
-        <Input
-          placeholder="Search requirements…"
-          className="w-64"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
-        />
-      </div>
+      </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
 
@@ -233,6 +230,7 @@ function RequirementDialog({
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [topError, setTopError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const institutions = useInstitutionsLookup();
 
   const form = useForm<RequirementFormValues>({
@@ -258,7 +256,7 @@ function RequirementDialog({
       setTopError(null);
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyApiFormErrors(err, form.setError)),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   const remove = useMutation({
@@ -266,11 +264,11 @@ function RequirementDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['volunteers'] });
       setTopError(null);
+      setConfirmDelete(false);
       onOpenChange(false);
     },
-    // 409: requirement has recorded clearances — retire instead. Show it.
-    onError: (err) =>
-      setTopError(err instanceof ApiError ? err.message : 'Delete failed'),
+    // 409: requirement has recorded clearances — retire instead. Shown in the
+    // confirm dialog via its error prop.
   });
 
   const onSubmit = form.handleSubmit((data) => {
@@ -312,7 +310,7 @@ function RequirementDialog({
               placeholder='e.g. "DOC volunteer application", "TB test"'
             />
           </FormField>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Type" error={formState.errors.requirementType}>
               <Select {...register('requirementType')}>
                 {CLEARANCE_REQUIREMENT_TYPES.map((t) => (
@@ -354,21 +352,19 @@ function RequirementDialog({
             </div>
           </div>
 
-          {topError ? <ErrorNotice>{topError}</ErrorNotice> : null}
+          <FormError message={topError} />
 
           <DialogFooter className="justify-between sm:justify-between">
             <div>
               {requirement && can('volunteers.delete') ? (
                 <Button
                   variant="destructive"
-                  disabled={remove.isPending}
                   onClick={() => {
-                    if (window.confirm(`Delete requirement "${requirement.name}"?`)) {
-                      remove.mutate();
-                    }
+                    remove.reset();
+                    setConfirmDelete(true);
                   }}
                 >
-                  {remove.isPending ? 'Deleting…' : 'Delete'}
+                  Delete
                 </Button>
               ) : null}
             </div>
@@ -377,12 +373,32 @@ function RequirementDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={save.isPending}>
-                {save.isPending ? 'Saving…' : requirement ? 'Save changes' : 'Create requirement'}
+                {save.isPending ? 'Saving…' : requirement ? 'Save' : 'Create'}
               </Button>
             </div>
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete requirement?"
+        description={
+          requirement
+            ? `Delete requirement "${requirement.name}"? If clearances already reference it, retire it instead.`
+            : undefined
+        }
+        isPending={remove.isPending}
+        error={
+          remove.error
+            ? remove.error instanceof ApiError
+              ? remove.error.message
+              : 'Delete failed'
+            : null
+        }
+        onConfirm={() => remove.mutate()}
+      />
     </Dialog>
   );
 }

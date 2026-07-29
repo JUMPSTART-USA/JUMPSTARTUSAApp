@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -38,15 +37,6 @@ export function useReportCatalog() {
     queryFn: () => api.get<ReportSummary[]>('/reports'),
     staleTime: 5 * 60 * 1000,
   });
-}
-
-export function useDebounced<T>(value: T, delay = 300): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-  return debounced;
 }
 
 // ── Entity option sources for uuid report params ─────────────────────────────

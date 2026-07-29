@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Notice } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -16,7 +18,7 @@ import {
 import { api, qs } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, humanize } from '@/lib/utils';
-import { ExpiryBadge, WarningNotice } from './shared';
+import { ExpiryBadge } from './shared';
 import type { ExpirationsResult } from './types';
 import { BackLink } from '@/components/BackLink';
 
@@ -44,31 +46,26 @@ export function ExpirationsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <BackLink fallbackTo="/volunteers" fallbackLabel="Volunteers" />
-          <div>
-            <h1 className="text-xl font-semibold">Upcoming expirations</h1>
-            <p className="text-sm text-muted-foreground">
-              Checks, trainings and clearances lapsing within the window — already-lapsed items
-              stay listed until renewed.
-            </p>
+      <BackLink fallbackTo="/volunteers" fallbackLabel="Volunteers" />
+      <PageHeader
+        title="Upcoming expirations"
+        description="Checks, trainings and clearances lapsing within the window — already-lapsed items stay listed until renewed."
+        actions={
+          <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+            {WINDOWS.map((w) => (
+              <Button
+                key={w}
+                size="sm"
+                variant="ghost"
+                className={cn(days === w && 'bg-card shadow')}
+                onClick={() => setDays(w)}
+              >
+                {w} days
+              </Button>
+            ))}
           </div>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
-          {WINDOWS.map((w) => (
-            <Button
-              key={w}
-              size="sm"
-              variant="ghost"
-              className={cn(days === w && 'bg-card shadow')}
-              onClick={() => setDays(w)}
-            >
-              {w} days
-            </Button>
-          ))}
-        </div>
-      </div>
+        }
+      />
 
       {isLoading ? <PageLoader /> : null}
       {error ? <ErrorState error={error} /> : null}
@@ -77,7 +74,7 @@ export function ExpirationsPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">
+              <CardTitle>
                 Background checks{' '}
                 <span className="font-normal text-muted-foreground">
                   ({data.backgroundChecks.length})
@@ -87,10 +84,10 @@ export function ExpirationsPage() {
             <CardContent className="p-0 pb-2">
               {!canReadChecks ? (
                 <div className="px-5 pb-3">
-                  <WarningNotice>
+                  <Notice variant="warning">
                     Background-check expiration dates require the background-check field
                     permission (§7.2) — this section is hidden for your role.
-                  </WarningNotice>
+                  </Notice>
                 </div>
               ) : data.backgroundChecks.length === 0 ? (
                 <p className="px-5 pb-3 text-sm text-muted-foreground">
@@ -128,7 +125,7 @@ export function ExpirationsPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">
+              <CardTitle>
                 Trainings{' '}
                 <span className="font-normal text-muted-foreground">({data.trainings.length})</span>
               </CardTitle>
@@ -174,7 +171,7 @@ export function ExpirationsPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">
+              <CardTitle>
                 Facility clearances{' '}
                 <span className="font-normal text-muted-foreground">
                   ({data.clearances.length})

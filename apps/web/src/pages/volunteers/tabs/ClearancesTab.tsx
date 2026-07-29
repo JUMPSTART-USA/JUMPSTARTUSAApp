@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -28,8 +29,9 @@ import {
 } from '@/components/ui/table';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, toDateInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import { applyApiFormErrors, ErrorNotice, ExpiryBadge, toDateInput } from '../shared';
+import { ExpiryBadge } from '../shared';
 import type { ClearanceRow, RequirementRow } from '../types';
 
 export function ClearancesTab({ volunteerProfileId }: { volunteerProfileId: string }) {
@@ -65,7 +67,6 @@ export function ClearancesTab({ volunteerProfileId }: { volunteerProfileId: stri
       <div className="flex items-center justify-end">
         {can('volunteers.create') ? (
           <Button
-            size="sm"
             onClick={() => {
               setEditing(null);
               setDialogOpen(true);
@@ -85,7 +86,7 @@ export function ClearancesTab({ volunteerProfileId }: { volunteerProfileId: stri
         Array.from(groups.entries()).map(([institutionId, group]) => (
           <Card key={institutionId}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">{group.name}</CardTitle>
+              <CardTitle>{group.name}</CardTitle>
             </CardHeader>
             <CardContent className="p-0 pb-2">
               <Table>
@@ -222,7 +223,7 @@ function ClearanceDialog({
       setTopError(null);
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyApiFormErrors(err, form.setError)),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   const onSubmit = form.handleSubmit((data) => {
@@ -278,7 +279,7 @@ function ClearanceDialog({
               </FormField>
             </>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Status" error={formState.errors.status}>
               <Select {...register('status')}>
                 {CLEARANCE_STATUSES.map((s) => (
@@ -304,14 +305,14 @@ function ClearanceDialog({
             <Textarea rows={2} {...register('notes')} />
           </FormField>
 
-          {topError ? <ErrorNotice>{topError}</ErrorNotice> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : clearance ? 'Save changes' : 'Record clearance'}
+              {save.isPending ? 'Saving…' : clearance ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

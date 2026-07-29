@@ -2,29 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
-/* JUMPSTART SC brand theme (shadcn-style tokens). Palette lifted from
-   jumpstartsc.org: ink navy #07101F / #0F2346, gold #FDB835, warm cream
-   #FEF6E3 page background, IBM Plex Sans (+ Condensed for display). */
+/* JUMPSTART USA UI kit — brand palette from jumpstartsc.org's own CSS vars:
+   --js-yellow-primary #FDB835, --js-yellow-alt #F3C745, --js-navy #0F2346,
+   --js-black #07121C, --js-cream #FEF6E3, --js-blue #88AAC6, plus the site's
+   warm neutrals (#F6F3EC / #FFFEFC / #D8D1C1).
+
+   Direction: airy warm-white surfaces, navy as the action color, gold reserved
+   for brand moments (active nav, focus ring, highlights). Status colors are
+   real tokens (success / warning / info) so no screen reaches for raw Tailwind
+   palette classes. */
 @layer base {
   :root {
-    --background: 42 93% 94%;
-    --foreground: 209 60% 7%;
-    --card: 40 60% 99%;
+    --background: 40 44% 96%;          /* warm off-white page */
+    --foreground: 209 60% 7%;          /* ink #07121C */
+    --card: 40 100% 99%;               /* warm white #FFFEFC */
     --card-foreground: 209 60% 7%;
-    --primary: 39 98% 60%;
-    --primary-foreground: 209 60% 7%;
-    --secondary: 42 36% 95%;
-    --secondary-foreground: 209 60% 7%;
-    --muted: 42 30% 92%;
-    --muted-foreground: 213 20% 38%;
-    --accent: 42 40% 90%;
+    --primary: 218 65% 17%;            /* brand navy #0F2346 — buttons, links */
+    --primary-foreground: 40 100% 98%;
+    --secondary: 41 30% 92%;           /* warm sand fill */
+    --secondary-foreground: 218 65% 17%;
+    --muted: 41 28% 92%;
+    --muted-foreground: 218 16% 40%;   /* slate ink */
+    --accent: 42 52% 90%;              /* cream hover tint */
     --accent-foreground: 209 60% 7%;
-    --destructive: 0 72% 45%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 40 28% 84%;
-    --input: 40 28% 78%;
-    --ring: 39 92% 45%;
-    --radius: 0.25rem;
+    --destructive: 0 72% 42%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 161 94% 24%;            /* emerald-700 range */
+    --success-foreground: 0 0% 98%;
+    --warning: 28 88% 37%;             /* amber-700 range */
+    --warning-foreground: 0 0% 98%;
+    --info: 203 70% 32%;               /* leans toward brand blue #88AAC6 */
+    --info-foreground: 0 0% 98%;
+    --gold: 39 98% 60%;                /* #FDB835 — brand accent */
+    --gold-foreground: 209 60% 7%;
+    --border: 40 22% 86%;
+    --input: 40 18% 76%;
+    --ring: 39 92% 47%;                /* gold focus ring */
+    --radius: 0.5rem;
   }
 
   * {

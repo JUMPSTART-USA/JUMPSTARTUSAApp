@@ -8,6 +8,7 @@ import type { ZodTypeAny } from 'zod';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
+import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -29,7 +32,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiFormErrors, ErrorNotice, WarningNotice } from './shared';
+import { applyApiError } from '@/lib/form';
 import type { TemplateRecord } from './types';
 
 interface TemplateKind {
@@ -72,12 +75,12 @@ export function TemplatesPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Templates</h2>
-      <WarningNotice>
+      <SectionHeader title="Templates" />
+      <Notice variant="warning">
         Instantiated checklists and screenings hold snapshots of template items — editing a
         template here never changes existing or in-flight records; only newly created ones pick
         up the changes.
-      </WarningNotice>
+      </Notice>
       <Tabs defaultValue="checklists">
         <TabsList>
           <TabsTrigger value="checklists">Onboarding checklists</TabsTrigger>
@@ -120,7 +123,7 @@ function TemplateSection({ kind }: { kind: TemplateKind }) {
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        <Button size="sm" onClick={() => setEditing('new')}>
+        <Button onClick={() => setEditing('new')}>
           <Plus className="h-4 w-4" /> New {kind.noun}
         </Button>
       </div>
@@ -186,31 +189,20 @@ function TemplateSection({ kind }: { kind: TemplateKind }) {
       ) : null}
 
       {confirming ? (
-        <Dialog open onOpenChange={(next) => (!next ? setConfirming(null) : undefined)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Deactivate “{confirming.name}”?</DialogTitle>
-              <DialogDescription>
-                The template stops being offered for new records. Existing{' '}
-                {kind.countField === 'checklists' ? 'checklists' : 'screenings'} keep their items —
-                they hold snapshots and are never rewritten.
-              </DialogDescription>
-            </DialogHeader>
-            {deactivate.error ? <ErrorState error={deactivate.error} /> : null}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirming(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={deactivate.isPending}
-                onClick={() => deactivate.mutate(confirming.id)}
-              >
-                {deactivate.isPending ? 'Deactivating…' : 'Deactivate'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setConfirming(null);
+          }}
+          title={`Deactivate “${confirming.name}”?`}
+          description={`The template stops being offered for new records. Existing ${
+            kind.countField === 'checklists' ? 'checklists' : 'screenings'
+          } keep their items — they hold snapshots and are never rewritten.`}
+          confirmLabel="Deactivate"
+          isPending={deactivate.isPending}
+          error={deactivate.error ? deactivate.error.message : null}
+          onConfirm={() => deactivate.mutate(confirming.id)}
+        />
       ) : null}
     </div>
   );
@@ -268,7 +260,7 @@ function TemplateEditorDialog({
       queryClient.invalidateQueries({ queryKey: kind.queryKey });
       onClose();
     },
-    onError: (err) => setTopError(applyApiFormErrors(err, form.setError)),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   const onSubmit = form.handleSubmit((values) => {
@@ -282,7 +274,7 @@ function TemplateEditorDialog({
 
   return (
     <Dialog open onOpenChange={(next) => (!next ? onClose() : undefined)}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>
             {template ? `Edit ${kind.noun}` : `New ${kind.noun}`}
@@ -382,14 +374,14 @@ function TemplateEditorDialog({
             </div>
           </div>
 
-          {topError ? <ErrorNotice>{topError}</ErrorNotice> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : template ? 'Save template' : 'Create template'}
+              {save.isPending ? 'Saving…' : template ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

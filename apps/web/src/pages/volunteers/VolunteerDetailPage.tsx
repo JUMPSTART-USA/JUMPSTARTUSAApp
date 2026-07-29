@@ -12,12 +12,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
-import { useLocation, useParams } from 'react-router-dom';
-import type { BackNavState } from '@/components/BackLink';
+import { useParams } from 'react-router-dom';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import {
   Dialog,
   DialogContent,
@@ -26,12 +26,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, toDateInput } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
-import { applyApiFormErrors, ErrorNotice, toDateInput } from './shared';
 import { AssignmentsTab } from './tabs/AssignmentsTab';
 import { ChecksTab } from './tabs/ChecksTab';
 import { ClearancesTab } from './tabs/ClearancesTab';
@@ -41,19 +43,9 @@ import { TrainingsTab } from './tabs/TrainingsTab';
 import type { VolunteerDetail } from './types';
 import { BackLink } from '@/components/BackLink';
 
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex justify-between gap-4 py-1 text-sm">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className="text-right">{value ?? <span className="text-muted-foreground">—</span>}</span>
-    </div>
-  );
-}
-
 export function VolunteerDetailPage() {
   const { id = '' } = useParams();
   const { can } = useAuth();
-  const location = useLocation();
   const [editOpen, setEditOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
@@ -70,73 +62,70 @@ export function VolunteerDetailPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <BackLink fallbackTo="/volunteers" fallbackLabel="Volunteers" />
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold">{fullName(person)}</h1>
-              <StatusBadge status={data.status} />
-              {data.isMentor ? <Badge variant="info">Mentor</Badge> : null}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Volunteer since {formatDate(data.createdAt)}
-            </p>
-          </div>
-        </div>
-        {can('volunteers.update') ? (
-          <Button size="sm" onClick={() => setEditOpen(true)}>
-            <Pencil className="h-4 w-4" /> Edit
-          </Button>
-        ) : null}
-      </div>
+      <BackLink fallbackTo="/volunteers" fallbackLabel="Volunteers" />
+      <PageHeader
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            {fullName(person)}
+            <StatusBadge status={data.status} />
+            {data.isMentor ? <Badge variant="info">Mentor</Badge> : null}
+          </span>
+        }
+        description={`Volunteer since ${formatDate(data.createdAt)}`}
+        actions={
+          can('volunteers.update') ? (
+            <Button onClick={() => setEditOpen(true)}>
+              <Pencil className="h-4 w-4" /> Edit
+            </Button>
+          ) : null
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Contact</CardTitle>
+          <CardHeader>
+            <CardTitle>Contact</CardTitle>
           </CardHeader>
-          <CardContent className="divide-y">
-            <InfoRow label="Email" value={person.primaryEmail} />
-            <InfoRow label="Phone" value={person.primaryPhone} />
-            <InfoRow
-              label="Address"
-              value={
-                person.addressLine1
+          <CardContent>
+            <DescriptionList>
+              <InfoItem label="Email">{person.primaryEmail}</InfoItem>
+              <InfoItem label="Phone">{person.primaryPhone}</InfoItem>
+              <InfoItem label="Address">
+                {person.addressLine1
                   ? [person.addressLine1, person.addressLine2].filter(Boolean).join(', ')
-                  : null
-              }
-            />
-            <InfoRow
-              label="City / State / ZIP"
-              value={
-                [person.city, person.state, person.zip].filter(Boolean).join(', ') || null
-              }
-            />
-            <InfoRow
-              label="Date of birth"
-              value={person.dateOfBirth ? formatDate(person.dateOfBirth) : null}
-            />
-            <InfoRow label="Gender" value={person.gender ? humanize(person.gender) : null} />
+                  : null}
+              </InfoItem>
+              <InfoItem label="City / State / ZIP">
+                {[person.city, person.state, person.zip].filter(Boolean).join(', ') || null}
+              </InfoItem>
+              <InfoItem label="Date of birth">
+                {person.dateOfBirth ? formatDate(person.dateOfBirth) : null}
+              </InfoItem>
+              <InfoItem label="Gender">
+                {person.gender ? humanize(person.gender) : null}
+              </InfoItem>
+            </DescriptionList>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Volunteer profile</CardTitle>
+          <CardHeader>
+            <CardTitle>Volunteer profile</CardTitle>
           </CardHeader>
-          <CardContent className="divide-y">
-            <InfoRow
-              label="Roles"
-              value={data.volunteerRoles.length > 0 ? data.volunteerRoles.join(', ') : null}
-            />
-            <InfoRow label="Availability" value={data.availability} />
-            <InfoRow label="Church affiliation" value={data.churchAffiliation} />
-            <InfoRow
-              label="Mentor"
-              value={data.isMentor ? (data.mentorStatus ?? 'Yes') : 'No'}
-            />
-            <InfoRow label="Notes" value={data.notes} />
+          <CardContent>
+            <DescriptionList>
+              <InfoItem label="Roles">
+                {data.volunteerRoles.length > 0 ? data.volunteerRoles.join(', ') : null}
+              </InfoItem>
+              <InfoItem label="Availability">{data.availability}</InfoItem>
+              <InfoItem label="Church affiliation">{data.churchAffiliation}</InfoItem>
+              <InfoItem label="Mentor">
+                {data.isMentor ? (data.mentorStatus ?? 'Yes') : 'No'}
+              </InfoItem>
+              <InfoItem label="Notes" className="sm:col-span-2">
+                {data.notes}
+              </InfoItem>
+            </DescriptionList>
           </CardContent>
         </Card>
       </div>
@@ -248,7 +237,7 @@ function EditVolunteerDialog({
       setTopError(null);
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyApiFormErrors(err, form.setError)),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   const onSubmit = form.handleSubmit((data) => {
@@ -271,12 +260,12 @@ function EditVolunteerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>Edit volunteer</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="First name" required error={personErrors.firstName}>
               <Input {...register('person.firstName')} />
             </FormField>
@@ -313,13 +302,17 @@ function EditVolunteerDialog({
             <FormField label="Phone" error={personErrors.primaryPhone}>
               <Input {...register('person.primaryPhone')} />
             </FormField>
-            <FormField label="Address" error={personErrors.addressLine1} className="col-span-2">
+            <FormField
+              label="Address"
+              error={personErrors.addressLine1}
+              className="sm:col-span-2"
+            >
               <Input {...register('person.addressLine1')} />
             </FormField>
             <FormField label="City" error={personErrors.city}>
               <Input {...register('person.city')} />
             </FormField>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField label="State" error={personErrors.state}>
                 <Select
                   {...register('person.state', { setValueAs: (v) => (v === '' ? undefined : v) })}
@@ -336,7 +329,7 @@ function EditVolunteerDialog({
                 <Input {...register('person.zip')} />
               </FormField>
             </div>
-            <FormField label="Volunteer roles" hint="Comma-separated" className="col-span-2">
+            <FormField label="Volunteer roles" hint="Comma-separated" className="sm:col-span-2">
               <Input value={rolesText} onChange={(e) => setRolesText(e.target.value)} />
             </FormField>
             <FormField label="Availability" error={profileErrors.availability}>
@@ -345,19 +338,19 @@ function EditVolunteerDialog({
             <FormField label="Church affiliation" error={profileErrors.churchAffiliation}>
               <Input {...register('profile.churchAffiliation')} />
             </FormField>
-            <FormField label="Notes" error={profileErrors.notes} className="col-span-2">
+            <FormField label="Notes" error={profileErrors.notes} className="sm:col-span-2">
               <Textarea rows={2} {...register('profile.notes')} />
             </FormField>
           </div>
 
-          {topError ? <ErrorNotice>{topError}</ErrorNotice> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={update.isPending}>
-              {update.isPending ? 'Saving…' : 'Save changes'}
+              {update.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

@@ -7,11 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input, Label, Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { formatDate, formatMoney } from '@/lib/utils';
-import { useCampaignOptions, useDebouncedValue } from '../shared';
+import { useCampaignOptions } from '../shared';
 import type { Donation, DonationSummary } from '../types';
 import { DonationFormDialog } from './DonationFormDialog';
 import { DonorsNav } from './DonorsNav';
@@ -98,8 +101,8 @@ export function DonationsListPage() {
   const [fund, setFund] = useState('');
   const [recurring, setRecurring] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebouncedValue(search);
-  const debouncedFund = useDebouncedValue(fund);
+  const debouncedSearch = useDebounced(search);
+  const debouncedFund = useDebounced(fund);
   const campaignOptions = useCampaignOptions();
 
   useEffect(() => {
@@ -152,28 +155,25 @@ export function DonationsListPage() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Donations</h1>
-          <p className="text-sm text-muted-foreground">
-            Gift history mirrored from Bloomerang.
-          </p>
-        </div>
-        {can('donors.create') ? (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> Record donation
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Donations"
+        description="Gift history mirrored from Bloomerang."
+        actions={
+          can('donors.create') ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" /> Record donation
+            </Button>
+          ) : null
+        }
+      />
 
-      <DonorsNav active="donations" />
+      <DonorsNav />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
+      <ListToolbar>
+        <SearchInput
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search donor name…"
-          className="max-w-[220px]"
         />
         {dateFilter('From', from, setFrom)}
         {dateFilter('To', to, setTo)}
@@ -183,7 +183,7 @@ export function DonationsListPage() {
             setCampaignId(e.target.value);
             setState((s) => ({ ...s, page: 1 }));
           }}
-          className="w-48"
+          className="w-full sm:w-56"
         >
           <option value="">All campaigns</option>
           {campaignOptions.data?.items.map((c) => (
@@ -196,7 +196,7 @@ export function DonationsListPage() {
           value={fund}
           onChange={(e) => setFund(e.target.value)}
           placeholder="Fund…"
-          className="w-36"
+          className="w-full sm:w-36"
         />
         <Select
           value={recurring}
@@ -204,13 +204,13 @@ export function DonationsListPage() {
             setRecurring(e.target.value);
             setState((s) => ({ ...s, page: 1 }));
           }}
-          className="w-36"
+          className="w-full sm:w-44"
         >
           <option value="">All gifts</option>
           <option value="true">Recurring</option>
           <option value="false">One-time</option>
         </Select>
-      </div>
+      </ListToolbar>
 
       <Card>
         <CardContent className="flex flex-wrap items-baseline gap-x-8 gap-y-2 p-4">

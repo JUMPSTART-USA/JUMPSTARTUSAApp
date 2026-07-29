@@ -1,8 +1,9 @@
 import { INTAKE_STATUSES } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import {
   Dialog,
   DialogContent,
@@ -10,12 +11,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, Select } from '@/components/ui/input';
+import { Select } from '@/components/ui/input';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import { DuplicateCandidatePicker, ReviewControls, Row, SubmittedAge } from './review';
+import { DuplicateCandidatePicker, ReviewControls, SubmittedAge } from './review';
 import { apiErrorMessage, type ReferralItem, type ReviewPayload } from './types';
 
 function ReferralDialog({ item, onClose }: { item: ReferralItem; onClose: () => void }) {
@@ -36,7 +39,7 @@ function ReferralDialog({ item, onClose }: { item: ReferralItem; onClose: () => 
 
   return (
     <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>
             Referral — {item.subjectFirstName} {item.subjectLastName}
@@ -47,22 +50,22 @@ function ReferralDialog({ item, onClose }: { item: ReferralItem; onClose: () => 
           </DialogDescription>
         </DialogHeader>
 
-        <div className="divide-y">
-          <Row label="Referred by">
+        <DescriptionList>
+          <InfoItem label="Referred by">
             {humanize(item.referrerType)}
             {item.referrerName ? ` — ${item.referrerName}` : ''}
-          </Row>
-          <Row label="Referrer contact">
+          </InfoItem>
+          <InfoItem label="Referrer contact">
             {[item.referrerPhone, item.referrerEmail].filter(Boolean).join(' · ') || '—'}
-          </Row>
-          <Row label="Subject phone">{item.subjectPhone ?? '—'}</Row>
-          <Row label="Facility">{item.facilityName ?? '—'}</Row>
-          <Row label="State">{item.state ?? '—'}</Row>
-          <Row label="Expected release">{formatDate(item.expectedReleaseDate)}</Row>
-          <Row label="Needs">
+          </InfoItem>
+          <InfoItem label="Subject phone">{item.subjectPhone ?? '—'}</InfoItem>
+          <InfoItem label="Facility">{item.facilityName ?? '—'}</InfoItem>
+          <InfoItem label="State">{item.state ?? '—'}</InfoItem>
+          <InfoItem label="Expected release">{formatDate(item.expectedReleaseDate)}</InfoItem>
+          <InfoItem label="Needs" className="sm:col-span-2">
             <span className="whitespace-pre-wrap">{item.needs}</span>
-          </Row>
-        </div>
+          </InfoItem>
+        </DescriptionList>
 
         <DuplicateCandidatePicker
           candidates={item.duplicateCandidates}
@@ -97,16 +100,8 @@ export function ReferralsTab() {
   const [state, setState] = useState<ListState>({ ...initialListState, sortBy: 'submittedAt' });
   const [status, setStatus] = useState('pending');
   const [search, setSearch] = useState('');
-  const [debounced, setDebounced] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setDebounced(search);
-      setState((s) => ({ ...s, page: 1 }));
-    }, 300);
-    return () => clearTimeout(t);
-  }, [search]);
+  const debounced = useDebounced(search);
 
   const query = useQuery({
     queryKey: ['intake', 'referrals', state, status, debounced],
@@ -178,15 +173,17 @@ export function ReferralsTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-64"
+      <ListToolbar>
+        <SearchInput
           placeholder="Search subject or referrer…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
         />
         <Select
-          className="w-40"
+          className="w-full sm:w-44"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
@@ -200,7 +197,7 @@ export function ReferralsTab() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.isError ? (
         <ErrorState error={query.error} />

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -76,10 +77,10 @@ export function FleetAlertsPage() {
     <div className="space-y-4">
       <div className="space-y-1">
         <BackLink fallbackTo="/vehicles" fallbackLabel="Vehicles" />
-        <h1 className="text-2xl font-semibold tracking-tight">Fleet alerts</h1>
-        <p className="text-sm text-muted-foreground">
-          Maintenance due, registration and insurance expirations across active vehicles.
-        </p>
+        <PageHeader
+          title="Fleet alerts"
+          description="Maintenance due, registration and insurance expirations across active vehicles."
+        />
       </div>
 
       {query.isError ? (
@@ -95,14 +96,19 @@ export function FleetAlertsPage() {
           if (items.length === 0) return null;
           return (
             <Card key={severity}>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CardTitle>{title}</CardTitle>
-                  <SeverityBadge severity={severity} />
-                  <span className="text-sm text-muted-foreground">{items.length}</span>
-                </div>
+              <CardHeaderRow
+                title={
+                  <>
+                    {title}
+                    <SeverityBadge severity={severity} />
+                    <span className="text-sm font-normal text-muted-foreground">
+                      {items.length}
+                    </span>
+                  </>
+                }
+              >
                 <p className="text-sm text-muted-foreground">{hint}</p>
-              </CardHeader>
+              </CardHeaderRow>
               <CardContent>
                 <AlertsTable items={items} onRowClick={(a) => navigate(`/vehicles/${a.vehicleId}`)} />
               </CardContent>

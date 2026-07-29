@@ -21,16 +21,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { applyApiError, formResolver, toDateInput, todayInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import {
-  applyApiError,
-  dateInput,
-  emptyToUndef,
-  FormErrorNotice,
-  formResolver,
-  todayInput,
-} from '@/pages/outside-programs/shared';
+import { emptyToUndef } from '@/pages/outside-programs/shared';
 import type { HousingEnrollment } from './types';
 
 interface MoveOutFormValues {
@@ -128,7 +123,7 @@ export function MoveOutDialog({
       reset({
         // Physically out while the assessment is still due ⇒ assessment_pending.
         status: isActive ? 'assessment_pending' : enrollment.status,
-        moveOutDate: isActive ? todayInput() : dateInput(enrollment.moveOutDate),
+        moveOutDate: isActive ? todayInput() : toDateInput(enrollment.moveOutDate),
         reasonForLeaving: enrollment.reasonForLeaving ?? '',
         completionAssessment: enrollment.completionAssessment ?? '',
         assessmentNotes: enrollment.assessmentNotes ?? '',
@@ -152,7 +147,7 @@ export function MoveOutDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>
             {enrollment.status === 'active' ? 'Move out resident' : 'Update enrollment'}
@@ -162,7 +157,7 @@ export function MoveOutDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
-          <FormErrorNotice message={topError} />
+          <FormError message={topError} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField label="Status" required error={errors.status}>
               <Select {...register('status')}>

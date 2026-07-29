@@ -4,13 +4,16 @@ import { Pencil, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
+import { Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
 import { EmploymentFormDialog } from './EmploymentFormDialog';
-import { EmploymentStatusBadge, PAY_SUFFIX, useDebounced } from './shared';
+import { EmploymentStatusBadge, PAY_SUFFIX } from './shared';
 import type { EmployerListItem, EmploymentListItem } from './types';
 import { BackLink } from '@/components/BackLink';
 
@@ -140,21 +143,22 @@ export function EmploymentsListPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <BackLink fallbackTo="/employers" fallbackLabel="Employers" />
-          <h1 className="text-2xl font-semibold tracking-tight">Placements</h1>
-        </div>
-        {can('employment.create') ? (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> New placement
-          </Button>
-        ) : null}
+      <div className="space-y-1">
+        <BackLink fallbackTo="/employers" fallbackLabel="Employers" />
+        <PageHeader
+          title="Placements"
+          actions={
+            can('employment.create') ? (
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" /> New placement
+              </Button>
+            ) : undefined
+          }
+        />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-64"
+      <ListToolbar>
+        <SearchInput
           placeholder="Search participant, employer, title…"
           value={search}
           onChange={(e) => {
@@ -163,7 +167,7 @@ export function EmploymentsListPage() {
           }}
         />
         <Select
-          className="w-56"
+          className="w-full sm:w-56"
           value={employerId}
           onChange={(e) => {
             setEmployerId(e.target.value);
@@ -178,7 +182,7 @@ export function EmploymentsListPage() {
           ))}
         </Select>
         <Select
-          className="w-44"
+          className="w-full sm:w-44"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
@@ -192,7 +196,7 @@ export function EmploymentsListPage() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.isError ? (
         <ErrorState error={query.error} />

@@ -126,7 +126,7 @@ export function DataTable<T extends { id: string }>({
         </TableBody>
       </Table>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
         <span>
           {data ? `${data.total} record${data.total === 1 ? '' : 's'}` : ''}
         </span>
@@ -135,20 +135,22 @@ export function DataTable<T extends { id: string }>({
             variant="outline"
             size="sm"
             disabled={state.page <= 1}
+            aria-label="Previous page"
             onClick={() => onStateChange({ ...state, page: state.page - 1 })}
           >
-            <ChevronLeft className="h-4 w-4" /> Prev
+            <ChevronLeft className="h-4 w-4" /> <span className="hidden sm:inline">Prev</span>
           </Button>
-          <span>
+          <span className="whitespace-nowrap">
             Page {state.page} of {totalPages}
           </span>
           <Button
             variant="outline"
             size="sm"
             disabled={state.page >= totalPages}
+            aria-label="Next page"
             onClick={() => onStateChange({ ...state, page: state.page + 1 })}
           >
-            Next <ChevronRight className="h-4 w-4" />
+            <span className="hidden sm:inline">Next</span> <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </div>

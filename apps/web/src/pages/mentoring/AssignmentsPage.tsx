@@ -1,8 +1,8 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { MENTOR_ASSIGNMENT_STATUSES, mentorAssignmentSchema } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
@@ -17,12 +17,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
+import { ParticipantPicker, VolunteerPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, useDebounced } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import { ParticipantPicker, VolunteerPicker, type PickerSelection } from './pickers';
-import { applyApiErrors, type AssignmentView } from './types';
+import { type AssignmentView } from './types';
 
 interface ProposeFormValues {
   mentorProfileId?: string;
@@ -34,12 +38,12 @@ interface ProposeFormValues {
 
 function ProposeAssignmentDialog({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [mentor, setMentor] = useState<PickerSelection | null>(null);
-  const [participant, setParticipant] = useState<PickerSelection | null>(null);
+  const [mentor, setMentor] = useState<PickerOption | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [topError, setTopError] = useState<string | null>(null);
 
   const form = useForm<ProposeFormValues>({
-    resolver: zodResolver(mentorAssignmentSchema) as unknown as Resolver<ProposeFormValues>,
+    resolver: formResolver<ProposeFormValues>(mentorAssignmentSchema),
   });
 
   const mutation = useMutation({
@@ -51,7 +55,7 @@ function ProposeAssignmentDialog({ onClose }: { onClose: () => void }) {
       onClose();
     },
     // 409s (mentor at capacity, open assignment already exists) surface here.
-    onError: (err) => setTopError(applyApiErrors(err, (n, e) => form.setError(n as never, e))),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   return (
@@ -70,12 +74,12 @@ function ProposeAssignmentDialog({ onClose }: { onClose: () => void }) {
             mutation.mutate(values);
           })}
         >
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <FormField label="Mentor" required error={form.formState.errors.mentorProfileId}>
             <VolunteerPicker
               mentorsOnly
-              selection={mentor}
-              onSelect={(sel) => {
+              value={mentor}
+              onChange={(sel) => {
                 setMentor(sel);
                 form.setValue('mentorProfileId', sel?.id, { shouldValidate: !!sel });
               }}
@@ -87,8 +91,8 @@ function ProposeAssignmentDialog({ onClose }: { onClose: () => void }) {
             error={form.formState.errors.participantProfileId}
           >
             <ParticipantPicker
-              selection={participant}
-              onSelect={(sel) => {
+              value={participant}
+              onChange={(sel) => {
                 setParticipant(sel);
                 form.setValue('participantProfileId', sel?.id, { shouldValidate: !!sel });
               }}
@@ -110,7 +114,7 @@ function ProposeAssignmentDialog({ onClose }: { onClose: () => void }) {
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Proposing…' : 'Propose match'}
+              {mutation.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
@@ -129,16 +133,12 @@ export function AssignmentsPage() {
   });
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
-  const [debounced, setDebounced] = useState('');
   const [proposing, setProposing] = useState(false);
+  const debounced = useDebounced(search);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      setDebounced(search);
-      setState((s) => ({ ...s, page: 1 }));
-    }, 300);
-    return () => clearTimeout(t);
-  }, [search]);
+    setState((s) => (s.page === 1 ? s : { ...s, page: 1 }));
+  }, [debounced]);
 
   const query = useQuery({
     queryKey: ['mentoring', 'assignments', state, status, debounced],
@@ -179,22 +179,25 @@ export function AssignmentsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Mentor Assignments</h1>
-        {can('mentoring.create') ? (
-          <Button onClick={() => setProposing(true)}>Propose match</Button>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Mentor Assignments"
+        actions={
+          can('mentoring.create') ? (
+            <Button onClick={() => setProposing(true)}>
+              <Plus className="h-4 w-4" /> Propose match
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-64"
+      <ListToolbar>
+        <SearchInput
           placeholder="Search mentor or participant…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <Select
-          className="w-40"
+          className="w-full sm:w-44"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
@@ -208,7 +211,7 @@ export function AssignmentsPage() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.isError ? (
         <ErrorState error={query.error} />

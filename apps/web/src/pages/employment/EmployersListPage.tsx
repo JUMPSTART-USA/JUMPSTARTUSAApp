@@ -6,12 +6,15 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import { EmployerFormDialog } from './EmployerFormDialog';
-import { HiringStatusBadge, useDebounced } from './shared';
+import { HiringStatusBadge } from './shared';
 import type { EmployerListItem } from './types';
 import { BackLink } from '@/components/BackLink';
 
@@ -83,25 +86,26 @@ export function EmployersListPage() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Employers</h1>
-        <div className="flex items-center gap-2">
-          {can('employment.read') ? (
-            <Button variant="outline" onClick={() => navigate('/employers/employments')}>
-              <Briefcase className="h-4 w-4" /> Placements
-            </Button>
-          ) : null}
-          {can('employers.create') ? (
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" /> New employer
-            </Button>
-          ) : null}
-        </div>
-      </div>
+      <PageHeader
+        title="Employers"
+        actions={
+          <>
+            {can('employment.read') ? (
+              <Button variant="outline" onClick={() => navigate('/employers/employments')}>
+                <Briefcase className="h-4 w-4" /> Placements
+              </Button>
+            ) : null}
+            {can('employers.create') ? (
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" /> New employer
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-64"
+      <ListToolbar>
+        <SearchInput
           placeholder="Search name, contact, city…"
           value={search}
           onChange={(e) => {
@@ -110,7 +114,7 @@ export function EmployersListPage() {
           }}
         />
         <Select
-          className="w-44"
+          className="w-full sm:w-44"
           value={hiringStatus}
           onChange={(e) => {
             setHiringStatus(e.target.value);
@@ -125,7 +129,7 @@ export function EmployersListPage() {
           ))}
         </Select>
         <Input
-          className="w-44"
+          className="w-full sm:w-44"
           placeholder="Industry"
           value={industry}
           onChange={(e) => {
@@ -134,7 +138,7 @@ export function EmployersListPage() {
           }}
         />
         <Select
-          className="w-32"
+          className="w-full sm:w-44"
           value={stateFilter}
           onChange={(e) => {
             setStateFilter(e.target.value);
@@ -148,7 +152,7 @@ export function EmployersListPage() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.isError ? (
         <ErrorState error={query.error} />

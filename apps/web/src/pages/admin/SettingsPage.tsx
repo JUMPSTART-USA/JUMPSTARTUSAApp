@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -26,7 +29,6 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
 import type { DonorCrmConfig } from '../crm/types';
-import { ErrorNotice } from './shared';
 import type { AppSetting, EmailConfig } from './types';
 
 /** Seed-known keys (admin/settings.service.ts) — offered even when not yet set. */
@@ -75,18 +77,17 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <IntegrationsCard />
+      <SectionHeader
+        title="Settings"
+        description="Free-form JSON per key so configuration shapes can evolve without migrations. Values are validated as JSON before saving."
+        actions={
+          <Button onClick={() => setEditor({ key: '', isNew: true, value: {} })}>
+            <Plus className="h-4 w-4" /> New setting
+          </Button>
+        }
+      />
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Settings</h2>
-        <Button size="sm" onClick={() => setEditor({ key: '', isNew: true, value: {} })}>
-          <Plus className="h-4 w-4" /> New setting
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Free-form JSON per key so configuration shapes can evolve without migrations. Values are
-        validated as JSON before saving.
-      </p>
+      <IntegrationsCard />
 
       <Table>
         <TableHeader>
@@ -194,51 +195,52 @@ function IntegrationsCard() {
   if (!config) return null;
 
   return (
-    <div className="space-y-3 rounded-md border bg-card p-4">
-      <div>
-        <h2 className="text-lg font-semibold">Integrations</h2>
-        <p className="text-sm text-muted-foreground">
+    <Card>
+      <CardHeader>
+        <CardTitle>Integrations</CardTitle>
+        <CardDescription>
           Development module — donor CRM the donors/donations mirror syncs from. API credentials
           are configured as server environment settings, never stored in the database.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-56">
-          <div className="mb-1 text-sm font-medium">Donor CRM provider</div>
-          <Select
-            value={config.provider}
-            disabled={save.isPending}
-            onChange={(e) => save.mutate(e.target.value)}
-          >
-            {config.providers.map((p) => (
-              <option key={p.key} value={p.key}>
-                {p.label}
-              </option>
-            ))}
-          </Select>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-56">
+            <div className="mb-1 text-sm font-medium">Donor CRM provider</div>
+            <Select
+              value={config.provider}
+              disabled={save.isPending}
+              onChange={(e) => save.mutate(e.target.value)}
+            >
+              {config.providers.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {save.isPending ? <span className="text-sm text-muted-foreground">Saving…</span> : null}
         </div>
-        {save.isPending ? <span className="text-sm text-muted-foreground">Saving…</span> : null}
-      </div>
 
-      <div className="space-y-1.5">
-        {config.providers
-          .filter((p) => p.key !== 'none')
-          .map((p) => (
-            <div key={p.key} className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="w-28 font-medium">{p.label}</span>
-              <Badge variant={p.envReady ? 'success' : 'outline'}>
-                {p.envReady ? 'Credentials configured' : 'Credentials missing'}
-              </Badge>
-              <code className="text-xs text-muted-foreground">{p.envVars.join(', ')}</code>
-            </div>
-          ))}
-      </div>
+        <div className="space-y-1.5">
+          {config.providers
+            .filter((p) => p.key !== 'none')
+            .map((p) => (
+              <div key={p.key} className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="w-28 font-medium">{p.label}</span>
+                <Badge variant={p.envReady ? 'success' : 'outline'}>
+                  {p.envReady ? 'Credentials configured' : 'Credentials missing'}
+                </Badge>
+                <code className="text-xs text-muted-foreground">{p.envVars.join(', ')}</code>
+              </div>
+            ))}
+        </div>
 
-      {saveError ? <ErrorNotice>{saveError}</ErrorNotice> : null}
+        <FormError message={saveError} />
 
-      <EmailSection />
-    </div>
+        <EmailSection />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -368,7 +370,7 @@ function SettingEditorDialog({ editor, onClose }: { editor: EditorState; onClose
 
   return (
     <Dialog open onOpenChange={(next) => (!next ? onClose() : undefined)}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{editor.isNew ? 'New setting' : `Edit ${editor.key}`}</DialogTitle>
           <DialogDescription>
@@ -390,14 +392,14 @@ function SettingEditorDialog({ editor, onClose }: { editor: EditorState; onClose
               spellCheck={false}
             />
           </FormField>
-          {problem ? <ErrorNotice>{problem}</ErrorNotice> : null}
+          <FormError message={problem} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={submit} disabled={save.isPending}>
-            {save.isPending ? 'Saving…' : 'Save setting'}
+            {save.isPending ? 'Saving…' : 'Save'}
           </Button>
         </DialogFooter>
       </DialogContent>

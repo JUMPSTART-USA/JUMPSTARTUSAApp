@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { GraduationCap, Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { useLocation, useParams, useSearchParams } from 'react-router-dom';
-import type { BackNavState } from '@/components/BackLink';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
@@ -52,7 +52,6 @@ const TAB_VALUES = [
 export function ParticipantProfilePage() {
   const { id = '' } = useParams();
   const { can } = useAuth();
-  const location = useLocation();
   const [editOpen, setEditOpen] = useState(false);
   const [graduateOpen, setGraduateOpen] = useState(false);
   // The active tab lives in ?tab= so deep links out of the tabs (class,
@@ -80,19 +79,38 @@ export function ParticipantProfilePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <BackLink fallbackTo="/participants" fallbackLabel="Participants" />
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="text-2xl font-semibold">{fullName(person)}</h1>
-            <span className="font-mono text-sm text-muted-foreground">
-              {participant.participantNumber}
+      <div>
+        <BackLink fallbackTo="/participants" fallbackLabel="Participants" />
+        <PageHeader
+          className="mt-1"
+          title={
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {fullName(person)}
+              <span className="font-mono text-sm font-normal text-muted-foreground">
+                {participant.participantNumber}
+              </span>
+              {person.deceasedAt ? (
+                <Badge variant="secondary">Deceased {formatDate(person.deceasedAt)}</Badge>
+              ) : null}
+              {person.doNotContact ? <Badge variant="destructive">Do not contact</Badge> : null}
             </span>
-            {person.deceasedAt ? (
-              <Badge variant="secondary">Deceased {formatDate(person.deceasedAt)}</Badge>
-            ) : null}
-            {person.doNotContact ? <Badge variant="destructive">Do not contact</Badge> : null}
-          </div>
+          }
+          actions={
+            canUpdate ? (
+              <>
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+                {/* The graduate action 409s once alumni status is set — hide it then. */}
+                {participant.alumniStatus === 'not_applicable' ? (
+                  <Button onClick={() => setGraduateOpen(true)}>
+                    <GraduationCap className="h-4 w-4" /> Graduate
+                  </Button>
+                ) : null}
+              </>
+            ) : undefined
+          }
+        >
           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
             {headerBadge('Inside', participant.insideStatus)}
             {headerBadge('Outside', participant.outsideStatus)}
@@ -110,21 +128,7 @@ export function ParticipantProfilePage() {
               <span>Graduated {formatDate(participant.graduationDate)}</span>
             ) : null}
           </div>
-        </div>
-
-        {canUpdate ? (
-          <div className="flex shrink-0 gap-2">
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-4 w-4" /> Edit
-            </Button>
-            {/* The graduate action 409s once alumni status is set — hide it then. */}
-            {participant.alumniStatus === 'not_applicable' ? (
-              <Button onClick={() => setGraduateOpen(true)}>
-                <GraduationCap className="h-4 w-4" /> Graduate
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
+        </PageHeader>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

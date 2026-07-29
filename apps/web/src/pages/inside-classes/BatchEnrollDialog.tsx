@@ -12,10 +12,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
 import { Spinner } from '@/components/ui/spinner';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
+import { useDebounced } from '@/lib/form';
 import { fullName } from '@/lib/utils';
-import { useDebounced } from './helpers';
 import type { ParticipantPickerItem, RosterEnrollment } from './types';
 
 interface BatchEnrollResult {
@@ -109,7 +110,7 @@ export function BatchEnrollDialog({
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>Batch enroll participants</DialogTitle>
           <DialogDescription>
@@ -122,17 +123,18 @@ export function BatchEnrollDialog({
             <p className="text-sm">
               {enrolledCount} participant{enrolledCount === 1 ? '' : 's'} enrolled.
             </p>
-            <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <p className="font-medium">
-                {skipped.length} participant{skipped.length === 1 ? ' was' : 's were'} skipped —
-                already enrolled in this class:
-              </p>
-              <ul className="mt-1 list-inside list-disc">
+            <Notice
+              variant="warning"
+              title={`${skipped.length} participant${
+                skipped.length === 1 ? ' was' : 's were'
+              } skipped — already enrolled in this class:`}
+            >
+              <ul>
                 {skipped.map((id) => (
                   <li key={id}>{selected.get(id) ?? id}</li>
                 ))}
               </ul>
-            </div>
+            </Notice>
             <DialogFooter>
               <Button onClick={() => resetAndClose(false)}>Done</Button>
             </DialogFooter>
@@ -220,7 +222,7 @@ export function BatchEnrollDialog({
               </div>
             ) : null}
 
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            <FormError message={error} />
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => resetAndClose(false)}>

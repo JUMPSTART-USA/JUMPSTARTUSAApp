@@ -1,4 +1,3 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   CHECKLIST_ITEM_STATUSES,
   MENTOR_SCREENING_STAGES,
@@ -6,12 +5,13 @@ import {
 } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -31,8 +33,9 @@ import {
 } from '@/components/ui/table';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import { applyApiErrors, emptyToUndefined, type ScreeningDetail } from './types';
+import { emptyToUndefined, type ScreeningDetail } from './types';
 
 interface StepFormValues {
   stage?: string;
@@ -54,11 +57,11 @@ function AddStepDialog({
   const [topError, setTopError] = useState<string | null>(null);
 
   const form = useForm<StepFormValues>({
-    resolver: zodResolver(mentorScreeningStepSchema) as unknown as Resolver<StepFormValues>,
+    resolver: formResolver<StepFormValues>(mentorScreeningStepSchema),
     defaultValues: {
       stage: currentStage,
       outcome: 'passed',
-      completedAt: new Date().toISOString().slice(0, 10),
+      completedAt: todayInput(),
     },
   });
 
@@ -69,7 +72,7 @@ function AddStepDialog({
       queryClient.invalidateQueries({ queryKey: ['mentoring'] });
       onClose();
     },
-    onError: (err) => setTopError(applyApiErrors(err, (n, e) => form.setError(n as never, e))),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   return (
@@ -85,7 +88,7 @@ function AddStepDialog({
             mutation.mutate(values);
           })}
         >
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Stage" required error={form.formState.errors.stage}>
               <Select {...form.register('stage', { setValueAs: emptyToUndefined })}>
@@ -117,7 +120,7 @@ function AddStepDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Record step'}
+              {mutation.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
@@ -140,7 +143,7 @@ function StageAdvanceCard({ screening }: { screening: ScreeningDetail }) {
       setError(null);
       queryClient.invalidateQueries({ queryKey: ['mentoring'] });
     },
-    onError: (err) => setError(applyApiErrors(err, () => undefined)),
+    onError: (err) => setError(applyApiError(err)),
   });
 
   const approving = stage === 'approved' && screening.stage !== 'approved';
@@ -148,10 +151,10 @@ function StageAdvanceCard({ screening }: { screening: ScreeningDetail }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Stage</CardTitle>
+        <CardTitle>Stage</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {error ? <ErrorState error={new Error(error)} /> : null}
+        <FormError message={error} />
         <div className="flex items-center gap-2">
           <Select className="w-52" value={stage} onChange={(e) => setStage(e.target.value)}>
             {MENTOR_SCREENING_STAGES.map((s) => (
@@ -173,8 +176,8 @@ function StageAdvanceCard({ screening }: { screening: ScreeningDetail }) {
           </Button>
         </div>
         {approving ? (
-          <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3">
-            <p className="text-sm text-amber-800">
+          <Notice variant="warning">
+            <p>
               Approving marks this volunteer as a mentor. Any conditions below are recorded as
               their mentor restrictions (e.g. “outside programs only”).
             </p>
@@ -184,7 +187,7 @@ function StageAdvanceCard({ screening }: { screening: ScreeningDetail }) {
               value={conditions}
               onChange={(e) => setConditions(e.target.value)}
             />
-          </div>
+          </Notice>
         ) : null}
       </CardContent>
     </Card>
@@ -206,7 +209,7 @@ function CriterionRow({
     mutationFn: (status: string) => api.patch(`/mentoring/criteria/${criterion.id}`, { status }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ['mentoring', 'screening', screeningId] }),
-    onError: (err) => setError(applyApiErrors(err, () => undefined)),
+    onError: (err) => setError(applyApiError(err)),
   });
 
   return (
@@ -264,21 +267,21 @@ export function ScreeningDetailPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-sm text-muted-foreground">
-            <Link to=".." relative="path" className="hover:underline">
-              Screenings
-            </Link>{' '}
-            / detail
-          </div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+      <div className="text-sm text-muted-foreground">
+        <Link to=".." relative="path" className="hover:underline">
+          Screenings
+        </Link>{' '}
+        / detail
+      </div>
+      <PageHeader
+        title={
+          <span className="flex flex-wrap items-center gap-2">
             {screening.volunteerName}
             {screening.isAlumni ? <Badge variant="info">Alumni</Badge> : null}
             <StatusBadge status={screening.stage} />
-          </h1>
-        </div>
-      </div>
+          </span>
+        }
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">
@@ -288,34 +291,24 @@ export function ScreeningDetailPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Details</CardTitle>
+              <CardTitle>Details</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-1.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Opened</span>
-                <span>{formatDate(screening.createdAt)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Approved</span>
-                <span>{formatDate(screening.approvedAt)}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">Conditions</span>
-                <span className="text-right">{screening.conditions ?? '—'}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">Notes</span>
-                <span className="text-right">{screening.notes ?? '—'}</span>
-              </div>
+            <CardContent>
+              <DescriptionList>
+                <InfoItem label="Opened">{formatDate(screening.createdAt)}</InfoItem>
+                <InfoItem label="Approved">{formatDate(screening.approvedAt)}</InfoItem>
+                <InfoItem label="Conditions">{screening.conditions ?? undefined}</InfoItem>
+                <InfoItem label="Notes">{screening.notes ?? undefined}</InfoItem>
+              </DescriptionList>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">
+              <CardTitle>
                 Criteria checklist
                 {requiredIncomplete > 0 ? (
-                  <span className="ml-2 text-sm font-normal text-amber-600">
+                  <span className="ml-2 text-sm font-normal text-warning">
                     {requiredIncomplete} required remaining
                   </span>
                 ) : null}
@@ -341,14 +334,13 @@ export function ScreeningDetailPage() {
         </div>
 
         <Card className="self-start">
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Steps log</CardTitle>
+          <CardHeaderRow title="Steps log">
             {can('mentoring.update') ? (
               <Button size="sm" variant="outline" onClick={() => setAddingStep(true)}>
                 Record step
               </Button>
             ) : null}
-          </CardHeader>
+          </CardHeaderRow>
           <CardContent>
             {screening.steps.length === 0 ? (
               <p className="text-sm text-muted-foreground">No steps recorded yet.</p>

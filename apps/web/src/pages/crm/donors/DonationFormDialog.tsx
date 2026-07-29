@@ -13,10 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { EntityPicker, type PickerOption } from '@/components/ui/entity-picker';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
-import { ErrorState, Spinner } from '@/components/ui/spinner';
+import { FormError } from '@/components/ui/notice';
 import { api, qs, type Paged } from '@/lib/api';
-import { applyApiErrors, useCampaignOptions, useDebouncedValue } from '../shared';
+import { applyApiError } from '@/lib/form';
+import { useCampaignOptions } from '../shared';
 import type { Donor, EventRecord } from '../types';
 
 interface DonationFormValues {
@@ -33,63 +35,23 @@ interface DonationFormValues {
 }
 
 function DonorPicker({
-  selected,
-  onSelect,
+  value,
+  onChange,
 }: {
-  selected: { id: string; name: string } | null;
-  onSelect: (donor: { id: string; name: string } | null) => void;
+  value: PickerOption | null;
+  onChange: (option: PickerOption | null) => void;
 }) {
-  const [term, setTerm] = useState('');
-  const debounced = useDebouncedValue(term);
-  const enabled = !selected && debounced.trim().length >= 2;
-
-  const { data, isFetching } = useQuery({
-    queryKey: ['crm', 'donors', 'picker', debounced],
-    enabled,
-    queryFn: () => api.get<Paged<Donor>>(`/donors${qs({ search: debounced, pageSize: 8 })}`),
-  });
-
-  if (selected) {
-    return (
-      <div className="flex items-center justify-between rounded-md border bg-muted/50 px-3 py-1.5 text-sm">
-        <span>{selected.name}</span>
-        <Button variant="ghost" size="sm" onClick={() => onSelect(null)}>
-          Change
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-1.5">
-      <Input
-        value={term}
-        onChange={(e) => setTerm(e.target.value)}
-        placeholder="Search donors…"
-      />
-      {enabled ? (
-        <div className="max-h-40 overflow-y-auto rounded-md border">
-          {isFetching ? (
-            <div className="p-2">
-              <Spinner className="mx-auto h-4 w-4" />
-            </div>
-          ) : !data || data.items.length === 0 ? (
-            <p className="p-2 text-xs text-muted-foreground">No matches</p>
-          ) : (
-            data.items.map((donor) => (
-              <button
-                key={donor.id}
-                type="button"
-                className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
-                onClick={() => onSelect({ id: donor.id, name: donor.name })}
-              >
-                {donor.name}
-              </button>
-            ))
-          )}
-        </div>
-      ) : null}
-    </div>
+    <EntityPicker
+      value={value}
+      onChange={onChange}
+      queryKey="crm-donor-picker"
+      placeholder="Search donors…"
+      search={async (term) => {
+        const page = await api.get<Paged<Donor>>(`/donors${qs({ search: term, pageSize: 8 })}`);
+        return page.items.map((donor) => ({ id: donor.id, label: donor.name }));
+      }}
+    />
   );
 }
 
@@ -103,7 +65,7 @@ export function DonationFormDialog({
 }) {
   const queryClient = useQueryClient();
   const [formError, setFormError] = useState<string | null>(null);
-  const [donor, setDonor] = useState<{ id: string; name: string } | null>(null);
+  const [donor, setDonor] = useState<PickerOption | null>(null);
   const campaignOptions = useCampaignOptions();
   const eventOptions = useQuery({
     queryKey: ['crm', 'events', 'options'],
@@ -139,7 +101,7 @@ export function DonationFormDialog({
       queryClient.invalidateQueries({ queryKey: ['crm'] });
       onOpenChange(false);
     },
-    onError: (err) => setFormError(applyApiErrors(err, form.setError)),
+    onError: (err) => setFormError(applyApiError(err, form.setError)),
   });
 
   const optional = { setValueAs: (v: unknown) => (v === '' ? undefined : v) };
@@ -159,8 +121,8 @@ export function DonationFormDialog({
         >
           <FormField label="Donor" required error={form.formState.errors.donorId}>
             <DonorPicker
-              selected={donor}
-              onSelect={(d) => {
+              value={donor}
+              onChange={(d) => {
                 setDonor(d);
                 form.setValue('donorId', d?.id ?? '', { shouldValidate: Boolean(d) });
               }}
@@ -215,13 +177,13 @@ export function DonationFormDialog({
           <FormField label="Notes" error={form.formState.errors.notes}>
             <Textarea rows={3} {...form.register('notes', optional)} />
           </FormField>
-          {formError ? <ErrorState error={new Error(formError)} /> : null}
+          <FormError message={formError} />
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Record donation'}
+              {mutation.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

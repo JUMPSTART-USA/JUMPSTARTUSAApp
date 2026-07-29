@@ -3,7 +3,9 @@ import { Lock, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import {
   Table,
   TableBody,
@@ -15,7 +17,6 @@ import {
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/utils';
-import { DetailRow } from './shared';
 import {
   AddressDialog,
   ConsentDialog,
@@ -49,6 +50,7 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
   const queryClient = useQueryClient();
   const canEdit = can('participants.update');
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PersonContactRow | null>(null);
   const person = participant.person;
 
   const historyQuery = useQuery({
@@ -82,16 +84,16 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Person</CardTitle>
+          <CardTitle>Person</CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className="divide-y">
-            <DetailRow label="Date of birth">{formatDate(person.dateOfBirth)}</DetailRow>
-            <DetailRow label="Gender">{humanize(person.gender)}</DetailRow>
-            <DetailRow label="Preferred language">{orDash(person.preferredLanguage)}</DetailRow>
-            <DetailRow label="Phone">{orDash(person.primaryPhone)}</DetailRow>
-            <DetailRow label="Email">{orDash(person.primaryEmail)}</DetailRow>
-            <DetailRow label="Mailing address">
+          <DescriptionList>
+            <InfoItem label="Date of birth">{formatDate(person.dateOfBirth)}</InfoItem>
+            <InfoItem label="Gender">{humanize(person.gender)}</InfoItem>
+            <InfoItem label="Preferred language">{orDash(person.preferredLanguage)}</InfoItem>
+            <InfoItem label="Phone">{orDash(person.primaryPhone)}</InfoItem>
+            <InfoItem label="Email">{orDash(person.primaryEmail)}</InfoItem>
+            <InfoItem label="Mailing address">
               {person.addressLine1 ? (
                 <span>
                   {person.addressLine1}
@@ -102,9 +104,9 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
               ) : (
                 dash
               )}
-            </DetailRow>
-            <DetailRow label="Contact preferences">
-              <span className="inline-flex flex-wrap justify-end gap-1">
+            </InfoItem>
+            <InfoItem label="Contact preferences" className="sm:col-span-2">
+              <span className="inline-flex flex-wrap gap-1">
                 {person.doNotContact ? <Badge variant="destructive">Do not contact</Badge> : null}
                 {person.mailOnly ? <Badge variant="warning">Mail only</Badge> : null}
                 {person.emailOk ? <Badge variant="outline">Email OK</Badge> : null}
@@ -114,44 +116,44 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
                   </Badge>
                 ) : null}
               </span>
-            </DetailRow>
+            </InfoItem>
             {person.deceasedAt ? (
-              <DetailRow label="Deceased">{formatDate(person.deceasedAt)}</DetailRow>
+              <InfoItem label="Deceased">{formatDate(person.deceasedAt)}</InfoItem>
             ) : null}
-          </dl>
+          </DescriptionList>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Program profile</CardTitle>
+          <CardTitle>Program profile</CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className="divide-y">
-            <DetailRow label="Inside status">
+          <DescriptionList>
+            <InfoItem label="Inside status">
               <StatusBadge status={participant.insideStatus} />
-            </DetailRow>
-            <DetailRow label="Outside status">
+            </InfoItem>
+            <InfoItem label="Outside status">
               <StatusBadge status={participant.outsideStatus} />
-            </DetailRow>
-            <DetailRow label="Phase">{orDash(participant.phase)}</DetailRow>
-            <DetailRow label="Alumni status">
+            </InfoItem>
+            <InfoItem label="Phase">{orDash(participant.phase)}</InfoItem>
+            <InfoItem label="Alumni status">
               <StatusBadge status={participant.alumniStatus} />
-            </DetailRow>
-            <DetailRow label="Intake date">{formatDate(participant.intakeDate)}</DetailRow>
-            <DetailRow label="Release date">{formatDate(participant.releaseDate)}</DetailRow>
-            <DetailRow label="Graduation date">{formatDate(participant.graduationDate)}</DetailRow>
-            <DetailRow label="Case manager">
+            </InfoItem>
+            <InfoItem label="Intake date">{formatDate(participant.intakeDate)}</InfoItem>
+            <InfoItem label="Release date">{formatDate(participant.releaseDate)}</InfoItem>
+            <InfoItem label="Graduation date">{formatDate(participant.graduationDate)}</InfoItem>
+            <InfoItem label="Case manager">
               {participant.assignedCaseManager
                 ? `${participant.assignedCaseManager.firstName} ${participant.assignedCaseManager.lastName}`
                 : dash}
-            </DetailRow>
+            </InfoItem>
             {participant.notes ? (
-              <DetailRow label="Notes">
-                <span className="whitespace-pre-wrap text-left">{participant.notes}</span>
-              </DetailRow>
+              <InfoItem label="Notes" className="sm:col-span-2">
+                <span className="whitespace-pre-wrap">{participant.notes}</span>
+              </InfoItem>
             ) : null}
-          </dl>
+          </DescriptionList>
 
           {historyQuery.data && historyQuery.data.length > 0 ? (
             <div className="mt-4 border-t pt-3">
@@ -180,10 +182,9 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
       </Card>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Contacts</CardTitle>
+        <CardHeaderRow title="Contacts">
           {addButton('Add contact', () => setDialog({ kind: 'contact', row: null }))}
-        </CardHeader>
+        </CardHeaderRow>
         <CardContent>
           {person.contacts.length === 0 ? (
             <p className="text-sm text-muted-foreground">No contacts recorded.</p>
@@ -228,9 +229,8 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
                           className="h-7 w-7 text-destructive"
                           disabled={deleteContact.isPending}
                           onClick={() => {
-                            if (window.confirm(`Remove contact "${c.name}"?`)) {
-                              deleteContact.mutate(c.id);
-                            }
+                            deleteContact.reset();
+                            setDeleteTarget(c);
                           }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -247,10 +247,9 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
       </Card>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Address history</CardTitle>
+        <CardHeaderRow title="Address history">
           {addButton('Add address', () => setDialog({ kind: 'address', row: null }))}
-        </CardHeader>
+        </CardHeaderRow>
         <CardContent>
           {person.addresses.length === 0 ? (
             <p className="text-sm text-muted-foreground">No addresses recorded.</p>
@@ -302,10 +301,9 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
       </Card>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">DOC IDs</CardTitle>
+        <CardHeaderRow title="DOC IDs">
           {addButton('Add DOC ID', () => setDialog({ kind: 'docId', row: null }))}
-        </CardHeader>
+        </CardHeaderRow>
         <CardContent>
           {participant.docIds.length === 0 ? (
             <p className="text-sm text-muted-foreground">No DOC IDs recorded.</p>
@@ -350,10 +348,9 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
       </Card>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Testimony consents</CardTitle>
+        <CardHeaderRow title="Testimony consents">
           {addButton('Add consent', () => setDialog({ kind: 'consent', row: null }))}
-        </CardHeader>
+        </CardHeaderRow>
         <CardContent>
           {person.testimonyConsents.length === 0 ? (
             <p className="text-sm text-muted-foreground">No testimony consents recorded.</p>
@@ -413,6 +410,20 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
         existing={dialog?.kind === 'consent' ? dialog.row : null}
         open={dialog?.kind === 'consent'}
         onOpenChange={(o) => !o && setDialog(null)}
+      />
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="Remove contact"
+        description={deleteTarget ? `Remove contact "${deleteTarget.name}"?` : undefined}
+        confirmLabel="Delete"
+        isPending={deleteContact.isPending}
+        error={deleteContact.error ? deleteContact.error.message : null}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteContact.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+          }
+        }}
       />
     </div>
   );

@@ -6,13 +6,15 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
+import { Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
 import { ProgramFormDialog } from './ProgramFormDialog';
-import { useDebounced } from './shared';
 import type { OutsideProgramRow } from './types';
 import { BackLink } from '@/components/BackLink';
 
@@ -55,7 +57,7 @@ const columns: Column<OutsideProgramRow>[] = [
         {p.activeEnrollmentCount}
         {p.capacity != null ? ` / ${p.capacity}` : ''}
         {p.capacity != null && p.activeEnrollmentCount > p.capacity ? (
-          <span className="ml-1 text-xs font-medium text-red-600">over</span>
+          <span className="ml-1 text-xs font-medium text-destructive">over</span>
         ) : null}
       </span>
     ),
@@ -109,31 +111,28 @@ export function OutsideProgramListPage() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Outside Programs</h1>
-          <p className="text-sm text-muted-foreground">
-            Community-side programming — classes, treatment, transitional support
-          </p>
-        </div>
-        {can('outside_programs.create') ? (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> New Program
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Outside Programs"
+        description="Community-side programming — classes, treatment, transitional support"
+        actions={
+          can('outside_programs.create') ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" /> New program
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
+      <ListToolbar>
+        <SearchInput
           placeholder="Search name, location, volunteer lead…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
         />
         <Select
           value={programType}
           onChange={(e) => setProgramType(e.target.value)}
-          className="w-44"
+          className="w-full sm:w-44"
         >
           <option value="">All types</option>
           {PROGRAM_TYPES.map((t) => (
@@ -142,7 +141,11 @@ export function OutsideProgramListPage() {
             </option>
           ))}
         </Select>
-        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-36">
+        <Select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="w-full sm:w-44"
+        >
           <option value="">All statuses</option>
           {(['active', 'inactive', 'completed'] as const).map((s) => (
             <option key={s} value={s}>
@@ -150,7 +153,7 @@ export function OutsideProgramListPage() {
             </option>
           ))}
         </Select>
-        <Select value={state} onChange={(e) => setState(e.target.value)} className="w-28">
+        <Select value={state} onChange={(e) => setState(e.target.value)} className="w-full sm:w-44">
           <option value="">All states</option>
           {US_STATES.map((s) => (
             <option key={s} value={s}>
@@ -158,7 +161,7 @@ export function OutsideProgramListPage() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.error ? <ErrorState error={query.error} /> : null}
 

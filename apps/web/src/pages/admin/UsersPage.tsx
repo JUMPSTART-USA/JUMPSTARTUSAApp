@@ -26,17 +26,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label, Select } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
+import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, useDebounced } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import {
-  applyApiFormErrors,
-  ErrorNotice,
-  useActiveUserOptions,
-  useDebouncedValue,
-  WarningNotice,
-} from './shared';
+import { useActiveUserOptions } from './shared';
 import type { AdminUser, DeactivateResult, InviteResult } from './types';
 
 export function UsersPage() {
@@ -50,7 +48,7 @@ export function UsersPage() {
   const [resendResult, setResendResult] = useState<InviteResult | null>(null);
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [deactivateUser, setDeactivateUser] = useState<AdminUser | null>(null);
-  const debouncedSearch = useDebouncedValue(search);
+  const debouncedSearch = useDebounced(search);
 
   const canWrite = can('admin.users');
 
@@ -212,17 +210,18 @@ export function UsersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Users</h2>
-        <Button size="sm" onClick={() => setInviteOpen(true)}>
-          <Plus className="h-4 w-4" /> Invite user
-        </Button>
-      </div>
+      <SectionHeader
+        title="Users"
+        actions={
+          <Button onClick={() => setInviteOpen(true)}>
+            <Plus className="h-4 w-4" /> Invite user
+          </Button>
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
+      <ListToolbar>
+        <SearchInput
           placeholder="Search name or email…"
-          className="w-64"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -230,7 +229,7 @@ export function UsersPage() {
           }}
         />
         <Select
-          className="w-44"
+          className="w-full sm:w-44"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
@@ -244,7 +243,7 @@ export function UsersPage() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
       {reactivate.error ? <ErrorState error={reactivate.error} /> : null}
@@ -262,14 +261,14 @@ export function UsersPage() {
             </DialogHeader>
             <div className="space-y-3">
               {resendResult.emailSent ? (
-                <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                <Notice variant="success">
                   Invite email sent to {resendResult.user.email} from {resendResult.emailFrom}.
-                </p>
+                </Notice>
               ) : (
-                <WarningNotice>
+                <Notice variant="warning">
                   No invite email was sent — outbound email is not configured. Hand the
                   temporary password off out-of-band.
-                </WarningNotice>
+                </Notice>
               )}
               <code className="block rounded-md border bg-muted px-3 py-2 font-mono text-sm">
                 {resendResult.temporaryPassword}
@@ -356,7 +355,7 @@ function InviteUserDialog({
       // Keep the dialog open — the temporary password is shown exactly once.
       setInvited(result);
     },
-    onError: (err) => setTopError(applyApiFormErrors(err, form.setError)),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   const copyPassword = async () => {
@@ -383,19 +382,19 @@ function InviteUserDialog({
         {invited ? (
           <div className="space-y-3">
             {invited.emailSent ? (
-              <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              <Notice variant="success">
                 Invite email sent to {invited.user.email} from {invited.emailFrom}.
-              </p>
+              </Notice>
             ) : (
-              <WarningNotice>
+              <Notice variant="warning">
                 No invite email was sent — outbound email is not configured (see Admin →
                 Settings → Integrations). Hand the temporary password off out-of-band.
-              </WarningNotice>
+              </Notice>
             )}
-            <WarningNotice>
+            <Notice variant="warning">
               Store this temporary password now — it is shown only this once and is never stored
               or displayed again. The user must change it at first login.
-            </WarningNotice>
+            </Notice>
             <div className="flex items-center gap-2">
               <code className="flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-sm">
                 {invited.temporaryPassword}
@@ -442,14 +441,14 @@ function InviteUserDialog({
               <RoleCheckboxes register={register} />
             </FormField>
 
-            {topError ? <ErrorNotice>{topError}</ErrorNotice> : null}
+            <FormError message={topError} />
 
             <DialogFooter>
               <Button variant="outline" onClick={() => close(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={create.isPending}>
-                {create.isPending ? 'Inviting…' : 'Invite user'}
+                {create.isPending ? 'Sending…' : 'Invite user'}
               </Button>
             </DialogFooter>
           </form>
@@ -490,7 +489,7 @@ function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () =
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       onClose();
     },
-    onError: (err) => setTopError(applyApiFormErrors(err, form.setError)),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   const { register, formState } = form;
@@ -530,14 +529,14 @@ function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () =
             <RoleCheckboxes register={register} />
           </FormField>
 
-          {topError ? <ErrorNotice>{topError}</ErrorNotice> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={update.isPending}>
-              {update.isPending ? 'Saving…' : 'Save changes'}
+              {update.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>
@@ -590,13 +589,13 @@ function DeactivateUserDialogInner({ user, onClose }: { user: AdminUser; onClose
 
         {result ? (
           <div className="space-y-3">
-            <WarningNotice>
+            <Notice variant="warning">
               Account deactivated. {result.sessionsRevoked} session
               {result.sessionsRevoked === 1 ? '' : 's'} revoked, {result.participantsReassigned}{' '}
               participant{result.participantsReassigned === 1 ? '' : 's'} and{' '}
               {result.tasksReassigned} open task{result.tasksReassigned === 1 ? '' : 's'}{' '}
               reassigned.
-            </WarningNotice>
+            </Notice>
             <DialogFooter>
               <Button onClick={onClose}>Done</Button>
             </DialogFooter>

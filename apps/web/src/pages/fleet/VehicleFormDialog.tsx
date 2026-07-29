@@ -13,8 +13,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
-import { applyApiError, toDateInput } from './shared';
+import { applyApiError, toDateInput } from '@/lib/form';
 import type { Vehicle } from './types';
 
 interface VehicleFormValues {
@@ -90,12 +91,12 @@ export function VehicleFormDialog({
       void queryClient.invalidateQueries({ queryKey: ['fleet'] });
       onOpenChange(false);
     },
-    onError: (err) => applyApiError(err, setError, setTopError),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>{vehicle ? 'Edit vehicle' : 'New vehicle'}</DialogTitle>
         </DialogHeader>
@@ -149,14 +150,14 @@ export function VehicleFormDialog({
             Active — in service (only active vehicles raise alerts)
           </label>
 
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : vehicle ? 'Save changes' : 'Create vehicle'}
+              {mutation.isPending ? 'Saving…' : vehicle ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

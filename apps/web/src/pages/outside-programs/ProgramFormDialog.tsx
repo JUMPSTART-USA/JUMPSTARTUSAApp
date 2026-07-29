@@ -12,16 +12,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, toDateInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
-import {
-  applyApiError,
-  dateInput,
-  emptyToUndef,
-  FormErrorNotice,
-  formResolver,
-} from './shared';
+import { emptyToUndef } from './shared';
 import type { OutsideProgram, OutsideProgramStatus, StaffRef } from './types';
 
 interface ProgramFormValues {
@@ -45,8 +41,8 @@ function toDefaults(program: OutsideProgram | null): ProgramFormValues {
     programType: program?.programType ?? 'life_skills',
     location: program?.location ?? '',
     state: program?.state ?? '',
-    startDate: dateInput(program?.startDate),
-    endDate: dateInput(program?.endDate),
+    startDate: toDateInput(program?.startDate),
+    endDate: toDateInput(program?.endDate),
     recurringSchedule: program?.recurringSchedule ?? '',
     staffLeadId: program?.staffLeadId ?? '',
     volunteerLeadName: program?.volunteerLeadName ?? '',
@@ -113,7 +109,7 @@ export function ProgramFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>{program ? 'Edit program' : 'New outside program'}</DialogTitle>
         </DialogHeader>
@@ -121,7 +117,7 @@ export function ProgramFormDialog({
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
           className="space-y-4"
         >
-          <FormErrorNotice message={topError} />
+          <FormError message={topError} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField label="Name" required error={errors.name} className="sm:col-span-2">
               <Input {...register('name')} autoFocus />
@@ -219,7 +215,7 @@ export function ProgramFormDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : program ? 'Save changes' : 'Create program'}
+              {mutation.isPending ? 'Saving…' : program ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

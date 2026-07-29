@@ -12,8 +12,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
-import { applyApiError, FormErrorNotice, formResolver } from '@/pages/outside-programs/shared';
+import { applyApiError, formResolver } from '@/lib/form';
 import type { TransitionalHome } from './types';
 
 interface HomeFormValues {
@@ -93,12 +94,12 @@ export function HomeFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>{home ? 'Edit home' : 'New transitional home'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
-          <FormErrorNotice message={topError} />
+          <FormError message={topError} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField label="Name" required error={errors.name} className="sm:col-span-2">
               <Input {...register('name')} autoFocus />
@@ -154,7 +155,7 @@ export function HomeFormDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : home ? 'Save changes' : 'Create home'}
+              {mutation.isPending ? 'Saving…' : home ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

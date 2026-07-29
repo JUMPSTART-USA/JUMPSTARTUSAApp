@@ -4,7 +4,10 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -18,19 +21,10 @@ import { api, qs } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatMoney } from '@/lib/utils';
 import { MaintenanceFormDialog } from './MaintenanceFormDialog';
-import { ConfirmDialog, SeverityBadge, vehicleLabel } from './shared';
+import { SeverityBadge, vehicleLabel } from './shared';
 import { VehicleFormDialog } from './VehicleFormDialog';
 import type { MaintenanceRecord, MaintenanceSummary, VehicleProfile } from './types';
 import { BackLink } from '@/components/BackLink';
-
-function DetailRow({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div className="space-y-0.5">
-      <p className="text-sm font-medium text-muted-foreground">{label}</p>
-      <p className="text-sm">{value ?? '—'}</p>
-    </div>
-  );
-}
 
 export function VehicleProfilePage() {
   const { id = '' } = useParams();
@@ -88,38 +82,42 @@ export function VehicleProfilePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <BackLink fallbackTo="/vehicles" fallbackLabel="Vehicles" />
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{vehicleLabel(vehicle)}</h1>
-            {vehicle.active ? (
-              <Badge variant="success">Active</Badge>
-            ) : (
-              <Badge variant="outline">Inactive</Badge>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {[vehicle.licensePlate, vehicle.assignedLocation].filter(Boolean).join(' · ') || '—'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {can('vehicles.create') ? (
-            <Button onClick={() => setLogOpen(true)}>
-              <Wrench className="h-4 w-4" /> Log maintenance
-            </Button>
-          ) : null}
-          {can('vehicles.update') ? (
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-4 w-4" /> Edit
-            </Button>
-          ) : null}
-          {can('vehicles.delete') ? (
-            <Button variant="outline" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="h-4 w-4" /> Delete
-            </Button>
-          ) : null}
-        </div>
+      <div className="space-y-1">
+        <BackLink fallbackTo="/vehicles" fallbackLabel="Vehicles" />
+        <PageHeader
+          title={
+            <span className="flex flex-wrap items-center gap-2">
+              {vehicleLabel(vehicle)}
+              {vehicle.active ? (
+                <Badge variant="success">Active</Badge>
+              ) : (
+                <Badge variant="outline">Inactive</Badge>
+              )}
+            </span>
+          }
+          description={
+            [vehicle.licensePlate, vehicle.assignedLocation].filter(Boolean).join(' · ') || '—'
+          }
+          actions={
+            <>
+              {can('vehicles.create') ? (
+                <Button onClick={() => setLogOpen(true)}>
+                  <Wrench className="h-4 w-4" /> Log maintenance
+                </Button>
+              ) : null}
+              {can('vehicles.update') ? (
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+              ) : null}
+              {can('vehicles.delete') ? (
+                <Button variant="outline" onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              ) : null}
+            </>
+          }
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -128,28 +126,30 @@ export function VehicleProfilePage() {
             <CardTitle>Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <DetailRow label="Color" value={vehicle.color} />
-              <DetailRow label="License plate" value={vehicle.licensePlate} />
-              <DetailRow
-                label="Mileage"
-                value={vehicle.mileage != null ? vehicle.mileage.toLocaleString('en-US') : null}
-              />
-              <DetailRow label="VIN" value={vehicle.vin} />
-              <DetailRow label="Assigned location" value={vehicle.assignedLocation} />
-              <DetailRow
-                label="Registration expires"
-                value={vehicle.registrationExpiration ? formatDate(vehicle.registrationExpiration) : null}
-              />
-              <DetailRow
-                label="Insurance expires"
-                value={vehicle.insuranceExpiration ? formatDate(vehicle.insuranceExpiration) : null}
-              />
-            </div>
+            <DescriptionList columns={3}>
+              <InfoItem label="Color">{vehicle.color}</InfoItem>
+              <InfoItem label="License plate">{vehicle.licensePlate}</InfoItem>
+              <InfoItem label="Mileage">
+                {vehicle.mileage != null ? vehicle.mileage.toLocaleString('en-US') : null}
+              </InfoItem>
+              <InfoItem label="VIN">{vehicle.vin}</InfoItem>
+              <InfoItem label="Assigned location">{vehicle.assignedLocation}</InfoItem>
+              <InfoItem label="Registration expires">
+                {vehicle.registrationExpiration
+                  ? formatDate(vehicle.registrationExpiration)
+                  : null}
+              </InfoItem>
+              <InfoItem label="Insurance expires">
+                {vehicle.insuranceExpiration ? formatDate(vehicle.insuranceExpiration) : null}
+              </InfoItem>
+            </DescriptionList>
             {vehicle.notes ? (
-              <div className="space-y-1 border-t pt-3">
-                <p className="text-sm font-medium text-muted-foreground">Notes</p>
-                <p className="whitespace-pre-wrap text-sm">{vehicle.notes}</p>
+              <div className="border-t pt-3">
+                <DescriptionList columns={1}>
+                  <InfoItem label="Notes">
+                    <span className="whitespace-pre-wrap">{vehicle.notes}</span>
+                  </InfoItem>
+                </DescriptionList>
               </div>
             ) : null}
           </CardContent>
@@ -180,14 +180,13 @@ export function VehicleProfilePage() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Maintenance history</CardTitle>
+          <CardHeaderRow title="Maintenance history">
             {can('vehicles.create') ? (
               <Button variant="outline" size="sm" onClick={() => setLogOpen(true)}>
                 <Plus className="h-4 w-4" /> Log
               </Button>
             ) : null}
-          </CardHeader>
+          </CardHeaderRow>
           <CardContent>
             {maintenanceRecords.length === 0 ? (
               <EmptyState
@@ -316,7 +315,8 @@ export function VehicleProfilePage() {
         title="Delete vehicle"
         description={`Delete ${vehicleLabel(vehicle)}? The record is retained for audit but removed from lists.`}
         confirmLabel="Delete vehicle"
-        pending={deleteVehicle.isPending}
+        isPending={deleteVehicle.isPending}
+        error={deleteVehicle.error ? deleteVehicle.error.message : null}
         onConfirm={() => deleteVehicle.mutate()}
       />
       <ConfirmDialog
@@ -331,7 +331,8 @@ export function VehicleProfilePage() {
             : ''
         }
         confirmLabel="Delete record"
-        pending={deleteRecord.isPending}
+        isPending={deleteRecord.isPending}
+        error={deleteRecord.error ? deleteRecord.error.message : null}
         onConfirm={() => deletingRecord && deleteRecord.mutate(deletingRecord.id)}
       />
     </div>

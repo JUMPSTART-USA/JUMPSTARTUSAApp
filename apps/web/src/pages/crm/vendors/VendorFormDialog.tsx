@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -14,10 +15,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
-import { ErrorState } from '@/components/ui/spinner';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiErrors } from '../shared';
+import { applyApiError } from '@/lib/form';
 import type { Vendor } from '../types';
 
 interface VendorFormValues {
@@ -47,7 +48,7 @@ export function VendorFormDialog({
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [formError, setFormError] = useState<string | null>(null);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const form = useForm<VendorFormValues>({
     resolver: zodResolver(vendorSchema) as unknown as Resolver<VendorFormValues>,
@@ -74,7 +75,7 @@ export function VendorFormDialog({
           : { name: '', isReferralPartner: false, active: true },
       );
       setFormError(null);
-      setConfirmingDelete(false);
+      setConfirmDeleteOpen(false);
     }
   }, [open, vendor]);
 
@@ -87,17 +88,16 @@ export function VendorFormDialog({
       queryClient.invalidateQueries({ queryKey: ['crm', 'vendors'] });
       onOpenChange(false);
     },
-    onError: (err) => setFormError(applyApiErrors(err, form.setError)),
+    onError: (err) => setFormError(applyApiError(err, form.setError)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => api.delete(`/vendors/${vendor?.id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm', 'vendors'] });
+      setConfirmDeleteOpen(false);
       onOpenChange(false);
     },
-    onError: (err) =>
-      setFormError(err instanceof Error ? err.message : 'Delete failed'),
   });
 
   const optional = { setValueAs: (v: unknown) => (v === '' ? undefined : v) };
@@ -166,40 +166,39 @@ export function VendorFormDialog({
           <FormField label="Notes" error={form.formState.errors.notes}>
             <Textarea rows={2} {...form.register('notes', optional)} />
           </FormField>
-          {formError ? <ErrorState error={new Error(formError)} /> : null}
+          <FormError message={formError} />
           <DialogFooter className="justify-between">
             {vendor && can('vendors.delete') ? (
-              confirmingDelete ? (
-                <div className="mr-auto flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Delete this vendor?</span>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={deleteMutation.isPending}
-                    onClick={() => deleteMutation.mutate()}
-                  >
-                    {deleteMutation.isPending ? 'Deleting…' : 'Confirm delete'}
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mr-auto text-destructive"
-                  onClick={() => setConfirmingDelete(true)}
-                >
-                  Delete
-                </Button>
-              )
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mr-auto text-destructive"
+                onClick={() => setConfirmDeleteOpen(true)}
+              >
+                Delete
+              </Button>
             ) : null}
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : vendor ? 'Save changes' : 'Create vendor'}
+              {mutation.isPending ? 'Saving…' : vendor ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
+
+        <ConfirmDialog
+          open={confirmDeleteOpen}
+          onOpenChange={(next) => {
+            setConfirmDeleteOpen(next);
+            if (!next) deleteMutation.reset();
+          }}
+          title="Delete vendor?"
+          description="Referrals and maintenance records keep their link to this vendor."
+          isPending={deleteMutation.isPending}
+          error={deleteMutation.isError ? applyApiError(deleteMutation.error) : null}
+          onConfirm={() => deleteMutation.mutate()}
+        />
       </DialogContent>
     </Dialog>
   );

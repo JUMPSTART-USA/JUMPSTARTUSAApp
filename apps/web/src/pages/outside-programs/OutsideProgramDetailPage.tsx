@@ -6,7 +6,9 @@ import { BackLink } from '@/components/BackLink';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -17,13 +19,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ListToolbar, SearchInput, ToolbarSpacer } from '@/components/ui/toolbar';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import { EnrollDialog, EnrollmentEditDialog } from './EnrollmentDialogs';
 import { ProgramFormDialog } from './ProgramFormDialog';
 import { SessionFormDialog } from './SessionFormDialog';
-import { ConfirmDialog, InfoItem } from './shared';
 import type { OutsideEnrollment, OutsideProgramDetail, OutsideSession } from './types';
 
 export function OutsideProgramDetailPage() {
@@ -87,31 +89,37 @@ export function OutsideProgramDetailPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <BackLink fallbackTo="/outside-programs" fallbackLabel="Outside programs" />
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{program.name}</h1>
-            <StatusBadge status={program.status} />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {humanize(program.programType)}
-            {program.location ? ` · ${program.location}` : ''}
-            {program.state ? `, ${program.state}` : ''}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {can('outside_programs.update') ? (
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-4 w-4" /> Edit
-            </Button>
-          ) : null}
-          {can('outside_programs.delete') ? (
-            <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="h-4 w-4" /> Delete
-            </Button>
-          ) : null}
-        </div>
+      <div className="space-y-1">
+        <BackLink fallbackTo="/outside-programs" fallbackLabel="Outside programs" />
+        <PageHeader
+          title={
+            <span className="inline-flex flex-wrap items-center gap-2">
+              {program.name}
+              <StatusBadge status={program.status} />
+            </span>
+          }
+          description={
+            <>
+              {humanize(program.programType)}
+              {program.location ? ` · ${program.location}` : ''}
+              {program.state ? `, ${program.state}` : ''}
+            </>
+          }
+          actions={
+            <>
+              {can('outside_programs.update') ? (
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+              ) : null}
+              {can('outside_programs.delete') ? (
+                <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              ) : null}
+            </>
+          }
+        />
       </div>
 
       <Card>
@@ -119,7 +127,7 @@ export function OutsideProgramDetailPage() {
           <CardTitle>Program details</CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
+          <DescriptionList columns={3}>
             <InfoItem label="Schedule">{program.recurringSchedule ?? '—'}</InfoItem>
             <InfoItem label="Dates">
               {program.startDate || program.endDate
@@ -139,7 +147,9 @@ export function OutsideProgramDetailPage() {
                 <span>
                   {activeCount} / {program.capacity} active
                   {activeCount > program.capacity ? (
-                    <span className="ml-1 text-xs font-medium text-red-600">over capacity</span>
+                    <span className="ml-1 text-xs font-medium text-destructive">
+                      over capacity
+                    </span>
                   ) : null}
                 </span>
               ) : (
@@ -149,7 +159,7 @@ export function OutsideProgramDetailPage() {
             <InfoItem label="Roster size">{program.enrollments.length}</InfoItem>
             <InfoItem label="Sessions">{sessionsQuery.data?.length ?? '—'}</InfoItem>
             <InfoItem label="Notes">{program.notes ?? '—'}</InfoItem>
-          </dl>
+          </DescriptionList>
         </CardContent>
       </Card>
 
@@ -160,19 +170,19 @@ export function OutsideProgramDetailPage() {
         </TabsList>
 
         <TabsContent value="roster" className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <Input
+          <ListToolbar>
+            <SearchInput
               placeholder="Filter roster…"
               value={rosterFilter}
               onChange={(e) => setRosterFilter(e.target.value)}
-              className="max-w-xs"
             />
+            <ToolbarSpacer />
             {can('outside_programs.create') ? (
               <Button onClick={() => setEnrollOpen(true)}>
-                <UserPlus className="h-4 w-4" /> Enroll Participant
+                <UserPlus className="h-4 w-4" /> Enroll participant
               </Button>
             ) : null}
-          </div>
+          </ListToolbar>
           {roster.length === 0 ? (
             <EmptyState
               title="No enrollments"
@@ -245,7 +255,7 @@ export function OutsideProgramDetailPage() {
           <div className="flex justify-end">
             {can('outside_programs.create') ? (
               <Button onClick={() => setSessionOpen(true)}>
-                <Plus className="h-4 w-4" /> Add Session
+                <Plus className="h-4 w-4" /> Add session
               </Button>
             ) : null}
           </div>
@@ -306,8 +316,8 @@ export function OutsideProgramDetailPage() {
         title="Delete program?"
         description="The program is soft-deleted and hidden from lists. Programs with open enrollments cannot be deleted — close them out first."
         onConfirm={() => deleteProgram.mutate()}
-        busy={deleteProgram.isPending}
-        error={deleteProgram.error}
+        isPending={deleteProgram.isPending}
+        error={deleteProgram.error ? deleteProgram.error.message : null}
       />
       <ConfirmDialog
         open={removeEnrollment !== null}
@@ -319,11 +329,12 @@ export function OutsideProgramDetailPage() {
         }}
         title="Remove enrollment?"
         description="Removal is for data errors only — participants who exited should be closed out with a status change so history is preserved."
+        confirmLabel="Remove"
         onConfirm={() =>
           removeEnrollment && deleteEnrollmentMutation.mutate(removeEnrollment.id)
         }
-        busy={deleteEnrollmentMutation.isPending}
-        error={deleteEnrollmentMutation.error}
+        isPending={deleteEnrollmentMutation.isPending}
+        error={deleteEnrollmentMutation.error ? deleteEnrollmentMutation.error.message : null}
       />
     </div>
   );

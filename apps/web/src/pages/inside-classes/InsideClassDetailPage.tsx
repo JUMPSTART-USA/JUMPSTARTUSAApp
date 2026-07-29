@@ -6,6 +6,8 @@ import { BackLink, backTo } from '@/components/BackLink';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -25,15 +27,6 @@ import { InsideClassFormDialog } from './InsideClassFormDialog';
 import { SessionsTab } from './SessionsTab';
 import { AssignmentDialog, type AssignmentRowLite } from '../volunteers/AssignmentDialog';
 import type { InsideClassDetail, RosterEnrollment } from './types';
-
-function InfoItem({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-sm">{children}</p>
-    </div>
-  );
-}
 
 export function InsideClassDetailPage() {
   const { id = '' } = useParams();
@@ -61,55 +54,61 @@ export function InsideClassDetailPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <BackLink fallbackTo="/inside-classes" fallbackLabel="Inside classes" />
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{insideClass.name}</h1>
-            <StatusBadge status={insideClass.status} />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            <Link className="hover:underline" to={`/institutions/${insideClass.institution.id}`}>
-              {insideClass.institution.name}
-            </Link>{' '}
-            ({insideClass.institution.state})
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {canUpdate && insideClass.status !== 'canceled' ? (
-            <Button variant="outline" onClick={() => navigate('close-out')}>
-              <ClipboardCheck className="h-4 w-4" /> Close out
-            </Button>
-          ) : null}
-          {canUpdate ? (
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-4 w-4" /> Edit
-            </Button>
-          ) : null}
-        </div>
+      <div className="space-y-1">
+        <BackLink fallbackTo="/inside-classes" fallbackLabel="Inside classes" />
+        <PageHeader
+          title={
+            <span className="inline-flex flex-wrap items-center gap-2">
+              {insideClass.name}
+              <StatusBadge status={insideClass.status} />
+            </span>
+          }
+          description={
+            <>
+              <Link className="hover:underline" to={`/institutions/${insideClass.institution.id}`}>
+                {insideClass.institution.name}
+              </Link>{' '}
+              ({insideClass.institution.state})
+            </>
+          }
+          actions={
+            <>
+              {canUpdate && insideClass.status !== 'canceled' ? (
+                <Button variant="outline" onClick={() => navigate('close-out')}>
+                  <ClipboardCheck className="h-4 w-4" /> Close out
+                </Button>
+              ) : null}
+              {canUpdate ? (
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+              ) : null}
+            </>
+          }
+        />
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Class information</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <InfoItem label="Type">{insideClass.classType ?? '—'}</InfoItem>
-          <InfoItem label="Start date">{formatDate(insideClass.startDate)}</InfoItem>
-          <InfoItem label="End date">{formatDate(insideClass.endDate)}</InfoItem>
-          <InfoItem label="Staff lead">
-            {insideClass.staffLead
-              ? `${insideClass.staffLead.firstName} ${insideClass.staffLead.lastName}`
-              : '—'}
-          </InfoItem>
-          <InfoItem label="Enrolled">{insideClass.enrollments.length}</InfoItem>
-          {insideClass.notes ? (
-            <div className="sm:col-span-2 lg:col-span-5">
-              <InfoItem label="Notes">
+        <CardContent>
+          <DescriptionList columns={3}>
+            <InfoItem label="Type">{insideClass.classType ?? '—'}</InfoItem>
+            <InfoItem label="Start date">{formatDate(insideClass.startDate)}</InfoItem>
+            <InfoItem label="End date">{formatDate(insideClass.endDate)}</InfoItem>
+            <InfoItem label="Staff lead">
+              {insideClass.staffLead
+                ? `${insideClass.staffLead.firstName} ${insideClass.staffLead.lastName}`
+                : '—'}
+            </InfoItem>
+            <InfoItem label="Enrolled">{insideClass.enrollments.length}</InfoItem>
+            {insideClass.notes ? (
+              <InfoItem label="Notes" className="sm:col-span-2 lg:col-span-3">
                 <span className="whitespace-pre-wrap">{insideClass.notes}</span>
               </InfoItem>
-            </div>
-          ) : null}
+            ) : null}
+          </DescriptionList>
         </CardContent>
       </Card>
 

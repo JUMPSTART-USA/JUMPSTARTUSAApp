@@ -15,10 +15,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
-import { ErrorState } from '@/components/ui/spinner';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { applyApiError } from '@/lib/form';
 import { cn, humanize } from '@/lib/utils';
-import { applyApiErrors, PersonSearch, type PersonHit } from '../shared';
+import { PersonSearch, type PersonHit } from '../shared';
 import type { RegistrationStatus } from '../types';
 
 const REGISTRATION_STATUSES: RegistrationStatus[] = [
@@ -98,7 +99,7 @@ export function RegistrationDialog({
       onOpenChange(false);
     },
     // 409 = person already registered — surfaced, never swallowed.
-    onError: (err) => setFormError(applyApiErrors(err, form.setError)),
+    onError: (err) => setFormError(applyApiError(err, form.setError)),
   });
 
   const optional = { setValueAs: (v: unknown) => (v === '' ? undefined : v) };
@@ -176,13 +177,13 @@ export function RegistrationDialog({
           <FormField label="Notes" error={form.formState.errors.notes}>
             <Textarea rows={2} {...form.register('notes', optional)} />
           </FormField>
-          {formError ? <ErrorState error={new Error(formError)} /> : null}
+          <FormError message={formError} />
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Add registration'}
+              {mutation.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

@@ -19,18 +19,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api } from '@/lib/api';
+import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
-import {
-  applyApiError,
-  emptyToUndef,
-  FormErrorNotice,
-  formResolver,
-  ParticipantPicker,
-  todayInput,
-  WarningNotice,
-} from '@/pages/outside-programs/shared';
-import type { ParticipantRef } from '@/pages/outside-programs/types';
+import { emptyToUndef } from '@/pages/outside-programs/shared';
 import type { HousingEnrollment, TransitionalHome } from './types';
 import { homeOptionLabel, useHomeOptions } from './useHomeOptions';
 
@@ -57,7 +51,7 @@ export function MoveInDialog({
   home: TransitionalHome | null;
 }) {
   const queryClient = useQueryClient();
-  const [participant, setParticipant] = useState<ParticipantRef | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [topError, setTopError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[] | null>(null);
 
@@ -111,7 +105,7 @@ export function MoveInDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Move in resident</DialogTitle>
           {home ? <DialogDescription>{home.name}</DialogDescription> : null}
@@ -119,14 +113,20 @@ export function MoveInDialog({
         {warnings ? (
           <div className="space-y-4">
             <p className="text-sm">Move-in recorded.</p>
-            <WarningNotice warnings={warnings} />
+            <Notice variant="warning">
+              <ul>
+                {warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </Notice>
             <DialogFooter>
               <Button onClick={() => onOpenChange(false)}>Done</Button>
             </DialogFooter>
           </div>
         ) : (
           <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
-            <FormErrorNotice message={topError} />
+            <FormError message={topError} />
             <input type="hidden" {...register('participantProfileId')} />
             <FormField
               label="Participant"
@@ -136,9 +136,8 @@ export function MoveInDialog({
               }
             >
               <ParticipantPicker
-                queryScope="housing"
                 value={participant}
-                onSelect={(p) => {
+                onChange={(p) => {
                   setParticipant(p);
                   setValue('participantProfileId', p?.id ?? '', { shouldValidate: !!p });
                 }}
@@ -212,7 +211,7 @@ export function MoveInDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending ? 'Recording…' : 'Record Move-in'}
+                {mutation.isPending ? 'Saving…' : 'Record move-in'}
               </Button>
             </DialogFooter>
           </form>

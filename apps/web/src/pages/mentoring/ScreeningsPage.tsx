@@ -1,14 +1,14 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { MENTOR_SCREENING_STAGES, mentorScreeningSchema } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { useForm, type Resolver } from 'react-hook-form';
+import { Plus } from 'lucide-react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -17,13 +17,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, Select, Textarea } from '@/components/ui/input';
+import { Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
+import { VolunteerPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, useDebounced } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import { VolunteerPicker, type PickerSelection } from './pickers';
-import { applyApiErrors, type ScreeningListItem } from './types';
+import { type ScreeningListItem } from './types';
 
 const TERMINAL_STAGES = ['approved', 'rejected', 'withdrawn'] as const;
 const ACTIVE_STAGES = MENTOR_SCREENING_STAGES.filter(
@@ -37,11 +41,11 @@ interface ScreeningFormValues {
 
 function NewScreeningDialog({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [volunteer, setVolunteer] = useState<PickerSelection | null>(null);
+  const [volunteer, setVolunteer] = useState<PickerOption | null>(null);
   const [topError, setTopError] = useState<string | null>(null);
 
   const form = useForm<ScreeningFormValues>({
-    resolver: zodResolver(mentorScreeningSchema) as unknown as Resolver<ScreeningFormValues>,
+    resolver: formResolver<ScreeningFormValues>(mentorScreeningSchema),
   });
 
   const mutation = useMutation({
@@ -50,7 +54,7 @@ function NewScreeningDialog({ onClose }: { onClose: () => void }) {
       queryClient.invalidateQueries({ queryKey: ['mentoring'] });
       onClose();
     },
-    onError: (err) => setTopError(applyApiErrors(err, (n, e) => form.setError(n as never, e))),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   return (
@@ -70,15 +74,15 @@ function NewScreeningDialog({ onClose }: { onClose: () => void }) {
             mutation.mutate(values);
           })}
         >
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <FormField
             label="Volunteer"
             required
             error={form.formState.errors.volunteerProfileId}
           >
             <VolunteerPicker
-              selection={volunteer}
-              onSelect={(sel) => {
+              value={volunteer}
+              onChange={(sel) => {
                 setVolunteer(sel);
                 form.setValue('volunteerProfileId', sel?.id, { shouldValidate: !!sel });
               }}
@@ -92,7 +96,7 @@ function NewScreeningDialog({ onClose }: { onClose: () => void }) {
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Opening…' : 'Open screening'}
+              {mutation.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
@@ -124,7 +128,6 @@ export function ScreeningsPage() {
   const { can } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const [debounced, setDebounced] = useState('');
   const [creating, setCreating] = useState(false);
   const [decidedStage, setDecidedStage] = useState<string>('approved');
   const [decidedState, setDecidedState] = useState<ListState>({
@@ -132,11 +135,7 @@ export function ScreeningsPage() {
     sortBy: 'updatedAt',
     sortDir: 'desc',
   });
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(search), 300);
-    return () => clearTimeout(t);
-  }, [search]);
+  const debounced = useDebounced(search);
 
   // The pipeline never holds more than a handful of screenings at once, so
   // one page (max 200) is fetched and grouped into stage columns client-side.
@@ -198,19 +197,24 @@ export function ScreeningsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Mentor Screenings</h1>
-        {can('mentoring.create') ? (
-          <Button onClick={() => setCreating(true)}>Open screening</Button>
-        ) : null}
-      </div>
-
-      <Input
-        className="w-64"
-        placeholder="Search volunteer name…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
+      <PageHeader
+        title="Mentor Screenings"
+        actions={
+          can('mentoring.create') ? (
+            <Button onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" /> Open screening
+            </Button>
+          ) : null
+        }
       />
+
+      <ListToolbar>
+        <SearchInput
+          placeholder="Search volunteer name…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </ListToolbar>
 
       {pipeline.isLoading ? (
         <PageLoader />
@@ -247,10 +251,9 @@ export function ScreeningsPage() {
       )}
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Decided screenings</CardTitle>
+        <CardHeaderRow title="Decided screenings">
           <Select
-            className="w-40"
+            className="w-full sm:w-44"
             value={decidedStage}
             onChange={(e) => {
               setDecidedStage(e.target.value);
@@ -263,7 +266,7 @@ export function ScreeningsPage() {
               </option>
             ))}
           </Select>
-        </CardHeader>
+        </CardHeaderRow>
         <CardContent>
           {decided.isError ? (
             <ErrorState error={decided.error} />

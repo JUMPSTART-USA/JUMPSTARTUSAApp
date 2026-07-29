@@ -13,9 +13,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
-import { ErrorState } from '@/components/ui/spinner';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
-import { applyApiErrors, useCampaignOptions } from '../shared';
+import { applyApiError } from '@/lib/form';
+import { useCampaignOptions } from '../shared';
 import type { EventRecord } from '../types';
 
 interface EventFormValues {
@@ -79,7 +80,7 @@ export function EventFormDialog({
       queryClient.invalidateQueries({ queryKey: ['crm', 'events'] });
       onOpenChange(false);
     },
-    onError: (err) => setFormError(applyApiErrors(err, form.setError)),
+    onError: (err) => setFormError(applyApiError(err, form.setError)),
   });
 
   const optional = { setValueAs: (v: unknown) => (v === '' ? undefined : v) };
@@ -137,13 +138,13 @@ export function EventFormDialog({
           <FormField label="Notes" error={form.formState.errors.notes}>
             <Textarea rows={2} {...form.register('notes', optional)} />
           </FormField>
-          {formError ? <ErrorState error={new Error(formError)} /> : null}
+          <FormError message={formError} />
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : event ? 'Save changes' : 'Create event'}
+              {mutation.isPending ? 'Saving…' : event ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

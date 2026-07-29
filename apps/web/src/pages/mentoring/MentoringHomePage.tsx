@@ -1,7 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardHeaderRow,
+  CardTitle,
+} from '@/components/ui/card';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -30,12 +37,12 @@ function StatCard({
   const body = (
     <Card className={to ? 'transition-colors hover:bg-accent/50' : undefined}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+        <CardDescription>{label}</CardDescription>
       </CardHeader>
       <CardContent>
         <div
           className={
-            tone === 'warn' && value > 0 ? 'text-3xl font-semibold text-amber-600' : 'text-3xl font-semibold'
+            tone === 'warn' && value > 0 ? 'text-3xl font-semibold text-warning' : 'text-3xl font-semibold'
           }
         >
           {value}
@@ -94,7 +101,7 @@ export function MentoringHomePage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Screening pipeline by stage</CardTitle>
+            <CardTitle>Screening pipeline by stage</CardTitle>
           </CardHeader>
           <CardContent>
             {pipelineTotal === 0 ? (
@@ -120,7 +127,7 @@ export function MentoringHomePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Alumni engagement</CardTitle>
+            <CardTitle>Alumni engagement</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="text-3xl font-semibold">{data.alumniEngagementLast90Days}</div>
@@ -138,9 +145,7 @@ export function MentoringHomePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            Active matches with no session in 30 days
-          </CardTitle>
+          <CardTitle>Active matches with no session in 30 days</CardTitle>
         </CardHeader>
         <CardContent>
           {data.matchesNoSessionIn30Days.length === 0 ? (
@@ -170,7 +175,7 @@ export function MentoringHomePage() {
                     <TableCell>{formatDate(m.startDate)}</TableCell>
                     <TableCell>
                       {m.lastSessionDate ? (
-                        <span className="text-amber-600">{formatDate(m.lastSessionDate)}</span>
+                        <span className="text-warning">{formatDate(m.lastSessionDate)}</span>
                       ) : (
                         <Badge variant="warning">Never</Badge>
                       )}
@@ -185,12 +190,11 @@ export function MentoringHomePage() {
 
       {can('alumni.read') ? (
         <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Overdue outcome check-ins</CardTitle>
+          <CardHeaderRow title="Overdue outcome check-ins">
             <Link to="checkins" className="text-sm text-primary hover:underline">
               View all
             </Link>
-          </CardHeader>
+          </CardHeaderRow>
           <CardContent>
             {overdue.isError ? (
               <ErrorState error={overdue.error} />

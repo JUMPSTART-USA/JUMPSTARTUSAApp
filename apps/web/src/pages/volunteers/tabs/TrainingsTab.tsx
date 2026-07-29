@@ -7,6 +7,7 @@ import { useForm, type Resolver } from 'react-hook-form';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -15,11 +16,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { ErrorState } from '@/components/ui/spinner';
-import { api, qs, type Paged } from '@/lib/api';
+import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, toDateInput, todayInput } from '@/lib/form';
 import { formatDate } from '@/lib/utils';
-import { applyApiFormErrors, ErrorNotice, ExpiryBadge, toDateInput } from '../shared';
+import { ExpiryBadge } from '../shared';
 import type { TrainingRow } from '../types';
 
 interface TrainingFormValues {
@@ -43,6 +46,7 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
   });
   const [editing, setEditing] = useState<TrainingRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState<TrainingRow | null>(null);
 
   const params = { ...listState, volunteerProfileId };
   const { data, isLoading, error } = useQuery({
@@ -52,7 +56,10 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/volunteers/trainings/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['volunteers'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['volunteers'] });
+      setDeleting(null);
+    },
   });
 
   const columns: Column<TrainingRow>[] = [
@@ -106,9 +113,8 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
               disabled={remove.isPending}
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm(`Delete training "${row.trainingType}"? Use only for corrections — the audit log keeps the record.`)) {
-                  remove.mutate(row.id);
-                }
+                remove.reset();
+                setDeleting(row);
               }}
             >
               Delete
@@ -124,7 +130,6 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
       <div className="flex items-center justify-end">
         {can('volunteers.create') ? (
           <Button
-            size="sm"
             onClick={() => {
               setEditing(null);
               setDialogOpen(true);
@@ -155,6 +160,30 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
           if (!next) setEditing(null);
         }}
       />
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(next) => {
+          if (!next) setDeleting(null);
+        }}
+        title="Delete training?"
+        description={
+          deleting
+            ? `Delete training "${deleting.trainingType}"? Use only for corrections — the audit log keeps the record.`
+            : undefined
+        }
+        isPending={remove.isPending}
+        error={
+          remove.error
+            ? remove.error instanceof ApiError
+              ? remove.error.message
+              : 'Delete failed'
+            : null
+        }
+        onConfirm={() => {
+          if (deleting) remove.mutate(deleting.id);
+        }}
+      />
     </div>
   );
 }
@@ -178,7 +207,7 @@ function TrainingDialog({
     values: {
       volunteerProfileId,
       trainingType: training?.trainingType ?? '',
-      completedAt: toDateInput(training?.completedAt) || new Date().toISOString().slice(0, 10),
+      completedAt: toDateInput(training?.completedAt) || todayInput(),
       expiresAt: toDateInput(training?.expiresAt),
       notes: training?.notes ?? '',
     },
@@ -194,7 +223,7 @@ function TrainingDialog({
       setTopError(null);
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyApiFormErrors(err, form.setError)),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   const onSubmit = form.handleSubmit((data) => {
@@ -217,7 +246,7 @@ function TrainingDialog({
               placeholder="e.g. Orientation, PREA awareness"
             />
           </FormField>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Completed" required error={formState.errors.completedAt}>
               <Input type="date" {...register('completedAt')} />
             </FormField>
@@ -233,14 +262,14 @@ function TrainingDialog({
             <Textarea rows={2} {...register('notes')} />
           </FormField>
 
-          {topError ? <ErrorNotice>{topError}</ErrorNotice> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : training ? 'Save changes' : 'Record training'}
+              {save.isPending ? 'Saving…' : training ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

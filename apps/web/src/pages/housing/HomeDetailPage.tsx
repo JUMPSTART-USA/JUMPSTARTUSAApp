@@ -2,13 +2,16 @@ import { HOUSING_STATUSES } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, Pencil, Trash2, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { BackLink } from '@/components/BackLink';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input, Select } from '@/components/ui/input';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
+import { Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -18,10 +21,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
-import { ConfirmDialog, InfoItem, useDebounced } from '@/pages/outside-programs/shared';
 import { HomeFormDialog } from './HomeFormDialog';
 import { OccupancyBar } from './HousingPage';
 import { MoveInDialog } from './MoveInDialog';
@@ -166,35 +170,41 @@ export function HomeDetailPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <BackLink fallbackTo="/housing" fallbackLabel="Housing" />
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{home.name}</h1>
-            <StatusBadge status={home.active ? 'active' : 'inactive'} />
-            {occupied > home.capacity ? <Badge variant="destructive">over capacity</Badge> : null}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {[home.addressLine1, home.city, home.state, home.zip].filter(Boolean).join(', ')}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {can('housing.create') ? (
-            <Button onClick={() => setMoveInOpen(true)}>
-              <UserPlus className="h-4 w-4" /> Move In
-            </Button>
-          ) : null}
-          {canUpdate ? (
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-4 w-4" /> Edit
-            </Button>
-          ) : null}
-          {can('housing.delete') ? (
-            <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="h-4 w-4" /> Delete
-            </Button>
-          ) : null}
-        </div>
+      <div className="space-y-1">
+        <BackLink fallbackTo="/housing" fallbackLabel="Housing" />
+        <PageHeader
+          title={
+            <span className="inline-flex flex-wrap items-center gap-2">
+              {home.name}
+              <StatusBadge status={home.active ? 'active' : 'inactive'} />
+              {occupied > home.capacity ? (
+                <Badge variant="destructive">over capacity</Badge>
+              ) : null}
+            </span>
+          }
+          description={[home.addressLine1, home.city, home.state, home.zip]
+            .filter(Boolean)
+            .join(', ')}
+          actions={
+            <>
+              {can('housing.create') ? (
+                <Button onClick={() => setMoveInOpen(true)}>
+                  <UserPlus className="h-4 w-4" /> Move in
+                </Button>
+              ) : null}
+              {canUpdate ? (
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+              ) : null}
+              {can('housing.delete') ? (
+                <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              ) : null}
+            </>
+          }
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -203,7 +213,7 @@ export function HomeDetailPage() {
             <CardTitle>Home details</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
+            <DescriptionList columns={3}>
               <InfoItem label="Phone">{home.phone ?? '—'}</InfoItem>
               <InfoItem label="House manager">{home.houseManagerName ?? '—'}</InfoItem>
               <InfoItem label="Manager contact">
@@ -211,7 +221,7 @@ export function HomeDetailPage() {
                   '—'}
               </InfoItem>
               <InfoItem label="Notes">{home.notes ?? '—'}</InfoItem>
-            </dl>
+            </DescriptionList>
           </CardContent>
         </Card>
         <Card>
@@ -302,17 +312,16 @@ export function HomeDetailPage() {
           <CardTitle>Enrollment history</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
+          <ListToolbar>
+            <SearchInput
               placeholder="Search participant…"
               value={historySearch}
               onChange={(e) => setHistorySearch(e.target.value)}
-              className="max-w-xs"
             />
             <Select
               value={historyStatus}
               onChange={(e) => setHistoryStatus(e.target.value)}
-              className="w-44"
+              className="w-full sm:w-44"
             >
               <option value="">All statuses</option>
               {HOUSING_STATUSES.map((s) => (
@@ -321,7 +330,7 @@ export function HomeDetailPage() {
                 </option>
               ))}
             </Select>
-          </div>
+          </ListToolbar>
           {historyQuery.error ? <ErrorState error={historyQuery.error} /> : null}
           <DataTable
             columns={historyColumns}
@@ -367,8 +376,8 @@ export function HomeDetailPage() {
         title="Delete home?"
         description="The home is soft-deleted and hidden from lists. Homes with current residents cannot be deleted — move them out or transfer them first."
         onConfirm={() => deleteHome.mutate()}
-        busy={deleteHome.isPending}
-        error={deleteHome.error}
+        isPending={deleteHome.isPending}
+        error={deleteHome.error ? deleteHome.error.message : null}
       />
       <ConfirmDialog
         open={deleteEnrollmentTarget !== null}
@@ -385,8 +394,8 @@ export function HomeDetailPage() {
         onConfirm={() =>
           deleteEnrollmentTarget && deleteEnrollment.mutate(deleteEnrollmentTarget.enrollment.id)
         }
-        busy={deleteEnrollment.isPending}
-        error={deleteEnrollment.error}
+        isPending={deleteEnrollment.isPending}
+        error={deleteEnrollment.error ? deleteEnrollment.error.message : null}
       />
     </div>
   );

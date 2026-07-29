@@ -13,10 +13,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
-import { ErrorState } from '@/components/ui/spinner';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { applyApiError } from '@/lib/form';
 import { humanize } from '@/lib/utils';
-import { applyApiErrors } from '../shared';
 import type { Campaign, CampaignStatus } from '../types';
 
 const CAMPAIGN_STATUSES: CampaignStatus[] = ['planned', 'active', 'completed', 'canceled'];
@@ -75,7 +75,7 @@ export function CampaignFormDialog({
       queryClient.invalidateQueries({ queryKey: ['crm', 'campaigns'] });
       onOpenChange(false);
     },
-    onError: (err) => setFormError(applyApiErrors(err, form.setError)),
+    onError: (err) => setFormError(applyApiError(err, form.setError)),
   });
 
   const optional = { setValueAs: (v: unknown) => (v === '' ? undefined : v) };
@@ -121,13 +121,13 @@ export function CampaignFormDialog({
           <FormField label="Notes" error={form.formState.errors.notes}>
             <Textarea rows={2} {...form.register('notes', optional)} />
           </FormField>
-          {formError ? <ErrorState error={new Error(formError)} /> : null}
+          <FormError message={formError} />
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : campaign ? 'Save changes' : 'Create campaign'}
+              {mutation.isPending ? 'Saving…' : campaign ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

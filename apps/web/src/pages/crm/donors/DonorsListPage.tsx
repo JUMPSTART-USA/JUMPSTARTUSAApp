@@ -3,12 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
-import { Input, Select } from '@/components/ui/input';
 import { StatusBadge } from '@/components/ui/badge';
+import { Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
+import { useDebounced } from '@/lib/form';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
-import { useDebouncedValue } from '../shared';
 import type { DonorCrmStatus, DonorListItem } from '../types';
 import { DonorsNav } from './DonorsNav';
 import { SyncStatusChip } from './SyncStatusChip';
@@ -41,7 +43,7 @@ export function DonorsListPage() {
   const [search, setSearch] = useState('');
   const [donorType, setDonorType] = useState('');
   const [status, setStatus] = useState('');
-  const debouncedSearch = useDebouncedValue(search);
+  const debouncedSearch = useDebounced(search);
 
   const crmStatus = useQuery({
     queryKey: ['crm', 'sync', 'status'],
@@ -69,26 +71,23 @@ export function DonorsListPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Donors</h1>
-          <p className="text-sm text-muted-foreground">
-            {crmName
-              ? `Read-only mirror of ${crmName} — edits to giving data happen there.`
-              : 'Donor records — no external donor CRM is configured.'}
-          </p>
-        </div>
-        <SyncStatusChip />
-      </div>
+      <PageHeader
+        title="Donors"
+        description={
+          crmName
+            ? `Read-only mirror of ${crmName} — edits to giving data happen there.`
+            : 'Donor records — no external donor CRM is configured.'
+        }
+        actions={<SyncStatusChip />}
+      />
 
-      <DonorsNav active="donors" />
+      <DonorsNav />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
+      <ListToolbar>
+        <SearchInput
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name or email…"
-          className="max-w-xs"
         />
         <Select
           value={donorType}
@@ -96,7 +95,7 @@ export function DonorsListPage() {
             setDonorType(e.target.value);
             setState((s) => ({ ...s, page: 1 }));
           }}
-          className="w-44"
+          className="w-full sm:w-44"
         >
           <option value="">All types</option>
           {DONOR_TYPES.map((t) => (
@@ -111,7 +110,7 @@ export function DonorsListPage() {
             setStatus(e.target.value);
             setState((s) => ({ ...s, page: 1 }));
           }}
-          className="w-40"
+          className="w-full sm:w-44"
         >
           <option value="">All statuses</option>
           {DONOR_STATUSES.map((s) => (
@@ -120,7 +119,7 @@ export function DonorsListPage() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.isError ? <ErrorState error={query.error} /> : null}
       <DataTable

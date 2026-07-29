@@ -1,6 +1,6 @@
-import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { SubNav } from '@/components/ui/sub-nav';
 import { useAuth } from '@/lib/auth';
-import { cn } from '@/lib/utils';
 import { AssignmentDetailPage } from './AssignmentDetailPage';
 import { AssignmentsPage } from './AssignmentsPage';
 import { EngagementsPage } from './EngagementsPage';
@@ -27,25 +27,11 @@ function MentoringLayout() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-1 border-b pb-2">
-        {tabs
+      <SubNav
+        items={tabs
           .filter((t) => t.show)
-          .map((t) => (
-            <NavLink
-              key={t.to}
-              to={t.to}
-              end={t.end}
-              className={({ isActive }) =>
-                cn(
-                  'rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-                  isActive && 'bg-accent font-medium text-foreground',
-                )
-              }
-            >
-              {t.label}
-            </NavLink>
-          ))}
-      </div>
+          .map(({ to, label, end }) => ({ to, label, end }))}
+      />
       <Outlet />
     </div>
   );

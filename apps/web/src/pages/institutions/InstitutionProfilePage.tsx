@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -36,15 +38,14 @@ function ContactBlock({
   email: string | null;
 }) {
   return (
-    <div className="space-y-1">
-      <p className="text-sm font-medium text-muted-foreground">{heading}</p>
-      <p className="text-sm font-medium">
+    <InfoItem label={heading}>
+      <span className="block font-medium">
         {name ?? '—'}
         {role ? <span className="ml-1 font-normal text-muted-foreground">({role})</span> : null}
-      </p>
-      <p className="text-sm">{phone ?? '—'}</p>
-      <p className="text-sm">{email ?? '—'}</p>
-    </div>
+      </span>
+      <span className="block">{phone ?? '—'}</span>
+      <span className="block">{email ?? '—'}</span>
+    </InfoItem>
   );
 }
 
@@ -71,28 +72,30 @@ export function InstitutionProfilePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <BackLink fallbackTo="/institutions" fallbackLabel="Institutions" />
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{institution.name}</h1>
-            {institution.active ? (
-              <Badge variant="success">Active</Badge>
-            ) : (
-              <Badge variant="outline">Inactive</Badge>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {[institution.institutionType, institution.city, institution.state]
-              .filter(Boolean)
-              .join(' · ')}
-          </p>
-        </div>
-        {can('institutions.update') ? (
-          <Button variant="outline" onClick={() => setEditOpen(true)}>
-            <Pencil className="h-4 w-4" /> Edit
-          </Button>
-        ) : null}
+      <div className="space-y-1">
+        <BackLink fallbackTo="/institutions" fallbackLabel="Institutions" />
+        <PageHeader
+          title={
+            <span className="inline-flex flex-wrap items-center gap-2">
+              {institution.name}
+              {institution.active ? (
+                <Badge variant="success">Active</Badge>
+              ) : (
+                <Badge variant="outline">Inactive</Badge>
+              )}
+            </span>
+          }
+          description={[institution.institutionType, institution.city, institution.state]
+            .filter(Boolean)
+            .join(' · ')}
+          actions={
+            can('institutions.update') ? (
+              <Button variant="outline" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-4 w-4" /> Edit
+              </Button>
+            ) : null
+          }
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -100,40 +103,36 @@ export function InstitutionProfilePage() {
           <CardHeader>
             <CardTitle>Contact information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Facility</p>
-                <p className="text-sm">{institution.addressLine1 ?? '—'}</p>
-                <p className="text-sm">
+          <CardContent>
+            <DescriptionList columns={3}>
+              <InfoItem label="Facility">
+                <span className="block">{institution.addressLine1 ?? '—'}</span>
+                <span className="block">
                   {[institution.city, institution.state, institution.zip]
                     .filter(Boolean)
                     .join(', ') || '—'}
-                </p>
-                <p className="text-sm">{institution.mainPhone ?? '—'}</p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <ContactBlock
-                  heading="Chaplain"
-                  name={institution.chaplainName}
-                  phone={institution.chaplainPhone}
-                  email={institution.chaplainEmail}
-                />
-                <ContactBlock
-                  heading="Primary contact"
-                  name={institution.primaryContactName}
-                  role={institution.primaryContactRole}
-                  phone={institution.primaryContactPhone}
-                  email={institution.primaryContactEmail}
-                />
-              </div>
-            </div>
-            {institution.notes ? (
-              <div className="space-y-1 border-t pt-3">
-                <p className="text-sm font-medium text-muted-foreground">Notes</p>
-                <p className="whitespace-pre-wrap text-sm">{institution.notes}</p>
-              </div>
-            ) : null}
+                </span>
+                <span className="block">{institution.mainPhone ?? '—'}</span>
+              </InfoItem>
+              <ContactBlock
+                heading="Chaplain"
+                name={institution.chaplainName}
+                phone={institution.chaplainPhone}
+                email={institution.chaplainEmail}
+              />
+              <ContactBlock
+                heading="Primary contact"
+                name={institution.primaryContactName}
+                role={institution.primaryContactRole}
+                phone={institution.primaryContactPhone}
+                email={institution.primaryContactEmail}
+              />
+              {institution.notes ? (
+                <InfoItem label="Notes" className="sm:col-span-2 lg:col-span-3">
+                  <span className="whitespace-pre-wrap">{institution.notes}</span>
+                </InfoItem>
+              ) : null}
+            </DescriptionList>
           </CardContent>
         </Card>
 
@@ -201,14 +200,13 @@ export function InstitutionProfilePage() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>Volunteers assigned</CardTitle>
+        <CardHeaderRow title="Volunteers assigned">
           {canManageVolunteers ? (
             <Button size="sm" variant="outline" onClick={() => setAssignmentState('new')}>
               <Plus className="h-4 w-4" /> Assign volunteer
             </Button>
           ) : null}
-        </CardHeader>
+        </CardHeaderRow>
         <CardContent>
           {volunteerAssignments.length === 0 ? (
             <EmptyState title="No volunteers assigned to this institution" />

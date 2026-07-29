@@ -7,6 +7,8 @@ import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -64,36 +66,40 @@ export function TicketDetailPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <BackLink fallbackTo="/support" fallbackLabel="Support" />
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        title={
+          <span className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm text-muted-foreground">#{ticket.number}</span>
-            <h1 className="text-2xl font-semibold tracking-tight">{ticket.subject}</h1>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
+            {ticket.subject}
+          </span>
+        }
+        description={
+          <>
             {TICKET_CATEGORY_LABELS[ticket.category] ?? humanize(ticket.category)} · submitted by{' '}
             {ticket.createdBy.firstName} {ticket.createdBy.lastName} on{' '}
             {fmtDateTime(ticket.createdAt)}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <StatusBadge status={ticket.status} />
-          {isAdmin ? (
-            <Select
-              className="w-36"
-              value={ticket.status}
-              disabled={setStatus.isPending}
-              onChange={(e) => setStatus.mutate(e.target.value)}
-            >
-              {TICKET_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {humanize(s)}
-                </option>
-              ))}
-            </Select>
-          ) : null}
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <StatusBadge status={ticket.status} />
+            {isAdmin ? (
+              <Select
+                className="w-36"
+                value={ticket.status}
+                disabled={setStatus.isPending}
+                onChange={(e) => setStatus.mutate(e.target.value)}
+              >
+                {TICKET_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {humanize(s)}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+          </>
+        }
+      />
 
       <div className="space-y-3">
         {ticket.messages.map((m) => {
@@ -124,7 +130,7 @@ export function TicketDetailPage() {
           onChange={(e) => setReply(e.target.value)}
           placeholder={isAdmin ? 'Reply to this ticket…' : 'Add more detail or reply…'}
         />
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <FormError message={error} />
         <div className="flex justify-end">
           <Button disabled={!reply.trim() || send.isPending} onClick={() => send.mutate()}>
             {send.isPending ? 'Sending…' : 'Send reply'}

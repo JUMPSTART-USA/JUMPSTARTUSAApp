@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { fullName } from '@/lib/utils';
@@ -44,8 +44,7 @@ export function GlobalSearch() {
 
   return (
     <div ref={boxRef} className="relative w-full max-w-md">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-      <input
+      <SearchInput
         value={term}
         onChange={(e) => {
           setTerm(e.target.value);
@@ -53,10 +52,11 @@ export function GlobalSearch() {
         }}
         onFocus={() => setOpen(true)}
         placeholder="Search participants by name, number, phone…"
-        className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label="Search participants"
+        className="sm:w-full"
       />
       {open && enabled && data && data.items.length > 0 ? (
-        <div className="absolute top-11 z-50 w-full rounded-md border bg-card shadow-md">
+        <div className="absolute top-11 z-50 w-full overflow-hidden rounded-md border bg-card shadow-card">
           {data.items.map((hit) => (
             <button
               key={hit.id}

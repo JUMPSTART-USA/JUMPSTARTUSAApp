@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
 import { EmptyState } from '@/components/ui/spinner';
 import {
   Table,
@@ -33,9 +34,9 @@ import {
 } from '@/components/ui/table';
 import { api, ApiError, qs } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, todayInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
 import { useInsideClassesLookup, useInstitutionsLookup, useOutsideProgramsLookup, useEventsLookup } from '../lookups';
-import { applyApiFormErrors, ErrorNotice, WarningNotice } from '../shared';
 import type { AssignmentRow, EligibilityResult, VolunteerDetail } from '../types';
 
 function assignmentPlace(row: AssignmentRow) {
@@ -69,7 +70,7 @@ export function AssignmentsTab({ volunteer }: { volunteer: VolunteerDetail }) {
           {volunteer.assignments.length} assignment{volunteer.assignments.length === 1 ? '' : 's'}
         </p>
         {can('volunteers.create') ? (
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
+          <Button onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4" /> New assignment
           </Button>
         ) : null}
@@ -180,7 +181,7 @@ function NewAssignmentDialog({
     defaultValues: {
       volunteerProfileId: volunteer.id,
       assignmentType: 'inside_class',
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: todayInput(),
       status: 'active',
       clearanceOverride: false,
     },
@@ -244,7 +245,7 @@ function NewAssignmentDialog({
         }
         return;
       }
-      setTopError(applyApiFormErrors(err, form.setError));
+      setTopError(applyApiError(err, form.setError));
     },
   });
 
@@ -259,7 +260,7 @@ function NewAssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>New assignment</DialogTitle>
           <DialogDescription>
@@ -269,7 +270,7 @@ function NewAssignmentDialog({
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Assignment type" required error={formState.errors.assignmentType}>
               <Select {...register('assignmentType')}>
                 {ASSIGNMENT_TYPES.map((t) => (
@@ -361,7 +362,7 @@ function NewAssignmentDialog({
             <FormField label="End date" error={formState.errors.endDate}>
               <Input type="date" {...register('endDate')} />
             </FormField>
-            <FormField label="Notes" error={formState.errors.notes} className="col-span-2">
+            <FormField label="Notes" error={formState.errors.notes} className="sm:col-span-2">
               <Textarea rows={2} {...register('notes')} />
             </FormField>
           </div>
@@ -369,36 +370,38 @@ function NewAssignmentDialog({
           {effectiveInstitutionId && missing.length > 0 ? (
             <div className="space-y-2">
               {hardMissing.length > 0 ? (
-                <ErrorNotice>
-                  <p className="font-medium">
-                    Missing hard-block requirements — this assignment will be rejected:
-                  </p>
-                  <ul className="mt-1 list-inside list-disc">
+                <Notice
+                  variant="error"
+                  title="Missing hard-block requirements — this assignment will be rejected:"
+                >
+                  <ul>
                     {hardMissing.map((m) => (
                       <li key={m.requirement.id}>
                         {m.requirement.name} ({humanize(m.status)})
                       </li>
                     ))}
                   </ul>
-                </ErrorNotice>
+                </Notice>
               ) : null}
               {softMissing.length > 0 ? (
-                <WarningNotice>
-                  <p className="font-medium">Missing clearances (override allowed with reason):</p>
-                  <ul className="mt-1 list-inside list-disc">
+                <Notice
+                  variant="warning"
+                  title="Missing clearances (override allowed with reason):"
+                >
+                  <ul>
                     {softMissing.map((m) => (
                       <li key={m.requirement.id}>
                         {m.requirement.name} ({humanize(m.status)})
                       </li>
                     ))}
                   </ul>
-                </WarningNotice>
+                </Notice>
               ) : null}
             </div>
           ) : null}
 
-          {hardConflict ? <ErrorNotice>{hardConflict}</ErrorNotice> : null}
-          {softConflict ? <WarningNotice>{softConflict}</WarningNotice> : null}
+          <FormError message={hardConflict} />
+          {softConflict ? <Notice variant="warning">{softConflict}</Notice> : null}
 
           {showOverrideControls ? (
             <div className="space-y-2 rounded-md border px-3 py-2">
@@ -423,14 +426,14 @@ function NewAssignmentDialog({
             </div>
           ) : null}
 
-          {topError ? <ErrorNotice>{topError}</ErrorNotice> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => close(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? 'Creating…' : 'Create assignment'}
+              {create.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
