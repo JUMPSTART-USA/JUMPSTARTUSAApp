@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Download, Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { FormField } from '@/components/FormField';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import {
   Table,
   TableBody,
@@ -17,12 +19,12 @@ import {
 import { EmptyState, ErrorState, PageLoader, Spinner } from '@/components/ui/spinner';
 import { api, qs } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { BackLink } from '@/components/BackLink';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
 import {
   useCampaignOptions,
   useCaseManagerOptions,
-  useDebounced,
   useEmployerOptions,
   useInsideClassOptions,
   useInstitutionOptions,
@@ -72,7 +74,6 @@ function renderCell(colKey: string, value: ReportCell) {
 
 export function ReportRunnerPage() {
   const { key } = useParams<{ key: string }>();
-  const navigate = useNavigate();
   const { data: catalog, isLoading, error } = useReportCatalog();
 
   if (isLoading) return <PageLoader />;
@@ -96,7 +97,6 @@ export function ReportRunnerPage() {
 }
 
 function RunnerInner({ report }: { report: ReportSummary }) {
-  const navigate = useNavigate();
   const { can } = useAuth();
 
   const [values, setValues] = useState<Record<string, string>>({});
@@ -209,60 +209,62 @@ function RunnerInner({ report }: { report: ReportSummary }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <BackLink fallbackTo="/reports" fallbackLabel="Reports" />
-          <h1 className="text-xl font-semibold">{report.name}</h1>
-        </div>
-        {can('reports.export') ? (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={missingRequired.length > 0}
-              onClick={() => window.open(exportUrl('csv'))}
-            >
-              <Download className="h-4 w-4" /> Export CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={missingRequired.length > 0}
-              onClick={() => window.open(exportUrl('xlsx'))}
-            >
-              <Download className="h-4 w-4" /> Export Excel
-            </Button>
-          </div>
-        ) : null}
+      <div>
+        <BackLink fallbackTo="/reports" fallbackLabel="Reports" />
+        <PageHeader
+          className="mt-1"
+          title={report.name}
+          actions={
+            can('reports.export') ? (
+              <>
+                <Button
+                  variant="outline"
+                  disabled={missingRequired.length > 0}
+                  onClick={() => window.open(exportUrl('csv'))}
+                >
+                  <Download className="h-4 w-4" /> Export CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={missingRequired.length > 0}
+                  onClick={() => window.open(exportUrl('xlsx'))}
+                >
+                  <Download className="h-4 w-4" /> Export Excel
+                </Button>
+              </>
+            ) : undefined
+          }
+        />
       </div>
 
       {report.params.length > 0 ? (
-        <div className="rounded-lg border bg-card p-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {report.params.map((param) => (
-              <FormField key={param.name} label={param.label} required={param.required}>
-                {renderControl(param)}
-              </FormField>
-            ))}
-          </div>
-          <div className="mt-4 flex items-center gap-3">
-            <Button
-              size="sm"
-              disabled={missingRequired.length > 0 || runQuery.isFetching}
-              onClick={() => {
-                setSubmitted(cleanParams());
-                setRunId((n) => n + 1);
-              }}
-            >
-              <Play className="h-4 w-4" /> {runQuery.isFetching ? 'Running…' : 'Run report'}
-            </Button>
-            {missingRequired.length > 0 ? (
-              <span className="text-sm text-muted-foreground">
-                Select {missingRequired.map((p) => p.label).join(', ')} to run
-              </span>
-            ) : null}
-          </div>
-        </div>
+        <Card>
+          <CardContent className="p-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {report.params.map((param) => (
+                <FormField key={param.name} label={param.label} required={param.required}>
+                  {renderControl(param)}
+                </FormField>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Button
+                disabled={missingRequired.length > 0 || runQuery.isFetching}
+                onClick={() => {
+                  setSubmitted(cleanParams());
+                  setRunId((n) => n + 1);
+                }}
+              >
+                <Play className="h-4 w-4" /> {runQuery.isFetching ? 'Running…' : 'Run report'}
+              </Button>
+              {missingRequired.length > 0 ? (
+                <span className="text-sm text-muted-foreground">
+                  Select {missingRequired.map((p) => p.label).join(', ')} to run
+                </span>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
       ) : null}
 
       {runQuery.error ? <ErrorState error={runQuery.error} /> : null}

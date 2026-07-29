@@ -1,4 +1,3 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   SESSION_MODES,
   mentorAssignmentEndSchema,
@@ -8,13 +7,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import {
   Dialog,
   DialogContent,
@@ -24,19 +24,20 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import { applyApiErrors, emptyToUndefined, type AssignmentView, type SessionLogView } from './types';
+import { emptyToUndefined, type AssignmentView, type SessionLogView } from './types';
 
 function PauseDialog({ assignment, onClose }: { assignment: AssignmentView; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<{ pauseReason?: string }>({
-    resolver: zodResolver(mentorAssignmentPauseSchema) as unknown as Resolver<{
-      pauseReason?: string;
-    }>,
+    resolver: formResolver<{ pauseReason?: string }>(mentorAssignmentPauseSchema),
   });
 
   const mutation = useMutation({
@@ -46,7 +47,7 @@ function PauseDialog({ assignment, onClose }: { assignment: AssignmentView; onCl
       queryClient.invalidateQueries({ queryKey: ['mentoring'] });
       onClose();
     },
-    onError: (err) => setTopError(applyApiErrors(err, (n, e) => form.setError(n as never, e))),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   return (
@@ -63,7 +64,7 @@ function PauseDialog({ assignment, onClose }: { assignment: AssignmentView; onCl
             mutation.mutate(v);
           })}
         >
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <FormField label="Reason" required error={form.formState.errors.pauseReason}>
             <Textarea rows={3} {...form.register('pauseReason')} />
           </FormField>
@@ -72,7 +73,7 @@ function PauseDialog({ assignment, onClose }: { assignment: AssignmentView; onCl
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Pausing…' : 'Pause'}
+              {mutation.isPending ? 'Saving…' : 'Pause'}
             </Button>
           </DialogFooter>
         </form>
@@ -85,11 +86,8 @@ function EndDialog({ assignment, onClose }: { assignment: AssignmentView; onClos
   const queryClient = useQueryClient();
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<{ endDate?: string; endReason?: string }>({
-    resolver: zodResolver(mentorAssignmentEndSchema) as unknown as Resolver<{
-      endDate?: string;
-      endReason?: string;
-    }>,
-    defaultValues: { endDate: new Date().toISOString().slice(0, 10) },
+    resolver: formResolver<{ endDate?: string; endReason?: string }>(mentorAssignmentEndSchema),
+    defaultValues: { endDate: todayInput() },
   });
 
   const mutation = useMutation({
@@ -99,7 +97,7 @@ function EndDialog({ assignment, onClose }: { assignment: AssignmentView; onClos
       queryClient.invalidateQueries({ queryKey: ['mentoring'] });
       onClose();
     },
-    onError: (err) => setTopError(applyApiErrors(err, (n, e) => form.setError(n as never, e))),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   return (
@@ -118,7 +116,7 @@ function EndDialog({ assignment, onClose }: { assignment: AssignmentView; onClos
             mutation.mutate(v);
           })}
         >
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <FormField label="End date" required error={form.formState.errors.endDate}>
             <Input type="date" {...form.register('endDate')} />
           </FormField>
@@ -130,7 +128,7 @@ function EndDialog({ assignment, onClose }: { assignment: AssignmentView; onClos
               Cancel
             </Button>
             <Button type="submit" variant="destructive" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Ending…' : 'End assignment'}
+              {mutation.isPending ? 'Saving…' : 'End assignment'}
             </Button>
           </DialogFooter>
         </form>
@@ -159,10 +157,10 @@ function LogSessionDialog({
   const queryClient = useQueryClient();
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<SessionFormValues>({
-    resolver: zodResolver(mentorSessionLogSchema) as unknown as Resolver<SessionFormValues>,
+    resolver: formResolver<SessionFormValues>(mentorSessionLogSchema),
     defaultValues: {
       mentorAssignmentId: assignment.id,
-      sessionDate: new Date().toISOString().slice(0, 10),
+      sessionDate: todayInput(),
       concernsEscalated: false,
     },
   });
@@ -173,7 +171,7 @@ function LogSessionDialog({
       queryClient.invalidateQueries({ queryKey: ['mentoring'] });
       onClose();
     },
-    onError: (err) => setTopError(applyApiErrors(err, (n, e) => form.setError(n as never, e))),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   const concerns = form.watch('concernsEscalated');
@@ -194,7 +192,7 @@ function LogSessionDialog({
             mutation.mutate(v);
           })}
         >
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Session date" required error={form.formState.errors.sessionDate}>
               <Input type="date" {...form.register('sessionDate')} />
@@ -237,7 +235,7 @@ function LogSessionDialog({
           <label
             className={
               concerns
-                ? 'flex items-start gap-2 rounded-md border border-amber-400 bg-amber-50 p-3'
+                ? 'flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3'
                 : 'flex items-start gap-2 rounded-md border p-3'
             }
           >
@@ -258,7 +256,7 @@ function LogSessionDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Log session'}
+              {mutation.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
@@ -310,7 +308,7 @@ export function AssignmentDetailPage() {
       setActionError(null);
       queryClient.invalidateQueries({ queryKey: ['mentoring'] });
     },
-    onError: (err) => setActionError(applyApiErrors(err, () => undefined)),
+    onError: (err) => setActionError(applyApiError(err)),
   });
 
   if (query.isLoading) return <PageLoader />;
@@ -360,135 +358,116 @@ export function AssignmentDetailPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-sm text-muted-foreground">
-            <Link to=".." relative="path" className="hover:underline">
-              Assignments
-            </Link>{' '}
-            / detail
-          </div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+      <div className="text-sm text-muted-foreground">
+        <Link to=".." relative="path" className="hover:underline">
+          Assignments
+        </Link>{' '}
+        / detail
+      </div>
+      <PageHeader
+        title={
+          <span className="flex flex-wrap items-center gap-2">
             {assignment.mentorName}
             <span className="text-muted-foreground">→</span>
             {assignment.participantName}
             <StatusBadge status={assignment.status} />
-          </h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {(assignment.status === 'proposed' || assignment.status === 'paused') ? (
-            <Button onClick={() => activate.mutate()} disabled={activate.isPending}>
-              {activate.isPending
-                ? 'Activating…'
-                : assignment.status === 'paused'
-                  ? 'Resume'
-                  : 'Activate'}
-            </Button>
-          ) : null}
-          {assignment.status === 'active' && can('mentoring.update') ? (
-            <Button variant="outline" onClick={() => setDialog('pause')}>
-              Pause
-            </Button>
-          ) : null}
-          {assignment.status !== 'ended' && can('mentoring.update') ? (
-            <Button variant="outline" onClick={() => setDialog('end')}>
-              End
-            </Button>
-          ) : null}
-          {assignment.status !== 'proposed' && can('mentoring.create') ? (
-            <Button variant="secondary" onClick={() => setDialog('session')}>
-              Log session
-            </Button>
-          ) : null}
-        </div>
-      </div>
+          </span>
+        }
+        actions={
+          <>
+            {(assignment.status === 'proposed' || assignment.status === 'paused') ? (
+              <Button onClick={() => activate.mutate()} disabled={activate.isPending}>
+                {activate.isPending
+                  ? 'Activating…'
+                  : assignment.status === 'paused'
+                    ? 'Resume'
+                    : 'Activate'}
+              </Button>
+            ) : null}
+            {assignment.status === 'active' && can('mentoring.update') ? (
+              <Button variant="outline" onClick={() => setDialog('pause')}>
+                Pause
+              </Button>
+            ) : null}
+            {assignment.status !== 'ended' && can('mentoring.update') ? (
+              <Button variant="outline" onClick={() => setDialog('end')}>
+                End
+              </Button>
+            ) : null}
+            {assignment.status !== 'proposed' && can('mentoring.create') ? (
+              <Button variant="secondary" onClick={() => setDialog('session')}>
+                Log session
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      {actionError ? <ErrorState error={new Error(actionError)} /> : null}
+      <FormError message={actionError} />
 
       {assignment.status === 'proposed' ? (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <Notice variant="warning">
           Proposed match — only the participant&apos;s assigned case manager (or
           case-management staff) can activate it. Sessions cannot be logged until then.
-        </div>
+        </Notice>
       ) : null}
       {assignment.status === 'paused' && assignment.pauseReason ? (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Paused: {assignment.pauseReason}
-        </div>
+        <Notice variant="warning">Paused: {assignment.pauseReason}</Notice>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Parties</CardTitle>
+            <CardTitle>Parties</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Mentor</span>
-              <span>{assignment.mentorName}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Participant</span>
-              <Link
-                to={`/participants/${assignment.participantProfileId}`}
-                className="text-primary hover:underline"
-              >
-                {assignment.participantName}
-              </Link>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Participant #</span>
-              <span>{assignment.participantNumber}</span>
-            </div>
+          <CardContent>
+            <DescriptionList columns={1}>
+              <InfoItem label="Mentor">{assignment.mentorName}</InfoItem>
+              <InfoItem label="Participant">
+                <Link
+                  to={`/participants/${assignment.participantProfileId}`}
+                  className="text-primary hover:underline"
+                >
+                  {assignment.participantName}
+                </Link>
+              </InfoItem>
+              <InfoItem label="Participant #">{assignment.participantNumber}</InfoItem>
+            </DescriptionList>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Timeline</CardTitle>
+            <CardTitle>Timeline</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Proposed</span>
-              <span>{formatDate(assignment.createdAt)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Started</span>
-              <span>{formatDate(assignment.startDate)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Ended</span>
-              <span>{formatDate(assignment.endDate)}</span>
-            </div>
-            {assignment.endReason ? (
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">End reason</span>
-                <span className="text-right">{assignment.endReason}</span>
-              </div>
-            ) : null}
+          <CardContent>
+            <DescriptionList columns={1}>
+              <InfoItem label="Proposed">{formatDate(assignment.createdAt)}</InfoItem>
+              <InfoItem label="Started">{formatDate(assignment.startDate)}</InfoItem>
+              <InfoItem label="Ended">{formatDate(assignment.endDate)}</InfoItem>
+              {assignment.endReason ? (
+                <InfoItem label="End reason">{assignment.endReason}</InfoItem>
+              ) : null}
+            </DescriptionList>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Match</CardTitle>
+            <CardTitle>Match</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Cadence</span>
-              <span>{assignment.meetingCadence ?? '—'}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Rationale</span>
-              <p className="mt-1">{assignment.matchRationale ?? '—'}</p>
-            </div>
+          <CardContent>
+            <DescriptionList columns={1}>
+              <InfoItem label="Cadence">{assignment.meetingCadence ?? undefined}</InfoItem>
+              <InfoItem label="Rationale">{assignment.matchRationale ?? undefined}</InfoItem>
+            </DescriptionList>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Session logs</CardTitle>
+          <CardTitle>Session logs</CardTitle>
         </CardHeader>
         <CardContent>
           {sessions.isError ? (

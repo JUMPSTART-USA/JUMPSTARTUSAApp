@@ -1,4 +1,3 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   CHECKIN_METHODS,
   CHECKIN_WAVES,
@@ -9,7 +8,7 @@ import {
 } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { useForm, type Resolver, type UseFormReturn } from 'react-hook-form';
+import { useForm, type UseFormReturn } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
@@ -24,11 +23,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, todayInput, useDebounced } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import { applyApiErrors, emptyToUndefined, isOverdue, type CheckinView } from './types';
+import { emptyToUndefined, isOverdue, type CheckinView } from './types';
 
 interface CheckinFormValues {
   completedDate: string;
@@ -120,9 +123,9 @@ function CompleteCheckinDialog({
   const form = useForm<CheckinFormValues>({
     // Client resolver mirrors the API's schema; dates stay strings — the
     // schema coerces on both sides.
-    resolver: zodResolver(outcomeCheckinCompleteSchema) as unknown as Resolver<CheckinFormValues>,
+    resolver: formResolver<CheckinFormValues>(outcomeCheckinCompleteSchema),
     defaultValues: {
-      completedDate: new Date().toISOString().slice(0, 10),
+      completedDate: todayInput(),
       method: checkin.method ?? undefined,
       employmentStatus: checkin.employmentStatus ?? undefined,
       housingStatus: checkin.housingStatus ?? undefined,
@@ -144,14 +147,14 @@ function CompleteCheckinDialog({
       queryClient.invalidateQueries({ queryKey: ['mentoring'] });
       onClose();
     },
-    onError: (err) => setTopError(applyApiErrors(err, (n, e) => form.setError(n as never, e))),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   const person = checkin.participantProfile.person;
 
   return (
     <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>
             {checkin.completedDate ? 'Revise' : 'Complete'} {humanize(checkin.wave)} check-in
@@ -169,7 +172,7 @@ function CompleteCheckinDialog({
             mutation.mutate(values);
           })}
         >
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Completed date" required error={form.formState.errors.completedDate}>
@@ -248,7 +251,7 @@ function CompleteCheckinDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Save check-in'}
+              {mutation.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>
@@ -263,16 +266,12 @@ export function OutcomeCheckinsPage() {
   const [due, setDue] = useState<'overdue' | 'upcoming' | ''>('overdue');
   const [wave, setWave] = useState('');
   const [search, setSearch] = useState('');
-  const [debounced, setDebounced] = useState('');
   const [completing, setCompleting] = useState<CheckinView | null>(null);
+  const debounced = useDebounced(search);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      setDebounced(search);
-      setState((s) => ({ ...s, page: 1 }));
-    }, 300);
-    return () => clearTimeout(t);
-  }, [search]);
+    setState((s) => (s.page === 1 ? s : { ...s, page: 1 }));
+  }, [debounced]);
 
   const query = useQuery({
     queryKey: ['mentoring', 'checkins', state, due, wave, debounced],
@@ -369,19 +368,16 @@ export function OutcomeCheckinsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Outcome Check-ins</h1>
-      </div>
+      <PageHeader title="Outcome Check-ins" />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-64"
+      <ListToolbar>
+        <SearchInput
           placeholder="Search participant name or number…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <Select
-          className="w-40"
+          className="w-full sm:w-44"
           value={due}
           onChange={(e) => {
             setDue(e.target.value as typeof due);
@@ -393,7 +389,7 @@ export function OutcomeCheckinsPage() {
           <option value="">All</option>
         </Select>
         <Select
-          className="w-40"
+          className="w-full sm:w-44"
           value={wave}
           onChange={(e) => {
             setWave(e.target.value);
@@ -407,7 +403,7 @@ export function OutcomeCheckinsPage() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.isError ? (
         <ErrorState error={query.error} />

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowUpRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { StatusBadge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -46,20 +46,19 @@ function ChecklistCard({ checklist }: { checklist: ChecklistRow }) {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <div>
-          <CardTitle className="text-base">
-            {checklist.template?.name ?? 'Onboarding checklist'}
-          </CardTitle>
-          <p className="mt-1 text-xs text-muted-foreground">
+      <CardHeaderRow
+        title={checklist.template?.name ?? 'Onboarding checklist'}
+        description={
+          <>
             Started {formatDate(checklist.startedAt)}
             {checklist.completedAt ? ` · Completed ${formatDate(checklist.completedAt)}` : ''}
-          </p>
-        </div>
+          </>
+        }
+      >
         <span className="text-sm font-medium">
           {done}/{relevant.length} · {pct}%
         </span>
-      </CardHeader>
+      </CardHeaderRow>
       <CardContent className="space-y-3">
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />

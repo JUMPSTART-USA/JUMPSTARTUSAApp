@@ -7,7 +7,6 @@ import type {
   SessionMode,
   VerificationLevel,
 } from '@jumpstart/shared';
-import { ApiError } from '@/lib/api';
 
 // ── API view shapes (mirrors the mentoring services' toView outputs) ─────────
 
@@ -150,22 +149,4 @@ export const emptyToUndefined = (v: unknown) => (v === '' ? undefined : v);
 export function isOverdue(c: Pick<CheckinView, 'dueDate' | 'completedDate'>): boolean {
   if (c.completedDate) return false;
   return c.dueDate.slice(0, 10) < new Date().toISOString().slice(0, 10);
-}
-
-/**
- * Maps API validation errors onto form fields; returns a top-level message
- * when there are no field-level errors to show.
- */
-export function applyApiErrors(
-  err: unknown,
-  setError: (name: string, error: { message?: string }) => void,
-): string | null {
-  if (err instanceof ApiError) {
-    if (err.errors && err.errors.length > 0) {
-      for (const e of err.errors) setError(e.path, { message: e.message });
-      return null;
-    }
-    return err.message;
-  }
-  return err instanceof Error ? err.message : 'Request failed';
 }

@@ -11,8 +11,9 @@ import { useEffect } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { FormField } from '@/components/FormField';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
+import { toDateInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
-import { toDateInput, type CaseManagerOption } from './shared';
+import type { CaseManagerOption } from './shared';
 import type { ParticipantDetail } from './types';
 
 /**

@@ -13,10 +13,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Textarea } from '@/components/ui/input';
-import { ErrorState } from '@/components/ui/spinner';
+import { FormError, Notice } from '@/components/ui/notice';
 import { api, ApiError } from '@/lib/api';
+import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { fullName } from '@/lib/utils';
-import { AmberNotice, applyApiError, schemaResolver } from './shared';
 import type { ParticipantDetail } from './types';
 
 interface GraduateFormValues {
@@ -44,9 +44,9 @@ export function GraduateDialog({
   const [topError, setTopError] = useState<string | null>(null);
 
   const form = useForm<GraduateFormValues>({
-    resolver: schemaResolver<GraduateFormValues>(graduationSchema),
+    resolver: formResolver<GraduateFormValues>(graduationSchema),
     defaultValues: {
-      graduationDate: new Date().toISOString().slice(0, 10),
+      graduationDate: todayInput(),
       overrideIncompleteAssessments: false,
       overrideReason: '',
     },
@@ -55,7 +55,7 @@ export function GraduateDialog({
   useEffect(() => {
     if (open) {
       form.reset({
-        graduationDate: new Date().toISOString().slice(0, 10),
+        graduationDate: todayInput(),
         overrideIncompleteAssessments: false,
         overrideReason: '',
       });
@@ -111,7 +111,7 @@ export function GraduateDialog({
             <Input type="date" {...form.register('graduationDate')} />
           </FormField>
 
-          {blockMessage ? <AmberNotice>{blockMessage}</AmberNotice> : null}
+          {blockMessage ? <Notice variant="warning">{blockMessage}</Notice> : null}
 
           {blockMessage || overriding ? (
             <div className="space-y-3 rounded-md border p-4">
@@ -134,14 +134,14 @@ export function GraduateDialog({
             </div>
           ) : null}
 
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={graduateMutation.isPending}>
-              {graduateMutation.isPending ? 'Graduating…' : 'Graduate'}
+              {graduateMutation.isPending ? 'Saving…' : 'Graduate'}
             </Button>
           </DialogFooter>
         </form>

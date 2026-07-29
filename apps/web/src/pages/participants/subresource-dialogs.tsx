@@ -19,10 +19,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
-import { ErrorState } from '@/components/ui/spinner';
+import { FormError, Notice } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { applyApiError, formResolver, toDateInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
-import { AmberNotice, applyApiError, schemaResolver, toDateInput } from './shared';
 import type { DocIdRow, PersonAddressRow, PersonContactRow, TestimonyConsentRow } from './types';
 
 /**
@@ -98,7 +98,7 @@ export function ContactDialog({
 }: SubresourceDialogProps<PersonContactRow>) {
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<ContactFormValues>({
-    resolver: schemaResolver<ContactFormValues>(personContactSchema),
+    resolver: formResolver<ContactFormValues>(personContactSchema),
     defaultValues: contactDefaults(existing),
   });
   useEffect(() => {
@@ -167,7 +167,7 @@ export function ContactDialog({
           <FormField label="Notes" error={errors.notes}>
             <Textarea rows={2} {...form.register('notes')} />
           </FormField>
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -220,7 +220,7 @@ export function AddressDialog({
 }: SubresourceDialogProps<PersonAddressRow>) {
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<AddressFormValues>({
-    resolver: schemaResolver<AddressFormValues>(personAddressSchema),
+    resolver: formResolver<AddressFormValues>(personAddressSchema),
     defaultValues: addressDefaults(existing),
   });
   useEffect(() => {
@@ -298,7 +298,7 @@ export function AddressDialog({
           <FormField label="Notes" error={errors.notes}>
             <Textarea rows={2} {...form.register('notes')} />
           </FormField>
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -336,7 +336,7 @@ export function DocIdDialog({
     source: existing?.source ?? 'staff_entered',
   });
   const form = useForm<DocIdFormValues>({
-    resolver: schemaResolver<DocIdFormValues>(participantDocIdSchema),
+    resolver: formResolver<DocIdFormValues>(participantDocIdSchema),
     defaultValues: defaults(),
   });
   useEffect(() => {
@@ -371,10 +371,10 @@ export function DocIdDialog({
           </DialogDescription>
         </DialogHeader>
         {masked ? (
-          <AmberNotice>
+          <Notice variant="warning">
             The existing DOC number is hidden from your account (justice-history field class). A
             value entered below will replace it.
-          </AmberNotice>
+          </Notice>
         ) : null}
         <form
           onSubmit={(e) => {
@@ -407,7 +407,7 @@ export function DocIdDialog({
               </Select>
             </FormField>
           </div>
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -448,7 +448,7 @@ export function ConsentDialog({
 }: SubresourceDialogProps<TestimonyConsentRow>) {
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<ConsentFormValues>({
-    resolver: schemaResolver<ConsentFormValues>(testimonyConsentSchema),
+    resolver: formResolver<ConsentFormValues>(testimonyConsentSchema),
     defaultValues: consentDefaults(existing),
   });
   useEffect(() => {
@@ -499,7 +499,7 @@ export function ConsentDialog({
           <FormField label="Notes" error={errors.notes}>
             <Textarea rows={2} {...form.register('notes')} />
           </FormField>
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

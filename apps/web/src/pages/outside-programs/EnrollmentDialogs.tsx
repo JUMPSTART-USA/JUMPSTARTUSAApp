@@ -18,20 +18,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api } from '@/lib/api';
+import { applyApiError, formResolver, toDateInput, todayInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
-import {
-  applyApiError,
-  dateInput,
-  emptyToUndef,
-  FormErrorNotice,
-  formResolver,
-  ParticipantPicker,
-  participantLabel,
-  todayInput,
-  WarningNotice,
-} from './shared';
-import type { OutsideEnrollment, ParticipantRef } from './types';
+import { emptyToUndef, participantLabel } from './shared';
+import type { OutsideEnrollment } from './types';
 
 interface EnrollmentFormValues {
   participantProfileId: string;
@@ -120,7 +113,7 @@ export function EnrollDialog({
   programName: string;
 }) {
   const queryClient = useQueryClient();
-  const [participant, setParticipant] = useState<ParticipantRef | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [topError, setTopError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[] | null>(null);
 
@@ -174,7 +167,7 @@ export function EnrollDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Enroll participant</DialogTitle>
           <DialogDescription>{programName}</DialogDescription>
@@ -182,14 +175,20 @@ export function EnrollDialog({
         {warnings ? (
           <div className="space-y-4">
             <p className="text-sm">Enrollment recorded.</p>
-            <WarningNotice warnings={warnings} />
+            <Notice variant="warning">
+              <ul>
+                {warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </Notice>
             <DialogFooter>
               <Button onClick={() => onOpenChange(false)}>Done</Button>
             </DialogFooter>
           </div>
         ) : (
           <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
-            <FormErrorNotice message={topError} />
+            <FormError message={topError} />
             <input type="hidden" {...register('outsideProgramId')} />
             <input type="hidden" {...register('participantProfileId')} />
             <FormField
@@ -201,7 +200,7 @@ export function EnrollDialog({
             >
               <ParticipantPicker
                 value={participant}
-                onSelect={(p) => {
+                onChange={(p) => {
                   setParticipant(p);
                   setValue('participantProfileId', p?.id ?? '', { shouldValidate: !!p });
                 }}
@@ -269,10 +268,10 @@ export function EnrollmentEditDialog({
       reset({
         participantProfileId: enrollment.participantProfileId,
         outsideProgramId: enrollment.outsideProgramId,
-        enrollmentDate: dateInput(enrollment.enrollmentDate),
+        enrollmentDate: toDateInput(enrollment.enrollmentDate),
         status: enrollment.status,
-        completionDate: dateInput(enrollment.completionDate),
-        leftEarlyDate: dateInput(enrollment.leftEarlyDate),
+        completionDate: toDateInput(enrollment.completionDate),
+        leftEarlyDate: toDateInput(enrollment.leftEarlyDate),
         leftEarlyReason: enrollment.leftEarlyReason ?? '',
         completionAssessment: enrollment.completionAssessment ?? '',
         assessmentNotes: enrollment.assessmentNotes ?? '',
@@ -303,7 +302,7 @@ export function EnrollmentEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Edit enrollment</DialogTitle>
           <DialogDescription>
@@ -311,7 +310,7 @@ export function EnrollmentEditDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
-          <FormErrorNotice message={topError} />
+          <FormError message={topError} />
           <input type="hidden" {...register('participantProfileId')} />
           <input type="hidden" {...register('outsideProgramId')} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -337,7 +336,7 @@ export function EnrollmentEditDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Save changes'}
+              {mutation.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

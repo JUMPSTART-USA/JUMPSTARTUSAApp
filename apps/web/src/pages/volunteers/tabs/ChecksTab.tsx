@@ -17,11 +17,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { ErrorState } from '@/components/ui/spinner';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, toDateInput, todayInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import { applyApiFormErrors, ErrorNotice, ExpiryBadge, toDateInput } from '../shared';
+import { ExpiryBadge } from '../shared';
 import type { BackgroundCheckRow } from '../types';
 
 interface CheckFormValues {
@@ -136,7 +138,6 @@ export function ChecksTab({ personId }: { personId: string }) {
         </p>
         {canRecord ? (
           <Button
-            size="sm"
             onClick={() => {
               setEditing(null);
               setDialogOpen(true);
@@ -191,7 +192,7 @@ function CheckDialog({
       personId,
       vendor: check?.vendor ?? '',
       package: check?.package ?? '',
-      orderedAt: toDateInput(check?.orderedAt) || new Date().toISOString().slice(0, 10),
+      orderedAt: toDateInput(check?.orderedAt) || todayInput(),
       completedAt: toDateInput(check?.completedAt),
       result: check?.result ?? 'pending',
       expiresAt: toDateInput(check?.expiresAt),
@@ -209,7 +210,7 @@ function CheckDialog({
       setTopError(null);
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyApiFormErrors(err, form.setError)),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   const onSubmit = form.handleSubmit((data) => {
@@ -229,7 +230,7 @@ function CheckDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Vendor" required error={formState.errors.vendor}>
               <Input {...register('vendor')} placeholder="e.g. Sterling Volunteers" />
             </FormField>
@@ -259,14 +260,14 @@ function CheckDialog({
             <Textarea rows={2} {...register('notes')} />
           </FormField>
 
-          {topError ? <ErrorNotice>{topError}</ErrorNotice> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : check ? 'Save changes' : 'Record check'}
+              {save.isPending ? 'Saving…' : check ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

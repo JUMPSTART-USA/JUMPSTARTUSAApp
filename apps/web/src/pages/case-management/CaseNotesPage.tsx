@@ -25,19 +25,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { SectionHeader } from '@/components/ui/page-header';
+import { ListToolbar } from '@/components/ui/toolbar';
 import { ErrorState, Spinner } from '@/components/ui/spinner';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import {
-  applyFormErrors,
-  isConfidentialStub,
-  ParticipantPicker,
-  todayStr,
-  zodForm,
-  type CaseNoteRow,
-  type ParticipantRef,
-} from './shared';
+import { isConfidentialStub, type CaseNoteRow } from './shared';
 
 const LAST_USED_KEY = 'jumpstart.caseNotes.lastUsed';
 
@@ -85,17 +82,17 @@ function NewNoteDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialParticipant: ParticipantRef | null;
+  initialParticipant: PickerOption | null;
 }) {
   const queryClient = useQueryClient();
-  const [participant, setParticipant] = useState<ParticipantRef | null>(initialParticipant);
-  const [topError, setTopError] = useState('');
+  const [participant, setParticipant] = useState<PickerOption | null>(initialParticipant);
+  const [topError, setTopError] = useState<string | null>(null);
 
   const form = useForm<NoteFormValues>({
-    resolver: zodForm<NoteFormValues>(caseNoteSchema),
+    resolver: formResolver<NoteFormValues>(caseNoteSchema),
     defaultValues: {
       participantProfileId: initialParticipant?.id ?? '',
-      noteDate: todayStr(),
+      noteDate: todayInput(),
       ...readLastUsed(),
       content: '',
       followUpRequired: false,
@@ -116,17 +113,17 @@ function NewNoteDialog({
       queryClient.invalidateQueries({ queryKey: ['case-management'] });
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyFormErrors(err, setError)),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   const openChange = (next: boolean) => {
     if (next) {
       const last = readLastUsed();
       setParticipant(initialParticipant);
-      setTopError('');
+      setTopError(null);
       reset({
         participantProfileId: initialParticipant?.id ?? '',
-        noteDate: todayStr(),
+        noteDate: todayInput(),
         category: last.category,
         contactType: last.contactType,
         content: '',
@@ -140,7 +137,7 @@ function NewNoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={openChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>New case note</DialogTitle>
           <DialogDescription>Log a contact with a participant.</DialogDescription>
@@ -148,7 +145,7 @@ function NewNoteDialog({
         <form
           className="space-y-4"
           onSubmit={handleSubmit((values) => {
-            setTopError('');
+            setTopError(null);
             create.mutate(values);
           })}
         >
@@ -159,7 +156,6 @@ function NewNoteDialog({
           >
             <ParticipantPicker
               value={participant}
-              autoFocus={!initialParticipant}
               onChange={(p) => {
                 setParticipant(p);
                 setValue('participantProfileId', p?.id ?? '', { shouldValidate: !!p });
@@ -168,7 +164,7 @@ function NewNoteDialog({
           </FormField>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <FormField label="Date" required error={formState.errors.noteDate}>
-              <Input type="date" max={todayStr()} {...register('noteDate')} />
+              <Input type="date" max={todayInput()} {...register('noteDate')} />
             </FormField>
             <FormField label="Contact type" required error={formState.errors.contactType}>
               <Select {...register('contactType')}>
@@ -217,13 +213,13 @@ function NewNoteDialog({
               else sees just the date, category, and author.
             </p>
           </div>
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? 'Saving…' : 'Save note'}
+              {create.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
@@ -242,7 +238,7 @@ function NoteViewDialog({ noteId, onClose }: { noteId: string | null; onClose: (
 
   return (
     <Dialog open={!!noteId} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         {isLoading ? (
           <div className="flex justify-center py-8">
             <Spinner />
@@ -286,7 +282,7 @@ function NoteViewDialog({ noteId, onClose }: { noteId: string | null; onClose: (
 export function CaseNotesPage() {
   const { can } = useAuth();
   const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [participant, setParticipant] = useState<ParticipantRef | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [category, setCategory] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -407,25 +403,29 @@ export function CaseNotesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Case Notes</h2>
-        {can('case_management.create') ? (
-          <Button onClick={() => setNewOpen(true)}>
-            <Plus className="h-4 w-4" /> New note
-          </Button>
-        ) : null}
-      </div>
+      <SectionHeader
+        title="Case Notes"
+        actions={
+          can('case_management.create') ? (
+            <Button onClick={() => setNewOpen(true)}>
+              <Plus className="h-4 w-4" /> New note
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <ParticipantPicker
-          value={participant}
-          onChange={(p) => {
-            setParticipant(p);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
-          placeholder="Filter by participant…"
-        />
+      <ListToolbar>
+        <div className="w-full sm:w-72">
+          <ParticipantPicker
+            value={participant}
+            onChange={(p) => {
+              setParticipant(p);
+              setListState((s) => ({ ...s, page: 1 }));
+            }}
+          />
+        </div>
         <Select
+          className="w-full sm:w-44"
           value={category}
           onChange={(e) => {
             setCategory(e.target.value);
@@ -441,6 +441,7 @@ export function CaseNotesPage() {
         </Select>
         <Input
           type="date"
+          className="w-full sm:w-44"
           value={from}
           onChange={(e) => {
             setFrom(e.target.value);
@@ -450,6 +451,7 @@ export function CaseNotesPage() {
         />
         <Input
           type="date"
+          className="w-full sm:w-44"
           value={to}
           onChange={(e) => {
             setTo(e.target.value);
@@ -457,7 +459,7 @@ export function CaseNotesPage() {
           }}
           aria-label="To date"
         />
-      </div>
+      </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
       <DataTable

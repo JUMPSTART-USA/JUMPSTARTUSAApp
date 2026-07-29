@@ -1,8 +1,7 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { ENROLLMENT_STATUSES, FINAL_ASSESSMENTS, insideEnrollmentSchema } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
@@ -15,9 +14,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { applyApiError, formResolver, toDateInput } from '@/lib/form';
 import { fullName, humanize } from '@/lib/utils';
-import { applyApiError, toDateInput } from './helpers';
 import type { RosterEnrollment } from './types';
 
 // PATCH body: identity fields are immutable (§4.1.6), and the select posts ''
@@ -77,7 +77,7 @@ export function EnrollmentEditDialog({
     watch,
     formState: { errors, isSubmitting },
   } = useForm<EnrollmentFormValues>({
-    resolver: zodResolver(enrollmentEditSchema) as unknown as Resolver<EnrollmentFormValues>,
+    resolver: formResolver<EnrollmentFormValues>(enrollmentEditSchema),
     defaultValues: buildDefaults(enrollment),
   });
 
@@ -97,7 +97,7 @@ export function EnrollmentEditDialog({
       void queryClient.invalidateQueries({ queryKey: ['inside-classes'] });
       onOpenChange(false);
     },
-    onError: (err) => applyApiError(err, setError, setTopError),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
@@ -179,14 +179,14 @@ export function EnrollmentEditDialog({
             <Textarea rows={2} {...register('notes')} />
           </FormField>
 
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Save changes'}
+              {mutation.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

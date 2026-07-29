@@ -19,19 +19,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { SectionHeader } from '@/components/ui/page-header';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, todayInput, useDebounced } from '@/lib/form';
 import { formatDate, fullName } from '@/lib/utils';
-import {
-  applyFormErrors,
-  ParticipantPicker,
-  todayStr,
-  useDebounced,
-  zodForm,
-  type CaseServiceRow,
-  type ParticipantRef,
-} from './shared';
+import { type CaseServiceRow } from './shared';
 
 interface ServiceFormValues {
   participantProfileId: string;
@@ -52,19 +49,19 @@ function RecordServiceDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialParticipant: ParticipantRef | null;
+  initialParticipant: PickerOption | null;
 }) {
   const queryClient = useQueryClient();
-  const [participant, setParticipant] = useState<ParticipantRef | null>(initialParticipant);
-  const [topError, setTopError] = useState('');
+  const [participant, setParticipant] = useState<PickerOption | null>(initialParticipant);
+  const [topError, setTopError] = useState<string | null>(null);
 
   const { register, handleSubmit, watch, setValue, setError, formState } =
     useForm<ServiceFormValues>({
-      resolver: zodForm<ServiceFormValues>(caseServiceSchema),
+      resolver: formResolver<ServiceFormValues>(caseServiceSchema),
       defaultValues: {
         participantProfileId: initialParticipant?.id ?? '',
         serviceType: '',
-        serviceDate: todayStr(),
+        serviceDate: todayInput(),
         providerName: '',
         description: '',
         outcome: '',
@@ -81,12 +78,12 @@ function RecordServiceDialog({
       queryClient.invalidateQueries({ queryKey: ['case-management'] });
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyFormErrors(err, setError)),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Record service</DialogTitle>
           <DialogDescription>
@@ -96,7 +93,7 @@ function RecordServiceDialog({
         <form
           className="space-y-4"
           onSubmit={handleSubmit((values) => {
-            setTopError('');
+            setTopError(null);
             create.mutate(values);
           })}
         >
@@ -145,13 +142,13 @@ function RecordServiceDialog({
           <FormField label="Notes" error={formState.errors.notes}>
             <Textarea rows={2} {...register('notes')} />
           </FormField>
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? 'Saving…' : 'Record service'}
+              {create.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
@@ -163,7 +160,7 @@ function RecordServiceDialog({
 export function CaseServicesPage() {
   const { can } = useAuth();
   const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [participant, setParticipant] = useState<ParticipantRef | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [search, setSearch] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -258,17 +255,19 @@ export function CaseServicesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Services</h2>
-        {can('case_management.create') ? (
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4" /> Record service
-          </Button>
-        ) : null}
-      </div>
+      <SectionHeader
+        title="Services"
+        actions={
+          can('case_management.create') ? (
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4" /> Record service
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <Input
+      <ListToolbar>
+        <SearchInput
           placeholder="Search type, provider, description…"
           value={search}
           onChange={(e) => {
@@ -276,16 +275,18 @@ export function CaseServicesPage() {
             setListState((s) => ({ ...s, page: 1 }));
           }}
         />
-        <ParticipantPicker
-          value={participant}
-          onChange={(p) => {
-            setParticipant(p);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
-          placeholder="Filter by participant…"
-        />
+        <div className="w-full sm:w-72">
+          <ParticipantPicker
+            value={participant}
+            onChange={(p) => {
+              setParticipant(p);
+              setListState((s) => ({ ...s, page: 1 }));
+            }}
+          />
+        </div>
         <Input
           type="date"
+          className="w-full sm:w-44"
           value={from}
           onChange={(e) => {
             setFrom(e.target.value);
@@ -295,6 +296,7 @@ export function CaseServicesPage() {
         />
         <Input
           type="date"
+          className="w-full sm:w-44"
           value={to}
           onChange={(e) => {
             setTo(e.target.value);
@@ -302,7 +304,7 @@ export function CaseServicesPage() {
           }}
           aria-label="To date"
         />
-      </div>
+      </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
       <DataTable

@@ -5,13 +5,16 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
+import { Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
 import { SyncStatusChip } from '../donors/SyncStatusChip';
-import { ProgressBar, useDebouncedValue, useDonorCrm } from '../shared';
+import { ProgressBar, useDonorCrm } from '../shared';
 import type { CampaignListItem, CampaignStatus } from '../types';
 import { CampaignFormDialog } from './CampaignFormDialog';
 import { BackLink } from '@/components/BackLink';
@@ -47,7 +50,7 @@ export function CampaignsListPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebouncedValue(search);
+  const debouncedSearch = useDebounced(search);
 
   useEffect(() => {
     setState((s) => ({ ...s, page: 1 }));
@@ -69,30 +72,29 @@ export function CampaignsListPage() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Campaigns</h1>
-          <p className="text-sm text-muted-foreground">
-            {mirrored && crmLabel
-              ? `Read-only mirror of ${crmLabel} — campaigns are managed there; raised-to-date is computed from mirrored gifts.`
-              : 'Fundraising campaigns with raised-to-date computed from mirrored gifts.'}
-          </p>
-        </div>
-        {mirrored ? (
-          <SyncStatusChip />
-        ) : can('campaigns.create') ? (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> New campaign
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Campaigns"
+        description={
+          mirrored && crmLabel
+            ? `Read-only mirror of ${crmLabel} — campaigns are managed there; raised-to-date is computed from mirrored gifts.`
+            : 'Fundraising campaigns with raised-to-date computed from mirrored gifts.'
+        }
+        actions={
+          mirrored ? (
+            <SyncStatusChip />
+          ) : can('campaigns.create') ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" /> New campaign
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
+      <ListToolbar>
+        <SearchInput
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search campaigns…"
-          className="max-w-xs"
         />
         <Select
           value={status}
@@ -100,7 +102,7 @@ export function CampaignsListPage() {
             setStatus(e.target.value);
             setState((s) => ({ ...s, page: 1 }));
           }}
-          className="w-40"
+          className="w-full sm:w-44"
         >
           <option value="">All statuses</option>
           {CAMPAIGN_STATUSES.map((s) => (
@@ -109,7 +111,7 @@ export function CampaignsListPage() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.isError ? <ErrorState error={query.error} /> : null}
       <DataTable

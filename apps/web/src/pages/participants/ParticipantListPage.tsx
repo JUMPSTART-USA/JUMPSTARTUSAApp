@@ -11,12 +11,14 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/badge';
-import { Checkbox, Input, Select } from '@/components/ui/input';
+import { Checkbox, Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
-import { useDebounced } from './shared';
 import type { ParticipantListItem } from './types';
 import { BackLink } from '@/components/BackLink';
 
@@ -125,26 +127,27 @@ export function ParticipantListPage() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Participants</h1>
-        {can('participants.create') ? (
-          <Button onClick={() => navigate('new')}>
-            <Plus className="h-4 w-4" /> New participant
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Participants"
+        actions={
+          can('participants.create') ? (
+            <Button onClick={() => navigate('new')}>
+              <Plus className="h-4 w-4" /> New participant
+            </Button>
+          ) : undefined
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
+      <ListToolbar>
+        <SearchInput
           placeholder="Search name, number, phone, email…"
           value={search}
           onChange={(e) => filter(() => setSearch(e.target.value))}
-          className="w-72"
         />
         <Select
           value={insideStatus}
           onChange={(e) => filter(() => setInsideStatus(e.target.value))}
-          className="w-40"
+          className="w-full sm:w-44"
         >
           <option value="">Inside: all</option>
           {INSIDE_STATUSES.map((s) => (
@@ -156,7 +159,7 @@ export function ParticipantListPage() {
         <Select
           value={outsideStatus}
           onChange={(e) => filter(() => setOutsideStatus(e.target.value))}
-          className="w-40"
+          className="w-full sm:w-44"
         >
           <option value="">Outside: all</option>
           {OUTSIDE_STATUSES.map((s) => (
@@ -168,7 +171,7 @@ export function ParticipantListPage() {
         <Select
           value={alumniStatus}
           onChange={(e) => filter(() => setAlumniStatus(e.target.value))}
-          className="w-40"
+          className="w-full sm:w-44"
         >
           <option value="">Alumni: all</option>
           {ALUMNI_STATUSES.map((s) => (
@@ -180,7 +183,7 @@ export function ParticipantListPage() {
         <Select
           value={state}
           onChange={(e) => filter(() => setState(e.target.value))}
-          className="w-28"
+          className="w-full sm:w-44"
         >
           <option value="">State: all</option>
           {US_STATES.map((s) => (
@@ -196,7 +199,7 @@ export function ParticipantListPage() {
           />
           My caseload
         </label>
-      </div>
+      </ListToolbar>
 
       {query.isError ? (
         <ErrorState error={query.error} />

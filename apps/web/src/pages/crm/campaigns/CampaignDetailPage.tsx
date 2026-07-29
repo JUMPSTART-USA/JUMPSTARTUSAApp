@@ -6,6 +6,8 @@ import { DataTable, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import {
   Dialog,
   DialogContent,
@@ -14,6 +16,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FormError } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -28,8 +32,9 @@ import { FormField } from '@/components/FormField';
 import { Textarea } from '@/components/ui/input';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError } from '@/lib/form';
 import { formatDate, formatMoney } from '@/lib/utils';
-import { InfoItem, ProgressBar, useDonorCrm } from '../shared';
+import { ProgressBar, useDonorCrm } from '../shared';
 import type { CampaignDetail, Donation } from '../types';
 import { CampaignFormDialog } from './CampaignFormDialog';
 import { BackLink } from '@/components/BackLink';
@@ -123,13 +128,15 @@ export function CampaignDetailPage() {
     <div className="space-y-4">
       <BackLink fallbackTo="/campaigns" fallbackLabel="Campaigns" />
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{campaign.name}</h1>
-          <StatusBadge status={campaign.status} />
-        </div>
-        <div className="flex items-center gap-2">
-          {mirrored ? (
+      <PageHeader
+        title={
+          <span className="flex flex-wrap items-center gap-3">
+            {campaign.name}
+            <StatusBadge status={campaign.status} />
+          </span>
+        }
+        actions={
+          mirrored ? (
             can('campaigns.update') ? (
               <Button variant="outline" onClick={() => setLocalOpen(true)}>
                 <Pencil className="h-4 w-4" /> Edit local fields
@@ -148,9 +155,9 @@ export function CampaignDetailPage() {
                 </Button>
               ) : null}
             </>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -178,7 +185,7 @@ export function CampaignDetailPage() {
             <CardTitle>Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <DescriptionList className="gap-y-3">
               <InfoItem label="Start date">{formatDate(campaign.startDate)}</InfoItem>
               <InfoItem label="End date">{formatDate(campaign.endDate)}</InfoItem>
               <InfoItem label="Description">
@@ -187,7 +194,7 @@ export function CampaignDetailPage() {
               <InfoItem label="Notes">
                 <span className="whitespace-pre-wrap">{campaign.notes ?? '—'}</span>
               </InfoItem>
-            </dl>
+            </DescriptionList>
           </CardContent>
         </Card>
       </div>
@@ -257,38 +264,15 @@ export function CampaignDetailPage() {
         crmLabel={crmLabel}
       />
 
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete campaign?</DialogTitle>
-            <DialogDescription>
-              “{campaign.name}” will be removed from lists. Linked donations and events keep their
-              history.
-            </DialogDescription>
-          </DialogHeader>
-          {deleteMutation.isError ? (
-            <ErrorState
-              error={
-                deleteMutation.error instanceof ApiError
-                  ? deleteMutation.error
-                  : new Error('Delete failed')
-              }
-            />
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate()}
-            >
-              {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete campaign?"
+        description={`“${campaign.name}” will be removed from lists. Linked donations and events keep their history.`}
+        isPending={deleteMutation.isPending}
+        error={deleteMutation.isError ? applyApiError(deleteMutation.error) : null}
+        onConfirm={() => deleteMutation.mutate()}
+      />
     </div>
   );
 }
@@ -335,7 +319,7 @@ function EditCampaignLocalDialog({
           <FormField label="Local notes">
             <Textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </FormField>
-          {formError ? <ErrorState error={new Error(formError)} /> : null}
+          <FormError message={formError} />
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

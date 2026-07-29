@@ -13,9 +13,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { applyApiError } from '@/lib/form';
 import { humanize } from '@/lib/utils';
-import { applyApiError } from './shared';
 import type { Employer } from './types';
 
 interface EmployerFormValues {
@@ -87,12 +88,12 @@ export function EmployerFormDialog({
       void queryClient.invalidateQueries({ queryKey: ['employers'] });
       onOpenChange(false);
     },
-    onError: (err) => applyApiError(err, setError, setTopError),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>{employer ? 'Edit employer' : 'New employer'}</DialogTitle>
         </DialogHeader>
@@ -154,14 +155,14 @@ export function EmployerFormDialog({
             <Textarea rows={3} {...register('notes')} />
           </FormField>
 
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : employer ? 'Save changes' : 'Create employer'}
+              {mutation.isPending ? 'Saving…' : employer ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

@@ -15,19 +15,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { SectionHeader } from '@/components/ui/page-header';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, toDateInput, useDebounced } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
-import {
-  applyFormErrors,
-  dateInputValue,
-  ParticipantPicker,
-  useDebounced,
-  zodForm,
-  type CaseTaskRow,
-  type ParticipantRef,
-} from './shared';
+import { type CaseTaskRow } from './shared';
 
 interface TaskFormValues {
   title: string;
@@ -55,10 +52,10 @@ function TaskDialog({
 }) {
   const { user, can } = useAuth();
   const queryClient = useQueryClient();
-  const [topError, setTopError] = useState('');
-  const [participant, setParticipant] = useState<ParticipantRef | null>(
+  const [topError, setTopError] = useState<string | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(
     task?.participantProfileId && task.participantProfile
-      ? { id: task.participantProfileId, name: fullName(task.participantProfile.person) }
+      ? { id: task.participantProfileId, label: fullName(task.participantProfile.person) }
       : null,
   );
 
@@ -73,13 +70,13 @@ function TaskDialog({
   });
 
   const { register, handleSubmit, setValue, setError, formState } = useForm<TaskFormValues>({
-    resolver: zodForm<TaskFormValues>(caseTaskSchema),
+    resolver: formResolver<TaskFormValues>(caseTaskSchema),
     defaultValues: task
       ? {
           title: task.title,
           details: task.details ?? '',
           assignedToId: task.assignedToId,
-          dueDate: dateInputValue(task.dueDate),
+          dueDate: toDateInput(task.dueDate),
           status: task.status,
           participantProfileId: task.participantProfileId ?? undefined,
         }
@@ -100,7 +97,7 @@ function TaskDialog({
       queryClient.invalidateQueries({ queryKey: ['case-management'] });
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyFormErrors(err, setError)),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
@@ -112,7 +109,7 @@ function TaskDialog({
         <form
           className="space-y-4"
           onSubmit={handleSubmit((values) => {
-            setTopError('');
+            setTopError(null);
             save.mutate(values);
           })}
         >
@@ -165,13 +162,13 @@ function TaskDialog({
               }}
             />
           </FormField>
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : task ? 'Save changes' : 'Create task'}
+              {save.isPending ? 'Saving…' : task ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
@@ -268,23 +265,24 @@ export function TasksPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Tasks</h2>
-        {can('case_management.create') ? (
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setDialogOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" /> New task
-          </Button>
-        ) : null}
-      </div>
+      <SectionHeader
+        title="Tasks"
+        actions={
+          can('case_management.create') ? (
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" /> New task
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
-          className="w-64"
+      <ListToolbar>
+        <SearchInput
           placeholder="Search tasks…"
           value={search}
           onChange={(e) => {
@@ -293,7 +291,7 @@ export function TasksPage() {
           }}
         />
         <Select
-          className="w-44"
+          className="w-full sm:w-44"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
@@ -318,7 +316,7 @@ export function TasksPage() {
           />
           <Label htmlFor="tasks-mine">My tasks only</Label>
         </div>
-      </div>
+      </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
       {complete.error ? <ErrorState error={complete.error} /> : null}

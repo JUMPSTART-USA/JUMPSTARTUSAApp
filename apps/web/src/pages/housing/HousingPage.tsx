@@ -7,13 +7,15 @@ import { DataTable, initialListState, type Column, type ListState } from '@/comp
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input, Select } from '@/components/ui/input';
+import { Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { cn, formatDate, fullName, humanize } from '@/lib/utils';
-import { useDebounced } from '@/pages/outside-programs/shared';
 import { HomeFormDialog } from './HomeFormDialog';
 import { MoveInDialog } from './MoveInDialog';
 import type { HomeRow, HousingEnrollmentRow, OccupancyEntry } from './types';
@@ -26,10 +28,10 @@ export function OccupancyBar({ occupied, capacity }: { occupied: number; capacit
   const full = occupied === capacity;
   return (
     <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div
+      <div
         className={cn(
           'h-full rounded-full transition-all',
-          over ? 'bg-red-500' : full ? 'bg-amber-500' : 'bg-emerald-500',
+          over ? 'bg-destructive' : full ? 'bg-warning' : 'bg-success',
         )}
         style={{ width: `${pct}%` }}
       />
@@ -83,7 +85,7 @@ function OccupancyDashboard() {
             <div
               className={cn(
                 'mt-1 text-2xl font-semibold',
-                totals.capacity - totals.occupied < 0 && 'text-red-600',
+                totals.capacity - totals.occupied < 0 && 'text-destructive',
               )}
             >
               {totals.capacity - totals.occupied}
@@ -102,7 +104,7 @@ function OccupancyDashboard() {
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <CardTitle className="text-base">{entry.home.name}</CardTitle>
+                  <CardTitle>{entry.home.name}</CardTitle>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {[entry.home.city, entry.home.state].filter(Boolean).join(', ')}
                   </p>
@@ -170,7 +172,7 @@ const homeColumns: Column<HomeRow>[] = [
         <div className="text-xs">
           {h.occupied} / {h.capacity}
           {h.available < 0 ? (
-            <span className="ml-1 font-medium text-red-600">over</span>
+            <span className="ml-1 font-medium text-destructive">over</span>
           ) : null}
         </div>
         <OccupancyBar occupied={h.occupied} capacity={h.capacity} />
@@ -214,14 +216,13 @@ function HomesTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
+      <ListToolbar>
+        <SearchInput
           placeholder="Search name, city, house manager…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
         />
-        <Select value={state} onChange={(e) => setState(e.target.value)} className="w-28">
+        <Select value={state} onChange={(e) => setState(e.target.value)} className="w-full sm:w-44">
           <option value="">All states</option>
           {US_STATES.map((s) => (
             <option key={s} value={s}>
@@ -229,12 +230,16 @@ function HomesTab() {
             </option>
           ))}
         </Select>
-        <Select value={active} onChange={(e) => setActive(e.target.value)} className="w-36">
+        <Select
+          value={active}
+          onChange={(e) => setActive(e.target.value)}
+          className="w-full sm:w-44"
+        >
           <option value="">All homes</option>
           <option value="true">Active only</option>
           <option value="false">Inactive only</option>
         </Select>
-      </div>
+      </ListToolbar>
       {query.error ? <ErrorState error={query.error} /> : null}
       <DataTable
         columns={homeColumns}
@@ -325,14 +330,17 @@ function ResidentsTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
+      <ListToolbar>
+        <SearchInput
           placeholder="Search participant name or number…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
         />
-        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-44">
+        <Select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="w-full sm:w-44"
+        >
           <option value="">All statuses</option>
           {HOUSING_STATUSES.map((s) => (
             <option key={s} value={s}>
@@ -340,7 +348,7 @@ function ResidentsTab() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
       {query.error ? <ErrorState error={query.error} /> : null}
       <DataTable
         columns={residentColumns}
@@ -363,26 +371,22 @@ export function HousingPage() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Housing</h1>
-          <p className="text-sm text-muted-foreground">
-            Transitional homes, occupancy and resident history
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {can('housing.create') ? (
+      <PageHeader
+        title="Housing"
+        description="Transitional homes, occupancy and resident history"
+        actions={
+          can('housing.create') ? (
             <>
               <Button variant="outline" onClick={() => setMoveInOpen(true)}>
-                <UserPlus className="h-4 w-4" /> Move In
+                <UserPlus className="h-4 w-4" /> Move in
               </Button>
               <Button onClick={() => setNewHomeOpen(true)}>
-                <Plus className="h-4 w-4" /> New Home
+                <Plus className="h-4 w-4" /> New home
               </Button>
             </>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       <Tabs defaultValue="occupancy">
         <TabsList>

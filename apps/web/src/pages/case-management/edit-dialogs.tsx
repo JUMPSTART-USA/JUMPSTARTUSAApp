@@ -19,11 +19,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { applyApiError, formResolver, toDateInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import {
-  applyFormErrors,
-  zodForm,
   type CaseNoteRow,
   type CaseServiceRow,
   type NeedsAssessmentRow,
@@ -34,8 +34,6 @@ import {
  * Identity fields stay fixed; PATCHes run under case_management.update and
  * server-side ownership/confidentiality rules surface as form errors.
  */
-
-const toDateInput = (value: string | null | undefined) => (value ? value.slice(0, 10) : '');
 
 // ── Case note ────────────────────────────────────────────────────────────────
 
@@ -59,15 +57,15 @@ export function EditNoteDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [topError, setTopError] = useState('');
+  const [topError, setTopError] = useState<string | null>(null);
   const { register, handleSubmit, watch, setError, reset, formState } = useForm<NoteFormValues>({
-    resolver: zodForm<NoteFormValues>(noteEditSchema),
+    resolver: formResolver<NoteFormValues>(noteEditSchema),
   });
   const followUpRequired = watch('followUpRequired');
 
   useEffect(() => {
     if (note) {
-      setTopError('');
+      setTopError(null);
       reset({
         noteDate: toDateInput(note.noteDate),
         category: note.category,
@@ -87,12 +85,12 @@ export function EditNoteDialog({
       queryClient.invalidateQueries({ queryKey: ['participants'] });
       onClose();
     },
-    onError: (err) => setTopError(applyFormErrors(err, setError)),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
     <Dialog open={note !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Edit case note</DialogTitle>
           <DialogDescription>
@@ -102,7 +100,7 @@ export function EditNoteDialog({
         <form
           className="space-y-4"
           onSubmit={handleSubmit((values) => {
-            setTopError('');
+            setTopError(null);
             update.mutate(values);
           })}
         >
@@ -145,13 +143,13 @@ export function EditNoteDialog({
               <Input type="date" {...register('followUpDate')} />
             </FormField>
           ) : null}
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={formState.isSubmitting || update.isPending}>
-              {update.isPending ? 'Saving…' : 'Save changes'}
+              {update.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>
@@ -183,15 +181,15 @@ export function EditServiceDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [topError, setTopError] = useState('');
+  const [topError, setTopError] = useState<string | null>(null);
   const { register, handleSubmit, watch, setError, reset, formState } = useForm<ServiceFormValues>(
-    { resolver: zodForm<ServiceFormValues>(serviceEditSchema) },
+    { resolver: formResolver<ServiceFormValues>(serviceEditSchema) },
   );
   const followUpRequired = watch('followUpRequired');
 
   useEffect(() => {
     if (service) {
-      setTopError('');
+      setTopError(null);
       reset({
         serviceType: service.serviceType,
         serviceDate: toDateInput(service.serviceDate),
@@ -212,12 +210,12 @@ export function EditServiceDialog({
       queryClient.invalidateQueries({ queryKey: ['participants'] });
       onClose();
     },
-    onError: (err) => setTopError(applyFormErrors(err, setError)),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
     <Dialog open={service !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Edit service</DialogTitle>
           <DialogDescription>Update this service record.</DialogDescription>
@@ -225,7 +223,7 @@ export function EditServiceDialog({
         <form
           className="space-y-4"
           onSubmit={handleSubmit((values) => {
-            setTopError('');
+            setTopError(null);
             update.mutate(values);
           })}
         >
@@ -259,13 +257,13 @@ export function EditServiceDialog({
           <FormField label="Notes" error={formState.errors.notes}>
             <Textarea rows={2} {...register('notes')} />
           </FormField>
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={formState.isSubmitting || update.isPending}>
-              {update.isPending ? 'Saving…' : 'Save changes'}
+              {update.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>
@@ -306,15 +304,15 @@ export function EditAssessmentDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [topError, setTopError] = useState('');
+  const [topError, setTopError] = useState<string | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
   const { register, handleSubmit, setError, reset, formState } = useForm<AssessmentFormValues>({
-    resolver: zodForm<AssessmentFormValues>(assessmentEditSchema),
+    resolver: formResolver<AssessmentFormValues>(assessmentEditSchema),
   });
 
   useEffect(() => {
     if (assessment) {
-      setTopError('');
+      setTopError(null);
       reset({
         instrumentName: assessment.instrumentName,
         administeredAt: toDateInput(assessment.administeredAt),
@@ -343,7 +341,7 @@ export function EditAssessmentDialog({
       queryClient.invalidateQueries({ queryKey: ['case-management'] });
       onClose();
     },
-    onError: (err) => setTopError(applyFormErrors(err, setError)),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   const knownDomains = new Set<string>(DOMAINS);
@@ -351,7 +349,7 @@ export function EditAssessmentDialog({
 
   return (
     <Dialog open={assessment !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Edit needs assessment</DialogTitle>
           <DialogDescription>Update instrument results and domain scores.</DialogDescription>
@@ -359,7 +357,7 @@ export function EditAssessmentDialog({
         <form
           className="space-y-4"
           onSubmit={handleSubmit((values) => {
-            setTopError('');
+            setTopError(null);
             update.mutate(values);
           })}
         >
@@ -395,13 +393,13 @@ export function EditAssessmentDialog({
           <FormField label="Summary" error={formState.errors.summary}>
             <Textarea rows={3} {...register('summary')} />
           </FormField>
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={formState.isSubmitting || update.isPending}>
-              {update.isPending ? 'Saving…' : 'Save changes'}
+              {update.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

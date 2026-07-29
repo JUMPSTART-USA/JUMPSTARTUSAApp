@@ -1,8 +1,7 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { institutionSchema, US_STATES } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,8 +12,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
-import { applyApiError } from './helpers';
+import { applyApiError, formResolver } from '@/lib/form';
 import type { Institution } from './types';
 
 interface InstitutionFormValues {
@@ -76,7 +76,7 @@ export function InstitutionFormDialog({
     setError,
     formState: { errors, isSubmitting },
   } = useForm<InstitutionFormValues>({
-    resolver: zodResolver(institutionSchema) as unknown as Resolver<InstitutionFormValues>,
+    resolver: formResolver<InstitutionFormValues>(institutionSchema),
     defaultValues: buildDefaults(institution),
   });
 
@@ -96,12 +96,12 @@ export function InstitutionFormDialog({
       void queryClient.invalidateQueries({ queryKey: ['institutions'] });
       onOpenChange(false);
     },
-    onError: (err) => applyApiError(err, setError, setTopError),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>{institution ? 'Edit institution' : 'New institution'}</DialogTitle>
         </DialogHeader>
@@ -184,14 +184,14 @@ export function InstitutionFormDialog({
             Active — currently partnering with JUMPSTART
           </label>
 
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : institution ? 'Save changes' : 'Create institution'}
+              {mutation.isPending ? 'Saving…' : institution ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

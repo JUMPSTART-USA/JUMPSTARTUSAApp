@@ -1,8 +1,8 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { ENGAGEMENT_TYPES, alumniEngagementSchema } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
@@ -16,12 +16,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver, todayInput, useDebounced } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import { ParticipantPicker, type PickerSelection } from './pickers';
-import { applyApiErrors, emptyToUndefined, type EngagementView } from './types';
+import { emptyToUndefined, type EngagementView } from './types';
 
 interface EngagementFormValues {
   participantProfileId?: string;
@@ -32,12 +36,12 @@ interface EngagementFormValues {
 
 function LogEngagementDialog({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [participant, setParticipant] = useState<PickerSelection | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [topError, setTopError] = useState<string | null>(null);
 
   const form = useForm<EngagementFormValues>({
-    resolver: zodResolver(alumniEngagementSchema) as unknown as Resolver<EngagementFormValues>,
-    defaultValues: { engagementDate: new Date().toISOString().slice(0, 10) },
+    resolver: formResolver<EngagementFormValues>(alumniEngagementSchema),
+    defaultValues: { engagementDate: todayInput() },
   });
 
   const mutation = useMutation({
@@ -46,7 +50,7 @@ function LogEngagementDialog({ onClose }: { onClose: () => void }) {
       queryClient.invalidateQueries({ queryKey: ['mentoring'] });
       onClose();
     },
-    onError: (err) => setTopError(applyApiErrors(err, (n, e) => form.setError(n as never, e))),
+    onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
   return (
@@ -65,15 +69,15 @@ function LogEngagementDialog({ onClose }: { onClose: () => void }) {
             mutation.mutate(v);
           })}
         >
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <FormField
             label="Participant"
             required
             error={form.formState.errors.participantProfileId}
           >
             <ParticipantPicker
-              selection={participant}
-              onSelect={(sel) => {
+              value={participant}
+              onChange={(sel) => {
                 setParticipant(sel);
                 form.setValue('participantProfileId', sel?.id, { shouldValidate: !!sel });
               }}
@@ -102,7 +106,7 @@ function LogEngagementDialog({ onClose }: { onClose: () => void }) {
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Log engagement'}
+              {mutation.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
@@ -120,16 +124,12 @@ export function EngagementsPage() {
   });
   const [type, setType] = useState('');
   const [search, setSearch] = useState('');
-  const [debounced, setDebounced] = useState('');
   const [logging, setLogging] = useState(false);
+  const debounced = useDebounced(search);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      setDebounced(search);
-      setState((s) => ({ ...s, page: 1 }));
-    }, 300);
-    return () => clearTimeout(t);
-  }, [search]);
+    setState((s) => (s.page === 1 ? s : { ...s, page: 1 }));
+  }, [debounced]);
 
   const query = useQuery({
     queryKey: ['mentoring', 'engagements', state, type, debounced],
@@ -190,22 +190,25 @@ export function EngagementsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Alumni Engagements</h1>
-        {can('alumni.create') ? (
-          <Button onClick={() => setLogging(true)}>Log engagement</Button>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Alumni Engagements"
+        actions={
+          can('alumni.create') ? (
+            <Button onClick={() => setLogging(true)}>
+              <Plus className="h-4 w-4" /> Log engagement
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-64"
+      <ListToolbar>
+        <SearchInput
           placeholder="Search participant or notes…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <Select
-          className="w-48"
+          className="w-full sm:w-44"
           value={type}
           onChange={(e) => {
             setType(e.target.value);
@@ -219,7 +222,7 @@ export function EngagementsPage() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.isError ? (
         <ErrorState error={query.error} />

@@ -6,8 +6,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ErrorState } from '@/components/ui/spinner';
+import { FormError, Notice } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { api, ApiError } from '@/lib/api';
+import { applyApiError, formResolver } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import {
   emptyParticipantFormValues,
@@ -15,7 +17,7 @@ import {
   ProfileFields,
   type ParticipantFormValues,
 } from './person-form';
-import { AmberNotice, applyApiError, schemaResolver, useCaseManagerOptions } from './shared';
+import { useCaseManagerOptions } from './shared';
 import type { DuplicateCandidate, ParticipantDetail } from './types';
 import { BackLink } from '@/components/BackLink';
 
@@ -25,7 +27,7 @@ export function ParticipantCreatePage() {
   const { options: cmOptions } = useCaseManagerOptions();
 
   const form = useForm<ParticipantFormValues>({
-    resolver: schemaResolver<ParticipantFormValues>(participantCreateSchema),
+    resolver: formResolver<ParticipantFormValues>(participantCreateSchema),
     defaultValues: emptyParticipantFormValues(),
   });
 
@@ -92,13 +94,12 @@ export function ParticipantCreatePage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
         <BackLink fallbackTo="/participants" fallbackLabel="Participants" />
-        <h1 className="mt-1 text-2xl font-semibold">New participant</h1>
+        <PageHeader className="mt-1" title="New participant" />
       </div>
 
       {candidates ? (
-        <AmberNotice>
-          <p className="font-medium">This person may already exist</p>
-          <p className="mt-1">
+        <Notice variant="warning" title="This person may already exist">
+          <p>
             Review the matching records below. Open an existing record instead of creating a
             duplicate, or continue if this really is a different person.
           </p>
@@ -106,7 +107,7 @@ export function ParticipantCreatePage() {
             {candidates.map((c) => (
               <li
                 key={c.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-white/60 px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-warning/20 bg-background/60 px-3 py-2 text-foreground"
               >
                 <div>
                   <span className="font-medium">{fullName(c)}</span>
@@ -136,7 +137,7 @@ export function ParticipantCreatePage() {
                     Open {c.participantNumber ?? 'existing record'}
                   </Link>
                 ) : (
-                  <span className="text-xs text-amber-800">
+                  <span className="text-xs text-warning">
                     Existing person without a participant profile
                   </span>
                 )}
@@ -151,10 +152,10 @@ export function ParticipantCreatePage() {
               Not a duplicate — create anyway
             </Button>
           </div>
-        </AmberNotice>
+        </Notice>
       ) : null}
 
-      {topError ? <ErrorState error={new Error(topError)} /> : null}
+      <FormError message={topError} />
 
       <form
         onSubmit={(e) => {
@@ -165,7 +166,7 @@ export function ParticipantCreatePage() {
       >
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Person</CardTitle>
+            <CardTitle>Person</CardTitle>
           </CardHeader>
           <CardContent>
             <PersonFields form={form} />
@@ -174,7 +175,7 @@ export function ParticipantCreatePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Program profile</CardTitle>
+            <CardTitle>Program profile</CardTitle>
           </CardHeader>
           <CardContent>
             <ProfileFields form={form} cmOptions={cmOptions} mode="create" />
@@ -186,7 +187,7 @@ export function ParticipantCreatePage() {
             Cancel
           </Button>
           <Button type="submit" disabled={busy}>
-            {busy ? 'Saving…' : 'Create participant'}
+            {busy ? 'Saving…' : 'Create'}
           </Button>
         </div>
       </form>

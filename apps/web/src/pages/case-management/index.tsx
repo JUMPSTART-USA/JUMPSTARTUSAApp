@@ -1,6 +1,7 @@
-import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { BackLink } from '@/components/BackLink';
-import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/ui/page-header';
+import { SubNav } from '@/components/ui/sub-nav';
 import { CaseloadSummaryPage } from './CaseloadSummaryPage';
 import { CaseManagementHome } from './CaseManagementHome';
 import { CaseNotesPage } from './CaseNotesPage';
@@ -29,26 +30,8 @@ function CaseManagementLayout() {
       {/* Renders only when arriving via a deep link that carries back-state
           (e.g. from a participant record). */}
       <BackLink />
-      <h1 className="text-2xl font-semibold tracking-tight">Case Management</h1>
-      <nav className="flex flex-wrap gap-1 border-b pb-2">
-        {SECTIONS.map((s) => (
-          <NavLink
-            key={s.to}
-            to={s.to}
-            end={s.end}
-            className={({ isActive }) =>
-              cn(
-                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-              )
-            }
-          >
-            {s.label}
-          </NavLink>
-        ))}
-      </nav>
+      <PageHeader title="Case Management" />
+      <SubNav items={SECTIONS} />
       <Outlet />
     </div>
   );

@@ -4,8 +4,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import { Input, Select } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -19,7 +23,6 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import { SessionFormDialog } from './SessionFormDialog';
-import { FormErrorNotice, InfoItem } from './shared';
 import type {
   AttendanceStatus,
   OutsideProgramDetail,
@@ -130,33 +133,28 @@ export function OutsideSessionDetailPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <BackLink fallbackTo={`/outside-programs/${session.outsideProgram.id}`} fallbackLabel={session.outsideProgram.name} />
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Session — {formatDate(session.sessionDate)}
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          {canUpdate ? (
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-4 w-4" /> Edit Session
-            </Button>
-          ) : null}
-          {can('outside_programs.delete') ? (
-            <Button
-              variant="destructive"
-              disabled={removeSession.isPending}
-              onClick={() => (confirmDelete ? removeSession.mutate() : setConfirmDelete(true))}
-            >
-              {removeSession.isPending
-                ? 'Deleting…'
-                : confirmDelete
-                  ? 'Confirm delete'
-                  : 'Delete session'}
-            </Button>
-          ) : null}
-        </div>
+      <div className="space-y-1">
+        <BackLink
+          fallbackTo={`/outside-programs/${session.outsideProgram.id}`}
+          fallbackLabel={session.outsideProgram.name}
+        />
+        <PageHeader
+          title={`Session — ${formatDate(session.sessionDate)}`}
+          actions={
+            <>
+              {canUpdate ? (
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  <Pencil className="h-4 w-4" /> Edit session
+                </Button>
+              ) : null}
+              {can('outside_programs.delete') ? (
+                <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
+                  Delete session
+                </Button>
+              ) : null}
+            </>
+          }
+        />
       </div>
 
       <Card>
@@ -164,26 +162,20 @@ export function OutsideSessionDetailPage() {
           <CardTitle>Session details</CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
+          <DescriptionList columns={3}>
             <InfoItem label="Date">{formatDate(session.sessionDate)}</InfoItem>
             <InfoItem label="Topic">{session.topic ?? '—'}</InfoItem>
             <InfoItem label="Notes">{session.notes ?? '—'}</InfoItem>
-          </dl>
+          </DescriptionList>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <div>
-            <CardTitle>Attendance</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {markedCount} of {roster.length} marked
-            </p>
-          </div>
+        <CardHeaderRow title="Attendance" description={`${markedCount} of ${roster.length} marked`}>
           {canUpdate ? (
-            <div className="flex items-center gap-2">
+            <>
               {saved ? (
-                <span className="inline-flex items-center gap-1 text-sm text-emerald-600">
+                <span className="inline-flex items-center gap-1 text-sm text-success">
                   <Check className="h-4 w-4" /> Saved
                 </span>
               ) : null}
@@ -191,23 +183,16 @@ export function OutsideSessionDetailPage() {
                 Mark all present
               </Button>
               <Button size="sm" onClick={save} disabled={markedCount === 0 || saveMutation.isPending}>
-                {saveMutation.isPending ? 'Saving…' : 'Save Attendance'}
+                {saveMutation.isPending ? 'Saving…' : 'Save attendance'}
               </Button>
-            </div>
+            </>
           ) : null}
-        </CardHeader>
+        </CardHeaderRow>
         <CardContent>
-          {saveMutation.error ? (
-            <div className="mb-3">
-              <FormErrorNotice
-                message={
-                  saveMutation.error instanceof Error
-                    ? saveMutation.error.message
-                    : 'Save failed'
-                }
-              />
-            </div>
-          ) : null}
+          <FormError
+            className="mb-3"
+            message={saveMutation.error ? saveMutation.error.message : null}
+          />
           {programQuery.isLoading ? (
             <PageLoader />
           ) : roster.length === 0 ? (
@@ -274,6 +259,18 @@ export function OutsideSessionDetailPage() {
         onOpenChange={setEditOpen}
         programId={session.outsideProgram.id}
         session={session}
+      />
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={(open) => {
+          setConfirmDelete(open);
+          if (!open) removeSession.reset();
+        }}
+        title="Delete session?"
+        description="This removes the session and its attendance records."
+        isPending={removeSession.isPending}
+        error={removeSession.error ? removeSession.error.message : null}
+        onConfirm={() => removeSession.mutate()}
       />
     </div>
   );

@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
@@ -25,7 +26,7 @@ function SummaryCard({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        <CardDescription>{title}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-1">
         <div className="text-3xl font-semibold">{pending}</div>
@@ -65,7 +66,7 @@ export function IntakeQueuesPage() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <h1 className="text-2xl font-semibold">Intake Queues</h1>
+      <PageHeader title="Intake Queues" />
 
       {summary.isError ? (
         <ErrorState error={summary.error} />

@@ -26,11 +26,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, useDebounced } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
-import { applyApiFormErrors, ErrorNotice, useDebouncedValue, WarningNotice } from './shared';
 import type { BackgroundCheckRow, DuplicateCandidate, VolunteerListItem } from './types';
 import { BackLink } from '@/components/BackLink';
 
@@ -62,7 +65,7 @@ export function VolunteerListPage() {
   const [status, setStatus] = useState('');
   const [mentor, setMentor] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebouncedValue(search);
+  const debouncedSearch = useDebounced(search);
 
   const params = {
     page: listState.page,
@@ -133,27 +136,28 @@ export function VolunteerListPage() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Volunteers</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate('expirations')}>
-            <CalendarClock className="h-4 w-4" /> Expirations
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate('facility-requirements')}>
-            <ClipboardList className="h-4 w-4" /> Facility requirements
-          </Button>
-          {can('volunteers.create') ? (
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" /> New volunteer
+      <PageHeader
+        title="Volunteers"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => navigate('expirations')}>
+              <CalendarClock className="h-4 w-4" /> Expirations
             </Button>
-          ) : null}
-        </div>
-      </div>
+            <Button variant="outline" onClick={() => navigate('facility-requirements')}>
+              <ClipboardList className="h-4 w-4" /> Facility requirements
+            </Button>
+            {can('volunteers.create') ? (
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" /> New volunteer
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
+      <ListToolbar>
+        <SearchInput
           placeholder="Search name or email…"
-          className="w-64"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -161,7 +165,7 @@ export function VolunteerListPage() {
           }}
         />
         <Select
-          className="w-44"
+          className="w-full sm:w-44"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
@@ -176,7 +180,7 @@ export function VolunteerListPage() {
           ))}
         </Select>
         <Select
-          className="w-44"
+          className="w-full sm:w-44"
           value={mentor}
           onChange={(e) => {
             setMentor(e.target.value);
@@ -187,7 +191,7 @@ export function VolunteerListPage() {
           <option value="true">Mentors only</option>
           <option value="false">Non-mentors only</option>
         </Select>
-      </div>
+      </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
 
@@ -284,7 +288,7 @@ function CreateVolunteerDialog({
           return;
         }
       }
-      setTopError(applyApiFormErrors(err, form.setError));
+      setTopError(applyApiError(err, form.setError));
     },
   });
 
@@ -316,7 +320,7 @@ function CreateVolunteerDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>New volunteer</DialogTitle>
           <DialogDescription>
@@ -326,10 +330,10 @@ function CreateVolunteerDialog({
 
         {candidates ? (
           <div className="space-y-3">
-            <WarningNotice>
+            <Notice variant="warning">
               Possible duplicate{candidates.length === 1 ? '' : 's'} found. Review before creating
               a new record — duplicate people fragment service history (§5).
-            </WarningNotice>
+            </Notice>
             <div className="space-y-2">
               {candidates.map((c) => (
                 <div
@@ -373,13 +377,13 @@ function CreateVolunteerDialog({
                 Back to form
               </Button>
               <Button onClick={createAnyway} disabled={create.isPending}>
-                {create.isPending ? 'Creating…' : 'Create anyway — not a duplicate'}
+                {create.isPending ? 'Saving…' : 'Create anyway — not a duplicate'}
               </Button>
             </DialogFooter>
           </div>
         ) : (
           <form onSubmit={onSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField label="First name" required error={personErrors.firstName}>
                 <Input {...register('person.firstName')} />
               </FormField>
@@ -416,13 +420,17 @@ function CreateVolunteerDialog({
               <FormField label="Phone" error={personErrors.primaryPhone}>
                 <Input {...register('person.primaryPhone')} />
               </FormField>
-              <FormField label="Address" error={personErrors.addressLine1} className="col-span-2">
+              <FormField
+                label="Address"
+                error={personErrors.addressLine1}
+                className="sm:col-span-2"
+              >
                 <Input {...register('person.addressLine1')} />
               </FormField>
               <FormField label="City" error={personErrors.city}>
                 <Input {...register('person.city')} />
               </FormField>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <FormField label="State" error={personErrors.state}>
                   <Select
                     {...register('person.state', {
@@ -444,7 +452,7 @@ function CreateVolunteerDialog({
               <FormField
                 label="Volunteer roles"
                 hint="Comma-separated, e.g. Inside class, Transportation"
-                className="col-span-2"
+                className="sm:col-span-2"
               >
                 <Input value={rolesText} onChange={(e) => setRolesText(e.target.value)} />
               </FormField>
@@ -454,19 +462,19 @@ function CreateVolunteerDialog({
               <FormField label="Church affiliation" error={profileErrors.churchAffiliation}>
                 <Input {...register('profile.churchAffiliation')} />
               </FormField>
-              <FormField label="Notes" error={profileErrors.notes} className="col-span-2">
+              <FormField label="Notes" error={profileErrors.notes} className="sm:col-span-2">
                 <Textarea rows={2} {...register('profile.notes')} />
               </FormField>
             </div>
 
-            {topError ? <ErrorNotice>{topError}</ErrorNotice> : null}
+            <FormError message={topError} />
 
             <DialogFooter>
               <Button variant="outline" onClick={() => close(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={create.isPending}>
-                {create.isPending ? 'Creating…' : 'Create volunteer'}
+                {create.isPending ? 'Saving…' : 'Create'}
               </Button>
             </DialogFooter>
           </form>

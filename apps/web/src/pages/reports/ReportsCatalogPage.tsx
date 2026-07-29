@@ -1,7 +1,8 @@
 import { ChevronRight, FileBarChart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import { useReportCatalog, type ReportSummary } from './shared';
 
@@ -54,12 +55,10 @@ export function ReportsCatalogPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Reports</h1>
-        <span className="text-sm text-muted-foreground">
-          {reports.length} report{reports.length === 1 ? '' : 's'} available
-        </span>
-      </div>
+      <PageHeader
+        title="Reports"
+        description={`${reports.length} report${reports.length === 1 ? '' : 's'} available`}
+      />
 
       {reports.length === 0 ? (
         <EmptyState
@@ -70,20 +69,23 @@ export function ReportsCatalogPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           {groups.map((group) => (
             <Card key={group.name}>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <FileBarChart className="h-4 w-4 text-muted-foreground" />
-                  {group.name}
-                  <Badge variant="secondary">{group.reports.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
+              <CardHeaderRow
+                title={
+                  <>
+                    <FileBarChart className="h-4 w-4 text-muted-foreground" />
+                    {group.name}
+                  </>
+                }
+              >
+                <Badge variant="secondary">{group.reports.length}</Badge>
+              </CardHeaderRow>
+              <CardContent>
                 <ul className="divide-y">
                   {group.reports.map((report) => (
-                    <li key={report.key}>
+                    <li key={report.key} className="-mx-2">
                       <button
                         type="button"
-                        className="flex w-full items-center justify-between gap-3 py-2.5 text-left hover:bg-accent/50"
+                        className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-2.5 text-left transition-colors hover:bg-accent"
                         onClick={() => navigate(`/reports/${report.key}`)}
                       >
                         <div className="min-w-0">

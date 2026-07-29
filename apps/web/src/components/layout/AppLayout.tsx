@@ -155,9 +155,9 @@ export function AppLayout() {
                       onClick={() => setNavOpen(false)}
                       className={({ isActive }) =>
                         cn(
-                          'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white',
+                          'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white',
                           isActive &&
-                            'bg-white/10 font-medium text-white shadow-[inset_3px_0_0_0_#FDB835]',
+                            'bg-white/10 font-medium text-white shadow-[inset_3px_0_0_0_hsl(var(--gold))]',
                         )
                       }
                     >
@@ -195,7 +195,7 @@ export function AppLayout() {
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:ml-60">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur sm:px-6">
           <button
             type="button"
             className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"

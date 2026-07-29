@@ -6,13 +6,16 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
+import { Select } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
 import { InsideClassFormDialog } from './InsideClassFormDialog';
-import { useDebounced, useInstitutionOptions } from './helpers';
+import { useInstitutionOptions } from './helpers';
 import type { InsideClassListItem } from './types';
 import { BackLink } from '@/components/BackLink';
 
@@ -95,18 +98,19 @@ export function InsideClassListPage() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Inside Classes</h1>
-        {can('inside_classes.create') ? (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> New class
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Inside Classes"
+        actions={
+          can('inside_classes.create') ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" /> New class
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-64"
+      <ListToolbar>
+        <SearchInput
           placeholder="Search class name or type…"
           value={search}
           onChange={(e) => {
@@ -115,7 +119,7 @@ export function InsideClassListPage() {
           }}
         />
         <Select
-          className="w-64"
+          className="w-full sm:w-56"
           value={institutionFilter}
           onChange={(e) => {
             setInstitutionFilter(e.target.value);
@@ -130,7 +134,7 @@ export function InsideClassListPage() {
           ))}
         </Select>
         <Select
-          className="w-44"
+          className="w-full sm:w-44"
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);
@@ -144,7 +148,7 @@ export function InsideClassListPage() {
             </option>
           ))}
         </Select>
-      </div>
+      </ListToolbar>
 
       {query.isError ? (
         <ErrorState error={query.error} />

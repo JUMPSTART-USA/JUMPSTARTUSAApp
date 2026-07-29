@@ -13,15 +13,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, toDateInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
-import {
-  applyApiError,
-  ParticipantPicker,
-  toDateInput,
-  type PickerSelection,
-} from './shared';
 import type { EmployerListItem, EmploymentDetail, EmploymentListItem } from './types';
 
 interface EmploymentFormValues {
@@ -78,7 +75,7 @@ export function EmploymentFormDialog({
   const { can } = useAuth();
   const canPay = can('fields.pay.read');
   const [topError, setTopError] = useState<string | null>(null);
-  const [participant, setParticipant] = useState<PickerSelection | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
 
   const {
     register,
@@ -134,12 +131,12 @@ export function EmploymentFormDialog({
       void queryClient.invalidateQueries({ queryKey: ['employers'] });
       onOpenChange(false);
     },
-    onError: (err) => applyApiError(err, setError, setTopError),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>{employment ? 'Edit employment' : 'New placement'}</DialogTitle>
         </DialogHeader>
@@ -178,10 +175,12 @@ export function EmploymentFormDialog({
                 }
               >
                 <ParticipantPicker
-                  selection={participant}
-                  onSelect={(sel) => {
-                    setParticipant(sel);
-                    setValue('participantProfileId', sel?.id ?? '', { shouldValidate: !!sel });
+                  value={participant}
+                  onChange={(option) => {
+                    setParticipant(option);
+                    setValue('participantProfileId', option?.id ?? '', {
+                      shouldValidate: !!option,
+                    });
                   }}
                 />
               </FormField>
@@ -284,14 +283,14 @@ export function EmploymentFormDialog({
             </div>
           ) : null}
 
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : employment ? 'Save changes' : 'Create placement'}
+              {mutation.isPending ? 'Saving…' : employment ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

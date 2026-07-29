@@ -5,6 +5,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FormError } from '@/components/ui/notice';
+import { PageHeader, SectionHeader } from '@/components/ui/page-header';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -26,8 +30,9 @@ import { FormField } from '@/components/FormField';
 import { Select, Textarea } from '@/components/ui/input';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError } from '@/lib/form';
 import { cn, formatDate, formatMoney, fullName, humanize } from '@/lib/utils';
-import { InfoItem, useCampaignOptions, useDonorCrm } from '../shared';
+import { useCampaignOptions, useDonorCrm } from '../shared';
 import type { EventDetail, RegistrationStatus } from '../types';
 import { EventFormDialog } from './EventFormDialog';
 import { RegistrationDialog } from './RegistrationDialog';
@@ -89,17 +94,17 @@ export function EventDetailPage() {
     <div className="space-y-4">
       <BackLink fallbackTo="/events" fallbackLabel="Events" />
 
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{event.name}</h1>
-          <p className="text-sm text-muted-foreground">
+      <PageHeader
+        title={event.name}
+        description={
+          <>
             {formatDate(event.eventDate)}
             {event.eventType ? ` · ${event.eventType}` : ''}
             {event.location ? ` · ${event.location}` : ''}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {mirrored ? (
+          </>
+        }
+        actions={
+          mirrored ? (
             canUpdate ? (
               <Button variant="outline" onClick={() => setLocalOpen(true)}>
                 <Pencil className="h-4 w-4" /> Edit local fields
@@ -118,9 +123,9 @@ export function EventDetailPage() {
                 </Button>
               ) : null}
             </>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -128,7 +133,7 @@ export function EventDetailPage() {
             <CardTitle>Event info</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <DescriptionList className="gap-y-3">
               <InfoItem label="Campaign">
                 {event.campaign ? (
                   <Link to={`/campaigns/${event.campaign.id}`} className="text-primary hover:underline">
@@ -145,7 +150,7 @@ export function EventDetailPage() {
               <InfoItem label="Notes">
                 <span className="whitespace-pre-wrap">{event.notes ?? '—'}</span>
               </InfoItem>
-            </dl>
+            </DescriptionList>
           </CardContent>
         </Card>
 
@@ -154,7 +159,7 @@ export function EventDetailPage() {
             <CardTitle>Financial summary</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <DescriptionList className="gap-y-3">
               <InfoItem label="Revenue">
                 <span className="tabular-nums">{formatMoney(revenue)}</span>
               </InfoItem>
@@ -165,7 +170,7 @@ export function EventDetailPage() {
                 <span
                   className={cn(
                     'font-semibold tabular-nums',
-                    net >= 0 ? 'text-emerald-600' : 'text-red-600',
+                    net >= 0 ? 'text-success' : 'text-destructive',
                   )}
                 >
                   {formatMoney(net)}
@@ -177,26 +182,30 @@ export function EventDetailPage() {
                   {formatMoney(donationsLinked.total)}
                 </span>
               </InfoItem>
-            </dl>
+            </DescriptionList>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">
-          Registrations{' '}
-          <span className="text-sm font-normal text-muted-foreground">
-            ({activeRegistrations.length} active)
-          </span>
-        </h2>
-        {canUpdate ? (
-          <Button onClick={() => setRegistrationOpen(true)}>
-            <Plus className="h-4 w-4" /> Add registration
-          </Button>
-        ) : null}
-      </div>
+      <SectionHeader
+        title={
+          <>
+            Registrations{' '}
+            <span className="text-sm font-normal text-muted-foreground">
+              ({activeRegistrations.length} active)
+            </span>
+          </>
+        }
+        actions={
+          canUpdate ? (
+            <Button onClick={() => setRegistrationOpen(true)}>
+              <Plus className="h-4 w-4" /> Add registration
+            </Button>
+          ) : null
+        }
+      />
 
-      {registrationError ? <ErrorState error={new Error(registrationError)} /> : null}
+      <FormError message={registrationError} />
 
       {registrations.length === 0 ? (
         <p className="text-sm text-muted-foreground">No registrations yet.</p>
@@ -301,29 +310,15 @@ export function EventDetailPage() {
         />
       ) : null}
 
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete event?</DialogTitle>
-            <DialogDescription>
-              “{event.name}” will be removed from lists. Linked donations keep their history.
-            </DialogDescription>
-          </DialogHeader>
-          {deleteMutation.isError ? <ErrorState error={deleteMutation.error} /> : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate()}
-            >
-              {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete event?"
+        description={`“${event.name}” will be removed from lists. Linked donations keep their history.`}
+        isPending={deleteMutation.isPending}
+        error={deleteMutation.isError ? applyApiError(deleteMutation.error) : null}
+        onConfirm={() => deleteMutation.mutate()}
+      />
     </div>
   );
 }
@@ -391,7 +386,7 @@ function EditEventLocalDialog({
           <FormField label="Local notes">
             <Textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </FormField>
-          {formError ? <ErrorState error={new Error(formError)} /> : null}
+          <FormError message={formError} />
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

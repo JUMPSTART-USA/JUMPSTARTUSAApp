@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -76,7 +77,7 @@ function QueueSection({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className={`flex items-center gap-2 text-base ${accent ?? ''}`}>
+        <CardTitle className={accent}>
           {icon}
           {title}
           <span className="ml-auto text-sm font-normal text-muted-foreground">{items.length}</span>
@@ -132,14 +133,10 @@ export function CaseManagementHome() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <div>
-        <h2 className="text-lg font-semibold">
-          {user ? `${user.firstName}'s follow-up queue` : 'My follow-up queue'}
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Open tasks and case-note follow-ups assigned to you.
-        </p>
-      </div>
+      <SectionHeader
+        title={user ? `${user.firstName}'s follow-up queue` : 'My follow-up queue'}
+        description="Open tasks and case-note follow-ups assigned to you."
+      />
       {complete.error ? <ErrorState error={complete.error} /> : null}
       {total === 0 ? (
         <EmptyState
@@ -160,7 +157,7 @@ export function CaseManagementHome() {
           />
           <QueueSection
             title="Today"
-            icon={<Sun className="h-4 w-4 text-amber-600" />}
+            icon={<Sun className="h-4 w-4 text-warning" />}
             items={data.today}
             emptyText="Nothing due today."
             canComplete={canComplete}

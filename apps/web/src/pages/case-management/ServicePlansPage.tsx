@@ -6,27 +6,34 @@ import { goalSchema, GOAL_STATUSES, NOTE_CATEGORIES, servicePlanSchema } from '@
 import { FormField } from '@/components/FormField';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardHeaderRow,
+  CardTitle,
+} from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError, formResolver } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
 import {
-  applyFormErrors,
-  dateInputValue,
-  ParticipantPicker,
-  zodForm,
   type GoalRow,
-  type ParticipantRef,
+  type MilestoneRow,
   type ServicePlanDetail,
   type ServicePlanRow,
 } from './shared';
@@ -52,9 +59,9 @@ function AddGoalDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const [topError, setTopError] = useState('');
+  const [topError, setTopError] = useState<string | null>(null);
   const { register, handleSubmit, setError, formState } = useForm<GoalFormValues>({
-    resolver: zodForm<GoalFormValues>(goalFormSchema),
+    resolver: formResolver<GoalFormValues>(goalFormSchema),
     defaultValues: {
       category: 'general',
       description: '',
@@ -70,7 +77,7 @@ function AddGoalDialog({
       queryClient.invalidateQueries({ queryKey: ['case-management', 'service-plan'] });
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyFormErrors(err, setError)),
+    onError: (err) => setTopError(applyApiError(err, setError)),
   });
 
   return (
@@ -82,7 +89,7 @@ function AddGoalDialog({
         <form
           className="space-y-4"
           onSubmit={handleSubmit((values) => {
-            setTopError('');
+            setTopError(null);
             create.mutate(values);
           })}
         >
@@ -106,13 +113,13 @@ function AddGoalDialog({
           <FormField label="Notes" error={formState.errors.notes}>
             <Textarea rows={2} {...register('notes')} />
           </FormField>
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? 'Saving…' : 'Add goal'}
+              {create.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>
@@ -125,6 +132,7 @@ function MilestoneList({ goal, canUpdate, canDelete }: { goal: GoalRow; canUpdat
   const queryClient = useQueryClient();
   const [newDescription, setNewDescription] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<MilestoneRow | null>(null);
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['case-management', 'service-plan'] });
 
@@ -135,7 +143,10 @@ function MilestoneList({ goal, canUpdate, canDelete }: { goal: GoalRow; canUpdat
   });
   const remove = useMutation({
     mutationFn: (milestoneId: string) => api.delete(`/service-plans/milestones/${milestoneId}`),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setConfirmDelete(null);
+      invalidate();
+    },
   });
   const add = useMutation({
     mutationFn: () =>
@@ -150,7 +161,7 @@ function MilestoneList({ goal, canUpdate, canDelete }: { goal: GoalRow; canUpdat
     },
   });
 
-  const actionError = toggle.error ?? remove.error ?? add.error;
+  const actionError = toggle.error ?? add.error;
 
   return (
     <div className="mt-2 space-y-1.5">
@@ -164,7 +175,7 @@ function MilestoneList({ goal, canUpdate, canDelete }: { goal: GoalRow; canUpdat
             aria-label={m.completedAt ? 'Mark milestone incomplete' : 'Complete milestone'}
           >
             {m.completedAt ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <CheckCircle2 className="h-4 w-4 text-success" />
             ) : (
               <Circle className="h-4 w-4 text-muted-foreground" />
             )}
@@ -179,7 +190,7 @@ function MilestoneList({ goal, canUpdate, canDelete }: { goal: GoalRow; canUpdat
             <button
               type="button"
               className="ml-auto hidden text-muted-foreground hover:text-destructive group-hover:block"
-              onClick={() => remove.mutate(m.id)}
+              onClick={() => setConfirmDelete(m)}
               aria-label="Delete milestone"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -214,6 +225,22 @@ function MilestoneList({ goal, canUpdate, canDelete }: { goal: GoalRow; canUpdat
         </form>
       ) : null}
       {actionError ? <ErrorState error={actionError} /> : null}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmDelete(null);
+            remove.reset();
+          }
+        }}
+        title="Delete milestone?"
+        description={confirmDelete?.description}
+        isPending={remove.isPending}
+        error={remove.error ? applyApiError(remove.error) : null}
+        onConfirm={() => {
+          if (confirmDelete) remove.mutate(confirmDelete.id);
+        }}
+      />
     </div>
   );
 }
@@ -250,39 +277,40 @@ function PlanDetail({ planId }: { planId: string }) {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between space-y-0">
-        <div className="space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
+      <CardHeaderRow
+        title={
+          <>
             {plan.title}
             <StatusBadge status={plan.status} />
-          </CardTitle>
-          <CardDescription>
+          </>
+        }
+        description={
+          <>
             Review date: {formatDate(plan.reviewDate)}
             {plan.notes ? <> · {plan.notes}</> : null}
-          </CardDescription>
-        </div>
-        <div className="flex items-center gap-2">
-          {canUpdate ? (
-            <Select
-              className="h-8 w-32 text-xs"
-              value={plan.status}
-              onChange={(e) => updatePlanStatus.mutate(e.target.value)}
-              aria-label="Plan status"
-            >
-              {['active', 'completed', 'archived'].map((s) => (
-                <option key={s} value={s}>
-                  {humanize(s)}
-                </option>
-              ))}
-            </Select>
-          ) : null}
-          {canCreate ? (
-            <Button size="sm" onClick={() => setAddGoalOpen(true)}>
-              <Plus className="h-3.5 w-3.5" /> Add goal
-            </Button>
-          ) : null}
-        </div>
-      </CardHeader>
+          </>
+        }
+      >
+        {canUpdate ? (
+          <Select
+            className="h-8 w-32 text-xs"
+            value={plan.status}
+            onChange={(e) => updatePlanStatus.mutate(e.target.value)}
+            aria-label="Plan status"
+          >
+            {['active', 'completed', 'archived'].map((s) => (
+              <option key={s} value={s}>
+                {humanize(s)}
+              </option>
+            ))}
+          </Select>
+        ) : null}
+        {canCreate ? (
+          <Button size="sm" onClick={() => setAddGoalOpen(true)}>
+            <Plus className="h-3.5 w-3.5" /> Add goal
+          </Button>
+        ) : null}
+      </CardHeaderRow>
       <CardContent className="space-y-4">
         {updatePlanStatus.error ? <ErrorState error={updatePlanStatus.error} /> : null}
         {updateGoalStatus.error ? <ErrorState error={updateGoalStatus.error} /> : null}
@@ -346,11 +374,11 @@ interface PlanFormValues {
   notes: string;
 }
 
-function CreatePlanCard({ participant }: { participant: ParticipantRef }) {
+function CreatePlanCard({ participant }: { participant: PickerOption }) {
   const queryClient = useQueryClient();
-  const [topError, setTopError] = useState('');
+  const [topError, setTopError] = useState<string | null>(null);
   const { register, handleSubmit, setError, formState } = useForm<PlanFormValues>({
-    resolver: zodForm<PlanFormValues>(servicePlanSchema),
+    resolver: formResolver<PlanFormValues>(servicePlanSchema),
     defaultValues: {
       participantProfileId: participant.id,
       title: 'Service Plan',
@@ -366,7 +394,7 @@ function CreatePlanCard({ participant }: { participant: ParticipantRef }) {
     onError: (err) => {
       // 409 = another active plan exists — surface the API's explanation.
       if (err instanceof ApiError && err.status === 409) setTopError(err.message);
-      else setTopError(applyFormErrors(err, setError));
+      else setTopError(applyApiError(err, setError));
     },
   });
 
@@ -374,13 +402,13 @@ function CreatePlanCard({ participant }: { participant: ParticipantRef }) {
     <Card>
       <CardHeader>
         <CardTitle>Start a service plan</CardTitle>
-        <CardDescription>{participant.name} has no service plan yet.</CardDescription>
+        <CardDescription>{participant.label} has no service plan yet.</CardDescription>
       </CardHeader>
       <CardContent>
         <form
           className="space-y-4"
           onSubmit={handleSubmit((values) => {
-            setTopError('');
+            setTopError(null);
             create.mutate(values);
           })}
         >
@@ -395,9 +423,9 @@ function CreatePlanCard({ participant }: { participant: ParticipantRef }) {
           <FormField label="Notes" error={formState.errors.notes}>
             <Textarea rows={2} {...register('notes')} />
           </FormField>
-          {topError ? <p className="text-sm text-destructive">{topError}</p> : null}
+          <FormError message={topError} />
           <Button type="submit" disabled={create.isPending}>
-            {create.isPending ? 'Creating…' : 'Create plan'}
+            {create.isPending ? 'Saving…' : 'Create'}
           </Button>
         </form>
       </CardContent>
@@ -407,7 +435,7 @@ function CreatePlanCard({ participant }: { participant: ParticipantRef }) {
 
 export function ServicePlansPage() {
   const { can } = useAuth();
-  const [participant, setParticipant] = useState<ParticipantRef | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   const { data: plans, isLoading, error } = useQuery({
@@ -428,19 +456,20 @@ export function ServicePlansPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Service Plans</h2>
-        <div className="w-72">
-          <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              setSelectedPlanId(null);
-            }}
-            placeholder="Select a participant…"
-          />
-        </div>
-      </div>
+      <SectionHeader
+        title="Service Plans"
+        actions={
+          <div className="w-full sm:w-72">
+            <ParticipantPicker
+              value={participant}
+              onChange={(p) => {
+                setParticipant(p);
+                setSelectedPlanId(null);
+              }}
+            />
+          </div>
+        }
+      />
 
       {!participant ? (
         <EmptyState
@@ -455,7 +484,7 @@ export function ServicePlansPage() {
         can('case_management.create') ? (
           <CreatePlanCard participant={participant} />
         ) : (
-          <EmptyState title="No service plan" hint={`${participant.name} has no service plan.`} />
+          <EmptyState title="No service plan" hint={`${participant.label} has no service plan.`} />
         )
       ) : (
         <>

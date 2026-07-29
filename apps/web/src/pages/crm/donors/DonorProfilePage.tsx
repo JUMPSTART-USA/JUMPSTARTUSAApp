@@ -9,6 +9,7 @@ import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -30,8 +33,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError } from '@/lib/form';
 import { formatDate, formatMoney, fullName, humanize } from '@/lib/utils';
-import { applyApiErrors, InfoItem, PersonSearch, type PersonHit } from '../shared';
+import { PersonSearch, type PersonHit } from '../shared';
 import type { DonorDetail } from '../types';
 import { BackLink } from '@/components/BackLink';
 
@@ -78,7 +82,7 @@ function EditLocalFieldsDialog({
       queryClient.invalidateQueries({ queryKey: ['crm', 'donors'] });
       onOpenChange(false);
     },
-    onError: (err) => setFormError(applyApiErrors(err, form.setError)),
+    onError: (err) => setFormError(applyApiError(err, form.setError)),
   });
 
   return (
@@ -107,7 +111,7 @@ function EditLocalFieldsDialog({
           <FormField label="Local notes" error={form.formState.errors.notes}>
             <Textarea rows={4} {...form.register('notes')} />
           </FormField>
-          {formError ? <ErrorState error={new Error(formError)} /> : null}
+          <FormError message={formError} />
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -146,23 +150,27 @@ export function DonorProfilePage() {
     <div className="space-y-4">
       <BackLink fallbackTo="/donors" fallbackLabel="Donors" />
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{donor.name}</h1>
-          <Badge variant="secondary">{humanize(donor.donorType)}</Badge>
-          <StatusBadge status={donor.status} />
-        </div>
-        {can('donors.update') ? (
-          <Button variant="outline" onClick={() => setEditOpen(true)}>
-            <Pencil className="h-4 w-4" /> Edit local fields
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        title={
+          <span className="flex flex-wrap items-center gap-3">
+            {donor.name}
+            <Badge variant="secondary">{humanize(donor.donorType)}</Badge>
+            <StatusBadge status={donor.status} />
+          </span>
+        }
+        actions={
+          can('donors.update') ? (
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              <Pencil className="h-4 w-4" /> Edit local fields
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-900">
+      <Notice variant="info">
         This donor record is managed in Bloomerang. Contact and giving data sync automatically —
         only the person link and local notes are edited here.
-      </div>
+      </Notice>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
@@ -170,7 +178,7 @@ export function DonorProfilePage() {
             <CardTitle>Contact</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="space-y-3">
+            <DescriptionList columns={1} className="gap-y-3">
               <InfoItem label="Contact person">{donor.contactPerson ?? '—'}</InfoItem>
               <InfoItem label="Email">{donor.email ?? '—'}</InfoItem>
               <InfoItem label="Phone">{donor.phone ?? '—'}</InfoItem>
@@ -183,7 +191,7 @@ export function DonorProfilePage() {
                 {donor.person ? fullName(donor.person) : 'Not linked'}
               </InfoItem>
               <InfoItem label="Last synced">{formatDate(donor.lastSyncedAt)}</InfoItem>
-            </dl>
+            </DescriptionList>
           </CardContent>
         </Card>
 
@@ -192,7 +200,7 @@ export function DonorProfilePage() {
             <CardTitle>Giving</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="space-y-3">
+            <DescriptionList columns={1} className="gap-y-3">
               <InfoItem label="Lifetime giving">
                 <span className="text-lg font-semibold tabular-nums">
                   {formatMoney(lifetimeGiving)}
@@ -200,7 +208,7 @@ export function DonorProfilePage() {
               </InfoItem>
               <InfoItem label="Gifts">{donations.length}</InfoItem>
               <InfoItem label="Last gift">{formatDate(lastGiftDate)}</InfoItem>
-            </dl>
+            </DescriptionList>
           </CardContent>
         </Card>
 

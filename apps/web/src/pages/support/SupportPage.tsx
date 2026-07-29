@@ -20,6 +20,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -64,17 +66,15 @@ export function SupportPage() {
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Support</h1>
-          <p className="text-sm text-muted-foreground">
-            Report bugs and suggest features — an administrator will respond on your ticket.
-          </p>
-        </div>
-        <Button onClick={() => setNewOpen(true)}>
-          <Plus className="h-4 w-4" /> New ticket
-        </Button>
-      </div>
+      <PageHeader
+        title="Support"
+        description="Report bugs and suggest features — an administrator will respond on your ticket."
+        actions={
+          <Button onClick={() => setNewOpen(true)}>
+            <Plus className="h-4 w-4" /> New ticket
+          </Button>
+        }
+      />
 
       {isAdmin ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -86,7 +86,7 @@ export function SupportPage() {
           </Tabs>
           {tab === 'all' ? (
             <Select
-              className="w-40"
+              className="w-full sm:w-44"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -193,7 +193,7 @@ function NewTicketDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-lg">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>New support ticket</DialogTitle>
           <DialogDescription>
@@ -226,7 +226,7 @@ function NewTicketDialog({
               placeholder="What happened, or what would you like to see? Steps to reproduce help a lot."
             />
           </FormField>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <FormError message={error} />
           <DialogFooter>
             <Button variant="outline" onClick={() => close(false)}>
               Cancel
@@ -235,7 +235,7 @@ function NewTicketDialog({
               disabled={!subject.trim() || !body.trim() || create.isPending}
               onClick={() => create.mutate()}
             >
-              {create.isPending ? 'Submitting…' : 'Submit ticket'}
+              {create.isPending ? 'Saving…' : 'Create'}
             </Button>
           </DialogFooter>
         </div>

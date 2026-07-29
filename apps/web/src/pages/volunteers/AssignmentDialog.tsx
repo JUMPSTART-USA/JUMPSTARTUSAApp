@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ASSIGNMENT_STATUSES, ASSIGNMENT_TYPES } from '@jumpstart/shared';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
+import { toDateInput, todayInput } from '@/lib/form';
 import { fullName, humanize } from '@/lib/utils';
 
 /**
@@ -40,10 +43,6 @@ export interface AssignmentRowLite {
 interface VolunteerHit {
   id: string;
   person: { firstName: string; lastName: string; preferredName?: string | null };
-}
-
-function toDateInput(value: string | null | undefined): string {
-  return value ? value.slice(0, 10) : '';
 }
 
 export function AssignmentDialog({
@@ -85,7 +84,7 @@ export function AssignmentDialog({
         existing?.assignmentType ?? (context.insideClassId ? 'inside_class' : 'other'),
       );
       setRole(existing?.role ?? '');
-      setStartDate(existing ? toDateInput(existing.startDate) : new Date().toISOString().slice(0, 10));
+      setStartDate(existing ? toDateInput(existing.startDate) : todayInput());
       setEndDate(toDateInput(existing?.endDate));
       setStatus(existing?.status ?? 'active');
       setNotes('');
@@ -142,19 +141,14 @@ export function AssignmentDialog({
     mutationFn: () => api.delete(`/volunteers/assignments/${existing?.id}`),
     onSuccess: () => {
       invalidateAll();
+      setConfirmDelete(false);
       onClose();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Delete failed'),
   });
-
-  const selectedVolunteer =
-    creating && volunteerId
-      ? volunteersQuery.data?.items.find((v) => v.id === volunteerId)
-      : null;
 
   return (
     <Dialog open={state !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>{creating ? 'Assign volunteer' : 'Edit assignment'}</DialogTitle>
           <DialogDescription>
@@ -182,11 +176,10 @@ export function AssignmentDialog({
                     </option>
                   ))}
                 </Select>
-                {selectedVolunteer ? null : null}
               </div>
             </FormField>
           ) : null}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Assignment type" required>
               <Select value={assignmentType} onChange={(e) => setAssignmentType(e.target.value)}>
                 {ASSIGNMENT_TYPES.map((t) => (
@@ -240,19 +233,17 @@ export function AssignmentDialog({
               ) : null}
             </div>
           ) : null}
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <FormError message={error} />
           <DialogFooter className="sm:justify-between">
             {!creating ? (
               <Button
                 variant="destructive"
-                disabled={remove.isPending}
-                onClick={() => (confirmDelete ? remove.mutate() : setConfirmDelete(true))}
+                onClick={() => {
+                  remove.reset();
+                  setConfirmDelete(true);
+                }}
               >
-                {remove.isPending
-                  ? 'Removing…'
-                  : confirmDelete
-                    ? 'Click again to confirm'
-                    : 'Remove'}
+                Delete
               </Button>
             ) : (
               <span />
@@ -265,12 +256,32 @@ export function AssignmentDialog({
                 disabled={save.isPending || (creating && !volunteerId) || !startDate}
                 onClick={() => save.mutate()}
               >
-                {save.isPending ? 'Saving…' : creating ? 'Assign volunteer' : 'Save changes'}
+                {save.isPending ? 'Saving…' : creating ? 'Create' : 'Save'}
               </Button>
             </div>
           </DialogFooter>
         </div>
       </DialogContent>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete assignment?"
+        description={
+          existing
+            ? `Remove ${existing.volunteerProfile.person.firstName} ${existing.volunteerProfile.person.lastName}'s assignment here?`
+            : undefined
+        }
+        isPending={remove.isPending}
+        error={
+          remove.error
+            ? remove.error instanceof ApiError
+              ? remove.error.message
+              : 'Delete failed'
+            : null
+        }
+        onConfirm={() => remove.mutate()}
+      />
     </Dialog>
   );
 }

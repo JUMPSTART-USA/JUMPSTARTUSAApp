@@ -13,11 +13,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Label, Select } from '@/components/ui/input';
+import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState } from '@/components/ui/spinner';
+import { ListToolbar } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { humanize } from '@/lib/utils';
-import { formatDateTime, JsonBlock, useActiveUserOptions, useDebouncedValue } from './shared';
+import { formatDateTime, JsonBlock, useActiveUserOptions } from './shared';
 import type { AuditLogEntry } from './types';
 
 const ACTION_VARIANTS: Record<string, BadgeProps['variant']> = {
@@ -55,8 +58,8 @@ export function AuditLogPage() {
   const [to, setTo] = useState('');
   const [selected, setSelected] = useState<AuditLogEntry | null>(null);
 
-  const debouncedEntityType = useDebouncedValue(entityType);
-  const debouncedEntityId = useDebouncedValue(entityId);
+  const debouncedEntityType = useDebounced(entityType);
+  const debouncedEntityId = useDebounced(entityId);
 
   // The user filter needs the /admin/users lookup; audit.read alone may not
   // hold admin.users, so the dropdown degrades to a hidden control.
@@ -139,14 +142,14 @@ export function AuditLogPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Audit Log</h2>
+      <SectionHeader title="Audit Log" />
 
-      <div className="flex flex-wrap items-end gap-2">
+      <ListToolbar className="items-end">
         {canListUsers ? (
-          <div className="space-y-1">
+          <div className="w-full space-y-1 sm:w-56">
             <Label className="text-xs text-muted-foreground">User</Label>
             <Select
-              className="w-52"
+              className="w-full"
               value={userId}
               onChange={(e) => {
                 setUserId(e.target.value);
@@ -162,10 +165,10 @@ export function AuditLogPage() {
             </Select>
           </div>
         ) : null}
-        <div className="space-y-1">
+        <div className="w-full space-y-1 sm:w-44">
           <Label className="text-xs text-muted-foreground">Entity type</Label>
           <Input
-            className="w-44"
+            className="w-full"
             placeholder="e.g. user, participant…"
             value={entityType}
             onChange={(e) => {
@@ -174,10 +177,10 @@ export function AuditLogPage() {
             }}
           />
         </div>
-        <div className="space-y-1">
+        <div className="w-full space-y-1 sm:w-44">
           <Label className="text-xs text-muted-foreground">Entity ID</Label>
           <Input
-            className="w-44"
+            className="w-full"
             placeholder="UUID"
             value={entityId}
             onChange={(e) => {
@@ -186,10 +189,10 @@ export function AuditLogPage() {
             }}
           />
         </div>
-        <div className="space-y-1">
+        <div className="w-full space-y-1 sm:w-44">
           <Label className="text-xs text-muted-foreground">Action</Label>
           <Select
-            className="w-44"
+            className="w-full"
             value={action}
             onChange={(e) => {
               setAction(e.target.value);
@@ -204,11 +207,11 @@ export function AuditLogPage() {
             ))}
           </Select>
         </div>
-        <div className="space-y-1">
+        <div className="w-full space-y-1 sm:w-40">
           <Label className="text-xs text-muted-foreground">From</Label>
           <Input
             type="date"
-            className="w-40"
+            className="w-full"
             value={from}
             onChange={(e) => {
               setFrom(e.target.value);
@@ -216,11 +219,11 @@ export function AuditLogPage() {
             }}
           />
         </div>
-        <div className="space-y-1">
+        <div className="w-full space-y-1 sm:w-40">
           <Label className="text-xs text-muted-foreground">To</Label>
           <Input
             type="date"
-            className="w-40"
+            className="w-full"
             value={to}
             onChange={(e) => {
               setTo(e.target.value);
@@ -228,7 +231,7 @@ export function AuditLogPage() {
             }}
           />
         </div>
-      </div>
+      </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
 
@@ -243,7 +246,7 @@ export function AuditLogPage() {
       />
 
       <Dialog open={selected !== null} onOpenChange={(next) => (!next ? setSelected(null) : undefined)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent size="2xl">
           {selected ? (
             <>
               <DialogHeader>

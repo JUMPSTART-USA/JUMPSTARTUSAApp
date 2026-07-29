@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -82,7 +84,7 @@ function SessionDialog({
 
   return (
     <Dialog open={state !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>{creating ? 'Add session' : 'Edit session'}</DialogTitle>
         </DialogHeader>
@@ -100,13 +102,13 @@ function SessionDialog({
           <FormField label="Notes">
             <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </FormField>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <FormError message={error} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button onClick={() => mutation.mutate()} disabled={!sessionDate || mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : creating ? 'Add session' : 'Save changes'}
+              {mutation.isPending ? 'Saving…' : creating ? 'Create' : 'Save'}
             </Button>
           </DialogFooter>
         </div>
@@ -168,10 +170,9 @@ function AttendanceGrid({
     mutationFn: () => api.delete(`/inside-classes/sessions/${session.id}`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['inside-classes', classId, 'sessions'] });
+      setConfirmDelete(false);
       onDeleted();
     },
-    onError: (err) =>
-      setError(err instanceof ApiError ? err.message : 'Could not delete session'),
   });
 
   const mutation = useMutation({
@@ -225,17 +226,8 @@ function AttendanceGrid({
             </>
           ) : null}
           {canDelete ? (
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={removeSession.isPending}
-              onClick={() => (confirmDelete ? removeSession.mutate() : setConfirmDelete(true))}
-            >
-              {removeSession.isPending
-                ? 'Deleting…'
-                : confirmDelete
-                  ? 'Confirm delete'
-                  : 'Delete session'}
+            <Button variant="destructive" size="sm" onClick={() => setConfirmDelete(true)}>
+              Delete session
             </Button>
           ) : null}
         </div>
@@ -296,7 +288,7 @@ function AttendanceGrid({
         </div>
       )}
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <FormError message={error} />
 
       {canUpdate ? (
         <div className="flex items-center justify-end gap-3">
@@ -306,6 +298,19 @@ function AttendanceGrid({
           </Button>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={(open) => {
+          setConfirmDelete(open);
+          if (!open) removeSession.reset();
+        }}
+        title="Delete session?"
+        description={`This removes the ${formatDate(session.sessionDate)} session and its attendance records.`}
+        isPending={removeSession.isPending}
+        error={removeSession.error ? removeSession.error.message : null}
+        onConfirm={() => removeSession.mutate()}
+      />
     </div>
   );
 }

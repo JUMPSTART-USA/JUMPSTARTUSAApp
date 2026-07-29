@@ -4,19 +4,18 @@ import { cn } from '@/lib/utils';
 
 export const Tabs = TabsPrimitive.Root;
 
+/** Shared pill-bar classes — SubNav reuses these so link-based nav matches Tabs. */
+export const tabsListClasses =
+  'inline-flex h-9 max-w-full items-center justify-start gap-1 overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground';
+export const tabsTriggerClasses =
+  'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+export const tabsTriggerActiveClasses = 'bg-card text-foreground shadow-sm';
+
 export function TabsList({
   className,
   ...props
 }: ComponentPropsWithoutRef<typeof TabsPrimitive.List>) {
-  return (
-    <TabsPrimitive.List
-      className={cn(
-        'inline-flex h-9 items-center justify-start gap-1 rounded-lg bg-muted p-1 text-muted-foreground overflow-x-auto max-w-full',
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <TabsPrimitive.List className={cn(tabsListClasses, className)} {...props} />;
 }
 
 export function TabsTrigger({
@@ -26,7 +25,8 @@ export function TabsTrigger({
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow',
+        tabsTriggerClasses,
+        'data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm',
         className,
       )}
       {...props}

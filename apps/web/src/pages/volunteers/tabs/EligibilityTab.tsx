@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/input';
+import { Notice } from '@/components/ui/notice';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import { api, qs, type Paged } from '@/lib/api';
 import { formatDate, humanize } from '@/lib/utils';
@@ -42,9 +43,9 @@ export function EligibilityTab({ volunteerProfileId }: { volunteerProfileId: str
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Select
-          className="w-72"
+          className="w-full sm:w-72"
           value={institutionId}
           onChange={(e) => setInstitutionId(e.target.value)}
         >
@@ -74,13 +75,13 @@ export function EligibilityTab({ volunteerProfileId }: { volunteerProfileId: str
       ) : eligibility.data ? (
         <div className="space-y-3">
           {eligibility.data.eligible ? (
-            <div className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+            <Notice variant="success">
               Eligible — every active requirement is satisfied and unexpired.
-            </div>
+            </Notice>
           ) : (
-            <div className="rounded-md border border-destructive/30 bg-red-50 px-4 py-3 text-sm font-medium text-destructive">
+            <Notice variant="error">
               Not eligible — {missing.length} requirement{missing.length === 1 ? '' : 's'} unmet.
-            </div>
+            </Notice>
           )}
 
           <Card>
@@ -93,7 +94,7 @@ export function EligibilityTab({ volunteerProfileId }: { volunteerProfileId: str
                       {miss ? (
                         <XCircle className="h-5 w-5 shrink-0 text-destructive" />
                       ) : (
-                        <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                        <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
                       )}
                       <div>
                         <div className="text-sm font-medium">{req.name}</div>
@@ -117,7 +118,7 @@ export function EligibilityTab({ volunteerProfileId }: { volunteerProfileId: str
                           )}
                         </>
                       ) : (
-                        <span className="text-emerald-700">Satisfied</span>
+                        <span className="text-success">Satisfied</span>
                       )}
                     </div>
                   </div>

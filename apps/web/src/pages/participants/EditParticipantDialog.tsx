@@ -11,15 +11,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ErrorState } from '@/components/ui/spinner';
+import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { applyApiError, formResolver } from '@/lib/form';
 import {
   participantToFormValues,
   PersonFields,
   ProfileFields,
   type ParticipantFormValues,
 } from './person-form';
-import { applyApiError, schemaResolver, useCaseManagerOptions } from './shared';
+import { useCaseManagerOptions } from './shared';
 import type { ParticipantDetail } from './types';
 
 /** Update semantics (participantUpdateSchema): null clears, undefined = no change. */
@@ -87,7 +88,7 @@ export function EditParticipantDialog({
   const [topError, setTopError] = useState<string | null>(null);
 
   const form = useForm<ParticipantFormValues>({
-    resolver: schemaResolver<ParticipantFormValues>(participantUpdateSchema),
+    resolver: formResolver<ParticipantFormValues>(participantUpdateSchema),
     defaultValues: participantToFormValues(participant),
   });
 
@@ -124,7 +125,7 @@ export function EditParticipantDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent size="2xl">
         <DialogHeader>
           <DialogTitle>Edit participant</DialogTitle>
           <DialogDescription>
@@ -147,13 +148,13 @@ export function EditParticipantDialog({
             <p className="mb-3 text-sm font-semibold">Program profile</p>
             <ProfileFields form={form} cmOptions={cmOptions} mode="edit" />
           </div>
-          {topError ? <ErrorState error={new Error(topError)} /> : null}
+          <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+              {updateMutation.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

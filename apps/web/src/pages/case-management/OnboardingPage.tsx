@@ -6,16 +6,14 @@ import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/input';
+import { FormError } from '@/components/ui/notice';
+import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/utils';
-import {
-  ParticipantPicker,
-  type ChecklistItemRow,
-  type ChecklistRow,
-  type ParticipantRef,
-} from './shared';
+import { type ChecklistItemRow, type ChecklistRow } from './shared';
 
 function ChecklistItem({
   item,
@@ -95,21 +93,19 @@ function ChecklistCard({ checklist }: { checklist: ChecklistRow }) {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between space-y-0">
-        <div className="space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
-            {checklist.template?.name ?? 'Onboarding checklist'}
-            {checklist.completedAt ? (
-              <Badge variant="success">Completed {formatDate(checklist.completedAt)}</Badge>
-            ) : (
-              <Badge variant="warning">In progress</Badge>
-            )}
-          </CardTitle>
-          <CardDescription>
-            Started {formatDate(checklist.startedAt)} · {requiredDone} of {required.length} required
-            items done
-          </CardDescription>
-        </div>
+      <CardHeader>
+        <CardTitle>
+          {checklist.template?.name ?? 'Onboarding checklist'}
+          {checklist.completedAt ? (
+            <Badge variant="success">Completed {formatDate(checklist.completedAt)}</Badge>
+          ) : (
+            <Badge variant="warning">In progress</Badge>
+          )}
+        </CardTitle>
+        <CardDescription>
+          Started {formatDate(checklist.startedAt)} · {requiredDone} of {required.length} required
+          items done
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {checklist.items.map((item) => (
@@ -123,7 +119,7 @@ function ChecklistCard({ checklist }: { checklist: ChecklistRow }) {
 export function OnboardingPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const [participant, setParticipant] = useState<ParticipantRef | null>(null);
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['case-management', 'onboarding', participant?.id],
@@ -143,16 +139,14 @@ export function OnboardingPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Onboarding</h2>
-        <div className="w-72">
-          <ParticipantPicker
-            value={participant}
-            onChange={setParticipant}
-            placeholder="Select a participant…"
-          />
-        </div>
-      </div>
+      <SectionHeader
+        title="Onboarding"
+        actions={
+          <div className="w-full sm:w-72">
+            <ParticipantPicker value={participant} onChange={setParticipant} />
+          </div>
+        }
+      />
 
       {!participant ? (
         <EmptyState
@@ -167,7 +161,7 @@ export function OnboardingPage() {
         <div className="space-y-3">
           <EmptyState
             title="No onboarding checklist"
-            hint={`${participant.name} has not been started on onboarding yet.`}
+            hint={`${participant.label} has not been started on onboarding yet.`}
           />
           {can('case_management.create') ? (
             <div className="flex flex-col items-center gap-2">
@@ -176,11 +170,13 @@ export function OnboardingPage() {
                 {instantiate.isPending ? 'Starting…' : 'Start onboarding checklist'}
               </Button>
               {instantiate.error ? (
-                <p className="text-sm text-destructive">
-                  {instantiate.error instanceof ApiError
-                    ? instantiate.error.message
-                    : 'Could not start the checklist'}
-                </p>
+                <FormError
+                  message={
+                    instantiate.error instanceof ApiError
+                      ? instantiate.error.message
+                      : 'Could not start the checklist'
+                  }
+                />
               ) : null}
             </div>
           ) : null}

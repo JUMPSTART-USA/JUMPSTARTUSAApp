@@ -2,11 +2,14 @@ import { HIRING_STATUSES } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { BackLink, backTo } from '@/components/BackLink';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DescriptionList, InfoItem } from '@/components/ui/description-list';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -21,7 +24,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/utils';
 import { EmployerFormDialog } from './EmployerFormDialog';
 import { EmploymentFormDialog } from './EmploymentFormDialog';
-import { ConfirmDialog, EmploymentStatusBadge, HiringStatusBadge } from './shared';
+import { EmploymentStatusBadge, HiringStatusBadge } from './shared';
 import type { EmployerProfile } from './types';
 
 export function EmployerProfilePage() {
@@ -71,34 +74,38 @@ export function EmployerProfilePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <BackLink fallbackTo="/employers" fallbackLabel="Employers" />
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{employer.name}</h1>
-            <HiringStatusBadge status={employer.hiringStatus} />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {[employer.industry, employer.city, employer.state].filter(Boolean).join(' · ')}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {can('employment.create') ? (
-            <Button onClick={() => setPlacementOpen(true)}>
-              <Plus className="h-4 w-4" /> New placement
-            </Button>
-          ) : null}
-          {can('employers.update') ? (
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-4 w-4" /> Edit
-            </Button>
-          ) : null}
-          {can('employers.delete') ? (
-            <Button variant="outline" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="h-4 w-4" /> Delete
-            </Button>
-          ) : null}
-        </div>
+      <div className="space-y-1">
+        <BackLink fallbackTo="/employers" fallbackLabel="Employers" />
+        <PageHeader
+          title={
+            <span className="flex flex-wrap items-center gap-2">
+              {employer.name}
+              <HiringStatusBadge status={employer.hiringStatus} />
+            </span>
+          }
+          description={[employer.industry, employer.city, employer.state]
+            .filter(Boolean)
+            .join(' · ')}
+          actions={
+            <>
+              {can('employment.create') ? (
+                <Button onClick={() => setPlacementOpen(true)}>
+                  <Plus className="h-4 w-4" /> New placement
+                </Button>
+              ) : null}
+              {can('employers.update') ? (
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+              ) : null}
+              {can('employers.delete') ? (
+                <Button variant="outline" onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              ) : null}
+            </>
+          }
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -107,25 +114,30 @@ export function EmployerProfilePage() {
             <CardTitle>Contact information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Contact person</p>
-                <p className="text-sm font-medium">{employer.contactPerson ?? '—'}</p>
-                <p className="text-sm">{employer.phone ?? '—'}</p>
-                <p className="text-sm">{employer.email ?? '—'}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Address</p>
-                <p className="text-sm">{employer.addressLine1 ?? '—'}</p>
-                <p className="text-sm">
-                  {[employer.city, employer.state, employer.zip].filter(Boolean).join(', ') || '—'}
-                </p>
-              </div>
-            </div>
+            <DescriptionList>
+              <InfoItem label="Contact person">{employer.contactPerson}</InfoItem>
+              <InfoItem label="Address">
+                {employer.addressLine1 || employer.city || employer.state || employer.zip ? (
+                  <>
+                    {employer.addressLine1 ? (
+                      <span className="block">{employer.addressLine1}</span>
+                    ) : null}
+                    <span className="block">
+                      {[employer.city, employer.state, employer.zip].filter(Boolean).join(', ')}
+                    </span>
+                  </>
+                ) : null}
+              </InfoItem>
+              <InfoItem label="Phone">{employer.phone}</InfoItem>
+              <InfoItem label="Email">{employer.email}</InfoItem>
+            </DescriptionList>
             {employer.notes ? (
-              <div className="space-y-1 border-t pt-3">
-                <p className="text-sm font-medium text-muted-foreground">Notes</p>
-                <p className="whitespace-pre-wrap text-sm">{employer.notes}</p>
+              <div className="border-t pt-3">
+                <DescriptionList columns={1}>
+                  <InfoItem label="Notes">
+                    <span className="whitespace-pre-wrap">{employer.notes}</span>
+                  </InfoItem>
+                </DescriptionList>
               </div>
             ) : null}
           </CardContent>
@@ -232,7 +244,8 @@ export function EmployerProfilePage() {
         title="Delete employer"
         description={`Delete ${employer.name}? The record is retained for audit but removed from lists.`}
         confirmLabel="Delete employer"
-        pending={deleteMutation.isPending}
+        isPending={deleteMutation.isPending}
+        error={deleteMutation.error ? deleteMutation.error.message : null}
         onConfirm={() => deleteMutation.mutate()}
       />
     </div>

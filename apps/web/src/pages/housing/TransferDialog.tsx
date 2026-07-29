@@ -13,14 +13,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { FormError, Notice } from '@/components/ui/notice';
 import { api } from '@/lib/api';
-import {
-  applyApiError,
-  FormErrorNotice,
-  formResolver,
-  todayInput,
-  WarningNotice,
-} from '@/pages/outside-programs/shared';
+import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import type { HousingEnrollment, TransferResult } from './types';
 import { homeOptionLabel, useHomeOptions } from './useHomeOptions';
 
@@ -91,7 +86,7 @@ export function TransferDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>Transfer resident</DialogTitle>
           <DialogDescription>
@@ -101,7 +96,13 @@ export function TransferDialog({
         {warnings ? (
           <div className="space-y-4">
             <p className="text-sm">Transfer recorded.</p>
-            <WarningNotice warnings={warnings} />
+            <Notice variant="warning">
+              <ul>
+                {warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </Notice>
             <DialogFooter>
               <Button onClick={() => onOpenChange(false)}>Done</Button>
             </DialogFooter>
@@ -114,7 +115,7 @@ export function TransferDialog({
               date) and opens a new active enrollment at the destination — one step, full history
               preserved.
             </p>
-            <FormErrorNotice message={topError} />
+            <FormError message={topError} />
             <input type="hidden" {...register('fromEnrollmentId')} />
             <FormField label="Destination home" required error={errors.toHomeId}>
               <Select {...register('toHomeId')}>
