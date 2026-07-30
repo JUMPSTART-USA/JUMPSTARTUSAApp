@@ -15,7 +15,7 @@ import { Checkbox, Input } from '@/components/ui/input';
 import { FormError, Notice } from '@/components/ui/notice';
 import { Spinner } from '@/components/ui/spinner';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
-import { useDebounced } from '@/lib/form';
+import { useDebounced, todayInput } from '@/lib/form';
 import { fullName } from '@/lib/utils';
 import type { ParticipantPickerItem, RosterEnrollment } from './types';
 
@@ -42,9 +42,7 @@ export function BatchEnrollDialog({
 }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [enrollmentDate, setEnrollmentDate] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
+  const [enrollmentDate, setEnrollmentDate] = useState(() => todayInput());
   // id → display label; kept so skipped ids can be shown by name after submit.
   const [selected, setSelected] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState<string | null>(null);

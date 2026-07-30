@@ -1,4 +1,4 @@
-import { HOUSING_STATUSES, US_STATES } from '@jumpstart/shared';
+import { HOME_GENDER_LABELS, HOUSING_STATUSES, US_STATES } from '@jumpstart/shared';
 import { useQuery } from '@tanstack/react-query';
 import { BedDouble, Plus, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -161,6 +161,13 @@ const homeColumns: Column<HomeRow>[] = [
   },
   { key: 'city', header: 'City', sortKey: 'city', render: (h) => h.city ?? '—' },
   { key: 'state', header: 'State', sortKey: 'state', render: (h) => h.state },
+  { key: 'gender', header: 'Gender', render: (h) => HOME_GENDER_LABELS[h.gender] },
+  {
+    key: 'sexOffenderApproved',
+    header: 'Sex offenders',
+    render: (h) =>
+      h.sexOffenderApproved ? <Badge variant="outline">Approved</Badge> : '—',
+  },
   { key: 'manager', header: 'House manager', render: (h) => h.houseManagerName ?? '—' },
   {
     key: 'occupancy',

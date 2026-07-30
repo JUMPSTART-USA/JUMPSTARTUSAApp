@@ -3,6 +3,7 @@ import {
   CLASS_STATUSES,
   ENROLLMENT_STATUSES,
   FINAL_ASSESSMENTS,
+  INSIDE_CLASS_TYPES,
   PROGRAM_TYPES,
   US_STATES,
 } from '../enums';
@@ -45,7 +46,7 @@ export const insideClassSchema = z
   .object({
     institutionId: uuid,
     name: requiredTrimmed.pipe(z.string().max(200)),
-    classType: optionalTrimmed,
+    classType: z.enum(INSIDE_CLASS_TYPES).optional(),
     startDate: requiredDate,
     endDate: optionalDate,
     status: z.enum(CLASS_STATUSES).default('planned'),

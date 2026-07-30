@@ -25,6 +25,7 @@ import { BatchEnrollDialog } from './BatchEnrollDialog';
 import { EnrollmentEditDialog } from './EnrollmentEditDialog';
 import { InsideClassFormDialog } from './InsideClassFormDialog';
 import { SessionsTab } from './SessionsTab';
+import { classTypeLabel } from './helpers';
 import { AssignmentDialog, type AssignmentRowLite } from '../volunteers/AssignmentDialog';
 import type { InsideClassDetail, RosterEnrollment } from './types';
 
@@ -94,7 +95,7 @@ export function InsideClassDetailPage() {
         </CardHeader>
         <CardContent>
           <DescriptionList columns={3}>
-            <InfoItem label="Type">{insideClass.classType ?? '—'}</InfoItem>
+            <InfoItem label="Type">{classTypeLabel(insideClass.classType)}</InfoItem>
             <InfoItem label="Start date">{formatDate(insideClass.startDate)}</InfoItem>
             <InfoItem label="End date">{formatDate(insideClass.endDate)}</InfoItem>
             <InfoItem label="Staff lead">

@@ -89,6 +89,7 @@ export interface PersonDetail {
   suffix: string | null;
   dateOfBirth: string | null;
   gender: string;
+  race: string;
   preferredLanguage: string | null;
   primaryPhone: string | null;
   primaryEmail: string | null;

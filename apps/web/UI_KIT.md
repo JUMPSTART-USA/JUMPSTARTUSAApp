@@ -62,6 +62,16 @@ Form grids: `grid gap-4 sm:grid-cols-2` (never 2 columns on mobile).
 Pending copy: submit buttons show `Saving…` (`Deleting…`/`Sending…` only when
 genuinely different). Idle labels: `Save` (edit), `Create` (new), `Delete`.
 
+**Phone fields**: always `PhoneInput` from `@/components/ui/phone-input` —
+auto-formats to XXX-XXX-XXXX while typing; the shared `optionalPhone` schema
+normalizes and validates the same format server-side. Never a bare `Input`
+for phone numbers.
+
+**Date fields**: always `<Input type="date">` (native picker validates and
+renders MM/DD/YYYY in US locales). Event dates ("when did this happen":
+service/note/session dates, move-ins, check-ins) default to `todayInput()`.
+Never default dates of birth, releases, or expirations.
+
 ### Form helpers — `@/lib/form` (canonical, delete module copies)
 - `useDebounced(value, delay=300)` — replaces every module `useDebounced`/`useDebouncedValue`.
 - `formResolver<T>(schema)` — zodResolver + `'' → undefined` cleaning. Replaces

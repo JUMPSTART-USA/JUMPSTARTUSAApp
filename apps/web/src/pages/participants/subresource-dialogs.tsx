@@ -20,8 +20,9 @@ import {
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
 import { FormError, Notice } from '@/components/ui/notice';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { api } from '@/lib/api';
-import { applyApiError, formResolver, toDateInput } from '@/lib/form';
+import { applyApiError, formResolver, toDateInput, todayInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import type { DocIdRow, PersonAddressRow, PersonContactRow, TestimonyConsentRow } from './types';
 
@@ -141,7 +142,7 @@ export function ContactDialog({
               <Input {...form.register('relationship')} placeholder="Mother, friend, pastor…" />
             </FormField>
             <FormField label="Phone" error={errors.phone}>
-              <Input {...form.register('phone')} />
+              <PhoneInput {...form.register('phone')} />
             </FormField>
             <FormField label="Email" error={errors.email}>
               <Input {...form.register('email')} />
@@ -434,7 +435,8 @@ interface ConsentFormValues {
 function consentDefaults(existing: TestimonyConsentRow | null): ConsentFormValues {
   return {
     scope: existing?.scope ?? '',
-    grantedAt: toDateInput(existing?.grantedAt),
+    // "When was consent granted" is an event date — default new rows to today.
+    grantedAt: existing ? toDateInput(existing.grantedAt) : todayInput(),
     revokedAt: toDateInput(existing?.revokedAt),
     notes: existing?.notes ?? '',
   };

@@ -16,7 +16,7 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiError, toDateInput } from '@/lib/form';
+import { applyApiError, toDateInput, todayInput } from '@/lib/form';
 import type { MaintenanceRecord, VendorOption } from './types';
 
 interface MaintenanceFormValues {
@@ -35,7 +35,7 @@ interface MaintenanceFormValues {
 function buildDefaults(vehicleId: string, record?: MaintenanceRecord): MaintenanceFormValues {
   return {
     vehicleId,
-    maintenanceDate: toDateInput(record?.maintenanceDate),
+    maintenanceDate: record ? toDateInput(record.maintenanceDate) : todayInput(),
     maintenanceType: record?.maintenanceType ?? '',
     mileageAtService: record?.mileageAtService ?? '',
     vendorId: record?.vendorId ?? '',

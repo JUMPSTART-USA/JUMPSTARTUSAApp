@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { applyApiError } from '@/lib/form';
@@ -125,7 +126,7 @@ export function VendorFormDialog({
               <Input {...form.register('contactPerson', optional)} />
             </FormField>
             <FormField label="Phone" error={form.formState.errors.phone}>
-              <Input {...form.register('phone', optional)} />
+              <PhoneInput {...form.register('phone', optional)} />
             </FormField>
           </div>
           <FormField label="Email" error={form.formState.errors.email}>

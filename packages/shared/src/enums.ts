@@ -6,6 +6,44 @@
 export const GENDERS = ['male', 'female', 'other', 'unspecified'] as const;
 export type Gender = (typeof GENDERS)[number];
 
+// OMB (federal) standard race categories + two-or-more + unspecified
+export const RACES = [
+  'american_indian_alaska_native',
+  'asian',
+  'black_african_american',
+  'native_hawaiian_pacific_islander',
+  'white',
+  'two_or_more',
+  'unspecified',
+] as const;
+export type Race = (typeof RACES)[number];
+export const RACE_LABELS: Record<Race, string> = {
+  american_indian_alaska_native: 'American Indian or Alaska Native',
+  asian: 'Asian',
+  black_african_american: 'Black or African American',
+  native_hawaiian_pacific_islander: 'Native Hawaiian or Other Pacific Islander',
+  white: 'White',
+  two_or_more: 'Two or More Races',
+  unspecified: 'Unspecified',
+};
+
+// Transitional-home resident-gender restriction ("any" = no restriction)
+export const HOME_GENDERS = ['male', 'female', 'any'] as const;
+export type HomeGender = (typeof HOME_GENDERS)[number];
+export const HOME_GENDER_LABELS: Record<HomeGender, string> = {
+  male: 'Male',
+  female: 'Female',
+  any: 'Any',
+};
+
+export const INSIDE_CLASS_TYPES = ['pre_release', 'character', 'other'] as const;
+export type InsideClassType = (typeof INSIDE_CLASS_TYPES)[number];
+export const INSIDE_CLASS_TYPE_LABELS: Record<InsideClassType, string> = {
+  pre_release: 'Pre-Release',
+  character: 'Character',
+  other: 'Other',
+};
+
 export const INSIDE_STATUSES = [
   'not_applicable',
   'enrolled',

@@ -1,4 +1,10 @@
-import { transitionalHomeSchema, US_STATES } from '@jumpstart/shared';
+import {
+  HOME_GENDER_LABELS,
+  HOME_GENDERS,
+  transitionalHomeSchema,
+  US_STATES,
+  type HomeGender,
+} from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -13,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { api } from '@/lib/api';
 import { applyApiError, formResolver } from '@/lib/form';
 import type { TransitionalHome } from './types';
@@ -28,6 +35,8 @@ interface HomeFormValues {
   houseManagerPhone?: string;
   houseManagerEmail?: string;
   capacity: number | string;
+  gender: HomeGender;
+  sexOffenderApproved: boolean;
   active: boolean;
   notes?: string;
 }
@@ -44,6 +53,8 @@ function toDefaults(home: TransitionalHome | null): HomeFormValues {
     houseManagerPhone: home?.houseManagerPhone ?? '',
     houseManagerEmail: home?.houseManagerEmail ?? '',
     capacity: home?.capacity ?? '',
+    gender: home?.gender ?? 'any',
+    sexOffenderApproved: home?.sexOffenderApproved ?? false,
     active: home?.active ?? true,
     notes: home?.notes ?? '',
   };
@@ -123,7 +134,7 @@ export function HomeFormDialog({
               <Input {...register('zip')} />
             </FormField>
             <FormField label="Phone" error={errors.phone}>
-              <Input {...register('phone')} />
+              <PhoneInput {...register('phone')} />
             </FormField>
             <FormField
               label="Capacity (beds)"
@@ -133,15 +144,32 @@ export function HomeFormDialog({
             >
               <Input type="number" min={1} {...register('capacity')} />
             </FormField>
+            <FormField
+              label="Gender"
+              error={errors.gender}
+              hint='"Any" means no resident-gender restriction'
+            >
+              <Select {...register('gender')}>
+                {HOME_GENDERS.map((g) => (
+                  <option key={g} value={g}>
+                    {HOME_GENDER_LABELS[g]}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
             <FormField label="House manager" error={errors.houseManagerName}>
               <Input {...register('houseManagerName')} />
             </FormField>
             <FormField label="Manager phone" error={errors.houseManagerPhone}>
-              <Input {...register('houseManagerPhone')} />
+              <PhoneInput {...register('houseManagerPhone')} />
             </FormField>
             <FormField label="Manager email" error={errors.houseManagerEmail}>
               <Input type="email" {...register('houseManagerEmail')} />
             </FormField>
+            <div className="flex items-center gap-2 self-end pb-1.5">
+              <Checkbox id="home-sex-offender-approved" {...register('sexOffenderApproved')} />
+              <Label htmlFor="home-sex-offender-approved">Approved for sex offenders</Label>
+            </div>
             <div className="flex items-center gap-2 self-end pb-1.5">
               <Checkbox id="home-active" {...register('active')} />
               <Label htmlFor="home-active">Active</Label>
