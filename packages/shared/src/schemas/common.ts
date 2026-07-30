@@ -41,12 +41,27 @@ export const optionalEmail = z.preprocess(
   z.string().trim().email('Invalid email address').max(320).optional(),
 );
 
+/**
+ * US phone, normalized to XXX-XXX-XXXX. Accepts any punctuation/spacing the
+ * user types (and an optional leading 1); stores the canonical dashed form.
+ */
 export const optionalPhone = z.preprocess(
   (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
   z
     .string()
     .trim()
-    .regex(/^[+()\-.\s\d]{7,20}$/, 'Invalid phone number')
+    .transform((s, ctx) => {
+      const digits = s.replace(/\D/g, '');
+      const ten = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+      if (ten.length !== 10) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Enter a 10-digit phone number as XXX-XXX-XXXX',
+        });
+        return z.NEVER;
+      }
+      return `${ten.slice(0, 3)}-${ten.slice(3, 6)}-${ten.slice(6)}`;
+    })
     .optional(),
 );
 

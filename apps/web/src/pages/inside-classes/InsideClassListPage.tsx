@@ -15,7 +15,7 @@ import { useAuth } from '@/lib/auth';
 import { useDebounced } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
 import { InsideClassFormDialog } from './InsideClassFormDialog';
-import { useInstitutionOptions } from './helpers';
+import { classTypeLabel, useInstitutionOptions } from './helpers';
 import type { InsideClassListItem } from './types';
 import { BackLink } from '@/components/BackLink';
 
@@ -35,7 +35,7 @@ const columns: Column<InsideClassListItem>[] = [
     key: 'classType',
     header: 'Type',
     sortKey: 'classType',
-    render: (row) => row.classType ?? '—',
+    render: (row) => classTypeLabel(row.classType),
   },
   {
     key: 'startDate',

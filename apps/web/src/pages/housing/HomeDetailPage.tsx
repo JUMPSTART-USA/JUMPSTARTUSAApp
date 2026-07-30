@@ -1,4 +1,4 @@
-import { HOUSING_STATUSES } from '@jumpstart/shared';
+import { HOME_GENDER_LABELS, HOUSING_STATUSES } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, Pencil, Trash2, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -219,6 +219,10 @@ export function HomeDetailPage() {
               <InfoItem label="Manager contact">
                 {[home.houseManagerPhone, home.houseManagerEmail].filter(Boolean).join(' · ') ||
                   '—'}
+              </InfoItem>
+              <InfoItem label="Gender">{HOME_GENDER_LABELS[home.gender]}</InfoItem>
+              <InfoItem label="Approved for sex offenders">
+                {home.sexOffenderApproved ? 'Yes' : 'No'}
               </InfoItem>
               <InfoItem label="Notes">{home.notes ?? '—'}</InfoItem>
             </DescriptionList>

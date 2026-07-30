@@ -5,12 +5,15 @@ import {
   LEGACY_LANGUAGE_CODES,
   OUTSIDE_STATUSES,
   PREFERRED_LANGUAGES,
+  RACE_LABELS,
+  RACES,
   US_STATES,
 } from '@jumpstart/shared';
 import { useEffect } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { FormField } from '@/components/FormField';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { toDateInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import type { CaseManagerOption } from './shared';
@@ -30,6 +33,7 @@ export interface ParticipantFormValues {
     suffix: string;
     dateOfBirth: string;
     gender: string;
+    race: string;
     preferredLanguage: string;
     primaryPhone: string;
     primaryEmail: string;
@@ -68,6 +72,7 @@ export function emptyParticipantFormValues(): ParticipantFormValues {
       suffix: '',
       dateOfBirth: '',
       gender: 'unspecified',
+      race: 'unspecified',
       preferredLanguage: 'English',
       primaryPhone: '',
       primaryEmail: '',
@@ -107,6 +112,7 @@ export function participantToFormValues(p: ParticipantDetail): ParticipantFormVa
       suffix: p.person.suffix ?? '',
       dateOfBirth: toDateInput(p.person.dateOfBirth),
       gender: p.person.gender,
+      race: p.person.race,
       preferredLanguage:
         LEGACY_LANGUAGE_CODES[p.person.preferredLanguage ?? ''] ??
         p.person.preferredLanguage ??
@@ -193,6 +199,15 @@ export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValu
             ))}
           </Select>
         </FormField>
+        <FormField label="Race" error={p?.race}>
+          <Select {...register('person.race')}>
+            {RACES.map((r) => (
+              <option key={r} value={r}>
+                {RACE_LABELS[r]}
+              </option>
+            ))}
+          </Select>
+        </FormField>
         <FormField label="Preferred language" error={p?.preferredLanguage}>
           <Select {...register('person.preferredLanguage')}>
             {currentLanguage && !(PREFERRED_LANGUAGES as readonly string[]).includes(currentLanguage) ? (
@@ -209,7 +224,7 @@ export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValu
 
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField label="Phone" error={p?.primaryPhone}>
-          <Input {...register('person.primaryPhone')} placeholder="(555) 555-5555" />
+          <PhoneInput {...register('person.primaryPhone')} />
         </FormField>
         <FormField label="Email" error={p?.primaryEmail}>
           <Input {...register('person.primaryEmail')} />

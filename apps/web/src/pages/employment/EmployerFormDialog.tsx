@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { api } from '@/lib/api';
 import { applyApiError } from '@/lib/form';
 import { humanize } from '@/lib/utils';
@@ -122,7 +123,7 @@ export function EmployerFormDialog({
               <Input {...register('contactPerson')} />
             </FormField>
             <FormField label="Phone" error={errors.phone}>
-              <Input {...register('phone')} />
+              <PhoneInput {...register('phone')} />
             </FormField>
             <FormField label="Email" error={errors.email} className="sm:col-span-2">
               <Input type="email" {...register('email')} />

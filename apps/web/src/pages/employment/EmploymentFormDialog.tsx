@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -255,7 +256,7 @@ export function EmploymentFormDialog({
               <Input {...register('supervisorName')} />
             </FormField>
             <FormField label="Supervisor phone" error={errors.supervisorPhone}>
-              <Input {...register('supervisorPhone')} />
+              <PhoneInput {...register('supervisorPhone')} />
             </FormField>
           </div>
 

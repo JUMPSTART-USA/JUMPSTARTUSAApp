@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { RACE_LABELS } from '@jumpstart/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/utils';
@@ -90,6 +91,9 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
           <DescriptionList>
             <InfoItem label="Date of birth">{formatDate(person.dateOfBirth)}</InfoItem>
             <InfoItem label="Gender">{humanize(person.gender)}</InfoItem>
+            <InfoItem label="Race">
+              {RACE_LABELS[person.race as keyof typeof RACE_LABELS] ?? humanize(person.race)}
+            </InfoItem>
             <InfoItem label="Preferred language">{orDash(person.preferredLanguage)}</InfoItem>
             <InfoItem label="Phone">{orDash(person.primaryPhone)}</InfoItem>
             <InfoItem label="Email">{orDash(person.primaryEmail)}</InfoItem>

@@ -17,7 +17,7 @@ import { EntityPicker, type PickerOption } from '@/components/ui/entity-picker';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { api, qs, type Paged } from '@/lib/api';
-import { applyApiError } from '@/lib/form';
+import { applyApiError, todayInput } from '@/lib/form';
 import { useCampaignOptions } from '../shared';
 import type { Donor, EventRecord } from '../types';
 
@@ -85,7 +85,7 @@ export function DonationFormDialog({
     if (open) {
       form.reset({
         donorId: '',
-        donationDate: '',
+        donationDate: todayInput(),
         amount: '',
         isRecurring: false,
         receiptSent: false,

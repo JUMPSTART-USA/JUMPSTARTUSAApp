@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { FINAL_ASSESSMENTS, HOUSING_EXIT_STATUSES, HOUSING_STATUSES, US_STATES } from '../enums';
+import {
+  FINAL_ASSESSMENTS,
+  HOME_GENDERS,
+  HOUSING_EXIT_STATUSES,
+  HOUSING_STATUSES,
+  US_STATES,
+} from '../enums';
 import {
   optionalDate,
   optionalEmail,
@@ -21,6 +27,8 @@ export const transitionalHomeSchema = z.object({
   houseManagerPhone: optionalPhone,
   houseManagerEmail: optionalEmail,
   capacity: z.coerce.number().int().positive('Capacity must be at least 1'),
+  gender: z.enum(HOME_GENDERS).default('any'),
+  sexOffenderApproved: z.boolean().default(false),
   active: z.boolean().default(true),
   notes: optionalTrimmed,
 });

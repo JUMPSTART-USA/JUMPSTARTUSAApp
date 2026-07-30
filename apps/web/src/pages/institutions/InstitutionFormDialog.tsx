@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { api } from '@/lib/api';
 import { applyApiError, formResolver } from '@/lib/form';
 import type { Institution } from './types';
@@ -118,7 +119,7 @@ export function InstitutionFormDialog({
               <Input {...register('institutionType')} placeholder="e.g. State prison, work release" />
             </FormField>
             <FormField label="Main phone" error={errors.mainPhone}>
-              <Input {...register('mainPhone')} />
+              <PhoneInput {...register('mainPhone')} />
             </FormField>
             <FormField label="Address" error={errors.addressLine1} className="sm:col-span-2">
               <Input {...register('addressLine1')} />
@@ -150,7 +151,7 @@ export function InstitutionFormDialog({
                 <Input {...register('chaplainName')} />
               </FormField>
               <FormField label="Phone" error={errors.chaplainPhone}>
-                <Input {...register('chaplainPhone')} />
+                <PhoneInput {...register('chaplainPhone')} />
               </FormField>
               <FormField label="Email" error={errors.chaplainEmail}>
                 <Input type="email" {...register('chaplainEmail')} />
@@ -166,7 +167,7 @@ export function InstitutionFormDialog({
                   <Input {...register('primaryContactRole')} />
                 </FormField>
                 <FormField label="Phone" error={errors.primaryContactPhone}>
-                  <Input {...register('primaryContactPhone')} />
+                  <PhoneInput {...register('primaryContactPhone')} />
                 </FormField>
               </div>
               <FormField label="Email" error={errors.primaryContactEmail}>

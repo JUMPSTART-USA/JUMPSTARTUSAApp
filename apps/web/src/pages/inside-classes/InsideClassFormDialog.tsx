@@ -1,4 +1,9 @@
-import { CLASS_STATUSES, insideClassSchema } from '@jumpstart/shared';
+import {
+  CLASS_STATUSES,
+  INSIDE_CLASS_TYPE_LABELS,
+  INSIDE_CLASS_TYPES,
+  insideClassSchema,
+} from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -14,7 +19,7 @@ import {
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
-import { applyApiError, formResolver, toDateInput } from '@/lib/form';
+import { applyApiError, formResolver, toDateInput, todayInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import { useInstitutionOptions } from './helpers';
 import type { InsideClassDetail, InsideClassListItem } from './types';
@@ -39,7 +44,8 @@ function buildDefaults(insideClass?: EditableClass): InsideClassFormValues {
     institutionId: insideClass?.institutionId ?? '',
     name: insideClass?.name ?? '',
     classType: insideClass?.classType ?? '',
-    startDate: toDateInput(insideClass?.startDate),
+    // New classes start "today" by default; edits keep the stored date.
+    startDate: insideClass ? toDateInput(insideClass.startDate) : todayInput(),
     endDate: toDateInput(insideClass?.endDate),
     status: insideClass?.status ?? 'planned',
     notes: insideClass?.notes ?? '',
@@ -115,7 +121,14 @@ export function InsideClassFormDialog({
           </FormField>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Class type" error={errors.classType}>
-              <Input {...register('classType')} placeholder="e.g. JUMPSTART curriculum" />
+              <Select {...register('classType')}>
+                <option value="">Select…</option>
+                {INSIDE_CLASS_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {INSIDE_CLASS_TYPE_LABELS[t]}
+                  </option>
+                ))}
+              </Select>
             </FormField>
             <FormField label="Status" error={errors.status}>
               <Select {...register('status')}>

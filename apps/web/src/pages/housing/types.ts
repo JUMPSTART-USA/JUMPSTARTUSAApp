@@ -1,4 +1,4 @@
-import type { FinalAssessment, HousingStatus, UsState } from '@jumpstart/shared';
+import type { FinalAssessment, HomeGender, HousingStatus, UsState } from '@jumpstart/shared';
 import type { ParticipantRef } from '@/pages/outside-programs/types';
 
 export interface TransitionalHome {
@@ -13,6 +13,9 @@ export interface TransitionalHome {
   houseManagerPhone: string | null;
   houseManagerEmail: string | null;
   capacity: number;
+  /** Resident-gender restriction — 'any' means no restriction. */
+  gender: HomeGender;
+  sexOffenderApproved: boolean;
   active: boolean;
   notes: string | null;
   createdAt: string;

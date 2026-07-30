@@ -28,6 +28,7 @@ import {
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
@@ -300,7 +301,7 @@ function EditVolunteerDialog({
               <Input type="email" {...register('person.primaryEmail')} />
             </FormField>
             <FormField label="Phone" error={personErrors.primaryPhone}>
-              <Input {...register('person.primaryPhone')} />
+              <PhoneInput {...register('person.primaryPhone')} />
             </FormField>
             <FormField
               label="Address"

@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Checkbox, Input, Label, Textarea } from '@/components/ui/input';
+import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -71,6 +71,18 @@ function RecordServiceDialog({
       },
     });
   const followUpRequired = watch('followUpRequired');
+  const serviceType = watch('serviceType');
+
+  // Standard service menu (§6.5) with an admin-overridable list; "Other"
+  // switches to free text.
+  const typesQuery = useQuery({
+    queryKey: ['case-management', 'service-types'],
+    queryFn: () => api.get<{ types: string[] }>('/case-services/types'),
+    staleTime: 300_000,
+  });
+  const serviceTypes = typesQuery.data?.types ?? [];
+  const knownType = serviceTypes.includes(serviceType);
+  const [customType, setCustomType] = useState(false);
 
   const create = useMutation({
     mutationFn: (values: ServiceFormValues) => api.post('/case-services', values),
@@ -107,13 +119,34 @@ function RecordServiceDialog({
             />
           </FormField>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField
-              label="Service type"
-              required
-              error={formState.errors.serviceType}
-              hint="e.g. ID documents, clothing, bus pass"
-            >
-              <Input {...register('serviceType')} />
+            <FormField label="Service type" required error={formState.errors.serviceType}>
+              <div className="space-y-2">
+                <Select
+                  value={customType || (serviceType && !knownType) ? '__other__' : serviceType}
+                  onChange={(e) => {
+                    if (e.target.value === '__other__') {
+                      setCustomType(true);
+                      setValue('serviceType', '');
+                    } else {
+                      setCustomType(false);
+                      setValue('serviceType', e.target.value, { shouldValidate: true });
+                    }
+                  }}
+                >
+                  <option value="">Select a service…</option>
+                  {serviceTypes
+                    .filter((t) => t !== 'Other')
+                    .map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  <option value="__other__">Other…</option>
+                </Select>
+                {customType || (serviceType && !knownType) ? (
+                  <Input {...register('serviceType')} placeholder="Describe the service" />
+                ) : null}
+              </div>
             </FormField>
             <FormField label="Service date" required error={formState.errors.serviceDate}>
               <Input type="date" {...register('serviceDate')} />

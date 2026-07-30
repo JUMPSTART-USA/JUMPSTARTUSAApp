@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/table';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { todayInput } from '@/lib/form';
 import { cn, formatDate, fullName } from '@/lib/utils';
 import type { AttendanceStatus, ClassSession, RosterEnrollment } from './types';
 
@@ -47,14 +48,14 @@ function SessionDialog({
   const queryClient = useQueryClient();
   const creating = state === 'new';
   const existing = state !== 'new' ? state : null;
-  const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [sessionDate, setSessionDate] = useState(() => todayInput());
   const [topic, setTopic] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (state) {
-      setSessionDate(existing?.sessionDate.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+      setSessionDate(existing?.sessionDate.slice(0, 10) ?? todayInput());
       setTopic(existing?.topic ?? '');
       setNotes(existing?.notes ?? '');
       setError(null);

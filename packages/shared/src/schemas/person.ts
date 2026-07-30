@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { GENDERS, US_STATES } from '../enums';
+import { GENDERS, RACES, US_STATES } from '../enums';
 import {
   endNotBeforeStart,
   optionalDate,
@@ -40,6 +40,7 @@ export const personCoreBaseSchema = z.object({
   suffix: optionalTrimmed,
   dateOfBirth: optionalDate,
   gender: z.enum(GENDERS).default('unspecified'),
+  race: z.enum(RACES).default('unspecified'),
   preferredLanguage: z.string().trim().max(16).default('en'),
   primaryPhone: optionalPhone,
   primaryEmail: optionalEmail,

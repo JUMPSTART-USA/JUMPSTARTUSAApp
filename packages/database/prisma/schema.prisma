@@ -31,6 +31,24 @@ enum Gender {
   unspecified
 }
 
+// OMB (federal) standard race categories + two-or-more + unspecified
+enum Race {
+  american_indian_alaska_native
+  asian
+  black_african_american
+  native_hawaiian_pacific_islander
+  white
+  two_or_more
+  unspecified
+}
+
+// Home resident-gender restriction ("any" = no restriction)
+enum HomeGender {
+  male
+  female
+  any
+}
+
 enum InsideStatus {
   not_applicable
   enrolled
@@ -346,6 +364,7 @@ model Person {
   suffix            String?
   dateOfBirth       DateTime? @db.Date
   gender            Gender    @default(unspecified)
+  race              Race      @default(unspecified)
   preferredLanguage String    @default("en")
 
   primaryPhone String?
@@ -1007,6 +1026,8 @@ model TransitionalHome {
   houseManagerPhone String?
   houseManagerEmail String?
   capacity          Int
+  gender            HomeGender @default(any)
+  sexOffenderApproved Boolean @default(false)
   active            Boolean @default(true)
   notes             String?
 
