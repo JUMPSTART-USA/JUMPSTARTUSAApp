@@ -1,4 +1,10 @@
-import type { ContactType, NoteCategory, TaskStatus } from '@jumpstart/shared';
+import type {
+  ContactType,
+  DrugTestResult,
+  DrugTestType,
+  NoteCategory,
+  TaskStatus,
+} from '@jumpstart/shared';
 
 // ── Response shapes (JSON-serialized Prisma rows from the case-management API) ─
 
@@ -62,6 +68,25 @@ export interface CaseServiceRow {
   followUpDate: string | null;
   notes: string | null;
   participantProfile: { person: PersonName };
+}
+
+/**
+ * GET /drug-tests list row. The API sends hasPhoto + photoFileName only —
+ * image bytes stream from /drug-tests/:id/photo (photoData is never
+ * serialized). Shared by the module list page and the participant profile
+ * Case Management tab card.
+ */
+export interface DrugTestRow {
+  id: string;
+  participantProfileId: string;
+  testDate: string;
+  testType: DrugTestType;
+  result: DrugTestResult;
+  notes: string | null;
+  hasPhoto: boolean;
+  photoFileName: string | null;
+  createdAt: string;
+  participant: { person: PersonName };
 }
 
 export interface CaseTaskRow {

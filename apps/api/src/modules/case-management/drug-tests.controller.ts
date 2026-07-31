@@ -15,7 +15,14 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
-import { drugTestSchema, uuid } from '@jumpstart/shared';
+import {
+  DRUG_TEST_RESULTS,
+  drugTestSchema,
+  listQuerySchema,
+  optionalDate,
+  uuid,
+  type ListQuery,
+} from '@jumpstart/shared';
 import { z } from 'zod';
 import { CurrentUser, RequirePermission } from '../../common/decorators';
 import { zodBody, zodQuery } from '../../common/pipes/zod-validation.pipe';
@@ -30,8 +37,8 @@ import {
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
 // drugTestSchema is ZodEffects (not-in-the-future refinement), so extensions/
-// partials come from innerType() — same pattern as the program schemas above —
-// with the refinement re-applied so it still runs on provided testDates.
+// partials come from innerType() — with the refinement re-applied so it still
+// runs on provided testDates.
 const notFutureTestDate = (val: { testDate?: Date }, ctx: z.RefinementCtx) => {
   if (val.testDate && val.testDate > new Date()) {
     ctx.addIssue({
@@ -52,8 +59,14 @@ const drugTestUpdateSchema = drugTestSchema
   .extend({ participantProfileId: uuid })
   .partial()
   .superRefine(notFutureTestDate);
-const drugTestListQuerySchema = z.object({ participantProfileId: uuid });
-type DrugTestListQuery = z.infer<typeof drugTestListQuerySchema>;
+
+const listFiltersSchema = listQuerySchema.extend({
+  participantProfileId: uuid.optional(),
+  result: z.enum(DRUG_TEST_RESULTS).optional(),
+  from: optionalDate,
+  to: optionalDate,
+});
+type ListFilters = z.infer<typeof listFiltersSchema>;
 
 /**
  * Multipart upload for the optional "photo" field. No storage option = multer
@@ -82,13 +95,14 @@ export class DrugTestsController {
   constructor(private readonly drugTests: DrugTestsService) {}
 
   @Get()
-  @RequirePermission('outside_programs.read')
-  list(@Query(zodQuery(drugTestListQuerySchema)) query: DrugTestListQuery) {
-    return this.drugTests.list(query.participantProfileId);
+  @RequirePermission('case_management.read')
+  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
+    const { participantProfileId, result, from, to, ...listQuery } = query;
+    return this.drugTests.list(listQuery as ListQuery, { participantProfileId, result, from, to });
   }
 
   @Post()
-  @RequirePermission('outside_programs.create')
+  @RequirePermission('case_management.create')
   @UseInterceptors(photoUpload())
   create(
     @Body(zodBody(drugTestCreateSchema)) body: DrugTestCreateInput,
@@ -99,7 +113,7 @@ export class DrugTestsController {
   }
 
   @Patch(':id')
-  @RequirePermission('outside_programs.update')
+  @RequirePermission('case_management.update')
   @UseInterceptors(photoUpload())
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -111,13 +125,13 @@ export class DrugTestsController {
   }
 
   @Delete(':id')
-  @RequirePermission('outside_programs.delete')
+  @RequirePermission('case_management.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.drugTests.softDelete(id, user.id);
   }
 
   @Get(':id/photo')
-  @RequirePermission('outside_programs.read')
+  @RequirePermission('case_management.read')
   async photo(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
     const photo = await this.drugTests.getPhoto(id);
     // Stored filenames come from the browser — keep the header quote-safe.

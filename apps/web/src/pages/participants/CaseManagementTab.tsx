@@ -1,9 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
-import { ArrowUpRight } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowUpRight, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { DRUG_TEST_TYPE_LABELS } from '@jumpstart/shared';
 import { StatusBadge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
-import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { EmptyState, ErrorState, PageLoader, Spinner } from '@/components/ui/spinner';
 import {
   Table,
   TableBody,
@@ -13,8 +17,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { backTo, type BackNavState } from '@/components/BackLink';
+import { DrugTestFormDialog } from '@/pages/case-management/drug-test-dialogs';
+import { type DrugTestRow } from '@/pages/case-management/shared';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { applyApiError } from '@/lib/form';
 import { formatDate } from '@/lib/utils';
 import type { ChecklistRow, ServicePlanRow } from './types';
 
@@ -84,6 +91,175 @@ function ChecklistCard({ checklist }: { checklist: ChecklistRow }) {
           ))}
         </ul>
       </CardContent>
+    </Card>
+  );
+}
+
+function DrugTestsCard({ participantId }: { participantId: string }) {
+  const { can } = useAuth();
+  const queryClient = useQueryClient();
+  const canCreate = can('case_management.create');
+  const canUpdate = can('case_management.update');
+  const canDelete = can('case_management.delete');
+  const hasActions = canUpdate || canDelete;
+  const [editTest, setEditTest] = useState<DrugTestRow | 'new' | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DrugTestRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const query = useQuery({
+    queryKey: ['participants', participantId, 'drug-tests'],
+    queryFn: () =>
+      api.get<Paged<DrugTestRow>>(
+        `/drug-tests${qs({ participantProfileId: participantId, pageSize: 50, sortBy: 'testDate', sortDir: 'desc' })}`,
+      ),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api.delete(`/drug-tests/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['participants', participantId, 'drug-tests'],
+      });
+      queryClient.invalidateQueries({ queryKey: ['case-management'] });
+      setDeleteTarget(null);
+    },
+    onError: (err) => setDeleteError(applyApiError(err)),
+  });
+
+  const tests = query.data?.items ?? [];
+  const columns = hasActions ? 6 : 5;
+
+  return (
+    <Card>
+      <CardHeaderRow title="Drug tests">
+        {canCreate ? (
+          <Button variant="outline" size="sm" onClick={() => setEditTest('new')}>
+            <Plus className="h-3.5 w-3.5" /> Record test
+          </Button>
+        ) : null}
+      </CardHeaderRow>
+      <CardContent>
+        {query.isLoading ? (
+          <div className="flex justify-center py-6">
+            <Spinner />
+          </div>
+        ) : query.error ? (
+          <ErrorState error={query.error} />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Result</TableHead>
+                <TableHead>Photo</TableHead>
+                <TableHead>Notes</TableHead>
+                {hasActions ? <TableHead className="w-20" /> : null}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tests.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns}
+                    className="text-center text-muted-foreground"
+                  >
+                    No drug tests recorded
+                  </TableCell>
+                </TableRow>
+              ) : (
+                tests.map((t) => (
+                  <TableRow key={t.id}>
+                    <TableCell>{formatDate(t.testDate)}</TableCell>
+                    <TableCell className="font-medium">
+                      {DRUG_TEST_TYPE_LABELS[t.testType]}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={t.result} />
+                    </TableCell>
+                    <TableCell>
+                      {t.hasPhoto ? (
+                        <a
+                          href={`/api/drug-tests/${t.id}/photo`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-medium text-primary hover:underline"
+                        >
+                          View
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {t.notes ? (
+                        <div className="max-w-xs truncate text-muted-foreground">
+                          {t.notes}
+                        </div>
+                      ) : (
+                        '—'
+                      )}
+                    </TableCell>
+                    {hasActions ? (
+                      <TableCell className="text-right">
+                        {canUpdate ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setEditTest(t)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            <span className="sr-only">Edit</span>
+                          </Button>
+                        ) : null}
+                        {canDelete ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive"
+                            disabled={remove.isPending}
+                            onClick={() => {
+                              setDeleteError(null);
+                              setDeleteTarget(t);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span className="sr-only">Delete</span>
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+      <DrugTestFormDialog
+        test={editTest}
+        initialParticipant={{ id: participantId, label: '' }}
+        onClose={() => setEditTest(null)}
+      />
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+        title="Delete drug test"
+        description={
+          deleteTarget
+            ? `Delete the ${formatDate(deleteTarget.testDate)} drug test record?`
+            : undefined
+        }
+        isPending={remove.isPending}
+        error={deleteError}
+        onConfirm={() => deleteTarget && remove.mutate(deleteTarget.id)}
+      />
     </Card>
   );
 }
@@ -193,6 +369,8 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
           edit them there.
         </p>
       </div>
+
+      <DrugTestsCard participantId={participantId} />
     </div>
   );
 }

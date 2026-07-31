@@ -20,14 +20,23 @@ import {
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
+import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api } from '@/lib/api';
 import { applyApiError, formResolver, toDateInput, todayInput } from '@/lib/form';
-import type { DrugTestView } from './types';
+import type { DrugTestRow } from './shared';
 
 /**
- * Create/edit dialog for drug tests (Outside programs tab). Submits
+ * Create/edit dialog for drug tests (case management). Submits
  * multipart/form-data so the optional results photo travels with the record;
  * the photo file lives in component state, not the RHF form.
+ *
+ * Create mode has two participant flavors:
+ *  - `initialParticipant` given → locked to that participant (participant
+ *    profile use; the field is hidden when no label is available since the
+ *    profile page already names the participant).
+ *  - otherwise → shared ParticipantPicker (module page use), mirroring
+ *    RecordServiceDialog. drugTestSchema doesn't cover participantProfileId,
+ *    so the picker is validated locally before submit.
  */
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
@@ -41,21 +50,25 @@ interface DrugTestFormValues {
 
 export function DrugTestFormDialog({
   test,
-  participantId,
+  initialParticipant,
   onClose,
 }: {
   /** 'new' opens the dialog in create mode. */
-  test: DrugTestView | 'new' | null;
-  participantId: string;
+  test: DrugTestRow | 'new' | null;
+  /** When set, create mode is locked to this participant (profile use). */
+  initialParticipant?: PickerOption | null;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const [topError, setTopError] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState('');
+  const [participant, setParticipant] = useState<PickerOption | null>(null);
+  const [participantError, setParticipantError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const creating = test === 'new';
   const existing = test !== 'new' ? test : null;
+  const locked = initialParticipant ?? null;
 
   const { register, handleSubmit, getValues, setError, reset, formState } =
     useForm<DrugTestFormValues>({ resolver: formResolver(drugTestSchema) });
@@ -65,6 +78,8 @@ export function DrugTestFormDialog({
       setTopError('');
       setPhoto(null);
       setPhotoError('');
+      setParticipant(null);
+      setParticipantError('');
       if (fileRef.current) fileRef.current.value = '';
       reset({
         testDate: existing ? toDateInput(existing.testDate) : todayInput(),
@@ -99,20 +114,19 @@ export function DrugTestFormDialog({
       // yyyy-mm-dd input string, so build the payload from raw values.
       const raw = getValues();
       const fd = new FormData();
-      if (creating) fd.append('participantProfileId', participantId);
+      if (creating) fd.append('participantProfileId', locked?.id ?? participant?.id ?? '');
       fd.append('testDate', raw.testDate);
       fd.append('testType', raw.testType);
       fd.append('result', raw.result);
       if (raw.notes.trim()) fd.append('notes', raw.notes.trim());
       if (photo) fd.append('photo', photo);
       return creating
-        ? api.post<DrugTestView>('/drug-tests', fd)
-        : api.patch<DrugTestView>(`/drug-tests/${existing?.id}`, fd);
+        ? api.post<DrugTestRow>('/drug-tests', fd)
+        : api.patch<DrugTestRow>(`/drug-tests/${existing?.id}`, fd);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['participants', participantId, 'drug-tests'],
-      });
+      queryClient.invalidateQueries({ queryKey: ['case-management'] });
+      queryClient.invalidateQueries({ queryKey: ['participants'] });
       onClose();
     },
     onError: (err) => setTopError(applyApiError(err, setError) ?? ''),
@@ -125,17 +139,41 @@ export function DrugTestFormDialog({
           <DialogTitle>{creating ? 'Record drug test' : 'Edit drug test'}</DialogTitle>
           <DialogDescription>
             {creating
-              ? 'Record a drug test for this participant.'
+              ? 'Record a drug test for a participant.'
               : 'Update this drug test record.'}
           </DialogDescription>
         </DialogHeader>
         <form
           className="space-y-4"
           onSubmit={handleSubmit(() => {
+            if (creating && !locked && !participant) {
+              setParticipantError('Select a participant.');
+              return;
+            }
             setTopError('');
             save.mutate();
           })}
         >
+          {creating && !locked ? (
+            <FormField
+              label="Participant"
+              required
+              error={participantError ? { message: participantError } : undefined}
+            >
+              <ParticipantPicker
+                value={participant}
+                onChange={(p) => {
+                  setParticipant(p);
+                  if (p) setParticipantError('');
+                }}
+              />
+            </FormField>
+          ) : null}
+          {creating && locked?.label ? (
+            <FormField label="Participant">
+              <Input value={locked.label} disabled readOnly />
+            </FormField>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Test date" required error={formState.errors.testDate}>
               <Input type="date" {...register('testDate')} />
