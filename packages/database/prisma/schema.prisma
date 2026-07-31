@@ -49,6 +49,24 @@ enum HomeGender {
   any
 }
 
+enum DrugTestType {
+  urine_5_panel
+  urine_10_panel
+  urine_12_panel
+  saliva
+  breathalyzer
+  hair_follicle
+  other
+}
+
+enum DrugTestResult {
+  negative
+  positive
+  inconclusive
+  diluted
+  refused
+}
+
 enum InsideStatus {
   not_applicable
   enrolled
@@ -519,6 +537,7 @@ model ParticipantProfile {
   onboardingChecklists OnboardingChecklist[]
   caseNotes           CaseNote[]
   caseServices        CaseService[]
+  drugTests           DrugTest[]
   servicePlans        ServicePlan[]
   needsAssessments    NeedsAssessment[]
   outboundReferrals   OutboundReferral[]
@@ -973,6 +992,30 @@ model OutsideProgramEnrollment {
   @@index([outsideProgramId])
   @@index([status])
   @@map("outside_program_enrollments")
+}
+
+// Drug-test tracking for outside program participants (§6.3). The result
+// photo is stored inline (Bytes) — no external blob store in the stack; tests
+// are low-volume and photos are capped at 10 MB by the API.
+model DrugTest {
+  id                   String         @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  testDate             DateTime
+  testType             DrugTestType
+  result               DrugTestResult
+  notes                String?
+  photoData            Bytes?
+  photoMimeType        String?
+  photoFileName        String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  deletedAt   DateTime?
+
+  @@index([participantProfileId, testDate])
+  @@map("drug_tests")
 }
 
 model OutsideProgramSession {

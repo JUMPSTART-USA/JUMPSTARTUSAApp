@@ -1,0 +1,154 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import type { Prisma } from '@jumpstart/database';
+import type { DrugTestInput } from '@jumpstart/shared';
+import { AuditService } from '../../audit/audit.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
+/**
+ * Shape of an in-memory multer upload. Declared locally because @types/multer
+ * is not installed in this workspace (Express.Multer.File is unavailable) —
+ * these four fields are the only ones we touch.
+ */
+export interface UploadedPhotoFile {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+}
+
+export type DrugTestCreateInput = DrugTestInput & { participantProfileId: string };
+export type DrugTestUpdateInput = Partial<DrugTestCreateInput>;
+
+/**
+ * Contract: photoData NEVER appears in list/detail responses — the photo
+ * endpoint is the only reader of the bytes column. Every other query selects
+ * exactly these fields; hasPhoto is derived from photoMimeType.
+ */
+const VIEW_SELECT = {
+  id: true,
+  participantProfileId: true,
+  testDate: true,
+  testType: true,
+  result: true,
+  notes: true,
+  photoMimeType: true,
+  photoFileName: true,
+  createdAt: true,
+} as const;
+
+type DrugTestViewRow = Prisma.DrugTestGetPayload<{ select: typeof VIEW_SELECT }>;
+
+function toView(row: DrugTestViewRow) {
+  const { photoMimeType, ...rest } = row;
+  return { ...rest, hasPhoto: photoMimeType != null };
+}
+
+export type DrugTestView = ReturnType<typeof toView>;
+
+@Injectable()
+export class DrugTestsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
+
+  async list(participantProfileId: string): Promise<{ items: DrugTestView[] }> {
+    await this.assertParticipant(participantProfileId);
+    const rows = await this.prisma.drugTest.findMany({
+      where: { participantProfileId, deletedAt: null },
+      orderBy: { testDate: 'desc' },
+      select: VIEW_SELECT,
+    });
+    return { items: rows.map(toView) };
+  }
+
+  async create(input: DrugTestCreateInput, photo: UploadedPhotoFile | undefined, userId: string) {
+    await this.assertParticipant(input.participantProfileId);
+    const created = await this.prisma.drugTest.create({
+      data: {
+        ...input,
+        createdById: userId,
+        ...(photo ? this.photoColumns(photo) : {}),
+      },
+      select: VIEW_SELECT,
+    });
+    const view = toView(created);
+    // Audit the VIEW, not the record — photo bytes must not land in audit rows.
+    await this.audit.logCreate(userId, 'drug_test', created.id, view);
+    return view;
+  }
+
+  async update(
+    id: string,
+    input: DrugTestUpdateInput,
+    photo: UploadedPhotoFile | undefined,
+    userId: string,
+  ) {
+    const existing = await this.findTest(id);
+    if (input.participantProfileId) await this.assertParticipant(input.participantProfileId);
+
+    const updated = await this.prisma.drugTest.update({
+      where: { id },
+      // A new photo REPLACES the stored one (contract); omitting the file
+      // leaves the existing photo untouched.
+      data: { ...input, ...(photo ? this.photoColumns(photo) : {}) },
+      select: VIEW_SELECT,
+    });
+    const view = toView(updated);
+    await this.audit.logUpdate(userId, 'drug_test', id, toView(existing), view);
+    return view;
+  }
+
+  async softDelete(id: string, userId: string) {
+    const existing = await this.findTest(id);
+    await this.prisma.drugTest.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.audit.logDelete(userId, 'drug_test', id, toView(existing));
+    return { ok: true };
+  }
+
+  /** The one query allowed to read photoData — streams bytes to the caller. */
+  async getPhoto(id: string): Promise<{ data: Buffer; mimeType: string; fileName: string }> {
+    const row = await this.prisma.drugTest.findFirst({
+      where: { id, deletedAt: null },
+      select: { photoData: true, photoMimeType: true, photoFileName: true },
+    });
+    if (!row) throw new NotFoundException('Drug test not found');
+    if (!row.photoData || !row.photoMimeType) {
+      throw new NotFoundException('This drug test has no photo');
+    }
+    return {
+      data: Buffer.from(row.photoData),
+      mimeType: row.photoMimeType,
+      fileName: row.photoFileName ?? 'photo',
+    };
+  }
+
+  // ── Internals ──────────────────────────────────────────────────────────────
+
+  private photoColumns(photo: UploadedPhotoFile) {
+    return {
+      // Copy into a fresh Uint8Array: Prisma's Bytes input is typed
+      // Uint8Array<ArrayBuffer>, while Buffer is Uint8Array<ArrayBufferLike>.
+      photoData: new Uint8Array(photo.buffer),
+      photoMimeType: photo.mimetype,
+      photoFileName: photo.originalname,
+    };
+  }
+
+  private async findTest(id: string): Promise<DrugTestViewRow> {
+    const test = await this.prisma.drugTest.findFirst({
+      where: { id, deletedAt: null },
+      select: VIEW_SELECT,
+    });
+    if (!test) throw new NotFoundException('Drug test not found');
+    return test;
+  }
+
+  private async assertParticipant(participantProfileId: string) {
+    const participant = await this.prisma.participantProfile.findFirst({
+      where: { id: participantProfileId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!participant) throw new NotFoundException('Participant not found');
+  }
+}

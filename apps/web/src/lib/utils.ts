@@ -8,6 +8,15 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(value: string | Date | null | undefined): string {
   if (!value) return '—';
+  if (typeof value === 'string') {
+    // Date-only values (bare yyyy-mm-dd, or the midnight-UTC DateTime Prisma
+    // stores for date inputs) are calendar dates: render the stored date
+    // as-is. Converting to local time shifts them a day early in US zones.
+    const m = /^(\d{4})-(\d{2})-(\d{2})($|T00:00:00\.000Z$)/.exec(value);
+    if (m) {
+      return format(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), 'MMM d, yyyy');
+    }
+  }
   const d = typeof value === 'string' ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return '—';
   return format(d, 'MMM d, yyyy');

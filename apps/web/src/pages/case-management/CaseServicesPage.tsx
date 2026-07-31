@@ -8,6 +8,7 @@ import { backTo } from '@/components/BackLink';
 import { EditServiceDialog } from './edit-dialogs';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
+import { ServiceTypeSelect } from '@/components/ServiceTypeSelect';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,10 +19,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
+import { Checkbox, Input, Label, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
-import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
+import { ListToolbar, SearchInput, ToolbarDateField } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
 import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
@@ -73,17 +74,6 @@ function RecordServiceDialog({
   const followUpRequired = watch('followUpRequired');
   const serviceType = watch('serviceType');
 
-  // Standard service menu (§6.5) with an admin-overridable list; "Other"
-  // switches to free text.
-  const typesQuery = useQuery({
-    queryKey: ['case-management', 'service-types'],
-    queryFn: () => api.get<{ types: string[] }>('/case-services/types'),
-    staleTime: 300_000,
-  });
-  const serviceTypes = typesQuery.data?.types ?? [];
-  const knownType = serviceTypes.includes(serviceType);
-  const [customType, setCustomType] = useState(false);
-
   const create = useMutation({
     mutationFn: (values: ServiceFormValues) => api.post('/case-services', values),
     onSuccess: () => {
@@ -120,33 +110,11 @@ function RecordServiceDialog({
           </FormField>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Service type" required error={formState.errors.serviceType}>
-              <div className="space-y-2">
-                <Select
-                  value={customType || (serviceType && !knownType) ? '__other__' : serviceType}
-                  onChange={(e) => {
-                    if (e.target.value === '__other__') {
-                      setCustomType(true);
-                      setValue('serviceType', '');
-                    } else {
-                      setCustomType(false);
-                      setValue('serviceType', e.target.value, { shouldValidate: true });
-                    }
-                  }}
-                >
-                  <option value="">Select a service…</option>
-                  {serviceTypes
-                    .filter((t) => t !== 'Other')
-                    .map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  <option value="__other__">Other…</option>
-                </Select>
-                {customType || (serviceType && !knownType) ? (
-                  <Input {...register('serviceType')} placeholder="Describe the service" />
-                ) : null}
-              </div>
+              <ServiceTypeSelect
+                value={serviceType}
+                onChange={(v) => setValue('serviceType', v, { shouldValidate: true })}
+                otherInputProps={register('serviceType')}
+              />
             </FormField>
             <FormField label="Service date" required error={formState.errors.serviceDate}>
               <Input type="date" {...register('serviceDate')} />
@@ -299,7 +267,7 @@ export function CaseServicesPage() {
         }
       />
 
-      <ListToolbar>
+      <ListToolbar className="items-end">
         <SearchInput
           placeholder="Search type, provider, description…"
           value={search}
@@ -317,25 +285,21 @@ export function CaseServicesPage() {
             }}
           />
         </div>
-        <Input
-          type="date"
-          className="w-full sm:w-44"
+        <ToolbarDateField
+          label="From"
           value={from}
           onChange={(e) => {
             setFrom(e.target.value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
-          aria-label="From date"
         />
-        <Input
-          type="date"
-          className="w-full sm:w-44"
+        <ToolbarDateField
+          label="To"
           value={to}
           onChange={(e) => {
             setTo(e.target.value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
-          aria-label="To date"
         />
       </ListToolbar>
 

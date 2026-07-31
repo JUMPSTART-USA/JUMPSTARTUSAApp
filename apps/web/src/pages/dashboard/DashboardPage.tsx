@@ -26,11 +26,11 @@ import { backTo } from '@/components/BackLink';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input, Select } from '@/components/ui/input';
+import { Select } from '@/components/ui/input';
 import { Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
-import { ListToolbar, ToolbarSpacer } from '@/components/ui/toolbar';
+import { ListToolbar, ToolbarDateField, ToolbarSpacer } from '@/components/ui/toolbar';
 import { api, qs } from '@/lib/api';
 import { cn, formatDate, formatMoney, humanize } from '@/lib/utils';
 import { CampaignProgressChart, type DashboardCampaign } from './CampaignProgressChart';
@@ -224,24 +224,19 @@ export function DashboardPage() {
         }
       />
 
-      <ListToolbar>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <Input
-            type="date"
-            aria-label="From date"
-            className="w-full sm:w-36"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-          <span className="text-sm text-muted-foreground">to</span>
-          <Input
-            type="date"
-            aria-label="To date"
-            className="w-full sm:w-36"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </div>
+      <ListToolbar className="items-end">
+        <ToolbarDateField
+          label="From"
+          className="sm:w-36"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+        />
+        <ToolbarDateField
+          label="To"
+          className="sm:w-36"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+        />
         <Select
           aria-label="State"
           className="w-full sm:w-44"

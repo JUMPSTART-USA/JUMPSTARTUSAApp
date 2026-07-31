@@ -32,3 +32,40 @@ export const SearchInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTML
   ),
 );
 SearchInput.displayName = 'SearchInput';
+
+/**
+ * Labeled date filter for toolbars. iOS/iPadOS render empty date inputs as
+ * blank controls (no mm/dd/yyyy ghost), so when empty we hide the native
+ * text (avoids doubling on engines that do show one) and overlay our own
+ * hint. Controlled only — pass `value`. Pair with
+ * `<ListToolbar className="items-end">` so unlabeled controls align.
+ */
+export const ToolbarDateField = forwardRef<
+  HTMLInputElement,
+  InputHTMLAttributes<HTMLInputElement> & { label: string }
+>(({ label, className, value, ...props }, ref) => {
+  const empty = value === '' || value === undefined || value === null;
+  return (
+    <label className={cn('flex w-full flex-col gap-1 sm:w-40', className)}>
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="relative block">
+        <Input
+          ref={ref}
+          type="date"
+          value={value}
+          className={cn('peer', empty && '[&:not(:focus)]:text-transparent')}
+          {...props}
+        />
+        {empty ? (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-3 hidden items-center text-sm text-muted-foreground peer-[:not(:focus)]:flex"
+          >
+            mm/dd/yyyy
+          </span>
+        ) : null}
+      </span>
+    </label>
+  );
+});
+ToolbarDateField.displayName = 'ToolbarDateField';
