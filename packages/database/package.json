@@ -12,6 +12,7 @@
     "migrate:reset": "prisma migrate reset --force",
     "validate": "prisma validate",
     "seed": "tsx prisma/seed.ts",
+    "seed:cm-samples": "tsx prisma/seed-cm-samples.ts",
     "db:local": "tsx scripts/dev-db.ts",
     "typecheck": "tsc --noEmit"
   },

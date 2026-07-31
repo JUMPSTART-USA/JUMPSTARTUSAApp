@@ -15,6 +15,7 @@ import {
   permissionsForRole,
   type RoleKey,
 } from '@jumpstart/shared';
+import { seedCaseManagementSamples } from './seed-cm-samples';
 
 const prisma = new PrismaClient();
 
@@ -2253,6 +2254,7 @@ async function main(): Promise<void> {
   await seedCommunications(participants, volunteers, users);
   await seedIntakeQueues(participants, volunteers, users);
   await seedCompliance(participants, users);
+  await seedCaseManagementSamples(prisma, users.adminId);
   await seedAuditLog(participants, users);
 
   const counts: [string, number][] = [
