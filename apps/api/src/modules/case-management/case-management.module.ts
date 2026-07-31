@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { BudgetItemsController, BudgetPaymentsController } from './budgets.controller';
+import { BudgetsService } from './budgets.service';
 import { CaseNotesController } from './case-notes.controller';
 import { CaseNotesService } from './case-notes.service';
 import { CaseServicesController } from './case-services.controller';
@@ -9,6 +11,8 @@ import { CaseloadController } from './caseload.controller';
 import { CaseloadService } from './caseload.service';
 import { DrugTestsController } from './drug-tests.controller';
 import { DrugTestsService } from './drug-tests.service';
+import { IncidentReportsController } from './incident-reports.controller';
+import { IncidentReportsService } from './incident-reports.service';
 import { NeedsAssessmentsController } from './needs-assessments.controller';
 import { NeedsAssessmentsService } from './needs-assessments.service';
 import { OnboardingController } from './onboarding.controller';
@@ -17,6 +21,8 @@ import { ReferralsController } from './referrals.controller';
 import { ReferralsService } from './referrals.service';
 import { ServicePlansController } from './service-plans.controller';
 import { ServicePlansService } from './service-plans.service';
+import { TravelRequestsController } from './travel-requests.controller';
+import { TravelRequestsService } from './travel-requests.service';
 
 @Module({
   controllers: [
@@ -24,6 +30,10 @@ import { ServicePlansService } from './service-plans.service';
     CaseloadController,
     CaseServicesController,
     DrugTestsController,
+    BudgetItemsController,
+    BudgetPaymentsController,
+    TravelRequestsController,
+    IncidentReportsController,
     ServicePlansController,
     CaseTasksController,
     ReferralsController,
@@ -35,6 +45,9 @@ import { ServicePlansService } from './service-plans.service';
     CaseloadService,
     CaseServicesService,
     DrugTestsService,
+    BudgetsService,
+    TravelRequestsService,
+    IncidentReportsService,
     ServicePlansService,
     CaseTasksService,
     ReferralsService,
@@ -48,6 +61,9 @@ import { ServicePlansService } from './service-plans.service';
     CaseloadService,
     CaseServicesService,
     DrugTestsService,
+    BudgetsService,
+    TravelRequestsService,
+    IncidentReportsService,
     ServicePlansService,
     CaseTasksService,
     ReferralsService,

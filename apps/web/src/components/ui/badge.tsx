@@ -76,6 +76,12 @@ const STATUS_VARIANTS: Record<string, BadgeProps['variant']> = {
   inconclusive: 'warning',
   diluted: 'warning',
   refused: 'destructive',
+  // Travel requests / incident reports
+  denied: 'destructive',
+  dismissed: 'outline',
+  minor: 'outline',
+  major: 'warning',
+  critical: 'destructive',
 };
 
 export function StatusBadge({ status }: { status: string | null | undefined }) {

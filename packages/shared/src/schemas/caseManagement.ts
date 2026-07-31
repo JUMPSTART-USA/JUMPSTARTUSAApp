@@ -1,14 +1,21 @@
 import { z } from 'zod';
 import {
+  BUDGET_CATEGORIES,
+  BUDGET_FREQUENCIES,
   CHECKLIST_ITEM_STATUSES,
   CONTACT_TYPES,
   GOAL_STATUSES,
+  INCIDENT_CATEGORIES,
+  INCIDENT_SEVERITIES,
+  INCIDENT_STATUSES,
   NOTE_CATEGORIES,
   TASK_STATUSES,
 } from '../enums';
 import {
+  endNotBeforeStart,
   optionalDate,
   optionalTrimmed,
+  positiveMoney,
   requiredDate,
   requiredTrimmed,
   uuid,
@@ -146,3 +153,83 @@ export const needsAssessmentSchema = z.object({
   summary: optionalTrimmed,
 });
 export type NeedsAssessmentInput = z.infer<typeof needsAssessmentSchema>;
+
+// ── Participant budgets (§6.6) ──────────────────────────────────────────────
+
+export const budgetItemSchema = z
+  .object({
+    participantProfileId: uuid,
+    category: z.enum(BUDGET_CATEGORIES),
+    label: optionalTrimmed,
+    amount: positiveMoney,
+    frequency: z.enum(BUDGET_FREQUENCIES),
+    startDate: requiredDate,
+    endDate: optionalDate,
+    active: z.boolean().default(true),
+    notes: optionalTrimmed,
+  })
+  .superRefine(endNotBeforeStart('startDate', 'endDate'));
+export type BudgetItemInput = z.infer<typeof budgetItemSchema>;
+
+export const budgetPaymentSchema = z
+  .object({
+    budgetItemId: uuid,
+    paidDate: requiredDate,
+    amount: positiveMoney,
+    method: optionalTrimmed,
+    notes: optionalTrimmed,
+  })
+  .superRefine((val, ctx) => {
+    if (val.paidDate > new Date()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Payment date cannot be in the future',
+        path: ['paidDate'],
+      });
+    }
+  });
+export type BudgetPaymentInput = z.infer<typeof budgetPaymentSchema>;
+
+// ── Travel-away requests (§6.7) ─────────────────────────────────────────────
+
+export const travelRequestSchema = z
+  .object({
+    participantProfileId: uuid,
+    startDate: requiredDate,
+    endDate: requiredDate,
+    destination: requiredTrimmed.pipe(z.string().max(300)),
+    purpose: requiredTrimmed.pipe(z.string().max(2000)),
+  })
+  .superRefine(endNotBeforeStart('startDate', 'endDate'));
+export type TravelRequestInput = z.infer<typeof travelRequestSchema>;
+
+/** Approve/deny (case_management.update). Canceling uses status 'canceled'. */
+export const travelDecisionSchema = z.object({
+  status: z.enum(['approved', 'denied', 'canceled']),
+  decisionNotes: optionalTrimmed,
+});
+export type TravelDecisionInput = z.infer<typeof travelDecisionSchema>;
+
+// ── Incident reports (§6.8) ─────────────────────────────────────────────────
+
+export const incidentReportSchema = z
+  .object({
+    participantProfileId: uuid,
+    incidentDate: requiredDate,
+    category: z.enum(INCIDENT_CATEGORIES),
+    severity: z.enum(INCIDENT_SEVERITIES),
+    description: requiredTrimmed.pipe(z.string().max(5000)),
+    actionTaken: optionalTrimmed,
+    status: z.enum(INCIDENT_STATUSES).default('open'),
+    resolutionNotes: optionalTrimmed,
+  })
+  .superRefine((val, ctx) => {
+    if (val.incidentDate > new Date()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Incident date cannot be in the future',
+        path: ['incidentDate'],
+      });
+    }
+  });
+export type IncidentReportInput = z.infer<typeof incidentReportSchema>;

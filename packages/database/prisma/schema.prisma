@@ -67,6 +67,62 @@ enum DrugTestResult {
   refused
 }
 
+enum BudgetCategory {
+  program_fee
+  tithe
+  supervision_fee
+  treatment_program
+  restitution
+  child_support
+  rent
+  utilities
+  transportation
+  phone
+  medical
+  personal
+  savings
+  other
+}
+
+enum BudgetFrequency {
+  weekly
+  biweekly
+  monthly
+  one_time
+}
+
+enum TravelRequestStatus {
+  pending
+  approved
+  denied
+  canceled
+}
+
+enum IncidentCategory {
+  curfew_violation
+  unauthorized_absence
+  substance_use
+  failed_drug_test
+  contraband
+  altercation
+  property_damage
+  noncompliance
+  other
+}
+
+enum IncidentSeverity {
+  minor
+  major
+  critical
+}
+
+enum IncidentStatus {
+  open
+  in_review
+  resolved
+  dismissed
+}
+
 enum InsideStatus {
   not_applicable
   enrolled
@@ -538,6 +594,10 @@ model ParticipantProfile {
   caseNotes           CaseNote[]
   caseServices        CaseService[]
   drugTests           DrugTest[]
+  budgetItems         BudgetItem[]
+  budgetPayments      BudgetPayment[]
+  travelRequests      TravelRequest[]
+  incidentReports     IncidentReport[]
   servicePlans        ServicePlan[]
   needsAssessments    NeedsAssessment[]
   outboundReferrals   OutboundReferral[]
@@ -1016,6 +1076,103 @@ model DrugTest {
 
   @@index([participantProfileId, testDate])
   @@map("drug_tests")
+}
+
+// Recurring budget obligations per participant (§6.6): program fees, tithes,
+// supervision fees (probation/parole/community supervision), treatment
+// programs and other standard expenses. Payments log against an item.
+model BudgetItem {
+  id                   String   @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  category             BudgetCategory
+  label                String?
+  amount               Decimal  @db.Decimal(12, 2)
+  frequency            BudgetFrequency
+  startDate            DateTime
+  endDate              DateTime?
+  active               Boolean  @default(true)
+  notes                String?
+
+  payments BudgetPayment[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  deletedAt   DateTime?
+
+  @@index([participantProfileId, active])
+  @@map("budget_items")
+}
+
+model BudgetPayment {
+  id                   String   @id @default(uuid())
+  budgetItemId         String
+  budgetItem           BudgetItem @relation(fields: [budgetItemId], references: [id])
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  paidDate             DateTime
+  amount               Decimal  @db.Decimal(12, 2)
+  method               String?
+  notes                String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  deletedAt   DateTime?
+
+  @@index([budgetItemId])
+  @@index([participantProfileId, paidDate])
+  @@map("budget_payments")
+}
+
+// Travel-away requests (§6.7): time away from the housing program (family
+// visits etc.) with case-manager approval or denial.
+model TravelRequest {
+  id                   String   @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  startDate            DateTime
+  endDate              DateTime
+  destination          String
+  purpose              String
+  status               TravelRequestStatus @default(pending)
+  decisionNotes        String?
+  decidedById          String?
+  decidedAt            DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  deletedAt   DateTime?
+
+  @@index([participantProfileId, startDate])
+  @@index([status])
+  @@map("travel_requests")
+}
+
+// Incident reports (§6.8): violations of the program rules agreement.
+model IncidentReport {
+  id                   String   @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  incidentDate         DateTime
+  category             IncidentCategory
+  severity             IncidentSeverity
+  description          String
+  actionTaken          String?
+  status               IncidentStatus @default(open)
+  resolutionNotes      String?
+  resolvedAt           DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  deletedAt   DateTime?
+
+  @@index([participantProfileId, incidentDate])
+  @@index([status])
+  @@map("incident_reports")
 }
 
 model OutsideProgramSession {
