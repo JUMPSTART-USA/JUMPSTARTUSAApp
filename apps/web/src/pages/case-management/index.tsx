@@ -2,22 +2,28 @@ import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { BackLink } from '@/components/BackLink';
 import { PageHeader } from '@/components/ui/page-header';
 import { SubNav } from '@/components/ui/sub-nav';
+import { BudgetsPage } from './BudgetsPage';
 import { CaseloadSummaryPage } from './CaseloadSummaryPage';
 import { CaseManagementHome } from './CaseManagementHome';
 import { CaseNotesPage } from './CaseNotesPage';
 import { CaseServicesPage } from './CaseServicesPage';
 import { DrugTestsPage } from './DrugTestsPage';
+import { IncidentReportsPage } from './IncidentReportsPage';
 import { NeedsAssessmentsPage } from './NeedsAssessmentsPage';
 import { OnboardingPage } from './OnboardingPage';
 import { ReferralsPage } from './ReferralsPage';
 import { ServicePlansPage } from './ServicePlansPage';
 import { TasksPage } from './TasksPage';
+import { TravelRequestsPage } from './TravelRequestsPage';
 
 const SECTIONS: { to: string; label: string; end?: boolean }[] = [
   { to: '.', label: 'Follow-ups', end: true },
   { to: 'notes', label: 'Case Notes' },
   { to: 'services', label: 'Services' },
   { to: 'drug-tests', label: 'Drug Tests' },
+  { to: 'budgets', label: 'Budgets' },
+  { to: 'travel', label: 'Travel' },
+  { to: 'incidents', label: 'Incidents' },
   { to: 'plans', label: 'Service Plans' },
   { to: 'tasks', label: 'Tasks' },
   { to: 'referrals', label: 'Referrals' },
@@ -47,6 +53,9 @@ export function CaseManagementRoutes() {
         <Route path="notes" element={<CaseNotesPage />} />
         <Route path="services" element={<CaseServicesPage />} />
         <Route path="drug-tests" element={<DrugTestsPage />} />
+        <Route path="budgets" element={<BudgetsPage />} />
+        <Route path="travel" element={<TravelRequestsPage />} />
+        <Route path="incidents" element={<IncidentReportsPage />} />
         <Route path="plans" element={<ServicePlansPage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="referrals" element={<ReferralsPage />} />

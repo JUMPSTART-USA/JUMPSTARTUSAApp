@@ -73,6 +73,102 @@ export const DRUG_TEST_RESULT_LABELS: Record<DrugTestResult, string> = {
   refused: 'Refused',
 };
 
+// Participant budget tracking (case management)
+export const BUDGET_CATEGORIES = [
+  'program_fee',
+  'tithe',
+  'supervision_fee',
+  'treatment_program',
+  'restitution',
+  'child_support',
+  'rent',
+  'utilities',
+  'transportation',
+  'phone',
+  'medical',
+  'personal',
+  'savings',
+  'other',
+] as const;
+export type BudgetCategory = (typeof BUDGET_CATEGORIES)[number];
+export const BUDGET_CATEGORY_LABELS: Record<BudgetCategory, string> = {
+  program_fee: 'Program fee',
+  tithe: 'Tithe',
+  supervision_fee: 'Supervision fee (probation / parole / community supervision)',
+  treatment_program: 'Treatment program',
+  restitution: 'Restitution',
+  child_support: 'Child support',
+  rent: 'Rent',
+  utilities: 'Utilities',
+  transportation: 'Transportation',
+  phone: 'Phone',
+  medical: 'Medical',
+  personal: 'Personal expenses',
+  savings: 'Savings',
+  other: 'Other',
+};
+
+export const BUDGET_FREQUENCIES = ['weekly', 'biweekly', 'monthly', 'one_time'] as const;
+export type BudgetFrequency = (typeof BUDGET_FREQUENCIES)[number];
+export const BUDGET_FREQUENCY_LABELS: Record<BudgetFrequency, string> = {
+  weekly: 'Weekly',
+  biweekly: 'Every two weeks',
+  monthly: 'Monthly',
+  one_time: 'One-time',
+};
+
+// Travel-away requests (case management)
+export const TRAVEL_REQUEST_STATUSES = ['pending', 'approved', 'denied', 'canceled'] as const;
+export type TravelRequestStatus = (typeof TRAVEL_REQUEST_STATUSES)[number];
+export const TRAVEL_REQUEST_STATUS_LABELS: Record<TravelRequestStatus, string> = {
+  pending: 'Pending',
+  approved: 'Approved',
+  denied: 'Denied',
+  canceled: 'Canceled',
+};
+
+// Incident reports (case management)
+export const INCIDENT_CATEGORIES = [
+  'curfew_violation',
+  'unauthorized_absence',
+  'substance_use',
+  'failed_drug_test',
+  'contraband',
+  'altercation',
+  'property_damage',
+  'noncompliance',
+  'other',
+] as const;
+export type IncidentCategory = (typeof INCIDENT_CATEGORIES)[number];
+export const INCIDENT_CATEGORY_LABELS: Record<IncidentCategory, string> = {
+  curfew_violation: 'Curfew violation',
+  unauthorized_absence: 'Unauthorized absence',
+  substance_use: 'Substance use',
+  failed_drug_test: 'Failed drug test',
+  contraband: 'Contraband',
+  altercation: 'Altercation',
+  property_damage: 'Property damage',
+  noncompliance: 'Program rules noncompliance',
+  other: 'Other',
+};
+
+export const INCIDENT_SEVERITIES = ['minor', 'major', 'critical'] as const;
+export type IncidentSeverity = (typeof INCIDENT_SEVERITIES)[number];
+export const INCIDENT_SEVERITY_LABELS: Record<IncidentSeverity, string> = {
+  minor: 'Minor',
+  major: 'Major',
+  critical: 'Critical',
+};
+
+export const INCIDENT_STATUSES = ['open', 'in_review', 'resolved', 'dismissed'] as const;
+export type IncidentStatus = (typeof INCIDENT_STATUSES)[number];
+export const INCIDENT_STATUS_LABELS: Record<IncidentStatus, string> = {
+  open: 'Open',
+  in_review: 'In review',
+  resolved: 'Resolved',
+  dismissed: 'Dismissed',
+};
+
 export const INSIDE_CLASS_TYPES = ['pre_release', 'character', 'other'] as const;
 export type InsideClassType = (typeof INSIDE_CLASS_TYPES)[number];
 export const INSIDE_CLASS_TYPE_LABELS: Record<InsideClassType, string> = {

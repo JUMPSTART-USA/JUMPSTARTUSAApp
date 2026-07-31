@@ -17,7 +17,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { backTo, type BackNavState } from '@/components/BackLink';
+import { BudgetCard } from '@/pages/case-management/BudgetsPage';
 import { DrugTestFormDialog } from '@/pages/case-management/drug-test-dialogs';
+import { IncidentReportsCard } from '@/pages/case-management/IncidentReportsPage';
+import { TravelRequestsCard } from '@/pages/case-management/TravelRequestsPage';
 import { type DrugTestRow } from '@/pages/case-management/shared';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -371,6 +374,9 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
       </div>
 
       <DrugTestsCard participantId={participantId} />
+      <BudgetCard participantId={participantId} />
+      <TravelRequestsCard participantId={participantId} />
+      <IncidentReportsCard participantId={participantId} />
     </div>
   );
 }
