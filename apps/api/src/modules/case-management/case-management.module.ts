@@ -7,6 +7,8 @@ import { CaseTasksController } from './case-tasks.controller';
 import { CaseTasksService } from './case-tasks.service';
 import { CaseloadController } from './caseload.controller';
 import { CaseloadService } from './caseload.service';
+import { DrugTestsController } from './drug-tests.controller';
+import { DrugTestsService } from './drug-tests.service';
 import { NeedsAssessmentsController } from './needs-assessments.controller';
 import { NeedsAssessmentsService } from './needs-assessments.service';
 import { OnboardingController } from './onboarding.controller';
@@ -21,6 +23,7 @@ import { ServicePlansService } from './service-plans.service';
     CaseNotesController,
     CaseloadController,
     CaseServicesController,
+    DrugTestsController,
     ServicePlansController,
     CaseTasksController,
     ReferralsController,
@@ -31,6 +34,7 @@ import { ServicePlansService } from './service-plans.service';
     CaseNotesService,
     CaseloadService,
     CaseServicesService,
+    DrugTestsService,
     ServicePlansService,
     CaseTasksService,
     ReferralsService,
@@ -43,6 +47,7 @@ import { ServicePlansService } from './service-plans.service';
     CaseNotesService,
     CaseloadService,
     CaseServicesService,
+    DrugTestsService,
     ServicePlansService,
     CaseTasksService,
     ReferralsService,

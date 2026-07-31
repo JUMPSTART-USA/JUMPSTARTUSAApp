@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@jumpstart/database';
-import type { DrugTestInput } from '@jumpstart/shared';
+import type { DrugTestInput, DrugTestResult, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertParticipant } from './participant.util';
 
 /**
  * Shape of an in-memory multer upload. Declared locally because @types/multer
@@ -18,6 +19,15 @@ export interface UploadedPhotoFile {
 
 export type DrugTestCreateInput = DrugTestInput & { participantProfileId: string };
 export type DrugTestUpdateInput = Partial<DrugTestCreateInput>;
+
+export interface DrugTestListFilters {
+  participantProfileId?: string;
+  result?: DrugTestResult;
+  from?: Date;
+  to?: Date;
+}
+
+const SORTABLE = new Set(['testDate', 'testType', 'result', 'createdAt']);
 
 /**
  * Contract: photoData NEVER appears in list/detail responses — the photo
@@ -36,14 +46,29 @@ const VIEW_SELECT = {
   createdAt: true,
 } as const;
 
+/** List rows add the same participant summary case-services rows carry. */
+const LIST_SELECT = {
+  ...VIEW_SELECT,
+  participantProfile: {
+    select: { person: { select: { firstName: true, lastName: true } } },
+  },
+} as const;
+
 type DrugTestViewRow = Prisma.DrugTestGetPayload<{ select: typeof VIEW_SELECT }>;
+type DrugTestListRow = Prisma.DrugTestGetPayload<{ select: typeof LIST_SELECT }>;
 
 function toView(row: DrugTestViewRow) {
   const { photoMimeType, ...rest } = row;
   return { ...rest, hasPhoto: photoMimeType != null };
 }
 
+function toListItem(row: DrugTestListRow) {
+  const { photoMimeType, participantProfile, ...rest } = row;
+  return { ...rest, hasPhoto: photoMimeType != null, participant: participantProfile };
+}
+
 export type DrugTestView = ReturnType<typeof toView>;
+export type DrugTestListItem = ReturnType<typeof toListItem>;
 
 @Injectable()
 export class DrugTestsService {
@@ -52,18 +77,55 @@ export class DrugTestsService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(participantProfileId: string): Promise<{ items: DrugTestView[] }> {
-    await this.assertParticipant(participantProfileId);
-    const rows = await this.prisma.drugTest.findMany({
-      where: { participantProfileId, deletedAt: null },
-      orderBy: { testDate: 'desc' },
-      select: VIEW_SELECT,
-    });
-    return { items: rows.map(toView) };
+  async list(query: ListQuery, filters: DrugTestListFilters) {
+    const where: Prisma.DrugTestWhereInput = {
+      deletedAt: null,
+      ...(filters.participantProfileId
+        ? { participantProfileId: filters.participantProfileId }
+        : {}),
+      ...(filters.result ? { result: filters.result } : {}),
+      ...(filters.from || filters.to
+        ? {
+            testDate: {
+              ...(filters.from ? { gte: filters.from } : {}),
+              ...(filters.to ? { lte: filters.to } : {}),
+            },
+          }
+        : {}),
+      ...(query.search
+        ? {
+            participantProfile: {
+              OR: [
+                { participantNumber: { contains: query.search, mode: 'insensitive' } },
+                { person: { firstName: { contains: query.search, mode: 'insensitive' } } },
+                { person: { lastName: { contains: query.search, mode: 'insensitive' } } },
+              ],
+            },
+          }
+        : {}),
+    };
+
+    const orderBy: Prisma.DrugTestOrderByWithRelationInput =
+      query.sortBy && SORTABLE.has(query.sortBy)
+        ? { [query.sortBy]: query.sortDir }
+        : { testDate: 'desc' };
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.drugTest.findMany({
+        where,
+        orderBy,
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+        select: LIST_SELECT,
+      }),
+      this.prisma.drugTest.count({ where }),
+    ]);
+
+    return { items: rows.map(toListItem), total, page: query.page, pageSize: query.pageSize };
   }
 
   async create(input: DrugTestCreateInput, photo: UploadedPhotoFile | undefined, userId: string) {
-    await this.assertParticipant(input.participantProfileId);
+    await assertParticipant(this.prisma, input.participantProfileId);
     const created = await this.prisma.drugTest.create({
       data: {
         ...input,
@@ -85,7 +147,7 @@ export class DrugTestsService {
     userId: string,
   ) {
     const existing = await this.findTest(id);
-    if (input.participantProfileId) await this.assertParticipant(input.participantProfileId);
+    if (input.participantProfileId) await assertParticipant(this.prisma, input.participantProfileId);
 
     const updated = await this.prisma.drugTest.update({
       where: { id },
@@ -142,13 +204,5 @@ export class DrugTestsService {
     });
     if (!test) throw new NotFoundException('Drug test not found');
     return test;
-  }
-
-  private async assertParticipant(participantProfileId: string) {
-    const participant = await this.prisma.participantProfile.findFirst({
-      where: { id: participantProfileId, deletedAt: null },
-      select: { id: true },
-    });
-    if (!participant) throw new NotFoundException('Participant not found');
   }
 }
