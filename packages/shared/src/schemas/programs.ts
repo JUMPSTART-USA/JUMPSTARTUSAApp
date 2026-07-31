@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import {
   CLASS_STATUSES,
+  DRUG_TEST_RESULTS,
+  DRUG_TEST_TYPES,
   ENROLLMENT_STATUSES,
   FINAL_ASSESSMENTS,
   INSIDE_CLASS_TYPES,
@@ -55,6 +57,27 @@ export const insideClassSchema = z
   })
   .superRefine(endNotBeforeStart('startDate', 'endDate'));
 export type InsideClassInput = z.infer<typeof insideClassSchema>;
+
+// ── Drug tests (outside programs, §6.3) ─────────────────────────────────────
+// Photo upload is multipart and validated by the API (image type, ≤10 MB) —
+// this schema covers the form fields only.
+export const drugTestSchema = z
+  .object({
+    testDate: requiredDate,
+    testType: z.enum(DRUG_TEST_TYPES),
+    result: z.enum(DRUG_TEST_RESULTS),
+    notes: optionalTrimmed,
+  })
+  .superRefine((val, ctx) => {
+    if (val.testDate > new Date()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Test date cannot be in the future',
+        path: ['testDate'],
+      });
+    }
+  });
+export type DrugTestInput = z.infer<typeof drugTestSchema>;
 
 /**
  * Shared enrollment business rules (§6.2, enforced for BOTH inside and

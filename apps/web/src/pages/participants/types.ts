@@ -3,6 +3,7 @@
  * includes in apps/api/src/modules/participants (and the tab endpoints).
  * Dates arrive as ISO strings over JSON.
  */
+import type { DrugTestResult, DrugTestType } from '@jumpstart/shared';
 
 export interface UserName {
   id: string;
@@ -172,6 +173,22 @@ export interface TimelineEventRow {
 }
 
 // ── Tab endpoints from other modules ─────────────────────────────────────────
+
+/**
+ * GET /drug-tests list row (§ outside programs). The API sends hasPhoto +
+ * photoFileName only — image bytes stream from /drug-tests/:id/photo.
+ */
+export interface DrugTestView {
+  id: string;
+  participantProfileId: string;
+  testDate: string;
+  testType: DrugTestType;
+  result: DrugTestResult;
+  notes: string | null;
+  hasPhoto: boolean;
+  photoFileName: string | null;
+  createdAt: string;
+}
 
 export interface HousingEnrollmentRow {
   id: string;

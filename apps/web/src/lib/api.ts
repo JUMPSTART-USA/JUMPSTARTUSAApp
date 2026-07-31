@@ -15,11 +15,14 @@ export class ApiError extends Error {
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  // FormData bodies (file uploads) go through as multipart — the browser sets
+  // the Content-Type boundary itself.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
   const res = await fetch(`/api${path}`, {
     method,
     credentials: 'include',
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    headers: body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : undefined,
+    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   });
 
   if (res.status === 401 && !path.startsWith('/auth/')) {

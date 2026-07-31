@@ -36,6 +36,43 @@ export const HOME_GENDER_LABELS: Record<HomeGender, string> = {
   any: 'Any',
 };
 
+// Drug-test tracking (outside programs)
+export const DRUG_TEST_TYPES = [
+  'urine_5_panel',
+  'urine_10_panel',
+  'urine_12_panel',
+  'saliva',
+  'breathalyzer',
+  'hair_follicle',
+  'other',
+] as const;
+export type DrugTestType = (typeof DRUG_TEST_TYPES)[number];
+export const DRUG_TEST_TYPE_LABELS: Record<DrugTestType, string> = {
+  urine_5_panel: 'Urine (5-panel)',
+  urine_10_panel: 'Urine (10-panel)',
+  urine_12_panel: 'Urine (12-panel)',
+  saliva: 'Saliva',
+  breathalyzer: 'Breathalyzer',
+  hair_follicle: 'Hair follicle',
+  other: 'Other',
+};
+
+export const DRUG_TEST_RESULTS = [
+  'negative',
+  'positive',
+  'inconclusive',
+  'diluted',
+  'refused',
+] as const;
+export type DrugTestResult = (typeof DRUG_TEST_RESULTS)[number];
+export const DRUG_TEST_RESULT_LABELS: Record<DrugTestResult, string> = {
+  negative: 'Negative',
+  positive: 'Positive',
+  inconclusive: 'Inconclusive',
+  diluted: 'Diluted',
+  refused: 'Refused',
+};
+
 export const INSIDE_CLASS_TYPES = ['pre_release', 'character', 'other'] as const;
 export type InsideClassType = (typeof INSIDE_CLASS_TYPES)[number];
 export const INSIDE_CLASS_TYPE_LABELS: Record<InsideClassType, string> = {

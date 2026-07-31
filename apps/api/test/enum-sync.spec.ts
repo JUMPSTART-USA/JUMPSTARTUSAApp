@@ -18,6 +18,8 @@ const PAIRS: Array<[string, readonly string[], Record<string, string>]> = [
   ['ClassStatus', shared.CLASS_STATUSES, prisma.ClassStatus],
   ['ProgramType', shared.PROGRAM_TYPES, prisma.ProgramType],
   ['ContactType', shared.CONTACT_TYPES, prisma.ContactType],
+  ['DrugTestType', shared.DRUG_TEST_TYPES, prisma.DrugTestType],
+  ['DrugTestResult', shared.DRUG_TEST_RESULTS, prisma.DrugTestResult],
   ['NoteCategory', shared.NOTE_CATEGORIES, prisma.NoteCategory],
   ['ChecklistItemStatus', shared.CHECKLIST_ITEM_STATUSES, prisma.ChecklistItemStatus],
   ['GoalStatus', shared.GOAL_STATUSES, prisma.GoalStatus],

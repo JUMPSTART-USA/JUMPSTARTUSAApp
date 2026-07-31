@@ -70,6 +70,12 @@ const STATUS_VARIANTS: Record<string, BadgeProps['variant']> = {
   green: 'success',
   yellow: 'warning',
   red: 'destructive',
+  // Drug-test results
+  negative: 'success',
+  positive: 'destructive',
+  inconclusive: 'warning',
+  diluted: 'warning',
+  refused: 'destructive',
 };
 
 export function StatusBadge({ status }: { status: string | null | undefined }) {
