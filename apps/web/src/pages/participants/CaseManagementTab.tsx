@@ -19,6 +19,7 @@ import {
 import { backTo, type BackNavState } from '@/components/BackLink';
 import { BudgetCard } from '@/pages/case-management/BudgetsPage';
 import { DrugTestFormDialog } from '@/pages/case-management/drug-test-dialogs';
+import { PortalAccessCard } from './PortalAccessCard';
 import { IncidentReportsCard } from '@/pages/case-management/IncidentReportsPage';
 import { TravelRequestsCard } from '@/pages/case-management/TravelRequestsPage';
 import { type DrugTestRow } from '@/pages/case-management/shared';
@@ -377,6 +378,7 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
       <BudgetCard participantId={participantId} />
       <TravelRequestsCard participantId={participantId} />
       <IncidentReportsCard participantId={participantId} />
+      <PortalAccessCard participantId={participantId} />
     </div>
   );
 }

@@ -169,6 +169,40 @@ export const INCIDENT_STATUS_LABELS: Record<IncidentStatus, string> = {
   dismissed: 'Dismissed',
 };
 
+// Participant portal (tokenized links, staff-reviewed queues)
+export const PORTAL_MESSAGE_STATUSES = ['new', 'read', 'responded'] as const;
+export type PortalMessageStatus = (typeof PORTAL_MESSAGE_STATUSES)[number];
+export const PORTAL_MESSAGE_STATUS_LABELS: Record<PortalMessageStatus, string> = {
+  new: 'New',
+  read: 'Read',
+  responded: 'Responded',
+};
+
+export const MEETING_REQUEST_STATUSES = ['pending', 'scheduled', 'declined', 'canceled'] as const;
+export type MeetingRequestStatus = (typeof MEETING_REQUEST_STATUSES)[number];
+export const MEETING_REQUEST_STATUS_LABELS: Record<MeetingRequestStatus, string> = {
+  pending: 'Pending',
+  scheduled: 'Scheduled',
+  declined: 'Declined',
+  canceled: 'Canceled',
+};
+
+export const TRANSPORT_REQUEST_STATUSES = [
+  'pending',
+  'approved',
+  'denied',
+  'canceled',
+  'completed',
+] as const;
+export type TransportRequestStatus = (typeof TRANSPORT_REQUEST_STATUSES)[number];
+export const TRANSPORT_REQUEST_STATUS_LABELS: Record<TransportRequestStatus, string> = {
+  pending: 'Pending',
+  approved: 'Approved',
+  denied: 'Denied',
+  canceled: 'Canceled',
+  completed: 'Completed',
+};
+
 export const INSIDE_CLASS_TYPES = ['pre_release', 'character', 'other'] as const;
 export type InsideClassType = (typeof INSIDE_CLASS_TYPES)[number];
 export const INSIDE_CLASS_TYPE_LABELS: Record<InsideClassType, string> = {

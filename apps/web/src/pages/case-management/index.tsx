@@ -9,6 +9,7 @@ import { CaseNotesPage } from './CaseNotesPage';
 import { CaseServicesPage } from './CaseServicesPage';
 import { DrugTestsPage } from './DrugTestsPage';
 import { IncidentReportsPage } from './IncidentReportsPage';
+import { RequestsPage } from './RequestsPage';
 import { NeedsAssessmentsPage } from './NeedsAssessmentsPage';
 import { OnboardingPage } from './OnboardingPage';
 import { ReferralsPage } from './ReferralsPage';
@@ -24,6 +25,7 @@ const SECTIONS: { to: string; label: string; end?: boolean }[] = [
   { to: 'budgets', label: 'Budgets' },
   { to: 'travel', label: 'Travel' },
   { to: 'incidents', label: 'Incidents' },
+  { to: 'requests', label: 'Requests' },
   { to: 'plans', label: 'Service Plans' },
   { to: 'tasks', label: 'Tasks' },
   { to: 'referrals', label: 'Referrals' },
@@ -56,6 +58,7 @@ export function CaseManagementRoutes() {
         <Route path="budgets" element={<BudgetsPage />} />
         <Route path="travel" element={<TravelRequestsPage />} />
         <Route path="incidents" element={<IncidentReportsPage />} />
+        <Route path="requests" element={<RequestsPage />} />
         <Route path="plans" element={<ServicePlansPage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="referrals" element={<ReferralsPage />} />
