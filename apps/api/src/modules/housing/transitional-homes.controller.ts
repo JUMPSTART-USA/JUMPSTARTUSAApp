@@ -58,8 +58,8 @@ export class TransitionalHomesController {
 
   @Get(':id')
   @RequirePermission('housing.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.housing.getHome(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.housing.getHome(id, user);
   }
 
   @Post()
@@ -68,7 +68,7 @@ export class TransitionalHomesController {
     @Body(zodBody(transitionalHomeSchema)) body: TransitionalHomeInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.housing.createHome(body, user.id);
+    return this.housing.createHome(body, user);
   }
 
   @Patch(':id')
@@ -78,12 +78,12 @@ export class TransitionalHomesController {
     @Body(zodBody(transitionalHomeSchema.partial())) body: TransitionalHomeUpdate,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.housing.updateHome(id, body, user.id);
+    return this.housing.updateHome(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('housing.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.housing.softDeleteHome(id, user.id);
+    return this.housing.softDeleteHome(id, user);
   }
 }

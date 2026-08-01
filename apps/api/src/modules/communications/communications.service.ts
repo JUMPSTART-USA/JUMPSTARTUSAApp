@@ -124,7 +124,14 @@ export class CommunicationsService {
   async send(input: SendCommunicationInput, user: AuthenticatedUser) {
     const person = await this.prisma.person.findFirst({
       where: { id: input.personId, deletedAt: null },
-      include: { participantProfile: { select: { participantNumber: true } } },
+      include: {
+        participantProfile: {
+          select: {
+            participantNumber: true,
+            assignedCaseManager: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
     });
     if (!person) throw new NotFoundException('Person not found');
 
@@ -142,11 +149,13 @@ export class CommunicationsService {
       }
     }
 
+    const cm = person.participantProfile?.assignedCaseManager;
     const src = {
       firstName: person.firstName,
       lastName: person.lastName,
       preferredName: person.preferredName,
       participantNumber: person.participantProfile?.participantNumber ?? null,
+      caseManager: cm ? `${cm.firstName} ${cm.lastName}` : null,
     };
     // Ad-hoc body overrides the template body when both are given.
     const bodySource = input.body ?? template?.body;
@@ -179,22 +188,28 @@ export class CommunicationsService {
       },
     });
 
-    // 'letter' stays queued for the Phase-2 batch/letter generator.
+    // 'letter' stays queued — GET /communications/:id/letter.pdf renders it
+    // (and marks it sent). Email/SMS dispatch immediately through the real
+    // providers; failures are recorded, not hidden.
     if (input.channel === 'email' || input.channel === 'sms') {
       const result =
         input.channel === 'email'
           ? await this.provider.sendEmail(person.primaryEmail!, subject!, body)
           : await this.provider.sendSms(person.primaryPhone!, body);
-      if (result.sent) {
-        communication = await this.prisma.communication.update({
-          where: { id: communication.id },
-          data: {
-            status: 'sent',
-            sentAt: new Date(),
-            statusDetail: [warning, result.detail].filter(Boolean).join('; ') || null,
-          },
-        });
-      }
+      communication = await this.prisma.communication.update({
+        where: { id: communication.id },
+        data: result.sent
+          ? {
+              status: 'sent',
+              sentAt: new Date(),
+              statusDetail: [warning, result.detail].filter(Boolean).join('; ') || null,
+            }
+          : {
+              status: 'failed',
+              statusDetail:
+                [warning, result.detail ?? 'Send failed'].filter(Boolean).join('; ') || null,
+            },
+      });
     }
 
     await this.audit.logCreate(user.id, 'communication', communication.id, communication);

@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   LogOut,
+  Mail,
   Menu,
   School,
   Settings,
@@ -77,6 +78,7 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
     title: 'Operations',
     items: [
       { to: '/employers', label: 'Employers', icon: Briefcase, permission: 'employers.read' },
+      { to: '/communications', label: 'Communications', icon: Mail, permission: 'communications.read' },
       { to: '/vehicles', label: 'Vehicles', icon: Bus, permission: 'vehicles.read' },
       { to: '/reports', label: 'Reports', icon: BarChart3, permission: 'reports.read' },
     ],

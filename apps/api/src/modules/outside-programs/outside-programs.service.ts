@@ -14,7 +14,9 @@ import {
   type UsState,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 export interface OutsideProgramListFilters {
   programType?: ProgramType;
@@ -114,7 +116,7 @@ export class OutsideProgramsService {
   }
 
   /** Program detail with full roster (participant names, §6.3). */
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const program = await this.prisma.outsideProgram.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -127,10 +129,15 @@ export class OutsideProgramsService {
       },
     });
     if (!program) throw new NotFoundException('Outside program not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own state).
+    assertChapterAccess(user.chapter, program.state);
     return program;
   }
 
-  async create(input: OutsideProgramInput, userId: string) {
+  async create(input: OutsideProgramInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    // Chapter scoping (§7.2): a scoped user cannot create for another chapter.
+    assertChapterAccess(user.chapter, input.state);
     await this.assertStaffLead(input.staffLeadId);
     const program = await this.prisma.outsideProgram.create({
       data: { ...input, createdById: userId, updatedById: userId },
@@ -139,8 +146,13 @@ export class OutsideProgramsService {
     return program;
   }
 
-  async update(id: string, input: OutsideProgramUpdate, userId: string) {
+  async update(id: string, input: OutsideProgramUpdate, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.findProgram(id);
+    // Chapter scoping (§7.2): the record must be in the user's chapter, and a
+    // scoped user cannot move it to another chapter either.
+    assertChapterAccess(user.chapter, existing.state);
+    assertChapterAccess(user.chapter, input.state);
     await this.assertStaffLead(input.staffLeadId);
 
     // Merged-state check: the Zod refinement only sees the patch payload.
@@ -158,8 +170,11 @@ export class OutsideProgramsService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.findProgram(id);
+    // Chapter scoping (§7.2): same derivation as the list filter (own state).
+    assertChapterAccess(user.chapter, existing.state);
     // History preservation (§4.1.6): open enrollments must be closed out, not
     // hidden behind a deleted program.
     const open = await this.prisma.outsideProgramEnrollment.count({

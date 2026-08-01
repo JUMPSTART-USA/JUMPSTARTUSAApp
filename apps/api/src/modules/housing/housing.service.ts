@@ -15,7 +15,9 @@ import {
   type UsState,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 export interface HomeListFilters {
   state?: UsState;
@@ -128,7 +130,7 @@ export class HousingService {
     }));
   }
 
-  async getHome(id: string) {
+  async getHome(id: string, user: AuthenticatedUser) {
     const home = await this.prisma.transitionalHome.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -140,10 +142,15 @@ export class HousingService {
       },
     });
     if (!home) throw new NotFoundException('Transitional home not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own state).
+    assertChapterAccess(user.chapter, home.state);
     return home;
   }
 
-  async createHome(input: TransitionalHomeInput, userId: string) {
+  async createHome(input: TransitionalHomeInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    // Chapter scoping (§7.2): a scoped user cannot create for another chapter.
+    assertChapterAccess(user.chapter, input.state);
     const home = await this.prisma.transitionalHome.create({
       data: { ...input, createdById: userId, updatedById: userId },
     });
@@ -151,8 +158,13 @@ export class HousingService {
     return home;
   }
 
-  async updateHome(id: string, input: TransitionalHomeUpdate, userId: string) {
+  async updateHome(id: string, input: TransitionalHomeUpdate, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.findHome(id);
+    // Chapter scoping (§7.2): the record must be in the user's chapter, and a
+    // scoped user cannot move it to another chapter either.
+    assertChapterAccess(user.chapter, existing.state);
+    assertChapterAccess(user.chapter, input.state);
     const updated = await this.prisma.transitionalHome.update({
       where: { id },
       data: { ...input, updatedById: userId },
@@ -161,8 +173,11 @@ export class HousingService {
     return updated;
   }
 
-  async softDeleteHome(id: string, userId: string) {
+  async softDeleteHome(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.findHome(id);
+    // Chapter scoping (§7.2): same derivation as the list filter (own state).
+    assertChapterAccess(user.chapter, existing.state);
     const residents = await this.countResidents(id);
     if (residents > 0) {
       throw new ConflictException(

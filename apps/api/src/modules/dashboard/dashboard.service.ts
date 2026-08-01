@@ -350,7 +350,11 @@ export class DashboardService {
               where: { deletedAt: null, vehicle: { deletedAt: null, active: true } },
               orderBy: { maintenanceDate: 'desc' },
               distinct: ['vehicleId'],
-              select: { nextServiceDueDate: true },
+              select: {
+                nextServiceDueDate: true,
+                nextServiceDueMileage: true,
+                vehicle: { select: { mileage: true } },
+              },
             }),
             this.prisma.vehicle.count({
               where: { deletedAt: null, active: true, registrationExpiration: { lte: soon } },
@@ -359,8 +363,16 @@ export class DashboardService {
               where: { deletedAt: null, active: true, insuranceExpiration: { lte: soon } },
             }),
           ]);
+          // Mirrors fleet computeAlerts (§6.10): due by date (within 30 days
+          // or past) OR by mileage (within 500 miles of next due, or past).
+          // One latest record per vehicle, so a vehicle due by both criteria
+          // still counts once.
           const maintenanceDue = latestMaintenance.filter(
-            (r) => r.nextServiceDueDate !== null && r.nextServiceDueDate <= soon,
+            (r) =>
+              (r.nextServiceDueDate !== null && r.nextServiceDueDate <= soon) ||
+              (r.nextServiceDueMileage !== null &&
+                r.vehicle.mileage !== null &&
+                r.nextServiceDueMileage <= r.vehicle.mileage + 500),
           ).length;
           data.vehiclesActive = active;
           vehicleAlertCount = maintenanceDue + registrationDue + insuranceDue;

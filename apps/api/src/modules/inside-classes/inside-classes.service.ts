@@ -18,7 +18,9 @@ import {
   type UsState,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 export interface InsideClassListFilters {
   institutionId?: string;
@@ -110,7 +112,7 @@ export class InsideClassesService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const insideClass = await this.prisma.insideClass.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -145,11 +147,17 @@ export class InsideClassesService {
       },
     });
     if (!insideClass) throw new NotFoundException('Class not found');
+    // Chapter scoping (§7.2): the list filter derives state from
+    // institution.state — enforce identically on the loaded relation.
+    assertChapterAccess(user.chapter, insideClass.institution.state);
     return insideClass;
   }
 
-  async create(input: InsideClassInput, userId: string) {
+  async create(input: InsideClassInput, user: AuthenticatedUser) {
+    const userId = user.id;
     await this.assertInstitution(input.institutionId);
+    // Chapter scoping (§7.2): no creating classes at another chapter's institution.
+    await this.assertClassChapter(input.institutionId, user.chapter);
     const insideClass = await this.prisma.insideClass.create({
       data: { ...input, createdById: userId, updatedById: userId },
     });
@@ -157,10 +165,15 @@ export class InsideClassesService {
     return insideClass;
   }
 
-  async update(id: string, input: Partial<InsideClassInput>, userId: string) {
+  async update(id: string, input: Partial<InsideClassInput>, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.getClassOrThrow(id);
+    // Chapter scoping (§7.2): via the owning institution's state.
+    await this.assertClassChapter(existing.institutionId, user.chapter);
     if (input.institutionId && input.institutionId !== existing.institutionId) {
       await this.assertInstitution(input.institutionId);
+      // ...and the class cannot be moved to another chapter's institution.
+      await this.assertClassChapter(input.institutionId, user.chapter);
     }
     // PATCH validates against innerType().partial(), which drops the schema's
     // cross-field refinement — re-check end >= start on the merged record.
@@ -177,8 +190,11 @@ export class InsideClassesService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.getClassOrThrow(id);
+    // Chapter scoping (§7.2): via the owning institution's state.
+    await this.assertClassChapter(existing.institutionId, user.chapter);
     // History preservation (§4.1.6): a class with a real roster is closed out,
     // never deleted. Only rosters consisting solely of removed enrollments
     // (data-entry mistakes) may be deleted.
@@ -537,6 +553,20 @@ export class InsideClassesService {
       select: { id: true },
     });
     if (!institution) throw new BadRequestException('Unknown institution');
+  }
+
+  /**
+   * Chapter scoping (§7.2): a class belongs to its institution's chapter —
+   * the same derivation the list filter uses (institution.state). Only
+   * queries when the user is actually chapter-scoped.
+   */
+  private async assertClassChapter(institutionId: string, userChapter: string | null) {
+    if (!userChapter) return;
+    const institution = await this.prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: { state: true },
+    });
+    assertChapterAccess(userChapter, institution?.state);
   }
 
   /** §6.2 cross-field rules, mirrored from the shared Zod schemas for merged-record checks. */

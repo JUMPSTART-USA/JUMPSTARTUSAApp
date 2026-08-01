@@ -51,6 +51,20 @@ export class EmploymentsService {
     return rest;
   }
 
+  /**
+   * Write side of the §7.2 pay field class (mirrors stripPay): a user who
+   * cannot read pay must not be able to set or overwrite it either, so the
+   * pay fields are dropped from create/update payloads before they reach
+   * Prisma. payPeriod falls back to its column default on create.
+   */
+  private stripPayWrites<
+    T extends { payRate?: unknown; payPeriod?: unknown; hoursPerWeek?: unknown },
+  >(input: T, user: AuthenticatedUser) {
+    if (hasPerm(user, 'fields.pay.read')) return input;
+    const { payRate, payPeriod, hoursPerWeek, ...rest } = input;
+    return rest;
+  }
+
   async list(query: ListQuery, filters: EmploymentListFilters, user: AuthenticatedUser) {
     const where: Prisma.ParticipantEmploymentWhereInput = {
       deletedAt: null,
@@ -138,9 +152,12 @@ export class EmploymentsService {
     if (!participant) throw new BadRequestException('Participant not found');
     if (!employer) throw new BadRequestException('Employer not found');
 
+    // §7.2: without fields.pay.read the pay fields never reach the row.
+    const data = this.stripPayWrites(input, user);
+
     const { employment, tasks } = await this.prisma.$transaction(async (tx) => {
       const employment = await tx.participantEmployment.create({
-        data: { ...input, createdById: user.id, updatedById: user.id },
+        data: { ...data, createdById: user.id, updatedById: user.id },
       });
       // Every record opens its own history trail (§6.9).
       await tx.employmentStatusHistory.create({
@@ -194,10 +211,13 @@ export class EmploymentsService {
 
     const statusChanged = input.status !== undefined && input.status !== existing.status;
 
+    // §7.2: without fields.pay.read a patch cannot touch the pay fields.
+    const patch = this.stripPayWrites(input, user);
+
     const { updated, tasks } = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.participantEmployment.update({
         where: { id },
-        data: { ...input, updatedById: user.id },
+        data: { ...patch, updatedById: user.id },
       });
       let tasks: CaseTask[] = [];
       if (statusChanged) {

@@ -98,7 +98,7 @@ export class InsideClassesController {
     @Body(zodBody(insideClassSchema)) body: InsideClassInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.insideClasses.create(body, user.id);
+    return this.insideClasses.create(body, user);
   }
 
   // Static-prefix routes are declared before ':id' routes.
@@ -134,8 +134,8 @@ export class InsideClassesController {
 
   @Get(':id')
   @RequirePermission('inside_classes.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.insideClasses.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.insideClasses.get(id, user);
   }
 
   @Patch(':id')
@@ -145,13 +145,13 @@ export class InsideClassesController {
     @Body(zodBody(insideClassPatchSchema)) body: Partial<InsideClassInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.insideClasses.update(id, body, user.id);
+    return this.insideClasses.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('inside_classes.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.insideClasses.softDelete(id, user.id);
+    return this.insideClasses.softDelete(id, user);
   }
 
   @Post(':id/enrollments/batch')

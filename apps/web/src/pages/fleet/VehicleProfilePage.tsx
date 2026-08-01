@@ -1,12 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus, Trash2, Wrench } from 'lucide-react';
+import { Paperclip, Pencil, Plus, Trash2, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { AttachmentsCard } from '@/components/AttachmentsCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
@@ -36,6 +44,7 @@ export function VehicleProfilePage() {
   const [logOpen, setLogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<MaintenanceRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = useState<MaintenanceRecord | null>(null);
+  const [receiptsRecord, setReceiptsRecord] = useState<MaintenanceRecord | null>(null);
 
   const query = useQuery({
     queryKey: ['fleet', 'vehicles', id, 'profile'],
@@ -203,9 +212,8 @@ export function VehicleProfilePage() {
                     <TableHead>Vendor</TableHead>
                     <TableHead className="text-right">Cost</TableHead>
                     <TableHead>Next due</TableHead>
-                    {can('vehicles.update') || can('vehicles.delete') ? (
-                      <TableHead className="w-20" />
-                    ) : null}
+                    {/* Always rendered: the receipts affordance needs only read access. */}
+                    <TableHead className="w-28" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -230,30 +238,36 @@ export function VehicleProfilePage() {
                           .filter(Boolean)
                           .join(' · ') || '—'}
                       </TableCell>
-                      {can('vehicles.update') || can('vehicles.delete') ? (
-                        <TableCell className="text-right">
-                          {can('vehicles.update') ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label="Edit maintenance record"
-                              onClick={() => setEditingRecord(record)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          ) : null}
-                          {can('vehicles.delete') ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label="Delete maintenance record"
-                              onClick={() => setDeletingRecord(record)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          ) : null}
-                        </TableCell>
-                      ) : null}
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="View receipts"
+                          onClick={() => setReceiptsRecord(record)}
+                        >
+                          <Paperclip className="h-4 w-4" />
+                        </Button>
+                        {can('vehicles.update') ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Edit maintenance record"
+                            onClick={() => setEditingRecord(record)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+                        {can('vehicles.delete') ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Delete maintenance record"
+                            onClick={() => setDeletingRecord(record)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -319,6 +333,35 @@ export function VehicleProfilePage() {
         error={deleteVehicle.error ? deleteVehicle.error.message : null}
         onConfirm={() => deleteVehicle.mutate()}
       />
+      {/* Receipts live on the profile (not the log/edit form): a record needs
+          an id before files can attach, and the form dialog stays submit-only. */}
+      <Dialog
+        open={!!receiptsRecord}
+        onOpenChange={(open) => {
+          if (!open) setReceiptsRecord(null);
+        }}
+      >
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>Receipts</DialogTitle>
+            <DialogDescription>
+              {receiptsRecord
+                ? `${receiptsRecord.maintenanceType} — ${formatDate(receiptsRecord.maintenanceDate)}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {receiptsRecord ? (
+            <AttachmentsCard
+              compact
+              entityType="vehicle_maintenance_record"
+              entityId={receiptsRecord.id}
+              title="Receipts"
+              canUpload={can('vehicles.update')}
+              canDelete={can('vehicles.update')}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog
         open={!!deletingRecord}
         onOpenChange={(open) => {

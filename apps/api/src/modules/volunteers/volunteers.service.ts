@@ -8,7 +8,9 @@ import type {
   VolunteerUpdateInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { redactBackgroundCheck } from './screening.service';
 
 export interface VolunteerListFilters {
@@ -99,7 +101,7 @@ export class VolunteersService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string, canReadCheckResults: boolean) {
+  async get(id: string, user: AuthenticatedUser, canReadCheckResults: boolean) {
     const profile = await this.prisma.volunteerProfile.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -133,6 +135,8 @@ export class VolunteersService {
       },
     });
     if (!profile) throw new NotFoundException('Volunteer not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
+    assertChapterAccess(user.chapter, profile.person.state);
 
     const { backgroundChecks, ...person } = profile.person;
     return {
@@ -142,7 +146,11 @@ export class VolunteersService {
     };
   }
 
-  async create(input: VolunteerCreateInput, userId: string) {
+  async create(input: VolunteerCreateInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    // Chapter scoping (§7.2): a scoped user cannot create records for another
+    // chapter. The list filter derives state from person.state, so check it.
+    assertChapterAccess(user.chapter, input.person.state);
     // §5 duplicate prevention: person-creating flows surface candidate matches
     // first; the client re-submits with confirmNotDuplicate once staff verify.
     if (!input.confirmNotDuplicate) {
@@ -172,12 +180,17 @@ export class VolunteersService {
     return created;
   }
 
-  async update(id: string, input: VolunteerUpdateInput, userId: string) {
+  async update(id: string, input: VolunteerUpdateInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.prisma.volunteerProfile.findFirst({
       where: { id, deletedAt: null },
       include: { person: true },
     });
     if (!existing) throw new NotFoundException('Volunteer not found');
+    // Chapter scoping (§7.2): the record must be in the user's chapter, and a
+    // scoped user cannot move it to another chapter either.
+    assertChapterAccess(user.chapter, existing.person.state);
+    assertChapterAccess(user.chapter, input.person?.state);
     const { person: existingPerson, ...existingProfile } = existing;
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -206,17 +219,24 @@ export class VolunteersService {
   }
 
   // Soft-deletes the profile only — the person may hold other roles (§5).
-  async softDelete(id: string, userId: string) {
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.prisma.volunteerProfile.findFirst({
       where: { id, deletedAt: null },
+      include: { person: { select: { state: true } } },
     });
     if (!existing) throw new NotFoundException('Volunteer not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
+    assertChapterAccess(user.chapter, existing.person.state);
 
     await this.prisma.volunteerProfile.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
     });
-    await this.audit.logDelete(userId, 'volunteer_profile', id, existing);
+    // The person include was for the chapter check only — keep the audit
+    // payload the profile row, as before.
+    const { person: _person, ...profileOnly } = existing;
+    await this.audit.logDelete(userId, 'volunteer_profile', id, profileOnly);
     return { ok: true };
   }
 

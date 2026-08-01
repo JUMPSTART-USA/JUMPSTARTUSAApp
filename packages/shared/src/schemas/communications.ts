@@ -51,6 +51,12 @@ export const sendCommunicationSchema = z
   });
 export type SendCommunicationInput = z.infer<typeof sendCommunicationSchema>;
 
+/** Returned-mail logging (§6.12): flips a sent letter to status 'returned'. */
+export const markReturnedSchema = z.object({
+  note: optionalTrimmed,
+});
+export type MarkReturnedInput = z.infer<typeof markReturnedSchema>;
+
 export const communicationBatchSchema = z.object({
   name: requiredTrimmed.pipe(z.string().max(200)),
   channel: z.enum(COMM_CHANNELS),

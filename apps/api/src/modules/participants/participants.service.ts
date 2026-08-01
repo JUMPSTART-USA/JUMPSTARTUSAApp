@@ -15,6 +15,7 @@ import type {
   ParticipantUpdateInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
@@ -191,7 +192,11 @@ export class ParticipantsService {
   }
 
   /** Create person + participant profile in one transaction (§6.1 workflow 1). */
-  async create(input: ParticipantCreateInput, userId: string) {
+  async create(input: ParticipantCreateInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    // Chapter scoping (§7.2): a scoped user cannot create records for another
+    // chapter. The list filter derives state from person.state, so check it.
+    assertChapterAccess(user.chapter, input.person.state);
     if (!input.confirmNotDuplicate) {
       const { candidates } = await this.duplicateCheck({
         firstName: input.person.firstName,
@@ -297,6 +302,8 @@ export class ParticipantsService {
       },
     });
     if (!profile) throw new NotFoundException('Participant not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
+    assertChapterAccess(viewer.chapter, profile.person.state);
 
     // §7.2 field-level sensitivity: DOC numbers are justice-history data —
     // rows stay visible (so staff know an ID exists) but values are stripped.
@@ -314,12 +321,17 @@ export class ParticipantsService {
    * Any inside/outside/phase/alumni change appends to the status history —
    * transitions are never recorded by overwriting (§4.1.6).
    */
-  async update(id: string, input: ParticipantUpdateInput, userId: string) {
+  async update(id: string, input: ParticipantUpdateInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.prisma.participantProfile.findFirst({
       where: { id, deletedAt: null },
       include: { person: true },
     });
     if (!existing) throw new NotFoundException('Participant not found');
+    // Chapter scoping (§7.2): the record must be in the user's chapter, and a
+    // scoped user cannot move it to another chapter either.
+    assertChapterAccess(user.chapter, existing.person.state);
+    assertChapterAccess(user.chapter, input.person?.state);
 
     const { statusEffectiveDate, statusChangeReason, ...profileData } = input.profile ?? {};
 
@@ -374,16 +386,23 @@ export class ParticipantsService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.prisma.participantProfile.findFirst({
       where: { id, deletedAt: null },
+      include: { person: { select: { state: true } } },
     });
     if (!existing) throw new NotFoundException('Participant not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
+    assertChapterAccess(user.chapter, existing.person.state);
     await this.prisma.participantProfile.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
     });
-    await this.audit.logDelete(userId, 'participant_profile', id, existing);
+    // The person include was for the chapter check only — keep the audit
+    // payload the profile row, as before.
+    const { person: _person, ...profileOnly } = existing;
+    await this.audit.logDelete(userId, 'participant_profile', id, profileOnly);
     return { ok: true };
   }
 
@@ -405,11 +424,15 @@ export class ParticipantsService {
    * alumni status + graduation date and auto-schedules the five outcome
    * check-in waves (§6.7, §9.3).
    */
-  async graduate(id: string, input: GraduationInput, userId: string) {
+  async graduate(id: string, input: GraduationInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.prisma.participantProfile.findFirst({
       where: { id, deletedAt: null },
+      include: { person: { select: { state: true } } },
     });
     if (!existing) throw new NotFoundException('Participant not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
+    assertChapterAccess(user.chapter, existing.person.state);
     if (existing.alumniStatus !== 'not_applicable') {
       throw new ConflictException('Participant has already graduated');
     }

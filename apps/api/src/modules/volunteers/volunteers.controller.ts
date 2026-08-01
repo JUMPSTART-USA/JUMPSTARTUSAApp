@@ -82,7 +82,7 @@ export class VolunteersController {
   @Get(':id')
   @RequirePermission('volunteers.read')
   get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.volunteers.get(id, canReadChecks(user));
+    return this.volunteers.get(id, user, canReadChecks(user));
   }
 
   @Get(':id/eligibility')
@@ -106,7 +106,7 @@ export class VolunteersController {
     @Body(zodBody(volunteerCreateSchema)) body: VolunteerCreateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.volunteers.create(body, user.id);
+    return this.volunteers.create(body, user);
   }
 
   @Patch(':id')
@@ -116,12 +116,12 @@ export class VolunteersController {
     @Body(zodBody(volunteerUpdateSchema)) body: VolunteerUpdateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.volunteers.update(id, body, user.id);
+    return this.volunteers.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('volunteers.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.volunteers.softDelete(id, user.id);
+    return this.volunteers.softDelete(id, user);
   }
 }
