@@ -79,6 +79,12 @@ const STATUS_VARIANTS: Record<string, BadgeProps['variant']> = {
   // Travel requests / incident reports
   denied: 'destructive',
   dismissed: 'outline',
+  // Portal queues
+  new: 'info',
+  read: 'outline',
+  responded: 'success',
+  scheduled: 'success',
+  declined: 'destructive',
   minor: 'outline',
   major: 'warning',
   critical: 'destructive',

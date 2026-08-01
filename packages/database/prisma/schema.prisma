@@ -123,6 +123,27 @@ enum IncidentStatus {
   dismissed
 }
 
+enum PortalMessageStatus {
+  new
+  read
+  responded
+}
+
+enum MeetingRequestStatus {
+  pending
+  scheduled
+  declined
+  canceled
+}
+
+enum TransportRequestStatus {
+  pending
+  approved
+  denied
+  canceled
+  completed
+}
+
 enum InsideStatus {
   not_applicable
   enrolled
@@ -598,6 +619,10 @@ model ParticipantProfile {
   budgetPayments      BudgetPayment[]
   travelRequests      TravelRequest[]
   incidentReports     IncidentReport[]
+  portalTokens        ParticipantPortalToken[]
+  portalMessages      PortalMessage[]
+  meetingRequests     MeetingRequest[]
+  transportRequests   TransportRequest[]
   servicePlans        ServicePlan[]
   needsAssessments    NeedsAssessment[]
   outboundReferrals   OutboundReferral[]
@@ -1173,6 +1198,95 @@ model IncidentReport {
   @@index([participantProfileId, incidentDate])
   @@index([status])
   @@map("incident_reports")
+}
+
+// Participant portal (§6.11-adjacent): tokenized links, NOT logins — staff
+// issue a private URL per participant; submissions land in staff queues and
+// never write operational records directly.
+model ParticipantPortalToken {
+  id                   String   @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  token                String   @unique
+  active               Boolean  @default(true)
+  lastUsedAt           DateTime?
+  revokedAt            DateTime?
+
+  createdAt   DateTime @default(now())
+  createdById String?
+
+  @@index([participantProfileId])
+  @@map("participant_portal_tokens")
+}
+
+model PortalMessage {
+  id                   String   @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  subject              String?
+  body                 String
+  status               PortalMessageStatus @default(new)
+  staffNotes           String?
+  reviewedById         String?
+  reviewedAt           DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([participantProfileId, createdAt])
+  @@index([status])
+  @@map("portal_messages")
+}
+
+model MeetingRequest {
+  id                   String   @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  preferredDate        DateTime
+  preferredTime        String? // 'HH:MM' — stored as wall-clock text, no TZ math
+  reason               String
+  status               MeetingRequestStatus @default(pending)
+  scheduledFor         DateTime?
+  decisionNotes        String?
+  decidedById          String?
+  decidedAt            DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([participantProfileId, createdAt])
+  @@index([status])
+  @@map("meeting_requests")
+}
+
+model TransportRequest {
+  id                   String   @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  tripDate             DateTime
+  tripTime             String // 'HH:MM'
+  destination          String
+  purpose              String?
+  returnTripRequested  Boolean  @default(false)
+  returnDate           DateTime?
+  returnTime           String? // 'HH:MM'
+  returnDestination    String?
+  status               TransportRequestStatus @default(pending)
+  assignedVehicleId    String?
+  assignedVehicle      Vehicle? @relation(fields: [assignedVehicleId], references: [id])
+  decisionNotes        String?
+  decidedById          String?
+  decidedAt            DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([participantProfileId, createdAt])
+  @@index([status, tripDate])
+  @@map("transport_requests")
 }
 
 model OutsideProgramSession {
@@ -2167,6 +2281,7 @@ model Vehicle {
   deletedAt   DateTime?
 
   maintenanceRecords VehicleMaintenanceRecord[]
+  transportRequests  TransportRequest[]
 
   @@index([active])
   @@map("vehicles")

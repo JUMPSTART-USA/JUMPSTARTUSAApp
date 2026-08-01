@@ -11,6 +11,7 @@ import { HealthController } from './health/health.controller';
 import { AdminModule } from './modules/admin/admin.module';
 import { CaseManagementModule } from './modules/case-management/case-management.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
+import { PortalModule } from './modules/portal/portal.module';
 import { CommunicationsModule } from './modules/communications/communications.module';
 import { CrmModule } from './modules/crm/crm.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -51,6 +52,7 @@ import { SupportModule } from './modules/support/support.module';
     PublicIntakeModule,
     CommunicationsModule,
     AttachmentsModule,
+    PortalModule,
     DashboardModule,
     ReportsModule,
     AdminModule,
