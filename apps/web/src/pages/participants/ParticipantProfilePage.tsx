@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, fullName } from '@/lib/utils';
 import { CaseManagementTab } from './CaseManagementTab';
+import { DocumentsTab } from './DocumentsTab';
 import { EditParticipantDialog } from './EditParticipantDialog';
 import { GraduateDialog } from './GraduateDialog';
 import { OverviewTab } from './OverviewTab';
@@ -170,10 +171,7 @@ export function ParticipantProfilePage() {
           <CaseManagementTab participantId={participant.id} />
         </TabsContent>
         <TabsContent value="documents">
-          <EmptyState
-            title="Document uploads arrive in Phase 2"
-            hint="Releases, IDs and program paperwork will be stored here."
-          />
+          <DocumentsTab participantId={participant.id} />
         </TabsContent>
         <TabsContent value="activity">
           <TimelineTab participantId={participant.id} />

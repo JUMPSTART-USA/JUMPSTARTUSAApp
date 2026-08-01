@@ -2,7 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { EmploymentStatus, HiringStatus, Prisma } from '@jumpstart/database';
 import type { EmployerInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 export interface EmployerListFilters {
   hiringStatus?: HiringStatus;
@@ -70,17 +72,19 @@ export class EmployersService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const employer = await this.prisma.employer.findFirst({
       where: { id, deletedAt: null },
     });
     if (!employer) throw new NotFoundException('Employer not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own state).
+    assertChapterAccess(user.chapter, employer.state);
     return employer;
   }
 
   /** Employer profile: participants employed + outcomes summary (§6.9). */
-  async profile(id: string) {
-    const employer = await this.get(id);
+  async profile(id: string, user: AuthenticatedUser) {
+    const employer = await this.get(id, user);
 
     // Names/titles/dates/statuses only — the §7.2 pay field class never
     // appears in this shape, so no permission-based stripping is needed here.
@@ -122,7 +126,10 @@ export class EmployersService {
     };
   }
 
-  async create(input: EmployerInput, userId: string) {
+  async create(input: EmployerInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    // Chapter scoping (§7.2): a scoped user cannot create for another chapter.
+    assertChapterAccess(user.chapter, input.state);
     const employer = await this.prisma.employer.create({
       data: { ...input, createdById: userId, updatedById: userId },
     });
@@ -130,8 +137,11 @@ export class EmployersService {
     return employer;
   }
 
-  async update(id: string, input: Partial<EmployerInput>, userId: string) {
-    const existing = await this.get(id);
+  async update(id: string, input: Partial<EmployerInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // chapter check inside
+    // ...and a scoped user cannot move the record to another chapter either.
+    assertChapterAccess(user.chapter, input.state);
     const updated = await this.prisma.employer.update({
       where: { id },
       data: { ...input, updatedById: userId },
@@ -140,8 +150,9 @@ export class EmployersService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.get(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // chapter check inside
     await this.prisma.employer.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },

@@ -107,7 +107,7 @@ export class ParticipantsController {
     @Body(zodBody(participantCreateSchema)) body: ParticipantCreateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.participants.create(body, user.id);
+    return this.participants.create(body, user);
   }
 
   @Get(':id')
@@ -123,13 +123,13 @@ export class ParticipantsController {
     @Body(zodBody(participantUpdateSchema)) body: ParticipantUpdateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.participants.update(id, body, user.id);
+    return this.participants.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('participants.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.participants.softDelete(id, user.id);
+    return this.participants.softDelete(id, user);
   }
 
   @Get(':id/timeline')
@@ -155,7 +155,7 @@ export class ParticipantsController {
     @Body(zodBody(graduationSchema)) body: GraduationInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.participants.graduate(id, body, user.id);
+    return this.participants.graduate(id, body, user);
   }
 
   // ── Contacts ──────────────────────────────────────────────────────────────

@@ -2400,7 +2400,10 @@ model Attachment {
   id          String                @id @default(uuid())
   entityType  String // participant_profile | case_note | vehicle_maintenance_record | ...
   entityId    String
-  fileKey     String // object storage key — files are never public
+  // Inline storage (drug-test precedent — no external blob store in the
+  // stack); fileKey remains for a future R2/S3 offload.
+  data        Bytes?
+  fileKey     String? // object storage key — files are never public
   filename    String
   contentType String?
   sizeBytes   Int?

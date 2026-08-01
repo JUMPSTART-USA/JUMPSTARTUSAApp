@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CLEARANCE_STATUSES, volunteerClearanceSchema, type ClearanceStatus } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Paperclip, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
+import { AttachmentsCard } from '@/components/AttachmentsCard';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ export function ClearancesTab({ volunteerProfileId }: { volunteerProfileId: stri
   const { can } = useAuth();
   const [editing, setEditing] = useState<ClearanceRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [evidenceRow, setEvidenceRow] = useState<ClearanceRow | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['volunteers', 'clearances', volunteerProfileId],
@@ -120,18 +122,28 @@ export function ClearancesTab({ volunteerProfileId }: { volunteerProfileId: stri
                         <ExpiryBadge date={row.expiresAt} />
                       </TableCell>
                       <TableCell className="text-right">
-                        {can('volunteers.update') || can('volunteers.create') ? (
+                        <div className="flex justify-end gap-1">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              setEditing(row);
-                              setDialogOpen(true);
-                            }}
+                            aria-label="View evidence"
+                            onClick={() => setEvidenceRow(row)}
                           >
-                            Update
+                            <Paperclip className="h-4 w-4" /> Evidence
                           </Button>
-                        ) : null}
+                          {can('volunteers.update') || can('volunteers.create') ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditing(row);
+                                setDialogOpen(true);
+                              }}
+                            >
+                              Update
+                            </Button>
+                          ) : null}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -151,6 +163,34 @@ export function ClearancesTab({ volunteerProfileId }: { volunteerProfileId: stri
           if (!next) setEditing(null);
         }}
       />
+
+      <Dialog
+        open={evidenceRow !== null}
+        onOpenChange={(next) => {
+          if (!next) setEvidenceRow(null);
+        }}
+      >
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>Clearance evidence</DialogTitle>
+            <DialogDescription>
+              {evidenceRow
+                ? `${evidenceRow.requirement.name} at ${evidenceRow.requirement.institution.name}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {evidenceRow ? (
+            <AttachmentsCard
+              compact
+              entityType="volunteer_clearance"
+              entityId={evidenceRow.id}
+              title="Evidence"
+              canUpload={can('volunteers.update')}
+              canDelete={can('volunteers.update')}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

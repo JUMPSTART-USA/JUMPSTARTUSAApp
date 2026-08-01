@@ -1,0 +1,195 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FileText, Plus, Send } from 'lucide-react';
+import { useState } from 'react';
+import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { SectionHeader } from '@/components/ui/page-header';
+import { ErrorState } from '@/components/ui/spinner';
+import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
+import { api, qs, type Paged } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { applyApiError, useDebounced } from '@/lib/form';
+import { formatDate } from '@/lib/utils';
+import { NewBatchDialog } from './NewBatchDialog';
+import { CHANNEL_LABELS, CommStatusBadge } from './shared';
+import type { BatchRow } from './types';
+
+/**
+ * Batch sends (§6.12): create → review matched/queued/suppressed → dispatch
+ * (email/SMS) or download the letter PDF. Dispatch is separate from creation
+ * so a miscast audience can be caught before anything leaves the building.
+ */
+export function BatchesPage() {
+  const { can } = useAuth();
+  const queryClient = useQueryClient();
+  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
+  const [search, setSearch] = useState('');
+  const [newOpen, setNewOpen] = useState(false);
+  const [dispatchTarget, setDispatchTarget] = useState<BatchRow | null>(null);
+  const [dispatchError, setDispatchError] = useState<string | null>(null);
+  const debouncedSearch = useDebounced(search);
+  const canCreate = can('communications.create');
+  const canDispatch = can('communications.update');
+
+  const params = qs({
+    page: listState.page,
+    pageSize: listState.pageSize,
+    sortBy: listState.sortBy,
+    sortDir: listState.sortDir,
+    search: debouncedSearch,
+  });
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['communications', 'batches', params],
+    queryFn: () => api.get<Paged<BatchRow>>(`/communications/batches${params}`),
+  });
+
+  const dispatch = useMutation({
+    mutationFn: (batch: BatchRow) =>
+      api.post<unknown>(`/communications/batches/${batch.id}/dispatch`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['communications'] });
+      setDispatchTarget(null);
+      setDispatchError(null);
+    },
+    onError: (err) => setDispatchError(applyApiError(err)),
+  });
+
+  const columns: Column<BatchRow>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      sortKey: 'name',
+      render: (b) => <span className="font-medium">{b.name}</span>,
+    },
+    {
+      key: 'channel',
+      header: 'Channel',
+      sortKey: 'channel',
+      render: (b) => CHANNEL_LABELS[b.channel],
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortKey: 'status',
+      render: (b) => <CommStatusBadge status={b.status} />,
+    },
+    {
+      key: 'recipients',
+      header: 'Recipients',
+      render: (b) => b._count.communications,
+      className: 'tabular-nums',
+    },
+    {
+      key: 'createdAt',
+      header: 'Created',
+      sortKey: 'createdAt',
+      render: (b) => formatDate(b.createdAt),
+      className: 'whitespace-nowrap',
+    },
+    {
+      key: 'sentAt',
+      header: 'Sent',
+      sortKey: 'sentAt',
+      render: (b) => formatDate(b.sentAt),
+      className: 'whitespace-nowrap',
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'w-40 text-right',
+      render: (b) => (
+        <div className="flex justify-end gap-2">
+          {b.channel === 'letter' && b._count.communications > 0 ? (
+            <a
+              href={`/api/communications/batches/${b.id}/letters.pdf`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <FileText className="h-3.5 w-3.5" /> Letters PDF
+            </a>
+          ) : null}
+          {canDispatch &&
+          b.status === 'queued' &&
+          (b.channel === 'email' || b.channel === 'sms') ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDispatchError(null);
+                setDispatchTarget(b);
+              }}
+            >
+              <Send className="h-3.5 w-3.5" /> Dispatch
+            </Button>
+          ) : null}
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        title="Batches"
+        description="Bulk sends built from a template and an audience filter."
+        actions={
+          canCreate ? (
+            <Button onClick={() => setNewOpen(true)}>
+              <Plus className="h-4 w-4" /> New batch
+            </Button>
+          ) : null
+        }
+      />
+
+      <ListToolbar>
+        <SearchInput
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
+          placeholder="Search batches…"
+        />
+      </ListToolbar>
+
+      {error ? <ErrorState error={error} /> : null}
+      <DataTable
+        columns={columns}
+        data={data}
+        isLoading={isLoading}
+        state={listState}
+        onStateChange={setListState}
+        emptyMessage="No batches yet"
+      />
+
+      <NewBatchDialog open={newOpen} onClose={() => setNewOpen(false)} />
+      <ConfirmDialog
+        open={dispatchTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDispatchTarget(null);
+            setDispatchError(null);
+          }
+        }}
+        title="Dispatch batch?"
+        description={
+          dispatchTarget
+            ? `Send ${dispatchTarget._count.communications} queued ${
+                dispatchTarget._count.communications === 1 ? 'message' : 'messages'
+              } via ${CHANNEL_LABELS[dispatchTarget.channel]} for “${dispatchTarget.name}”. This cannot be undone.`
+            : undefined
+        }
+        confirmLabel="Send"
+        destructive={false}
+        isPending={dispatch.isPending}
+        error={dispatchError}
+        onConfirm={() => dispatchTarget && dispatch.mutate(dispatchTarget)}
+      />
+    </div>
+  );
+}

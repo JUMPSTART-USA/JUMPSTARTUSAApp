@@ -2,7 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@jumpstart/database';
 import type { InstitutionInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 export interface InstitutionListFilters {
   state?: string;
@@ -55,17 +57,19 @@ export class InstitutionsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const institution = await this.prisma.institution.findFirst({
       where: { id, deletedAt: null },
     });
     if (!institution) throw new NotFoundException('Institution not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own state).
+    assertChapterAccess(user.chapter, institution.state);
     return institution;
   }
 
   /** Institution profile page: classes held, participants served, volunteers (§6.2). */
-  async profile(id: string) {
-    const institution = await this.get(id);
+  async profile(id: string, user: AuthenticatedUser) {
+    const institution = await this.get(id, user);
 
     const [classes, participantsServed, volunteerAssignments] = await this.prisma.$transaction([
       this.prisma.insideClass.findMany({
@@ -97,7 +101,10 @@ export class InstitutionsService {
     };
   }
 
-  async create(input: InstitutionInput, userId: string) {
+  async create(input: InstitutionInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    // Chapter scoping (§7.2): a scoped user cannot create for another chapter.
+    assertChapterAccess(user.chapter, input.state);
     const institution = await this.prisma.institution.create({
       data: { ...input, createdById: userId, updatedById: userId },
     });
@@ -105,8 +112,11 @@ export class InstitutionsService {
     return institution;
   }
 
-  async update(id: string, input: Partial<InstitutionInput>, userId: string) {
-    const existing = await this.get(id);
+  async update(id: string, input: Partial<InstitutionInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // chapter check inside
+    // ...and a scoped user cannot move the record to another chapter either.
+    assertChapterAccess(user.chapter, input.state);
     const updated = await this.prisma.institution.update({
       where: { id },
       data: { ...input, updatedById: userId },
@@ -115,8 +125,9 @@ export class InstitutionsService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.get(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // chapter check inside
     await this.prisma.institution.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },

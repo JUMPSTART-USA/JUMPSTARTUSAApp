@@ -51,14 +51,14 @@ export class InstitutionsController {
 
   @Get(':id')
   @RequirePermission('institutions.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.institutions.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.institutions.get(id, user);
   }
 
   @Get(':id/profile')
   @RequirePermission('institutions.read')
-  profile(@Param('id', ParseUUIDPipe) id: string) {
-    return this.institutions.profile(id);
+  profile(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.institutions.profile(id, user);
   }
 
   @Post()
@@ -67,7 +67,7 @@ export class InstitutionsController {
     @Body(zodBody(institutionSchema)) body: InstitutionInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.institutions.create(body, user.id);
+    return this.institutions.create(body, user);
   }
 
   @Patch(':id')
@@ -77,12 +77,12 @@ export class InstitutionsController {
     @Body(zodBody(institutionSchema.partial())) body: Partial<InstitutionInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.institutions.update(id, body, user.id);
+    return this.institutions.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('institutions.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.institutions.softDelete(id, user.id);
+    return this.institutions.softDelete(id, user);
   }
 }

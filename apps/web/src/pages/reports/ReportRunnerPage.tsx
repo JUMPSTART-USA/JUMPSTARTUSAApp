@@ -137,7 +137,7 @@ function RunnerInner({ report }: { report: ReportSummary }) {
   };
 
   // Plain <GET> download — session cookie auth means no token plumbing needed.
-  const exportUrl = (format: 'csv' | 'xlsx') =>
+  const exportUrl = (format: 'csv' | 'xlsx' | 'pdf') =>
     `/api/reports/${report.key}/export${qs({ ...cleanParams(), format })}`;
 
   const uuidOptions: Record<string, { options: EntityOption[]; isLoading: boolean }> = {
@@ -230,6 +230,13 @@ function RunnerInner({ report }: { report: ReportSummary }) {
                   onClick={() => window.open(exportUrl('xlsx'))}
                 >
                   <Download className="h-4 w-4" /> Export Excel
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={missingRequired.length > 0}
+                  onClick={() => window.open(exportUrl('pdf'))}
+                >
+                  <Download className="h-4 w-4" /> Export PDF
                 </Button>
               </>
             ) : undefined

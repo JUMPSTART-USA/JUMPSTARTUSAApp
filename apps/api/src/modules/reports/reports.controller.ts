@@ -13,7 +13,7 @@ import { AuditService } from '../../audit/audit.service';
 import { CurrentUser, RequirePermission } from '../../common/decorators';
 import { zodQuery } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser } from '../../common/types';
-import { exportFilterEcho, reportToCsv, reportToWorkbook } from './report-export.util';
+import { exportFilterEcho, reportToCsv, reportToPdf, reportToWorkbook } from './report-export.util';
 import { ReportsService } from './reports.service';
 
 // One superset schema for every report's params — each report reads its own
@@ -37,11 +37,14 @@ const baseParamsSchema = z.object({
 const reportParamsSchema = baseParamsSchema.superRefine(endNotBeforeStart('from', 'to'));
 type ReportQuery = z.infer<typeof reportParamsSchema>;
 
-// No PDF in this pass — the board/grant PDF pack is Phase 2 (§9.1, §9.3).
 const exportQuerySchema = baseParamsSchema
-  .extend({ format: z.enum(['csv', 'xlsx']).default('csv') })
+  .extend({ format: z.enum(['csv', 'xlsx', 'pdf']).default('csv') })
   .superRefine(endNotBeforeStart('from', 'to'));
 type ExportQuery = z.infer<typeof exportQuerySchema>;
+
+/** Chapter scoping (§7.2): scoped users always run reports over their own chapter. */
+const scopeToChapter = (params: ReportQuery, user: AuthenticatedUser): ReportQuery =>
+  user.chapter ? { ...params, state: user.chapter as ReportQuery['state'] } : params;
 
 @Controller('reports')
 export class ReportsController {
@@ -63,7 +66,7 @@ export class ReportsController {
     @Query(zodQuery(reportParamsSchema)) params: ReportQuery,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.reports.run(key, params, user);
+    return this.reports.run(key, scopeToChapter(params, user), user);
   }
 
   @Get(':key/export')
@@ -74,23 +77,26 @@ export class ReportsController {
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ) {
-    const { format, ...params } = query;
+    const { format, ...rawParams } = query;
+    const params = scopeToChapter(rawParams, user);
     const result = await this.reports.run(key, params, user);
 
     // §9.1: every export writes an audit row (who, which report, which
     // filters) BEFORE bytes leave the server — an aborted download is still
-    // an export.
-    await this.audit.logExport(user.id, 'report', {
-      report: key,
-      format,
-      filters: exportFilterEcho(params),
-    });
+    // an export. The echo reflects the chapter-scoped filters actually applied.
+    const filters = exportFilterEcho(params);
+    await this.audit.logExport(user.id, 'report', { report: key, format, filters });
 
     const filename = `${key}-${new Date().toISOString().slice(0, 10)}.${format}`;
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     if (format === 'csv') {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.send(reportToCsv(result));
+      return;
+    }
+    if (format === 'pdf') {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.send(await reportToPdf(result, this.reports.reportName(key), filters));
       return;
     }
     res.setHeader(

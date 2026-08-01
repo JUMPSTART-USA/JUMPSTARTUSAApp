@@ -261,6 +261,11 @@ export class ReportsService {
       .map(({ key, name, params }) => ({ key, name, params }));
   }
 
+  /** Display name for a report key — the PDF export header uses this. */
+  reportName(key: string): string {
+    return this.registry.find((r) => r.key === key)?.name ?? key;
+  }
+
   async run(key: string, params: ReportParams, user: AuthenticatedUser): Promise<ReportResult> {
     const def = this.registry.find((r) => r.key === key);
     if (!def) throw new NotFoundException(`Unknown report: ${key}`);

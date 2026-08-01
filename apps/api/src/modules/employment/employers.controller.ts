@@ -51,16 +51,16 @@ export class EmployersController {
 
   @Get(':id')
   @RequirePermission('employers.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.employers.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.employers.get(id, user);
   }
 
   // The profile exposes participants' employment records, so it needs the
   // employment module's read grant on top of employers.read.
   @Get(':id/profile')
   @RequirePermission('employers.read', 'employment.read')
-  profile(@Param('id', ParseUUIDPipe) id: string) {
-    return this.employers.profile(id);
+  profile(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.employers.profile(id, user);
   }
 
   @Post()
@@ -69,7 +69,7 @@ export class EmployersController {
     @Body(zodBody(employerSchema)) body: EmployerInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.employers.create(body, user.id);
+    return this.employers.create(body, user);
   }
 
   @Patch(':id')
@@ -79,12 +79,12 @@ export class EmployersController {
     @Body(zodBody(employerSchema.partial())) body: Partial<EmployerInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.employers.update(id, body, user.id);
+    return this.employers.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('employers.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.employers.softDelete(id, user.id);
+    return this.employers.softDelete(id, user);
   }
 }

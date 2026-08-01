@@ -98,7 +98,7 @@ export class OutsideProgramsController {
     @Body(zodBody(outsideProgramSchema)) body: OutsideProgramInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.programs.create(body, user.id);
+    return this.programs.create(body, user);
   }
 
   // ── Enrollments — declared before ':id' so static prefixes match first ────
@@ -188,8 +188,8 @@ export class OutsideProgramsController {
 
   @Get(':id')
   @RequirePermission('outside_programs.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.programs.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.programs.get(id, user);
   }
 
   @Patch(':id')
@@ -199,12 +199,12 @@ export class OutsideProgramsController {
     @Body(zodBody(programUpdateSchema)) body: OutsideProgramUpdate,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.programs.update(id, body, user.id);
+    return this.programs.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('outside_programs.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.programs.softDelete(id, user.id);
+    return this.programs.softDelete(id, user);
   }
 }

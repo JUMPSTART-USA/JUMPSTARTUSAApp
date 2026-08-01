@@ -14,6 +14,7 @@ import { IntakeRoutes } from '@/pages/intake';
 import { MentoringRoutes } from '@/pages/mentoring';
 import { OutsideProgramsRoutes } from '@/pages/outside-programs';
 import { ParticipantsRoutes } from '@/pages/participants';
+import { CommunicationsRoutes } from './pages/communications';
 import { ReportsRoutes } from '@/pages/reports';
 import { SupportRoutes } from '@/pages/support';
 import { VolunteersRoutes } from '@/pages/volunteers';
@@ -77,6 +78,10 @@ export const moduleRoutes = (
       element={gate('employers.read', <EmployersRoutes />)}
     />
     <Route path="vehicles/*" element={gate('vehicles.read', <VehiclesRoutes />)} />
+    <Route
+      path="communications/*"
+      element={gate('communications.read', <CommunicationsRoutes />)}
+    />
     <Route path="reports/*" element={gate('reports.read', <ReportsRoutes />)} />
     <Route path="admin/*" element={gate('admin.users', <AdminRoutes />)} />
   </>

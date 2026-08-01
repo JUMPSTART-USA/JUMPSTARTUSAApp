@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { volunteerTrainingSchema } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Paperclip, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
+import { AttachmentsCard } from '@/components/AttachmentsCard';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -47,6 +49,7 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
   const [editing, setEditing] = useState<TrainingRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState<TrainingRow | null>(null);
+  const [evidenceRow, setEvidenceRow] = useState<TrainingRow | null>(null);
 
   const params = { ...listState, volunteerProfileId };
   const { data, isLoading, error } = useQuery({
@@ -92,6 +95,17 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
       className: 'text-right',
       render: (row) => (
         <div className="flex justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="View evidence"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEvidenceRow(row);
+            }}
+          >
+            <Paperclip className="h-4 w-4" /> Evidence
+          </Button>
           {can('volunteers.update') ? (
             <Button
               variant="outline"
@@ -160,6 +174,34 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
           if (!next) setEditing(null);
         }}
       />
+
+      <Dialog
+        open={evidenceRow !== null}
+        onOpenChange={(next) => {
+          if (!next) setEvidenceRow(null);
+        }}
+      >
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>Training evidence</DialogTitle>
+            <DialogDescription>
+              {evidenceRow
+                ? `${evidenceRow.trainingType} — completed ${formatDate(evidenceRow.completedAt)}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {evidenceRow ? (
+            <AttachmentsCard
+              compact
+              entityType="volunteer_training"
+              entityId={evidenceRow.id}
+              title="Evidence"
+              canUpload={can('volunteers.update')}
+              canDelete={can('volunteers.update')}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={deleting !== null}

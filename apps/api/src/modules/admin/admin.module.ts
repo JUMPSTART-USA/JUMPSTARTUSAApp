@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { AdminAuditLogsController } from './audit-logs.controller';
 import { AdminEmailController } from './email.controller';
 import { AdminAuditLogsService } from './audit-logs.service';
+import { AdminPersonMergeController } from './person-merge.controller';
+import { AdminPersonMergeService } from './person-merge.service';
 import { AdminRolesController } from './roles.controller';
 import { AdminRolesService } from './roles.service';
 import { AdminSettingsController } from './settings.controller';
@@ -16,6 +18,7 @@ import { AdminUsersService } from './users.service';
     AdminUsersController,
     AdminEmailController,
     AdminRolesController,
+    AdminPersonMergeController,
     AdminAuditLogsController,
     AdminSettingsController,
     AdminTemplatesController,
@@ -23,6 +26,7 @@ import { AdminUsersService } from './users.service';
   providers: [
     AdminUsersService,
     AdminRolesService,
+    AdminPersonMergeService,
     AdminAuditLogsService,
     AdminSettingsService,
     AdminTemplatesService,
