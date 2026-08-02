@@ -50,4 +50,28 @@
   h1, h2, h3 {
     @apply font-display;
   }
+
+  /* iPad/iPhone WebKit gives date/time inputs a large intrinsic min-width
+     and its own chrome, so they overflow the width our layout assigns and
+     paint over neighboring controls. Stripping the native appearance makes
+     them honor layout width like every other control. Scoped to iOS/iPadOS
+     (every browser there is WebKit) via -webkit-touch-callout so desktop
+     browsers keep their native calendar affordances. */
+  input[type='date'],
+  input[type='time'] {
+    min-width: 0;
+  }
+  @supports (-webkit-touch-callout: none) {
+    input[type='date'],
+    input[type='time'] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 2.25rem; /* h-9 — appearance:none collapses the UA height */
+    }
+    /* iOS centers the value inside date/time inputs; left-align like every
+       other field. */
+    input::-webkit-date-and-time-value {
+      text-align: left;
+    }
+  }
 }
