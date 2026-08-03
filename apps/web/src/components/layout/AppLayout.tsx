@@ -1,10 +1,19 @@
-import { CHAPTER_NAMES, type ChapterState, type PermissionKey } from '@jumpstart/shared';
+import {
+  CHAPTER_NAMES,
+  CHAPTER_STATES,
+  ROLE_KEYS,
+  ROLE_NAMES,
+  type ChapterState,
+  type PermissionKey,
+  type RoleKey,
+} from '@jumpstart/shared';
 import {
   BarChart3,
   Briefcase,
   Building2,
   Bus,
   CalendarDays,
+  Eye,
   GraduationCap,
   HandHeart,
   HeartHandshake,
@@ -26,6 +35,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
 import { useRecordScreenHistory } from '@/components/BackLink';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { GlobalSearch } from './GlobalSearch';
@@ -94,7 +104,7 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
 ];
 
 export function AppLayout() {
-  const { user, can, logout } = useAuth();
+  const { user, can, logout, viewAs } = useAuth();
   const navigate = useNavigate();
   const [navOpen, setNavOpen] = useState(false);
   useRecordScreenHistory();
@@ -103,6 +113,12 @@ export function AppLayout() {
     navigate('/login');
     return null;
   }
+
+  // A chapter preview only matters when it differs from the account's default view.
+  const chapterPreview =
+    user.viewChapter && user.viewChapter !== user.actualChapter
+      ? (user.viewChapter as ChapterState)
+      : null;
 
   return (
     <div className="flex min-h-screen">
@@ -174,16 +190,63 @@ export function AppLayout() {
         </nav>
 
         <div className="border-t border-white/10 p-3">
+          {user.actualRoles.includes('admin') ? (
+            <div className="mb-3 px-2">
+              <label
+                htmlFor="view-as-role"
+                className="text-[11px] font-semibold uppercase tracking-wider text-white/40"
+              >
+                View as role
+              </label>
+              <Select
+                id="view-as-role"
+                value={user.viewAsRole ?? ''}
+                onChange={(e) => void viewAs({ role: (e.target.value || null) as RoleKey | null })}
+                className="mt-1 h-8 w-full border-white/20 bg-white/10 text-white [&>option]:bg-navy-deep [&>option]:text-white"
+              >
+                <option value="">My access (Administrator)</option>
+                {ROLE_KEYS.filter((role) => role !== 'admin').map((role) => (
+                  <option key={role} value={role}>
+                    {ROLE_NAMES[role]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
           <div className="mb-2 px-2 leading-tight">
             <div className="text-sm font-medium text-white">
               {user.firstName} {user.lastName}
             </div>
             <div className="truncate text-xs text-white/50">{user.email}</div>
-            <div className="mt-0.5 text-[11px] font-medium text-gold">
-              {user.chapter
-                ? `${CHAPTER_NAMES[user.chapter as ChapterState] ?? user.chapter} chapter`
-                : 'All chapters'}
-            </div>
+            {user.allowedChapters === null || user.allowedChapters.length > 1 ? (
+              <Select
+                aria-label="Viewing chapter"
+                value={user.viewChapter ?? ''}
+                onChange={(e) =>
+                  void viewAs({ chapter: (e.target.value || null) as ChapterState | null })
+                }
+                className="mt-1.5 h-8 w-full border-white/20 bg-white/10 text-white [&>option]:bg-navy-deep [&>option]:text-white"
+              >
+                <option value="">
+                  {user.actualChapter
+                    ? `${CHAPTER_NAMES[user.actualChapter as ChapterState] ?? user.actualChapter} (default)`
+                    : 'All chapters'}
+                </option>
+                {(user.allowedChapters ?? CHAPTER_STATES)
+                  .filter((state) => state !== user.actualChapter)
+                  .map((state) => (
+                    <option key={state} value={state}>
+                      {CHAPTER_NAMES[state as ChapterState] ?? state}
+                    </option>
+                  ))}
+              </Select>
+            ) : (
+              <div className="mt-0.5 text-[11px] font-medium text-gold">
+                {user.chapter
+                  ? `${CHAPTER_NAMES[user.chapter as ChapterState] ?? user.chapter} chapter`
+                  : 'All chapters'}
+              </div>
+            )}
           </div>
           <Button
             variant="ghost"
@@ -197,17 +260,45 @@ export function AppLayout() {
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:ml-60">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur sm:px-6">
-          <button
-            type="button"
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
-            onClick={() => setNavOpen(true)}
-            aria-label="Open navigation"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <GlobalSearch />
-        </header>
+        <div className="sticky top-0 z-20">
+          {user.viewAsRole || chapterPreview ? (
+            <div className="flex items-center gap-2.5 border-b border-gold-dark/40 bg-gold px-4 py-2 text-sm text-navy-ink sm:px-6">
+              <Eye className="h-4 w-4 shrink-0" />
+              <span className="min-w-0">
+                <span className="font-semibold">
+                  Viewing
+                  {user.viewAsRole ? ` as ${ROLE_NAMES[user.viewAsRole]}` : ''}
+                  {user.viewAsRole && chapterPreview ? ' ·' : ''}
+                  {chapterPreview
+                    ? ` ${CHAPTER_NAMES[chapterPreview] ?? chapterPreview} chapter only`
+                    : ''}
+                  .
+                </span>{' '}
+                <span className="hidden sm:inline">
+                  Navigation and data are limited to this view.
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => void viewAs({ role: null, chapter: null })}
+                className="ml-auto shrink-0 rounded-md border border-navy-ink/30 px-2.5 py-1 text-xs font-semibold hover:bg-navy-ink/10"
+              >
+                Exit preview
+              </button>
+            </div>
+          ) : null}
+          <header className="flex h-14 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur sm:px-6">
+            <button
+              type="button"
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+              onClick={() => setNavOpen(true)}
+              aria-label="Open navigation"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <GlobalSearch />
+          </header>
+        </div>
         <main className="flex-1 p-4 sm:p-6">
           <Outlet />
         </main>

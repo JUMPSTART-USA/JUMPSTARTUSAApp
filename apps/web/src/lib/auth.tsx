@@ -1,4 +1,4 @@
-import type { PermissionKey, RoleKey } from '@jumpstart/shared';
+import type { ChapterState, PermissionKey, RoleKey } from '@jumpstart/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, type ReactNode } from 'react';
 import { api } from './api';
@@ -10,7 +10,23 @@ export interface Me {
   lastName: string;
   roles: RoleKey[];
   permissions: string[];
+  /** Real account roles — differs from `roles` only during a "view as role" preview. */
+  actualRoles: RoleKey[];
+  /** Set while an administrator is previewing the app as another role. */
+  viewAsRole: RoleKey | null;
   chapter: string | null;
+  /** Real default chapter (first scope row), ignoring any preview. */
+  actualChapter: string | null;
+  /** Chapters the account may view: specific states, or null = all chapters. */
+  allowedChapters: string[] | null;
+  /** Set while previewing a single chapter. */
+  viewChapter: string | null;
+}
+
+/** A "view as" change: only the fields present are applied; null exits that preview. */
+export interface ViewAsChange {
+  role?: RoleKey | null;
+  chapter?: ChapterState | null;
 }
 
 interface AuthContextValue {
@@ -20,6 +36,8 @@ interface AuthContextValue {
   can: (permission: PermissionKey) => boolean;
   logout: () => Promise<void>;
   refresh: () => Promise<unknown>;
+  /** Preview the app as another role (admins) and/or chapter (multi-chapter accounts). */
+  viewAs: (change: ViewAsChange) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -46,6 +64,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.location.assign('/login');
     },
     refresh: () => queryClient.invalidateQueries({ queryKey: ['auth', 'me'] }),
+    viewAs: async (change) => {
+      await api.post('/auth/view-as', change);
+      // Everything cached was fetched under the previous role's access; a full
+      // reload restarts the SPA cleanly under the new one (same as logout).
+      queryClient.clear();
+      window.location.assign('/');
+    },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
