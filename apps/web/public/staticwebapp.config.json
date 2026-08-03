@@ -1,7 +1,7 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*", "/assets/*", "/*.{ico,png,svg,txt}"]
+    "exclude": ["/api/*", "/assets/*", "/*.{ico,png,svg,txt,webmanifest}", "/sw.js"]
   },
   "routes": [
     {
@@ -11,6 +11,14 @@
     {
       "route": "/index.html",
       "headers": { "cache-control": "no-cache" }
+    },
+    {
+      "route": "/sw.js",
+      "headers": { "cache-control": "no-cache" }
+    },
+    {
+      "route": "/manifest.webmanifest",
+      "headers": { "cache-control": "no-cache", "content-type": "application/manifest+json" }
     }
   ],
   "globalHeaders": {
