@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   Post,
@@ -10,9 +11,13 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import {
   changePasswordSchema,
+  CHAPTER_STATES,
   loginSchema,
+  ROLE_KEYS,
   type ChangePasswordInput,
+  type ChapterState,
   type LoginInput,
+  type RoleKey,
 } from '@jumpstart/shared';
 import { z } from 'zod';
 import { AuditService } from '../audit/audit.service';
@@ -22,6 +27,11 @@ import type { AuthenticatedRequest, AuthenticatedUser } from '../common/types';
 import { AuthService } from './auth.service';
 
 const totpCodeSchema = z.object({ code: z.string().regex(/^\d{6}$/) });
+const viewAsSchema = z.object({
+  role: z.enum(ROLE_KEYS).nullable().optional(),
+  chapter: z.enum(CHAPTER_STATES).nullable().optional(),
+});
+type ViewAsInput = z.infer<typeof viewAsSchema>;
 
 @Controller('auth')
 export class AuthController {
@@ -73,8 +83,64 @@ export class AuthController {
       lastName: user.lastName,
       roles: user.roles,
       permissions: [...user.permissions],
+      actualRoles: user.actualRoles,
+      viewAsRole: user.viewAsRole,
       chapter: user.chapter,
+      actualChapter: user.actualChapter,
+      allowedChapters: user.allowedChapters,
+      viewChapter: user.viewChapter,
     };
+  }
+
+  /**
+   * "View as" preview: role (admins only) and/or chapter (any account allowed
+   * to view more than one chapter, or all). Stored on the session and applied
+   * by SessionAuthGuard, so the API itself enforces the narrowed access — not
+   * just the SPA's nav. Setting is gated on the account's REAL roles/scopes;
+   * clearing (null) is always allowed, so a preview can always be exited even
+   * while the effective permissions are narrowed. Omitted fields are left
+   * unchanged.
+   */
+  @Post('view-as')
+  @HttpCode(200)
+  async viewAs(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(zodBody(viewAsSchema)) body: ViewAsInput,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (body.role !== undefined) {
+      // Previewing admin is just normal access — treat it as exiting.
+      const role: RoleKey | null = body.role === 'admin' ? null : body.role;
+      if (role && !user.actualRoles.includes('admin')) {
+        throw new ForbiddenException('Only administrators can preview other roles');
+      }
+      if (role) req.session.viewAsRole = role;
+      else delete req.session.viewAsRole;
+    }
+    if (body.chapter !== undefined) {
+      const chapter: ChapterState | null = body.chapter;
+      if (
+        chapter &&
+        user.allowedChapters !== null &&
+        (user.allowedChapters.length <= 1 || !user.allowedChapters.includes(chapter))
+      ) {
+        throw new ForbiddenException('Your account cannot switch to that chapter');
+      }
+      if (chapter) req.session.viewChapter = chapter;
+      else delete req.session.viewChapter;
+    }
+    const state = {
+      viewAsRole: req.session.viewAsRole ?? null,
+      viewChapter: req.session.viewChapter ?? null,
+    };
+    await this.audit.log({
+      userId: user.id,
+      action: 'permission_change',
+      entityType: 'session',
+      entityId: user.id,
+      metadata: state,
+    });
+    return { ok: true, ...state };
   }
 
   @Post('totp/setup')

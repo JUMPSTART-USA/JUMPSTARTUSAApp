@@ -91,6 +91,143 @@ describe('RBAC (acceptance criterion 2: users only see what their role allows)',
   });
 });
 
+describe('admin "view as role" preview', () => {
+  it('narrows API access to the previewed role and restores it on exit', async () => {
+    const cookie = await login(ADMIN);
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ role: 'fleet_manager' })
+      .expect(200);
+
+    const me = await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+    expect(me.body.roles).toEqual(['fleet_manager']);
+    expect(me.body.viewAsRole).toBe('fleet_manager');
+    expect(me.body.actualRoles).toContain('admin');
+
+    // The API itself enforces the narrowed access, not just the SPA's nav.
+    await request(server).get('/api/vehicles').set('Cookie', cookie).expect(200);
+    await request(server).get('/api/participants').set('Cookie', cookie).expect(403);
+
+    // Exit works while narrowed (gated on actual roles) and restores access.
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ role: null })
+      .expect(200);
+    const restored = await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+    expect(restored.body.viewAsRole).toBeNull();
+    expect(restored.body.roles).toContain('admin');
+    await request(server).get('/api/participants').set('Cookie', cookie).expect(200);
+  });
+
+  it('rejects the preview for non-admins', async () => {
+    const cookie = await login(FLEET);
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ role: 'read_only' })
+      .expect(403);
+  });
+
+  it('chapter preview narrows list data server-side and restores on exit', async () => {
+    const cookie = await login(ADMIN);
+    const before = await request(server)
+      .get('/api/participants?pageSize=1')
+      .set('Cookie', cookie)
+      .expect(200);
+
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ chapter: 'GA' })
+      .expect(200);
+    const me = await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+    expect(me.body.chapter).toBe('GA');
+    expect(me.body.viewChapter).toBe('GA');
+    expect(me.body.actualChapter).toBeNull();
+    expect(me.body.allowedChapters).toBeNull();
+
+    // Lists really are chapter-filtered by the API, not just relabeled.
+    const during = await request(server)
+      .get('/api/participants?pageSize=1')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(during.body.total).toBeLessThan(before.body.total);
+
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ chapter: null })
+      .expect(200);
+    const restored = await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+    expect(restored.body.chapter).toBeNull();
+    expect(restored.body.viewChapter).toBeNull();
+  });
+
+  it('role and chapter previews compose and clear together', async () => {
+    const cookie = await login(ADMIN);
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ role: 'fleet_manager', chapter: 'GA' })
+      .expect(200);
+    const me = await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+    expect(me.body.roles).toEqual(['fleet_manager']);
+    expect(me.body.chapter).toBe('GA');
+
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ role: null, chapter: null })
+      .expect(200);
+    const restored = await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+    expect(restored.body.roles).toContain('admin');
+    expect(restored.body.chapter).toBeNull();
+  });
+
+  it('single-chapter accounts cannot switch chapters', async () => {
+    const adminCookie = await login(ADMIN);
+    const fleetCookie = await login(FLEET);
+    const fleetMe = await request(server)
+      .get('/api/auth/me')
+      .set('Cookie', fleetCookie)
+      .expect(200);
+    const setScopes = (states: string[]) =>
+      request(server)
+        .put(`/api/admin/users/${fleetMe.body.id}/region-scopes`)
+        .set('Cookie', adminCookie)
+        .set('Origin', ORIGIN)
+        .send({ states });
+
+    await setScopes(['GA']).expect(200);
+    try {
+      await request(server)
+        .post('/api/auth/view-as')
+        .set('Cookie', fleetCookie)
+        .set('Origin', ORIGIN)
+        .send({ chapter: 'TX' })
+        .expect(403);
+      // Clearing is still allowed — a preview must always be exitable.
+      await request(server)
+        .post('/api/auth/view-as')
+        .set('Cookie', fleetCookie)
+        .set('Origin', ORIGIN)
+        .send({ chapter: null })
+        .expect(200);
+    } finally {
+      await setScopes([]).expect(200);
+    }
+  });
+});
+
 describe('CSRF origin check', () => {
   it('rejects state-changing requests from a foreign origin', async () => {
     const cookie = await login(ADMIN);
