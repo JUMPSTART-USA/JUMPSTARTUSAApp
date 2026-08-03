@@ -98,6 +98,7 @@ export class DashboardService {
     let clearanceExpirations = 0;
     let overdueFollowUps = 0;
     let intakeSlaBreaches = 0;
+    let portalRequestsPending = 0;
 
     const tasks: Promise<void>[] = [];
 
@@ -386,22 +387,34 @@ export class DashboardService {
         (async () => {
           const weekAgo = addDays(now, -7);
           // §7.3: counts only — the dashboard never surfaces note content.
-          const [notes, services, overdue] = await Promise.all([
-            this.prisma.caseNote.count({ where: { deletedAt: null, createdAt: { gte: weekAgo } } }),
-            this.prisma.caseService.count({
-              where: { deletedAt: null, createdAt: { gte: weekAgo } },
-            }),
-            this.prisma.caseNote.count({
-              where: {
-                deletedAt: null,
-                followUpRequired: true,
-                followUpDoneAt: null,
-                followUpDate: { lt: todayUtc },
-              },
-            }),
-          ]);
+          const [notes, services, overdue, newMessages, pendingMeetings, pendingTransport] =
+            await Promise.all([
+              this.prisma.caseNote.count({
+                where: { deletedAt: null, createdAt: { gte: weekAgo } },
+              }),
+              this.prisma.caseService.count({
+                where: { deletedAt: null, createdAt: { gte: weekAgo } },
+              }),
+              this.prisma.caseNote.count({
+                where: {
+                  deletedAt: null,
+                  followUpRequired: true,
+                  followUpDoneAt: null,
+                  followUpDate: { lt: todayUtc },
+                },
+              }),
+              // Same "pending" definitions the Requests tabs badge.
+              this.prisma.portalMessage.count({ where: { deletedAt: null, status: 'new' } }),
+              this.prisma.meetingRequest.count({
+                where: { deletedAt: null, status: 'pending' },
+              }),
+              this.prisma.transportRequest.count({
+                where: { deletedAt: null, status: 'pending' },
+              }),
+            ]);
           data.recentCaseActivity = { notes, services, total: notes + services };
           overdueFollowUps = overdue;
+          portalRequestsPending = newMessages + pendingMeetings + pendingTransport;
         })(),
       );
     }
@@ -479,6 +492,13 @@ export class DashboardService {
         key: 'intake_sla_breaches',
         label: 'Intake submissions pending more than 3 days',
         count: intakeSlaBreaches,
+      });
+    }
+    if (portalRequestsPending > 0) {
+      attentionNeeded.push({
+        key: 'portal_requests_pending',
+        label: 'Participant portal requests awaiting review',
+        count: portalRequestsPending,
       });
     }
     data.attentionNeeded = attentionNeeded;

@@ -87,6 +87,7 @@ const ATTENTION_SEVERITY: Record<string, BadgeProps['variant']> = {
   clearance_expirations: 'warning',
   overdue_follow_ups: 'destructive',
   intake_sla_breaches: 'destructive',
+  portal_requests_pending: 'warning',
 };
 
 // Every dashboard widget links to the functional area its numbers come from.
@@ -95,6 +96,7 @@ const ATTENTION_LINKS: Record<string, string> = {
   clearance_expirations: '/volunteers/expirations',
   overdue_follow_ups: '/case-management',
   intake_sla_breaches: '/intake',
+  portal_requests_pending: '/case-management/requests',
 };
 
 const fmtCount = (n: number) => n.toLocaleString('en-US');

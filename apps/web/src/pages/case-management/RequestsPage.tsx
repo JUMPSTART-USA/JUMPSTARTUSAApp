@@ -21,6 +21,7 @@ import { ListToolbar, ToolbarDateField } from '@/components/ui/toolbar';
 import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { usePortalRequestsPending } from '@/lib/portal-requests';
 import { formatDate, fullName } from '@/lib/utils';
 import {
   MeetingDecisionDialog,
@@ -496,20 +497,7 @@ function TransportTab() {
  * case-management layout owns the h1; tabs badge their live pending counts.
  */
 export function RequestsPage() {
-  // One lightweight aggregate: three pageSize=1 fetches whose totals badge the
-  // tab labels. Invalidated with the rest of ['case-management'] after every
-  // dialog action.
-  const counts = useQuery({
-    queryKey: ['case-management', 'portal-requests', 'pending-counts'],
-    queryFn: async () => {
-      const [messages, meetings, transport] = await Promise.all([
-        api.get<Paged<unknown>>(`/portal-messages${qs({ status: 'new', pageSize: 1 })}`),
-        api.get<Paged<unknown>>(`/meeting-requests${qs({ status: 'pending', pageSize: 1 })}`),
-        api.get<Paged<unknown>>(`/transport-requests${qs({ status: 'pending', pageSize: 1 })}`),
-      ]);
-      return { messages: messages.total, meetings: meetings.total, transport: transport.total };
-    },
-  });
+  const counts = usePortalRequestsPending();
 
   return (
     <div className="space-y-4">

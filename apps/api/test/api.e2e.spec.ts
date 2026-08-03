@@ -293,6 +293,60 @@ describe('dashboard (acceptance criterion 19: metrics summarize the database)', 
   });
 });
 
+describe('portal requests surface on the dashboard', () => {
+  it('pending submissions appear under attention needed', async () => {
+    const cookie = await login(ADMIN);
+
+    // Use a participant with no active portal link so this test never revokes
+    // a manually-issued one (issuing replaces the participant's active token).
+    const participants = await request(server)
+      .get('/api/participants?pageSize=5')
+      .set('Cookie', cookie)
+      .expect(200);
+    let participantProfileId = participants.body.items[0].id;
+    for (const p of participants.body.items) {
+      const tokens = await request(server)
+        .get(`/api/portal-tokens?participantProfileId=${p.id}`)
+        .set('Cookie', cookie)
+        .expect(200);
+      if (tokens.body.items.length === 0) {
+        participantProfileId = p.id;
+        break;
+      }
+    }
+
+    const issued = await request(server)
+      .post('/api/portal-tokens')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ participantProfileId })
+      .expect(201);
+
+    await request(server)
+      .post(`/api/public/portal/${issued.body.token}/messages`)
+      .send({ body: 'Automated dashboard test message — safe to ignore' })
+      .expect(201);
+
+    // A unique from-date busts the dashboard's in-process cache; date filters
+    // never affect attention items.
+    const dash = await request(server)
+      .get('/api/dashboard?from=1999-01-02')
+      .set('Cookie', cookie)
+      .expect(200);
+    const item = dash.body.attentionNeeded.find(
+      (a: { key: string }) => a.key === 'portal_requests_pending',
+    );
+    expect(item).toBeTruthy();
+    expect(item.count).toBeGreaterThan(0);
+
+    await request(server)
+      .post(`/api/portal-tokens/${issued.body.id}/revoke`)
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .expect(201);
+  });
+});
+
 describe('public intake (§6.11: queues, never live records)', () => {
   it('accepts a referral without auth and returns no internals', async () => {
     const res = await request(server)

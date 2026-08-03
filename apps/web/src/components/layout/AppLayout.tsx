@@ -37,6 +37,7 @@ import { useRecordScreenHistory } from '@/components/BackLink';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
+import { usePortalRequestsPending } from '@/lib/portal-requests';
 import { cn } from '@/lib/utils';
 import { GlobalSearch } from './GlobalSearch';
 
@@ -108,6 +109,8 @@ export function AppLayout() {
   const navigate = useNavigate();
   const [navOpen, setNavOpen] = useState(false);
   useRecordScreenHistory();
+  // Fetches only for users holding case_management.read (hook is self-gating).
+  const portalPending = usePortalRequestsPending();
 
   if (!user) {
     navigate('/login');
@@ -181,6 +184,11 @@ export function AppLayout() {
                     >
                       <item.icon className="h-4 w-4" />
                       {item.label}
+                      {item.to === '/case-management' && portalPending.data?.total ? (
+                        <span className="ml-auto rounded-full bg-gold px-1.5 py-0.5 text-[11px] font-semibold leading-none text-navy-ink">
+                          {portalPending.data.total}
+                        </span>
+                      ) : null}
                     </NavLink>
                   ))}
                 </div>
