@@ -1,5 +1,8 @@
 import {
+  OFFENSE_TYPE_LABELS,
+  OFFENSE_TYPES,
   participantDocIdSchema,
+  participantOffenseSchema,
   personAddressSchema,
   personContactSchema,
   testimonyConsentSchema,
@@ -24,7 +27,13 @@ import { PhoneInput } from '@/components/ui/phone-input';
 import { api } from '@/lib/api';
 import { applyApiError, formResolver, toDateInput, todayInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
-import type { DocIdRow, PersonAddressRow, PersonContactRow, TestimonyConsentRow } from './types';
+import type {
+  DocIdRow,
+  OffenseRow,
+  PersonAddressRow,
+  PersonContactRow,
+  TestimonyConsentRow,
+} from './types';
 
 /**
  * Dialogs for the person-level sub-resources reached through the participant
@@ -299,6 +308,121 @@ export function AddressDialog({
           <FormField label="Notes" error={errors.notes}>
             <Textarea rows={2} {...form.register('notes')} />
           </FormField>
+          <FormError message={topError} />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Most serious offenses (justice-history field class — §7.2) ──────────────
+
+interface OffenseFormValues {
+  offense: string;
+  offenseType: string;
+  convictionDate: string;
+  sentenceYears: string;
+  sentenceMonths: string;
+  sentenceDays: string;
+}
+
+function offenseDefaults(existing: OffenseRow | null): OffenseFormValues {
+  return {
+    offense: existing?.offense ?? '',
+    offenseType: existing?.offenseType ?? 'non_violent',
+    convictionDate: toDateInput(existing?.convictionDate ?? null),
+    sentenceYears: existing?.sentenceYears != null ? String(existing.sentenceYears) : '',
+    sentenceMonths: existing?.sentenceMonths != null ? String(existing.sentenceMonths) : '',
+    sentenceDays: existing?.sentenceDays != null ? String(existing.sentenceDays) : '',
+  };
+}
+
+export function OffenseDialog({
+  participantId,
+  existing,
+  open,
+  onOpenChange,
+}: SubresourceDialogProps<OffenseRow>) {
+  const [topError, setTopError] = useState<string | null>(null);
+  const form = useForm<OffenseFormValues>({
+    resolver: formResolver<OffenseFormValues>(participantOffenseSchema),
+    defaultValues: offenseDefaults(existing),
+  });
+  useEffect(() => {
+    if (open) {
+      form.reset(offenseDefaults(existing));
+      setTopError(null);
+    }
+  }, [open, existing, form]);
+
+  const save = useSaveMutation(
+    participantId,
+    'offenses',
+    existing?.id,
+    form.setError,
+    setTopError,
+    onOpenChange,
+  );
+  const errors = form.formState.errors;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{existing ? 'Edit offense' : 'Add offense'}</DialogTitle>
+          <DialogDescription>
+            Most serious offense on record. Justice-history data — visible only to staff with
+            justice-history access.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void form.handleSubmit((raw) => save.mutate(raw as object))();
+          }}
+          className="space-y-4"
+        >
+          <FormField label="Offense" required error={errors.offense}>
+            <Input {...form.register('offense')} placeholder="e.g. Aggravated burglary" />
+          </FormField>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="Type" required error={errors.offenseType}>
+              <Select {...form.register('offenseType')}>
+                {OFFENSE_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {OFFENSE_TYPE_LABELS[t]}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Conviction date" error={errors.convictionDate}>
+              <Input type="date" {...form.register('convictionDate')} />
+            </FormField>
+          </div>
+          <div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <FormField label="Sentence — years" error={errors.sentenceYears}>
+                <Input type="number" min={0} {...form.register('sentenceYears')} />
+              </FormField>
+              <FormField label="Months" error={errors.sentenceMonths}>
+                <Input type="number" min={0} {...form.register('sentenceMonths')} />
+              </FormField>
+              <FormField label="Days" error={errors.sentenceDays}>
+                <Input type="number" min={0} {...form.register('sentenceDays')} />
+              </FormField>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Enter the sentence as recorded — any combination of years, months and days.
+            </p>
+          </div>
           <FormError message={topError} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

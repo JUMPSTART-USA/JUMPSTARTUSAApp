@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   ALUMNI_STATUSES,
   INSIDE_STATUSES,
+  OFFENSE_TYPES,
   OUTSIDE_STATUSES,
   US_STATES,
 } from '../enums';
@@ -65,6 +66,28 @@ export const participantUpdateSchema = z.object({
   profile: participantProfileUpdateFieldsSchema.optional(),
 });
 export type ParticipantUpdateInput = z.infer<typeof participantUpdateSchema>;
+
+/** '' → undefined so blank number inputs don't coerce to 0. */
+const sentencePart = (max: number) =>
+  z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().int().min(0).max(max).optional(),
+  );
+
+/**
+ * Most serious offenses (§7.2 justice field class): reads require
+ * fields.justice.read; writes are staff edits like DOC IDs. PATCH validates
+ * the FULL schema (whole-record replacement — omitted optionals clear).
+ */
+export const participantOffenseSchema = z.object({
+  offense: z.string().trim().min(1, 'Required').max(300),
+  offenseType: z.enum(OFFENSE_TYPES),
+  convictionDate: optionalDate,
+  sentenceYears: sentencePart(150),
+  sentenceMonths: sentencePart(600),
+  sentenceDays: sentencePart(10_000),
+});
+export type ParticipantOffenseInput = z.infer<typeof participantOffenseSchema>;
 
 export const participantDocIdSchema = z.object({
   state: z.enum(US_STATES),

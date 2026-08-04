@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { RACE_LABELS } from '@jumpstart/shared';
+import { OFFENSE_TYPE_LABELS, RACE_LABELS } from '@jumpstart/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/utils';
@@ -23,9 +23,11 @@ import {
   ConsentDialog,
   ContactDialog,
   DocIdDialog,
+  OffenseDialog,
 } from './subresource-dialogs';
 import type {
   DocIdRow,
+  OffenseRow,
   ParticipantDetail,
   PersonAddressRow,
   PersonContactRow,
@@ -43,8 +45,19 @@ type DialogState =
   | { kind: 'contact'; row: PersonContactRow | null }
   | { kind: 'address'; row: PersonAddressRow | null }
   | { kind: 'docId'; row: DocIdRow | null }
+  | { kind: 'offense'; row: OffenseRow | null }
   | { kind: 'consent'; row: TestimonyConsentRow | null }
   | null;
+
+/** "10 yr 6 mo", "90 days" — parts as recorded, never normalized. */
+function formatSentence(o: OffenseRow) {
+  const parts = [
+    o.sentenceYears ? `${o.sentenceYears} yr` : null,
+    o.sentenceMonths ? `${o.sentenceMonths} mo` : null,
+    o.sentenceDays ? `${o.sentenceDays} ${o.sentenceDays === 1 ? 'day' : 'days'}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' ') : null;
+}
 
 export function OverviewTab({ participant }: { participant: ParticipantDetail }) {
   const { can } = useAuth();
@@ -52,6 +65,7 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
   const canEdit = can('participants.update');
   const [dialog, setDialog] = useState<DialogState>(null);
   const [deleteTarget, setDeleteTarget] = useState<PersonContactRow | null>(null);
+  const [deleteOffenseTarget, setDeleteOffenseTarget] = useState<OffenseRow | null>(null);
   const person = participant.person;
 
   const historyQuery = useQuery({
@@ -62,6 +76,13 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
   const deleteContact = useMutation({
     mutationFn: (contactId: string) =>
       api.delete(`/participants/${participant.id}/contacts/${contactId}`),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ['participants', participant.id] }),
+  });
+
+  const deleteOffense = useMutation({
+    mutationFn: (offenseId: string) =>
+      api.delete(`/participants/${participant.id}/offenses/${offenseId}`),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ['participants', participant.id] }),
   });
@@ -362,6 +383,73 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
         </CardContent>
       </Card>
 
+      {participant.offenses !== undefined ? (
+        // §7.2 justice field class: the API omits offenses entirely for
+        // viewers without fields.justice.read — the card renders only when
+        // the data is present.
+        <Card>
+          <CardHeaderRow title="Most serious offenses">
+            {addButton('Add offense', () => setDialog({ kind: 'offense', row: null }))}
+          </CardHeaderRow>
+          <CardContent>
+            {participant.offenses.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No offenses recorded.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Offense</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Convicted</TableHead>
+                    <TableHead>Sentence</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {participant.offenses.map((o) => (
+                    <TableRow key={o.id}>
+                      <TableCell>{o.offense}</TableCell>
+                      <TableCell>
+                        <Badge variant={o.offenseType === 'violent' ? 'destructive' : 'secondary'}>
+                          {OFFENSE_TYPE_LABELS[o.offenseType as keyof typeof OFFENSE_TYPE_LABELS] ??
+                            humanize(o.offenseType)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatDate(o.convictionDate)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatSentence(o) ?? dash}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="inline-flex">
+                          {editButton(() => setDialog({ kind: 'offense', row: o }))}
+                          {canEdit ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive"
+                              disabled={deleteOffense.isPending}
+                              onClick={() => {
+                                deleteOffense.reset();
+                                setDeleteOffenseTarget(o);
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          ) : null}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeaderRow title="Testimony consents">
           {addButton('Add consent', () => setDialog({ kind: 'consent', row: null }))}
@@ -420,11 +508,35 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
         open={dialog?.kind === 'docId'}
         onOpenChange={(o) => !o && setDialog(null)}
       />
+      <OffenseDialog
+        participantId={participant.id}
+        existing={dialog?.kind === 'offense' ? dialog.row : null}
+        open={dialog?.kind === 'offense'}
+        onOpenChange={(o) => !o && setDialog(null)}
+      />
       <ConsentDialog
         participantId={participant.id}
         existing={dialog?.kind === 'consent' ? dialog.row : null}
         open={dialog?.kind === 'consent'}
         onOpenChange={(o) => !o && setDialog(null)}
+      />
+      <ConfirmDialog
+        open={deleteOffenseTarget !== null}
+        onOpenChange={(o) => !o && setDeleteOffenseTarget(null)}
+        title="Remove offense"
+        description={
+          deleteOffenseTarget ? `Remove offense "${deleteOffenseTarget.offense}"?` : undefined
+        }
+        confirmLabel="Delete"
+        isPending={deleteOffense.isPending}
+        error={deleteOffense.error ? deleteOffense.error.message : null}
+        onConfirm={() => {
+          if (deleteOffenseTarget) {
+            deleteOffense.mutate(deleteOffenseTarget.id, {
+              onSuccess: () => setDeleteOffenseTarget(null),
+            });
+          }
+        }}
       />
       <ConfirmDialog
         open={deleteTarget !== null}

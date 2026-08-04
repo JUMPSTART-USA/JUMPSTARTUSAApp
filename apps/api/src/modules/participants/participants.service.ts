@@ -298,6 +298,10 @@ export class ParticipantsService {
           },
         },
         docIds: { orderBy: [{ state: 'asc' }, { createdAt: 'asc' }] },
+        offenses: {
+          where: { deletedAt: null },
+          orderBy: [{ convictionDate: 'desc' }, { createdAt: 'desc' }],
+        },
         assignedCaseManager: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
@@ -305,11 +309,16 @@ export class ParticipantsService {
     // Chapter scoping (§7.2): same derivation as the list filter (person.state).
     assertChapterAccess(viewer.chapter, profile.person.state);
 
-    // §7.2 field-level sensitivity: DOC numbers and the registry flag are
-    // justice-history data. DOC rows stay visible (so staff know an ID
-    // exists) but values are stripped; the registry flag is dropped entirely.
+    // §7.2 field-level sensitivity: DOC numbers, the registry flag and the
+    // offense records are justice-history data. DOC rows stay visible (so
+    // staff know an ID exists) but values are stripped; the registry flag and
+    // offenses are dropped entirely.
     if (!viewer.permissions.has('fields.justice.read')) {
-      const { sexOffenderRegistry: _sexOffenderRegistry, ...visible } = profile;
+      const {
+        sexOffenderRegistry: _sexOffenderRegistry,
+        offenses: _offenses,
+        ...visible
+      } = profile;
       return {
         ...visible,
         docIds: profile.docIds.map(({ docNumber: _docNumber, ...rest }) => rest),
