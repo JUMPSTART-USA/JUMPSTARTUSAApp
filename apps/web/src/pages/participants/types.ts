@@ -33,6 +33,8 @@ export interface ParticipantListItem {
   graduationDate: string | null;
   person: PersonSummary;
   assignedCaseManager: UserName | null;
+  /** Current inside location (§6.1): at most one active row. */
+  insideLocations: { institution: { id: string; name: string } }[];
 }
 
 export interface PersonContactRow {
