@@ -13,6 +13,7 @@
     "validate": "prisma validate",
     "seed": "tsx prisma/seed.ts",
     "seed:cm-samples": "tsx prisma/seed-cm-samples.ts",
+    "seed:justice-samples": "tsx prisma/seed-justice-samples.ts",
     "db:local": "tsx scripts/dev-db.ts",
     "typecheck": "tsc --noEmit"
   },

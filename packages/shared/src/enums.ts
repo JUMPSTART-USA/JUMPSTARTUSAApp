@@ -229,6 +229,10 @@ export const OFFENSE_TYPE_LABELS: Record<OffenseType, string> = {
   non_violent: 'Non-violent',
 };
 
+/** Inside locations: active = current institution; inactive = they left. */
+export const INSIDE_LOCATION_STATUSES = ['active', 'inactive'] as const;
+export type InsideLocationStatus = (typeof INSIDE_LOCATION_STATUSES)[number];
+
 export const OUTSIDE_STATUSES = [
   'not_applicable',
   'intake',

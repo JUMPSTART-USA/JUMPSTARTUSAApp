@@ -348,6 +348,88 @@ describe('portal requests surface on the dashboard', () => {
   });
 });
 
+describe('inside locations & release (§6.1)', () => {
+  it('keeps one active location and records release', async () => {
+    const cookie = await login(ADMIN);
+    const institutions = await request(server)
+      .get('/api/institutions?pageSize=2')
+      .set('Cookie', cookie)
+      .expect(200);
+    const [instA, instB] = institutions.body.items;
+
+    // Throwaway participant so seeded records stay untouched.
+    const created = await request(server)
+      .post('/api/participants')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({
+        person: { firstName: 'Api', lastName: 'ReleaseTest', state: 'SC' },
+        profile: { insideStatus: 'active' },
+        confirmNotDuplicate: true,
+      })
+      .expect(201);
+    const id = created.body.id;
+
+    try {
+      const first = await request(server)
+        .post(`/api/participants/${id}/inside-locations`)
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ institutionId: instA.id, status: 'active', startDate: '2026-01-10' })
+        .expect(201);
+      expect(first.body.status).toBe('active');
+      expect(first.body.institution.name).toBeTruthy();
+
+      // A second active location closes the first automatically.
+      await request(server)
+        .post(`/api/participants/${id}/inside-locations`)
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ institutionId: instB.id, status: 'active', startDate: '2026-05-01' })
+        .expect(201);
+      const list = await request(server)
+        .get(`/api/participants/${id}/inside-locations`)
+        .set('Cookie', cookie)
+        .expect(200);
+      const active = list.body.filter((l: { status: string }) => l.status === 'active');
+      expect(active).toHaveLength(1);
+      expect(active[0].institutionId).toBe(instB.id);
+      const closed = list.body.find((l: { id: string }) => l.id === first.body.id);
+      expect(closed.status).toBe('inactive');
+      expect(closed.endDate).toBeTruthy();
+
+      // Release: inside status → released, date stamped, location closed.
+      const released = await request(server)
+        .post(`/api/participants/${id}/release`)
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ releaseDate: '2026-08-01' })
+        .expect(201);
+      expect(released.body.insideStatus).toBe('released');
+      expect(released.body.releaseDate).toContain('2026-08-01');
+      const after = await request(server)
+        .get(`/api/participants/${id}/inside-locations`)
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(after.body.every((l: { status: string }) => l.status === 'inactive')).toBe(true);
+
+      // Releasing twice conflicts.
+      await request(server)
+        .post(`/api/participants/${id}/release`)
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ releaseDate: '2026-08-02' })
+        .expect(409);
+    } finally {
+      await request(server)
+        .delete(`/api/participants/${id}`)
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .expect(200);
+    }
+  });
+});
+
 describe('most serious offenses (§7.2 justice field class)', () => {
   it('round-trips for justice-access holders and is hidden from others', async () => {
     const adminCookie = await login(ADMIN);

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { GraduationCap, Pencil } from 'lucide-react';
+import { DoorOpen, GraduationCap, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
@@ -15,6 +15,7 @@ import { DocumentsTab } from './DocumentsTab';
 import { EditParticipantDialog } from './EditParticipantDialog';
 import { GraduateDialog } from './GraduateDialog';
 import { OverviewTab } from './OverviewTab';
+import { ReleaseDialog } from './ReleaseDialog';
 import {
   EmploymentTab,
   HousingTab,
@@ -55,6 +56,7 @@ export function ParticipantProfilePage() {
   const { can } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [graduateOpen, setGraduateOpen] = useState(false);
+  const [releaseOpen, setReleaseOpen] = useState(false);
   // The active tab lives in ?tab= so deep links out of the tabs (class,
   // home, employer…) can offer a Back that restores this exact view.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -102,6 +104,12 @@ export function ParticipantProfilePage() {
                 <Button variant="outline" onClick={() => setEditOpen(true)}>
                   <Pencil className="h-4 w-4" /> Edit
                 </Button>
+                {/* Release applies while they are inside — hide once released. */}
+                {participant.insideStatus === 'enrolled' || participant.insideStatus === 'active' ? (
+                  <Button variant="outline" onClick={() => setReleaseOpen(true)}>
+                    <DoorOpen className="h-4 w-4" /> Record release
+                  </Button>
+                ) : null}
                 {/* The graduate action 409s once alumni status is set — hide it then. */}
                 {participant.alumniStatus === 'not_applicable' ? (
                   <Button onClick={() => setGraduateOpen(true)}>
@@ -187,6 +195,11 @@ export function ParticipantProfilePage() {
         participant={participant}
         open={graduateOpen}
         onOpenChange={setGraduateOpen}
+      />
+      <ReleaseDialog
+        participant={participant}
+        open={releaseOpen}
+        onOpenChange={setReleaseOpen}
       />
     </div>
   );

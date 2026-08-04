@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   ALUMNI_STATUSES,
+  INSIDE_LOCATION_STATUSES,
   INSIDE_STATUSES,
   OFFENSE_TYPES,
   OUTSIDE_STATUSES,
@@ -9,6 +10,7 @@ import {
 import {
   clearableDate,
   clearableUuid,
+  endNotBeforeStart,
   optionalDate,
   optionalTrimmed,
   uuid,
@@ -88,6 +90,30 @@ export const participantOffenseSchema = z.object({
   sentenceDays: sentencePart(10_000),
 });
 export type ParticipantOffenseInput = z.infer<typeof participantOffenseSchema>;
+
+/**
+ * Inside locations (§6.1): where the participant is or was incarcerated.
+ * PATCH validates the FULL schema (whole-record replacement — omitted
+ * optionals clear). One active row per participant is enforced by the
+ * service: creating/updating a row to active closes the others.
+ */
+export const participantInsideLocationSchema = z
+  .object({
+    institutionId: uuid,
+    status: z.enum(INSIDE_LOCATION_STATUSES).default('active'),
+    startDate: optionalDate,
+    endDate: optionalDate,
+    notes: optionalTrimmed,
+  })
+  .superRefine(endNotBeforeStart('startDate', 'endDate'));
+export type ParticipantInsideLocationInput = z.infer<typeof participantInsideLocationSchema>;
+
+/** Records release from custody (§6.1): inside status → released. */
+export const releaseSchema = z.object({
+  releaseDate: z.coerce.date(),
+  reason: optionalTrimmed,
+});
+export type ReleaseInput = z.infer<typeof releaseSchema>;
 
 export const participantDocIdSchema = z.object({
   state: z.enum(US_STATES),
