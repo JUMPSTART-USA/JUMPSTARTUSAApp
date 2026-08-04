@@ -24,6 +24,8 @@ export const participantProfileFieldsSchema = z.object({
   graduationDate: optionalDate,
   assignedCaseManagerId: uuid.optional(),
   notes: optionalTrimmed,
+  /** Justice field class (§7.2): reads require fields.justice.read; writes are staff edits. */
+  sexOffenderRegistry: z.boolean().default(false),
 });
 
 /** Create = person fields + profile fields in one submission. */
@@ -53,6 +55,7 @@ export const participantProfileUpdateFieldsSchema = z.object({
   graduationDate: clearableDate,
   assignedCaseManagerId: clearableUuid,
   notes: optionalTrimmed,
+  sexOffenderRegistry: z.boolean().optional(),
   statusEffectiveDate: optionalDate,
   statusChangeReason: optionalTrimmed,
 });

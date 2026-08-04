@@ -600,6 +600,9 @@ model ParticipantProfile {
 
   notes String?
 
+  // Justice field class (§7.2): stripped from reads without fields.justice.read.
+  sexOffenderRegistry Boolean @default(false)
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   createdById String?

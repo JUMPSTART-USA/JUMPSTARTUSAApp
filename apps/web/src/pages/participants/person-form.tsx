@@ -14,6 +14,7 @@ import type { UseFormReturn } from 'react-hook-form';
 import { FormField } from '@/components/FormField';
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
+import { useAuth } from '@/lib/auth';
 import { toDateInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import type { CaseManagerOption } from './shared';
@@ -57,6 +58,7 @@ export interface ParticipantFormValues {
     graduationDate: string;
     assignedCaseManagerId: string;
     notes: string;
+    sexOffenderRegistry: boolean;
     statusEffectiveDate: string;
     statusChangeReason: string;
   };
@@ -96,6 +98,7 @@ export function emptyParticipantFormValues(): ParticipantFormValues {
       graduationDate: '',
       assignedCaseManagerId: '',
       notes: '',
+      sexOffenderRegistry: false,
       statusEffectiveDate: '',
       statusChangeReason: '',
     },
@@ -139,6 +142,8 @@ export function participantToFormValues(p: ParticipantDetail): ParticipantFormVa
       graduationDate: toDateInput(p.graduationDate),
       assignedCaseManagerId: p.assignedCaseManagerId ?? '',
       notes: p.notes ?? '',
+      // Absent without fields.justice.read — the checkbox is hidden then too.
+      sexOffenderRegistry: p.sexOffenderRegistry ?? false,
       statusEffectiveDate: '',
       statusChangeReason: '',
     },
@@ -298,6 +303,7 @@ export function ProfileFields({
     setValue,
     formState: { errors },
   } = form;
+  const { can } = useAuth();
   const pr = errors.profile;
   const insideStatus = watch('profile.insideStatus');
   // Outside programming begins only after the inside chapter closes (§6.1).
@@ -380,6 +386,19 @@ export function ProfileFields({
       <FormField label="Notes" error={pr?.notes}>
         <Textarea rows={3} {...register('profile.notes')} />
       </FormField>
+
+      {can('fields.justice.read') ? (
+        // §7.2 justice field class: hidden without fields.justice.read — the
+        // API also strips the current value from reads for those viewers.
+        <div className="pt-1">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox {...register('profile.sexOffenderRegistry')} /> On the sex offender registry
+          </label>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Justice-history field — visible only to staff with justice-history access.
+          </p>
+        </div>
+      ) : null}
 
       {mode === 'edit' ? (
         // §4.1.6: status/phase changes append history rows; these two fields

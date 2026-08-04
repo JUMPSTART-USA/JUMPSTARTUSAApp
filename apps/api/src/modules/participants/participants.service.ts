@@ -305,11 +305,13 @@ export class ParticipantsService {
     // Chapter scoping (§7.2): same derivation as the list filter (person.state).
     assertChapterAccess(viewer.chapter, profile.person.state);
 
-    // §7.2 field-level sensitivity: DOC numbers are justice-history data —
-    // rows stay visible (so staff know an ID exists) but values are stripped.
+    // §7.2 field-level sensitivity: DOC numbers and the registry flag are
+    // justice-history data. DOC rows stay visible (so staff know an ID
+    // exists) but values are stripped; the registry flag is dropped entirely.
     if (!viewer.permissions.has('fields.justice.read')) {
+      const { sexOffenderRegistry: _sexOffenderRegistry, ...visible } = profile;
       return {
-        ...profile,
+        ...visible,
         docIds: profile.docIds.map(({ docNumber: _docNumber, ...rest }) => rest),
       };
     }
