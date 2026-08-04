@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@jumpstart/database';
 import type {
   ParticipantDocIdInput,
+  ParticipantOffenseInput,
   PersonAddressInput,
   PersonContactInput,
   TestimonyConsentInput,
@@ -258,6 +259,75 @@ export class ParticipantSubresourcesService {
       select: { id: true },
     });
     if (!agreement) throw new BadRequestException('Data-sharing agreement does not exist');
+  }
+
+  // ── Most serious offenses (§7.2 justice field class, like DOC IDs) ────────
+
+  async listOffenses(participantId: string) {
+    await this.personIdFor(participantId);
+    return this.prisma.participantOffense.findMany({
+      where: { participantProfileId: participantId, deletedAt: null },
+      orderBy: [{ convictionDate: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async createOffense(participantId: string, input: ParticipantOffenseInput, userId: string) {
+    await this.personIdFor(participantId);
+    const offense = await this.prisma.participantOffense.create({
+      data: {
+        ...this.offenseData(input),
+        participantProfileId: participantId,
+        createdById: userId,
+        updatedById: userId,
+      },
+    });
+    await this.audit.logCreate(userId, 'participant_offense', offense.id, offense);
+    return offense;
+  }
+
+  async updateOffense(
+    participantId: string,
+    offenseId: string,
+    input: ParticipantOffenseInput,
+    userId: string,
+  ) {
+    await this.personIdFor(participantId);
+    const existing = await this.prisma.participantOffense.findFirst({
+      where: { id: offenseId, participantProfileId: participantId, deletedAt: null },
+    });
+    if (!existing) throw new NotFoundException('Offense not found');
+    const updated = await this.prisma.participantOffense.update({
+      where: { id: offenseId },
+      data: { ...this.offenseData(input), updatedById: userId },
+    });
+    await this.audit.logUpdate(userId, 'participant_offense', offenseId, existing, updated);
+    return updated;
+  }
+
+  async deleteOffense(participantId: string, offenseId: string, userId: string) {
+    await this.personIdFor(participantId);
+    const existing = await this.prisma.participantOffense.findFirst({
+      where: { id: offenseId, participantProfileId: participantId, deletedAt: null },
+    });
+    if (!existing) throw new NotFoundException('Offense not found');
+    await this.prisma.participantOffense.update({
+      where: { id: offenseId },
+      data: { deletedAt: new Date(), updatedById: userId },
+    });
+    await this.audit.logDelete(userId, 'participant_offense', offenseId, existing);
+    return { ok: true };
+  }
+
+  /** Whole-record replacement: omitted optionals clear to null. */
+  private offenseData(input: ParticipantOffenseInput) {
+    return {
+      offense: input.offense,
+      offenseType: input.offenseType,
+      convictionDate: input.convictionDate ?? null,
+      sentenceYears: input.sentenceYears ?? null,
+      sentenceMonths: input.sentenceMonths ?? null,
+      sentenceDays: input.sentenceDays ?? null,
+    };
   }
 
   // ── Testimony consents (revocable, never deleted — §7.4) ──────────────────

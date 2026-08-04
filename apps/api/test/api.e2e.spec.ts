@@ -348,6 +348,73 @@ describe('portal requests surface on the dashboard', () => {
   });
 });
 
+describe('most serious offenses (§7.2 justice field class)', () => {
+  it('round-trips for justice-access holders and is hidden from others', async () => {
+    const adminCookie = await login(ADMIN);
+    const participants = await request(server)
+      .get('/api/participants?pageSize=1')
+      .set('Cookie', adminCookie)
+      .expect(200);
+    const id = participants.body.items[0].id;
+
+    const created = await request(server)
+      .post(`/api/participants/${id}/offenses`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({
+        offense: 'Automated test offense — safe to ignore',
+        offenseType: 'violent',
+        convictionDate: '2019-06-15',
+        sentenceYears: 10,
+        sentenceMonths: 6,
+      })
+      .expect(201);
+    expect(created.body.sentenceYears).toBe(10);
+    expect(created.body.sentenceDays).toBeNull();
+
+    try {
+      // Admin (fields.justice.read) sees the record on the profile.
+      const asAdmin = await request(server)
+        .get(`/api/participants/${id}`)
+        .set('Cookie', adminCookie)
+        .expect(200);
+      const found = asAdmin.body.offenses.find(
+        (o: { id: string }) => o.id === created.body.id,
+      );
+      expect(found.offenseType).toBe('violent');
+
+      // Housing staff: list endpoint is forbidden, and the profile omits the
+      // offenses array entirely.
+      const housingCookie = await login(HOUSING);
+      await request(server)
+        .get(`/api/participants/${id}/offenses`)
+        .set('Cookie', housingCookie)
+        .expect(403);
+      const asHousing = await request(server)
+        .get(`/api/participants/${id}`)
+        .set('Cookie', housingCookie)
+        .expect(200);
+      expect(asHousing.body.offenses).toBeUndefined();
+
+      // Whole-record PATCH: omitted optionals clear.
+      const updated = await request(server)
+        .patch(`/api/participants/${id}/offenses/${created.body.id}`)
+        .set('Cookie', adminCookie)
+        .set('Origin', ORIGIN)
+        .send({ offense: 'Automated test offense — updated', offenseType: 'non_violent' })
+        .expect(200);
+      expect(updated.body.offenseType).toBe('non_violent');
+      expect(updated.body.sentenceYears).toBeNull();
+    } finally {
+      await request(server)
+        .delete(`/api/participants/${id}/offenses/${created.body.id}`)
+        .set('Cookie', adminCookie)
+        .set('Origin', ORIGIN)
+        .expect(200);
+    }
+  });
+});
+
 describe('sex offender registry flag (§7.2 justice field class)', () => {
   it('reads require fields.justice.read; the flag round-trips for holders', async () => {
     const adminCookie = await login(ADMIN);

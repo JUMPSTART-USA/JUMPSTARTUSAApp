@@ -79,6 +79,17 @@ export interface DocIdRow {
   dataSharingAgreementId: string | null;
 }
 
+/** Justice field class (§7.2): whole rows are absent without fields.justice.read. */
+export interface OffenseRow {
+  id: string;
+  offense: string;
+  offenseType: string;
+  convictionDate: string | null;
+  sentenceYears: number | null;
+  sentenceMonths: number | null;
+  sentenceDays: number | null;
+}
+
 export interface PersonDetail {
   id: string;
   firstName: string;
@@ -125,6 +136,8 @@ export interface ParticipantDetail {
   createdAt: string;
   person: PersonDetail;
   docIds: DocIdRow[];
+  /** Justice field class (§7.2): absent without fields.justice.read. */
+  offenses?: OffenseRow[];
   assignedCaseManager: UserName | null;
 }
 

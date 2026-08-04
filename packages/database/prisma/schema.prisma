@@ -610,6 +610,7 @@ model ParticipantProfile {
   deletedAt   DateTime?
 
   docIds              ParticipantDocId[]
+  offenses            ParticipantOffense[]
   statusHistory       ParticipantStatusHistory[]
   insideEnrollments   InsideClassEnrollment[]
   outsideEnrollments  OutsideProgramEnrollment[]
@@ -665,6 +666,38 @@ model ParticipantDocId {
   @@unique([participantProfileId, state, docNumber])
   @@index([docNumber])
   @@map("participant_doc_ids")
+}
+
+enum OffenseType {
+  violent
+  non_violent
+}
+
+// Most serious offenses (§7.2 justice field class): the whole record is
+// justice-history data — reads require fields.justice.read, writes are
+// ordinary staff edits like DOC IDs.
+model ParticipantOffense {
+  id                   String             @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+
+  offense        String
+  offenseType    OffenseType
+  convictionDate DateTime?   @db.Date
+  // Sentence length as recorded (e.g. "18 months" stays 18 months — parts
+  // are not normalized into each other).
+  sentenceYears  Int?
+  sentenceMonths Int?
+  sentenceDays   Int?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([participantProfileId])
+  @@map("participant_offenses")
 }
 
 // Append-only log of every status/phase transition. Cohort & outcome reports

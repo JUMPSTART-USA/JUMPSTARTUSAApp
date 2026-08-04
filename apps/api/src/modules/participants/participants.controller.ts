@@ -21,6 +21,7 @@ import {
   optionalPhone,
   participantCreateSchema,
   participantDocIdSchema,
+  participantOffenseSchema,
   participantUpdateSchema,
   personAddressSchema,
   personContactSchema,
@@ -30,6 +31,7 @@ import {
   type ListQuery,
   type ParticipantCreateInput,
   type ParticipantDocIdInput,
+  type ParticipantOffenseInput,
   type ParticipantUpdateInput,
   type PersonAddressInput,
   type PersonContactInput,
@@ -253,6 +255,45 @@ export class ParticipantsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.subresources.updateDocId(id, docIdId, body, user.id);
+  }
+
+  // ── Most serious offenses (§7.2: justice field class gates READ; writes are staff edits) ─
+
+  @Get(':id/offenses')
+  @RequirePermission('participants.read', 'fields.justice.read')
+  listOffenses(@Param('id', ParseUUIDPipe) id: string) {
+    return this.subresources.listOffenses(id);
+  }
+
+  @Post(':id/offenses')
+  @RequirePermission('participants.update')
+  createOffense(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(zodBody(participantOffenseSchema)) body: ParticipantOffenseInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subresources.createOffense(id, body, user.id);
+  }
+
+  @Patch(':id/offenses/:offenseId')
+  @RequirePermission('participants.update')
+  updateOffense(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('offenseId', ParseUUIDPipe) offenseId: string,
+    @Body(zodBody(participantOffenseSchema)) body: ParticipantOffenseInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subresources.updateOffense(id, offenseId, body, user.id);
+  }
+
+  @Delete(':id/offenses/:offenseId')
+  @RequirePermission('participants.update')
+  deleteOffense(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('offenseId', ParseUUIDPipe) offenseId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subresources.deleteOffense(id, offenseId, user.id);
   }
 
   // ── Testimony consents ────────────────────────────────────────────────────

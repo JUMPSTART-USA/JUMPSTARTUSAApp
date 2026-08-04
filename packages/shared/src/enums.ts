@@ -221,6 +221,14 @@ export const INSIDE_STATUSES = [
 ] as const;
 export type InsideStatus = (typeof INSIDE_STATUSES)[number];
 
+/** Most serious offenses (§7.2 justice field class). */
+export const OFFENSE_TYPES = ['violent', 'non_violent'] as const;
+export type OffenseType = (typeof OFFENSE_TYPES)[number];
+export const OFFENSE_TYPE_LABELS: Record<OffenseType, string> = {
+  violent: 'Violent',
+  non_violent: 'Non-violent',
+};
+
 export const OUTSIDE_STATUSES = [
   'not_applicable',
   'intake',
