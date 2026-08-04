@@ -1,10 +1,12 @@
-import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type {
   MeetingRequestInput,
   PortalMessageInput,
   TransportRequestInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { loadEnv } from '../../config/env';
+import { escapeHtml, MailService } from '../../mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -25,10 +27,24 @@ const TOKEN_LOOKUP_SELECT = {
     select: {
       deletedAt: true,
       participantNumber: true,
-      person: { select: { firstName: true } },
+      person: { select: { firstName: true, lastName: true } },
     },
   },
 } as const;
+
+/**
+ * Admin-assigned notification recipients (Admin → Settings): a user id per
+ * submission type, e.g. { messages: '<userId>', meetings: null, transport: null }.
+ */
+export const PORTAL_NOTIFICATIONS_SETTING_KEY = 'portal.notifications';
+
+type PortalSubmissionType = 'messages' | 'meetings' | 'transport';
+
+const SUBMISSION_LABELS: Record<PortalSubmissionType, string> = {
+  messages: 'message',
+  meetings: 'meeting request',
+  transport: 'transportation request',
+};
 
 /**
  * The tokenized participant portal (§6.11-style public surface). No session,
@@ -39,9 +55,12 @@ const TOKEN_LOOKUP_SELECT = {
  */
 @Injectable()
 export class PortalPublicService {
+  private readonly logger = new Logger(PortalPublicService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   /** Greeting payload for the portal landing page. */
@@ -64,6 +83,7 @@ export class PortalPublicService {
       },
     });
     await this.auditSubmission('portal_message', row.id, token.id);
+    await this.notifyAssignee('messages', token);
     return { ok: true };
   }
 
@@ -79,6 +99,7 @@ export class PortalPublicService {
       },
     });
     await this.auditSubmission('meeting_request', row.id, token.id);
+    await this.notifyAssignee('meetings', token);
     return { ok: true };
   }
 
@@ -105,6 +126,7 @@ export class PortalPublicService {
       },
     });
     await this.auditSubmission('transport_request', row.id, token.id);
+    await this.notifyAssignee('transport', token);
     return { ok: true };
   }
 
@@ -150,6 +172,60 @@ export class PortalPublicService {
       throw new HttpException(
         'Daily submission limit reached — please try again tomorrow',
         HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  /**
+   * Emails the admin-designated recipient for this submission type, if one is
+   * set and still an active user. Best-effort only: the participant's
+   * submission has already been queued, so nothing here may throw. Like the
+   * audit row, the email says THAT a submission happened — never its content.
+   */
+  private async notifyAssignee(
+    type: PortalSubmissionType,
+    token: {
+      participantProfile: {
+        participantNumber: string;
+        person: { firstName: string; lastName: string };
+      };
+    },
+  ) {
+    try {
+      const setting = await this.prisma.appSetting.findUnique({
+        where: { key: PORTAL_NOTIFICATIONS_SETTING_KEY },
+      });
+      const value = setting?.value;
+      const userId =
+        value && typeof value === 'object' && !Array.isArray(value)
+          ? (value as Record<string, unknown>)[type]
+          : null;
+      if (typeof userId !== 'string' || !userId) return;
+
+      const user = await this.prisma.user.findFirst({
+        where: { id: userId, deletedAt: null, status: 'active' },
+        select: { email: true, firstName: true },
+      });
+      if (!user) return;
+
+      const { person, participantNumber } = token.participantProfile;
+      const participant = `${person.firstName} ${person.lastName}`;
+      const kind = SUBMISSION_LABELS[type];
+      const origin = loadEnv().WEB_ORIGIN;
+      await this.mail.send(
+        user.email,
+        `Portal: new ${kind} from ${participant}`,
+        `
+        <p>Hi ${escapeHtml(user.firstName)},</p>
+        <p>${escapeHtml(participant)} (#${escapeHtml(participantNumber)}) submitted a new
+        ${kind} through their participant portal link.</p>
+        <p><a href="${origin}/case-management/requests">Review it under Case Management &rarr; Requests</a>.</p>
+        <p>— JUMPSTART USA Operations Platform</p>`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `portal notification failed (${type})`,
+        err instanceof Error ? err.stack : String(err),
       );
     }
   }

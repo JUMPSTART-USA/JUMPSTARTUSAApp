@@ -39,7 +39,11 @@ const KNOWN_SETTINGS: Record<string, string> = {
   'integrations.donorCrm': 'Active donor CRM for the Development module (see Integrations above)',
   'email.fromAddress': 'Mailbox that invite emails are sent from (see Integrations above)',
   'services.types': 'Service menu for participant case services (array of strings)',
+  'portal.notifications':
+    'Who is emailed when participants submit portal messages, meetings, or ride requests (see Portal request notifications above)',
 };
+
+const PORTAL_NOTIFICATIONS_KEY = 'portal.notifications';
 
 const KEY_PATTERN = /^[a-z][a-zA-Z0-9_-]*(\.[a-zA-Z0-9_-]+)*$/;
 
@@ -88,6 +92,10 @@ export function SettingsPage() {
       />
 
       <IntegrationsCard />
+
+      <PortalNotificationsCard
+        current={settings.find((s) => s.key === PORTAL_NOTIFICATIONS_KEY)?.value}
+      />
 
       <Table>
         <TableHeader>
@@ -239,6 +247,119 @@ function IntegrationsCard() {
         <FormError message={saveError} />
 
         <EmailSection />
+      </CardContent>
+    </Card>
+  );
+}
+
+interface PortalNotificationTargets {
+  messages?: string | null;
+  meetings?: string | null;
+  transport?: string | null;
+}
+
+interface UserOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+const NOTIFICATION_TYPES: { key: keyof PortalNotificationTargets; label: string }[] = [
+  { key: 'messages', label: 'Messages' },
+  { key: 'meetings', label: 'Meeting requests' },
+  { key: 'transport', label: 'Transportation requests' },
+];
+
+/**
+ * Per-type recipients for participant portal submissions. The requests always
+ * land in Case Management → Requests; the designated user additionally gets an
+ * email so new submissions are seen without watching the queue.
+ */
+function PortalNotificationsCard({ current }: { current: unknown }) {
+  const { can } = useAuth();
+  const queryClient = useQueryClient();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const canPickUsers = can('admin.users');
+
+  const targets: PortalNotificationTargets =
+    current && typeof current === 'object' && !Array.isArray(current)
+      ? (current as PortalNotificationTargets)
+      : {};
+
+  const { data: users } = useQuery({
+    queryKey: ['admin', 'users', 'notification-options'],
+    queryFn: () =>
+      api.get<{ items: UserOption[] }>('/admin/users?status=active&sortBy=firstName&pageSize=200'),
+    enabled: canPickUsers,
+  });
+
+  const { data: email } = useQuery({
+    queryKey: ['admin', 'email', 'config'],
+    queryFn: () => api.get<EmailConfig>('/admin/email/config'),
+  });
+
+  const save = useMutation({
+    mutationFn: (next: PortalNotificationTargets) =>
+      api.put(`/admin/settings/${PORTAL_NOTIFICATIONS_KEY}`, { value: next }),
+    onSuccess: () => {
+      setSaveError(null);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] });
+    },
+    onError: (err) => setSaveError(err instanceof Error ? err.message : 'Save failed'),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Portal request notifications</CardTitle>
+        <CardDescription>
+          Who gets an email when a participant submits through their portal link — a question
+          (message), a meeting request, or a transportation run. Requests always land in Case
+          Management → Requests; these emails are the heads-up that something new is waiting.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {canPickUsers ? (
+          <div className="flex flex-wrap gap-3">
+            {NOTIFICATION_TYPES.map(({ key, label }) => {
+              const selected = targets[key] ?? '';
+              const known = (users?.items ?? []).some((u) => u.id === selected);
+              return (
+                <div key={key} className="w-full sm:w-64">
+                  <div className="mb-1 text-sm font-medium">{label}</div>
+                  <Select
+                    value={selected}
+                    disabled={save.isPending}
+                    onChange={(e) => save.mutate({ ...targets, [key]: e.target.value || null })}
+                  >
+                    <option value="">No one — queue only</option>
+                    {selected && !known ? (
+                      <option value={selected}>Former or inactive user</option>
+                    ) : null}
+                    {(users?.items ?? []).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName} — {u.email}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Choosing recipients requires the admin.users permission.
+          </p>
+        )}
+        {email && !email.configured ? (
+          <p className="text-sm text-warning">
+            Outbound email is not configured — notifications will not send until the Graph
+            credentials are set (see Integrations above).
+          </p>
+        ) : null}
+        {save.isPending ? <span className="text-sm text-muted-foreground">Saving…</span> : null}
+        <FormError message={saveError} />
       </CardContent>
     </Card>
   );

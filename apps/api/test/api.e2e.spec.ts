@@ -347,6 +347,64 @@ describe('portal requests surface on the dashboard', () => {
   });
 });
 
+describe('portal notification designation', () => {
+  it('admins set per-type recipients and submissions still succeed', async () => {
+    const cookie = await login(ADMIN);
+    const me = await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+
+    await request(server)
+      .put('/api/admin/settings/portal.notifications')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ value: { messages: me.body.id, meetings: null, transport: null } })
+      .expect(200);
+
+    // Same care as the dashboard test: never revoke a manually-issued link.
+    const participants = await request(server)
+      .get('/api/participants?pageSize=5')
+      .set('Cookie', cookie)
+      .expect(200);
+    let participantProfileId = participants.body.items[0].id;
+    for (const p of participants.body.items) {
+      const tokens = await request(server)
+        .get(`/api/portal-tokens?participantProfileId=${p.id}`)
+        .set('Cookie', cookie)
+        .expect(200);
+      if (tokens.body.items.length === 0) {
+        participantProfileId = p.id;
+        break;
+      }
+    }
+    const issued = await request(server)
+      .post('/api/portal-tokens')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ participantProfileId })
+      .expect(201);
+
+    try {
+      // The notification is best-effort (mail is unconfigured under test) and
+      // must never affect the participant's submission result.
+      await request(server)
+        .post(`/api/public/portal/${issued.body.token}/messages`)
+        .send({ body: 'Automated notification test message — safe to ignore' })
+        .expect(201);
+    } finally {
+      await request(server)
+        .post(`/api/portal-tokens/${issued.body.id}/revoke`)
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .expect(201);
+      await request(server)
+        .put('/api/admin/settings/portal.notifications')
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ value: {} })
+        .expect(200);
+    }
+  });
+});
+
 describe('public intake (§6.11: queues, never live records)', () => {
   it('accepts a referral without auth and returns no internals', async () => {
     const res = await request(server)
