@@ -120,6 +120,8 @@ export interface ParticipantDetail {
   graduationDate: string | null;
   assignedCaseManagerId: string | null;
   notes: string | null;
+  /** Justice field class (§7.2): absent without fields.justice.read. */
+  sexOffenderRegistry?: boolean;
   createdAt: string;
   person: PersonDetail;
   docIds: DocIdRow[];

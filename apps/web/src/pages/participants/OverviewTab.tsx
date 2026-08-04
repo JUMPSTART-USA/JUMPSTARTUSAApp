@@ -152,6 +152,17 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
                 ? `${participant.assignedCaseManager.firstName} ${participant.assignedCaseManager.lastName}`
                 : dash}
             </InfoItem>
+            {participant.sexOffenderRegistry !== undefined ? (
+              // §7.2 justice field class: the API omits this field entirely
+              // for viewers without fields.justice.read.
+              <InfoItem label="Sex offender registry">
+                {participant.sexOffenderRegistry ? (
+                  <Badge variant="destructive">On registry</Badge>
+                ) : (
+                  'No'
+                )}
+              </InfoItem>
+            ) : null}
             {participant.notes ? (
               <InfoItem label="Notes" className="sm:col-span-2">
                 <span className="whitespace-pre-wrap">{participant.notes}</span>

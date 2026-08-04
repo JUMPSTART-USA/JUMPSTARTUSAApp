@@ -12,6 +12,7 @@ import { configureApp } from '../src/app.setup';
  */
 const ADMIN = { email: 'admin@jumpstartusa.org', password: 'JumpstartDemo2026!' };
 const FLEET = { email: 'fleet_manager@jumpstartusa.org', password: 'JumpstartDemo2026!' };
+const HOUSING = { email: 'housing_staff@jumpstartusa.org', password: 'JumpstartDemo2026!' };
 const ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
 
 let app: NestExpressApplication;
@@ -344,6 +345,49 @@ describe('portal requests surface on the dashboard', () => {
       .set('Cookie', cookie)
       .set('Origin', ORIGIN)
       .expect(201);
+  });
+});
+
+describe('sex offender registry flag (§7.2 justice field class)', () => {
+  it('reads require fields.justice.read; the flag round-trips for holders', async () => {
+    const adminCookie = await login(ADMIN);
+    const participants = await request(server)
+      .get('/api/participants?pageSize=1')
+      .set('Cookie', adminCookie)
+      .expect(200);
+    const id = participants.body.items[0].id;
+
+    await request(server)
+      .patch(`/api/participants/${id}`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ profile: { sexOffenderRegistry: true } })
+      .expect(200);
+
+    try {
+      // Admin holds fields.justice.read → sees the flag.
+      const asAdmin = await request(server)
+        .get(`/api/participants/${id}`)
+        .set('Cookie', adminCookie)
+        .expect(200);
+      expect(asAdmin.body.sexOffenderRegistry).toBe(true);
+
+      // Housing staff read participants but hold no justice-history access —
+      // the field is dropped entirely, not returned as false.
+      const housingCookie = await login(HOUSING);
+      const asHousing = await request(server)
+        .get(`/api/participants/${id}`)
+        .set('Cookie', housingCookie)
+        .expect(200);
+      expect(asHousing.body.sexOffenderRegistry).toBeUndefined();
+    } finally {
+      await request(server)
+        .patch(`/api/participants/${id}`)
+        .set('Cookie', adminCookie)
+        .set('Origin', ORIGIN)
+        .send({ profile: { sexOffenderRegistry: false } })
+        .expect(200);
+    }
   });
 });
 
