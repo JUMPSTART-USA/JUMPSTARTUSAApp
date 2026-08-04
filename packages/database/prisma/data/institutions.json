@@ -1,0 +1,3042 @@
+[
+ {
+  "state": "FL",
+  "sources": [
+   "https://www.fdc.myflorida.com/institutions/institutions-list"
+  ],
+  "coverage": "Complete per the official FDC Institutions List page, which lists exactly these 77 facilities (all major institutions, annexes, satellite units, reception centers, re-entry centers, and the seven private facilities); address/phone data was pulled from each facility's individual official page (all 77 fetched successfully). Work camps are not standalone directory entries on the official site \u2014 they appear only as satellite units inside parent institution pages \u2014 and the four Region Offices were excluded as administrative offices; Baker CI and New River CI list no main phone on their official pages.",
+  "facilities": [
+   {
+    "name": "Apalachee Correctional Institution, East Unit",
+    "institutionType": "state prison unit",
+    "city": "Sneads",
+    "addressLine1": "35 Apalachee Drive",
+    "zip": "32460-4166",
+    "mainPhone": "850-718-0688"
+   },
+   {
+    "name": "Apalachee Correctional Institution, West Unit",
+    "institutionType": "state prison unit",
+    "city": "Sneads",
+    "addressLine1": "52 West Unit Drive",
+    "zip": "32460-4165",
+    "mainPhone": "850-593-9702"
+   },
+   {
+    "name": "Avon Park Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Avon Park",
+    "addressLine1": "8100 Highway 64 East",
+    "zip": "33825",
+    "mainPhone": "863-452-8801"
+   },
+   {
+    "name": "Baker Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Sanderson",
+    "addressLine1": "20706 U.S. Highway 90 West",
+    "zip": "32087-2359",
+    "mainPhone": null
+   },
+   {
+    "name": "Baker Re-Entry Center",
+    "institutionType": "reentry center",
+    "city": "Sanderson",
+    "addressLine1": "17128 U.S. Highway 90 W",
+    "zip": "32087-2359",
+    "mainPhone": "386-719-6300"
+   },
+   {
+    "name": "Bay Correctional Facility",
+    "institutionType": "private prison",
+    "city": "Panama City",
+    "addressLine1": "5400 Bayline Drive",
+    "zip": "32404-5492",
+    "mainPhone": "850-769-1455"
+   },
+   {
+    "name": "Blackwater River Correctional Facility",
+    "institutionType": "private prison",
+    "city": "Milton",
+    "addressLine1": "5914 Jeff Ates Road",
+    "zip": "32583-0000",
+    "mainPhone": "850-983-4100"
+   },
+   {
+    "name": "Calhoun Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Blountstown",
+    "addressLine1": "19562 SE Institution Dr.",
+    "zip": "32424-5156",
+    "mainPhone": "850-237-6500"
+   },
+   {
+    "name": "Central Florida Reception Center",
+    "institutionType": "reception center",
+    "city": "Orlando",
+    "addressLine1": "7000 H C Kelley Rd.",
+    "zip": "32831-2518",
+    "mainPhone": "407-207-7777"
+   },
+   {
+    "name": "Central Florida Reception Center, East Unit",
+    "institutionType": "reception center",
+    "city": "Orlando",
+    "addressLine1": "7000 H C Kelley Rd.",
+    "zip": "32831-2518",
+    "mainPhone": "407-207-7777"
+   },
+   {
+    "name": "Central Florida Reception Center, South Unit",
+    "institutionType": "reception center",
+    "city": "Orlando",
+    "addressLine1": "7000 H C Kelley Rd.",
+    "zip": "32831-2518",
+    "mainPhone": "407-207-7777"
+   },
+   {
+    "name": "Century Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Century",
+    "addressLine1": "400 Tedder Road",
+    "zip": "32535-3659",
+    "mainPhone": "850-256-2600"
+   },
+   {
+    "name": "Charlotte Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Punta Gorda",
+    "addressLine1": "33123 Oil Well Road",
+    "zip": "33955-9701",
+    "mainPhone": "941-833-8100"
+   },
+   {
+    "name": "Columbia Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Lake City",
+    "addressLine1": "216 S.E. Corrections Way",
+    "zip": "32025-2013",
+    "mainPhone": "386-754-7600"
+   },
+   {
+    "name": "Columbia Correctional Institution Annex",
+    "institutionType": "annex",
+    "city": "Lake City",
+    "addressLine1": "216 S.E. Corrections Way",
+    "zip": "32025-2013",
+    "mainPhone": "386-754-7600"
+   },
+   {
+    "name": "Cross City Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Cross City",
+    "addressLine1": "568 N.E. 255th Street",
+    "zip": "32628",
+    "mainPhone": "352-498-4444"
+   },
+   {
+    "name": "Cross City East Unit",
+    "institutionType": "state prison unit",
+    "city": "Cross City",
+    "addressLine1": "568 N.E. 255th Street",
+    "zip": "32628",
+    "mainPhone": "352-498-4900"
+   },
+   {
+    "name": "Dade Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Florida City",
+    "addressLine1": "19000 S.W. 377th Street",
+    "zip": "33034-6409",
+    "mainPhone": "305-242-1900"
+   },
+   {
+    "name": "Desoto Annex",
+    "institutionType": "annex",
+    "city": "Arcadia",
+    "addressLine1": "13617 S.E. Highway 70",
+    "zip": "34266-7800",
+    "mainPhone": "863-494-3727"
+   },
+   {
+    "name": "Everglades Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Miami",
+    "addressLine1": "1599 S.W. 187th Avenue",
+    "zip": "33194",
+    "mainPhone": "305-228-2000"
+   },
+   {
+    "name": "Everglades Re-Entry Center",
+    "institutionType": "reentry center",
+    "city": "Miami",
+    "addressLine1": "1601 SW 187th Avenue",
+    "zip": "33194",
+    "mainPhone": "305-480-4400"
+   },
+   {
+    "name": "Florida State Prison",
+    "institutionType": "state prison",
+    "city": "Raiford",
+    "addressLine1": "23916 NW 83rd Ave",
+    "zip": "32083",
+    "mainPhone": "904-368-2500"
+   },
+   {
+    "name": "Florida State Prison West Unit",
+    "institutionType": "state prison unit",
+    "city": "Raiford",
+    "addressLine1": "23916 NW 83rd Ave",
+    "zip": "32026",
+    "mainPhone": "904-368-2500"
+   },
+   {
+    "name": "Florida Women's Reception Center",
+    "institutionType": "reception center",
+    "city": "Ocala",
+    "addressLine1": "3700 NW 111th Place",
+    "zip": "34482-1479",
+    "mainPhone": "352-840-8000"
+   },
+   {
+    "name": "Franklin Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Carrabelle",
+    "addressLine1": "1760 Highway 67 North",
+    "zip": "32322",
+    "mainPhone": "850-697-1100"
+   },
+   {
+    "name": "Gadsden Correctional Facility",
+    "institutionType": "private prison",
+    "city": "Quincy",
+    "addressLine1": "6044 Greensboro Highway",
+    "zip": "32351-9100",
+    "mainPhone": "850-875-9701"
+   },
+   {
+    "name": "Gadsden Re-Entry Center",
+    "institutionType": "reentry center",
+    "city": "Havana",
+    "addressLine1": "630 Opportunity Lane",
+    "zip": "32333",
+    "mainPhone": "850-539-2440"
+   },
+   {
+    "name": "Graceville Correctional Facility",
+    "institutionType": "private prison",
+    "city": "Graceville",
+    "addressLine1": "5168 Ezell Rd.",
+    "zip": "32440",
+    "mainPhone": "850-263-5500"
+   },
+   {
+    "name": "Gulf Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Wewahitchka",
+    "addressLine1": "500 Ike Steele Road",
+    "zip": "32465-0010",
+    "mainPhone": "850-639-1000"
+   },
+   {
+    "name": "Gulf Correctional Institution Annex",
+    "institutionType": "annex",
+    "city": "Wewahitchka",
+    "addressLine1": "699 Ike Steele Road",
+    "zip": "32465-0010",
+    "mainPhone": "850-639-1000"
+   },
+   {
+    "name": "Hamilton Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Jasper",
+    "addressLine1": "10650 S.W. 46th Street",
+    "zip": "32052-1360",
+    "mainPhone": "386-792-5151"
+   },
+   {
+    "name": "Hamilton Correctional Institution Annex",
+    "institutionType": "annex",
+    "city": "Jasper",
+    "addressLine1": "10650 S.W. 46th Street",
+    "zip": "32052-1360",
+    "mainPhone": "386-792-5897"
+   },
+   {
+    "name": "Hardee Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Bowling Green",
+    "addressLine1": "6901 State Road 62",
+    "zip": "33834-9505",
+    "mainPhone": "863-767-3100"
+   },
+   {
+    "name": "Hernando Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Brooksville",
+    "addressLine1": "16415 Spring Hill Drive",
+    "zip": "34604-8167",
+    "mainPhone": "352-754-6715"
+   },
+   {
+    "name": "Holmes Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Bonifay",
+    "addressLine1": "3142 Thomas Drive",
+    "zip": "32425-0190",
+    "mainPhone": "850-547-8600"
+   },
+   {
+    "name": "Homestead Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Florida City",
+    "addressLine1": "19000 S.W. 377th Street",
+    "zip": "33034-6409",
+    "mainPhone": "305-242-1770"
+   },
+   {
+    "name": "Jackson Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Malone",
+    "addressLine1": "5563 10th Street",
+    "zip": "32445-3144",
+    "mainPhone": "850-569-5260"
+   },
+   {
+    "name": "Jefferson Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Monticello",
+    "addressLine1": "1050 Big Joe Road",
+    "zip": "32344-0430",
+    "mainPhone": "850-342-0500"
+   },
+   {
+    "name": "Lake City Correctional Facility",
+    "institutionType": "private prison",
+    "city": "Lake City",
+    "addressLine1": "7906 East Highway 90",
+    "zip": "32055-6290",
+    "mainPhone": "386-755-3379"
+   },
+   {
+    "name": "Lake Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Clermont",
+    "addressLine1": "19225 U.S. Highway 27",
+    "zip": "34715-9025",
+    "mainPhone": "352-394-6146"
+   },
+   {
+    "name": "Lancaster Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Trenton",
+    "addressLine1": "3449 S.W. State Road 26",
+    "zip": "32693-5641",
+    "mainPhone": "352-463-4100"
+   },
+   {
+    "name": "Lawtey Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Lawtey",
+    "addressLine1": "22298 NE CR 200B",
+    "zip": "32058",
+    "mainPhone": "904-782-2000"
+   },
+   {
+    "name": "Liberty Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Bristol",
+    "addressLine1": "11064 N.W. Dempsey Barron Road",
+    "zip": "32321-9711",
+    "mainPhone": "850-643-9400"
+   },
+   {
+    "name": "Lowell Annex",
+    "institutionType": "annex",
+    "city": "Ocala",
+    "addressLine1": "11120 NW Gainesville Rd.",
+    "zip": "34482-1479",
+    "mainPhone": "352-690-8900"
+   },
+   {
+    "name": "Lowell Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Ocala",
+    "addressLine1": "11120 NW Gainesville Rd.",
+    "zip": "34482-1479",
+    "mainPhone": "352-690-8900"
+   },
+   {
+    "name": "Madison Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Madison",
+    "addressLine1": "382 Southwest MCI Way",
+    "zip": "32340",
+    "mainPhone": "850-973-5300"
+   },
+   {
+    "name": "Marion Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Ocala",
+    "addressLine1": "3269 NW 105th Street",
+    "zip": "34475",
+    "mainPhone": "352-401-6400"
+   },
+   {
+    "name": "Martin Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Indiantown",
+    "addressLine1": "1150 S.W. Allapattah Road",
+    "zip": "34956-4397",
+    "mainPhone": "772-597-3705"
+   },
+   {
+    "name": "Mayo Correctional Institution Annex",
+    "institutionType": "annex",
+    "city": "Mayo",
+    "addressLine1": "8784 US Highway 27 West",
+    "zip": "32066-3458",
+    "mainPhone": "386-294-4500"
+   },
+   {
+    "name": "Moore Haven Correctional Facility",
+    "institutionType": "private prison",
+    "city": "Moore Haven",
+    "addressLine1": "1282 FL-78",
+    "zip": "33471",
+    "mainPhone": "863-946-2420"
+   },
+   {
+    "name": "New River Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Raiford",
+    "addressLine1": "8000 NW 80th Place",
+    "zip": "32083",
+    "mainPhone": null
+   },
+   {
+    "name": "Northwest Florida Reception Center",
+    "institutionType": "reception center",
+    "city": "Chipley",
+    "addressLine1": "4455 Sam Mitchell Drive",
+    "zip": "32428-3597",
+    "mainPhone": "850-773-6100"
+   },
+   {
+    "name": "Northwest Florida Reception Center Annex",
+    "institutionType": "annex",
+    "city": "Chipley",
+    "addressLine1": "4455 Sam Mitchell Drive",
+    "zip": "32428-3597",
+    "mainPhone": "850-773-6100"
+   },
+   {
+    "name": "Okaloosa Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Crestview",
+    "addressLine1": "3189 Colonel Greg Malloy Road",
+    "zip": "32539-6708",
+    "mainPhone": "850-682-0931"
+   },
+   {
+    "name": "Okeechobee Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Okeechobee",
+    "addressLine1": "3420 N.E. 168th Street",
+    "zip": "34972-4824",
+    "mainPhone": "863-462-5400"
+   },
+   {
+    "name": "Polk Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Polk City",
+    "addressLine1": "10800 Evans Road",
+    "zip": "33868-6925",
+    "mainPhone": "863-984-2273"
+   },
+   {
+    "name": "Putnam Correctional Institution",
+    "institutionType": "state prison",
+    "city": "East Palatka",
+    "addressLine1": "128 Yelvington Road",
+    "zip": "32131-2100",
+    "mainPhone": "386-326-6800"
+   },
+   {
+    "name": "Quincy Annex",
+    "institutionType": "annex",
+    "city": "Quincy",
+    "addressLine1": "2225 Pat Thomas Parkway",
+    "zip": "32351",
+    "mainPhone": "850-627-5400"
+   },
+   {
+    "name": "Reception and Medical Center",
+    "institutionType": "reception/medical center",
+    "city": "Lake Butler",
+    "addressLine1": "7765 S CR 231",
+    "zip": "32054-0628",
+    "mainPhone": "386-496-6000"
+   },
+   {
+    "name": "Reception and Medical Center West Unit",
+    "institutionType": "reception/medical center",
+    "city": "Lake Butler",
+    "addressLine1": "7765 S CR 231",
+    "zip": "32054-0628",
+    "mainPhone": "386-496-6000"
+   },
+   {
+    "name": "Sago Palm Re-Entry Center",
+    "institutionType": "reentry center",
+    "city": "Pahokee",
+    "addressLine1": "500 Bay Bottom Road",
+    "zip": "33476",
+    "mainPhone": "561-924-4320"
+   },
+   {
+    "name": "Santa Rosa Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Milton",
+    "addressLine1": "5850 East Milton Road",
+    "zip": "32583-7914",
+    "mainPhone": "850-983-5800"
+   },
+   {
+    "name": "Santa Rosa Correctional Institution Annex",
+    "institutionType": "annex",
+    "city": "Milton",
+    "addressLine1": "5850 East Milton Road",
+    "zip": "32583-7914",
+    "mainPhone": "850-983-5800"
+   },
+   {
+    "name": "South Bay Correctional Facility",
+    "institutionType": "private prison",
+    "city": "South Bay",
+    "addressLine1": "600 U.S. Highway 27 South",
+    "zip": "33493-2233",
+    "mainPhone": "561-992-9505"
+   },
+   {
+    "name": "South Florida Reception Center",
+    "institutionType": "reception center",
+    "city": "Doral",
+    "addressLine1": "14000 NW 41st Street",
+    "zip": "33178-3003",
+    "mainPhone": "305-592-9567"
+   },
+   {
+    "name": "South Florida Reception Center, South Unit",
+    "institutionType": "reception center",
+    "city": "Doral",
+    "addressLine1": "13910 NW 41st Street",
+    "zip": "33178-3014",
+    "mainPhone": "305-592-9710"
+   },
+   {
+    "name": "Sumter Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Bushnell",
+    "addressLine1": "9544 County Road 476B",
+    "zip": "33513-0667",
+    "mainPhone": "352-569-6100"
+   },
+   {
+    "name": "Suwannee Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Live Oak",
+    "addressLine1": "5964 U.S. Highway 90",
+    "zip": "32060",
+    "mainPhone": "386-963-6530"
+   },
+   {
+    "name": "Suwannee Correctional Institution Annex",
+    "institutionType": "annex",
+    "city": "Live Oak",
+    "addressLine1": "5964 U.S. Highway 90",
+    "zip": "32060",
+    "mainPhone": "386-963-6301"
+   },
+   {
+    "name": "Taylor Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Perry",
+    "addressLine1": "8501 Hampton Springs Road",
+    "zip": "32348-8747",
+    "mainPhone": "850-838-4000"
+   },
+   {
+    "name": "Taylor Correctional Institution Annex",
+    "institutionType": "annex",
+    "city": "Perry",
+    "addressLine1": "8501 Hampton Springs Road",
+    "zip": "32348",
+    "mainPhone": "850-838-4000"
+   },
+   {
+    "name": "Tomoka Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Daytona Beach",
+    "addressLine1": "3950 Tiger Bay Road",
+    "zip": "32124-1098",
+    "mainPhone": "386-323-1070"
+   },
+   {
+    "name": "Union Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Raiford",
+    "addressLine1": "25636 NE SR-16",
+    "zip": "32083",
+    "mainPhone": "386-431-2000"
+   },
+   {
+    "name": "Wakulla Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Crawfordville",
+    "addressLine1": "110 Melaleuca Drive",
+    "zip": "32327-4963",
+    "mainPhone": "850-410-1895"
+   },
+   {
+    "name": "Wakulla Correctional Institution Annex",
+    "institutionType": "annex",
+    "city": "Crawfordville",
+    "addressLine1": "110 Melaleuca Drive",
+    "zip": "32327-4963",
+    "mainPhone": "850-410-1895"
+   },
+   {
+    "name": "Walton Correctional Institution",
+    "institutionType": "state prison",
+    "city": "De Funiak Springs",
+    "addressLine1": "691 Institution Road",
+    "zip": "32433-1831",
+    "mainPhone": "850-951-1300"
+   },
+   {
+    "name": "Zephyrhills Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Zephyrhills",
+    "addressLine1": "2739 Gall Boulevard",
+    "zip": "33541-9701",
+    "mainPhone": "813-782-5521"
+   }
+  ]
+ },
+ {
+  "state": "GA",
+  "sources": [
+   "https://gdc.georgia.gov/locations"
+  ],
+  "coverage": "Complete per the official GDC directory at gdc.georgia.gov/locations (gdc.ga.gov redirects there), which lists all 234 GDC locations on one page; every adult correctional facility (state prisons, transition centers, private prisons, probation detention centers, county CIs, ITFs, and RSAT centers, typed per each facility's own GDC page) is included, while county jails, probation/parole offices, and administrative sites are excluded. Coastal State Prison and Appling ITF list no main phone on their official pages (fax only), so mainPhone is null for those two.",
+  "facilities": [
+   {
+    "name": "Appling ITF",
+    "institutionType": "integrated treatment facility",
+    "city": "Baxley",
+    "addressLine1": "252 West Park Drive",
+    "zip": "31513",
+    "mainPhone": null
+   },
+   {
+    "name": "Arrendale Transitional Center",
+    "institutionType": "transition center",
+    "city": "Alto",
+    "addressLine1": "2023 Old Gainesville Hwy",
+    "zip": "30510",
+    "mainPhone": "706-776-0845"
+   },
+   {
+    "name": "Atlanta Transitional Center",
+    "institutionType": "transition center",
+    "city": "Atlanta",
+    "addressLine1": "332 Ponce De Leon Ave. Ne",
+    "zip": "30308",
+    "mainPhone": "404-206-5103"
+   },
+   {
+    "name": "Augusta State Med. Prison",
+    "institutionType": "state prison",
+    "city": "Grovetown",
+    "addressLine1": "3001 Gordon Hwy",
+    "zip": "30813",
+    "mainPhone": "706-855-4700"
+   },
+   {
+    "name": "Augusta Transitional Center",
+    "institutionType": "transition center",
+    "city": "Augusta",
+    "addressLine1": "601 Taylor Street",
+    "zip": "30901",
+    "mainPhone": "706-721-1650"
+   },
+   {
+    "name": "Autry State Prison",
+    "institutionType": "state prison",
+    "city": "Pelham",
+    "addressLine1": "3178 Mount Zion Church Road",
+    "zip": "31779",
+    "mainPhone": "229-294-2940"
+   },
+   {
+    "name": "Bacon Probation Detention Center",
+    "institutionType": "probation detention center",
+    "city": "Alma",
+    "addressLine1": "165 Eastside Industrial Boulevard",
+    "zip": "31510",
+    "mainPhone": "912-632-8157"
+   },
+   {
+    "name": "Bacon Transitional Center",
+    "institutionType": "transition center",
+    "city": "Alma",
+    "addressLine1": "165 Eastside Industrial Boulevard",
+    "zip": "31510",
+    "mainPhone": "912-632-8157"
+   },
+   {
+    "name": "Bainbridge Substance Abuse Center",
+    "institutionType": "residential substance abuse treatment center",
+    "city": "Bainbridge",
+    "addressLine1": "235 State Hospital Road",
+    "zip": "39817",
+    "mainPhone": "229-248-2463"
+   },
+   {
+    "name": "Baldwin State Prison",
+    "institutionType": "state prison",
+    "city": "Hardwick",
+    "addressLine1": "140 Laying Farm Road",
+    "zip": "31034",
+    "mainPhone": "478-445-5218"
+   },
+   {
+    "name": "Bleckley",
+    "institutionType": "residential substance abuse treatment center",
+    "city": "Cochran",
+    "addressLine1": "179 Jac Arts Rd.",
+    "zip": "31014",
+    "mainPhone": "478-934-3303"
+   },
+   {
+    "name": "Bulloch County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Statesboro",
+    "addressLine1": "17301 U.S.Hwy 301",
+    "zip": "30458",
+    "mainPhone": "912-764-6217"
+   },
+   {
+    "name": "Burruss Correctional Training Ctr",
+    "institutionType": "state prison",
+    "city": "Forsyth",
+    "addressLine1": "1000 Indian Springs Drive",
+    "zip": "31029",
+    "mainPhone": "478-994-7512"
+   },
+   {
+    "name": "Calhoun State Prison",
+    "institutionType": "state prison",
+    "city": "Morgan",
+    "addressLine1": "27823 Main Street",
+    "zip": "39866",
+    "mainPhone": "229-849-5000"
+   },
+   {
+    "name": "Carroll County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Carrollton",
+    "addressLine1": "96 Horsley Mill Road",
+    "zip": "30117",
+    "mainPhone": "770-830-5905"
+   },
+   {
+    "name": "Central State Prison",
+    "institutionType": "state prison",
+    "city": "Macon",
+    "addressLine1": "4600 Fulton Mill Road",
+    "zip": "31208",
+    "mainPhone": "478-471-2908"
+   },
+   {
+    "name": "Charles D. Hudson Transitional Center",
+    "institutionType": "transition center",
+    "city": "Lagrange",
+    "addressLine1": "100 Jim Hester Road",
+    "zip": "30241",
+    "mainPhone": "706-845-4018"
+   },
+   {
+    "name": "Clarke County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Athens",
+    "addressLine1": "2825 County Farm Road",
+    "zip": "30605",
+    "mainPhone": "706-613-3400"
+   },
+   {
+    "name": "Clayton County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Lovejoy",
+    "addressLine1": "11420 S.L. R. Boulevard",
+    "zip": "30250",
+    "mainPhone": "770-473-5777"
+   },
+   {
+    "name": "Clayton Transitional Center",
+    "institutionType": "transition center",
+    "city": "Forest Park",
+    "addressLine1": "242 Falcon Dr",
+    "zip": "30297",
+    "mainPhone": "404-675-1500"
+   },
+   {
+    "name": "Coastal State Prison",
+    "institutionType": "state prison",
+    "city": "Garden City",
+    "addressLine1": "200 Gulf Stream Road",
+    "zip": "31418",
+    "mainPhone": null
+   },
+   {
+    "name": "Coffee Correctional Institution",
+    "institutionType": "private prison",
+    "city": "Nicholls",
+    "addressLine1": "1153 North Liberty Street",
+    "zip": "31554",
+    "mainPhone": "912-345-5058"
+   },
+   {
+    "name": "Colquitt County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Moultrie",
+    "addressLine1": "200 South Vadenberg Drive",
+    "zip": "31738",
+    "mainPhone": "229-616-7490"
+   },
+   {
+    "name": "Columbus Transitional Center",
+    "institutionType": "transition center",
+    "city": "Columbus",
+    "addressLine1": "3900 Schatulga Rd",
+    "zip": "31909",
+    "mainPhone": "706-568-2167"
+   },
+   {
+    "name": "Colwell Probation Detention Center",
+    "institutionType": "probation detention center",
+    "city": "Blairsville",
+    "addressLine1": "189 Beasley Street",
+    "zip": "30512",
+    "mainPhone": "706-745-3610"
+   },
+   {
+    "name": "Coweta County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Newnan",
+    "addressLine1": "101 Selt Road",
+    "zip": "30263",
+    "mainPhone": "770-254-3723"
+   },
+   {
+    "name": "Decatur County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Bainbridge",
+    "addressLine1": "1153 Airport Road",
+    "zip": "39817",
+    "mainPhone": "229-248-3035"
+   },
+   {
+    "name": "Dodge State Prison",
+    "institutionType": "state prison",
+    "city": "Chester",
+    "addressLine1": "2971 Old Bethel Church Road",
+    "zip": "31012",
+    "mainPhone": "478-358-7201"
+   },
+   {
+    "name": "Dooly State Prison",
+    "institutionType": "state prison",
+    "city": "Unadilla",
+    "addressLine1": "1412 Plunkett Road",
+    "zip": "31091",
+    "mainPhone": "478-627-2000"
+   },
+   {
+    "name": "Effingham County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Springfield",
+    "addressLine1": "321 Hwy 119 South",
+    "zip": "31329",
+    "mainPhone": "912-754-2108"
+   },
+   {
+    "name": "Emanuel Detention Center",
+    "institutionType": "probation detention center",
+    "city": "Twin City",
+    "addressLine1": "121 Casa Drive",
+    "zip": "30471",
+    "mainPhone": "478-763-2400"
+   },
+   {
+    "name": "Emanuel Womens Facility",
+    "institutionType": "state prison",
+    "city": "Swainsboro",
+    "addressLine1": "714 Gumlog Road",
+    "zip": "30401",
+    "mainPhone": "478-289-2748"
+   },
+   {
+    "name": "Floyd County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Rome",
+    "addressLine1": "329 Black Bluff Rd Sw",
+    "zip": "30161",
+    "mainPhone": "706-236-2490"
+   },
+   {
+    "name": "GA Diagnostic Class Prison",
+    "institutionType": "state prison",
+    "city": "Jackson",
+    "addressLine1": "2978 Hwy 36 West Prison Blvd",
+    "zip": "30233",
+    "mainPhone": "770-504-2000"
+   },
+   {
+    "name": "Gwinnett County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Lawrenceville",
+    "addressLine1": "750 High Hope Road",
+    "zip": "30043",
+    "mainPhone": "678-407-6000"
+   },
+   {
+    "name": "Hall County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Gainesville",
+    "addressLine1": "1698 Barber Road",
+    "zip": "30507",
+    "mainPhone": "770-718-2370"
+   },
+   {
+    "name": "Hancock State Prison",
+    "institutionType": "state prison",
+    "city": "Sparta",
+    "addressLine1": "701 Prison Blvd",
+    "zip": "31087",
+    "mainPhone": "706-444-1000"
+   },
+   {
+    "name": "Harris County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Hamilton",
+    "addressLine1": "9982 Highway 116",
+    "zip": "31811",
+    "mainPhone": "706-628-4959"
+   },
+   {
+    "name": "Hays State Prison",
+    "institutionType": "state prison",
+    "city": "Trion",
+    "addressLine1": "777 Underwood Drive",
+    "zip": "30753",
+    "mainPhone": "706-857-0400"
+   },
+   {
+    "name": "Helms Facility",
+    "institutionType": "state prison",
+    "city": "Atlanta",
+    "addressLine1": "1275 Constitution Rd Se",
+    "zip": "30316",
+    "mainPhone": "404-624-2413"
+   },
+   {
+    "name": "Jackson County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Jefferson",
+    "addressLine1": "265 I.W. Davis Road",
+    "zip": "30549",
+    "mainPhone": "706-387-6460"
+   },
+   {
+    "name": "Jefferson County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Louisville",
+    "addressLine1": "1159 Clarks Mill Road",
+    "zip": "30434",
+    "mainPhone": "478-625-7230"
+   },
+   {
+    "name": "Jenkins Correctional Facility",
+    "institutionType": "private prison",
+    "city": "Millen",
+    "addressLine1": "3404 Kent Farm Drive",
+    "zip": "30442",
+    "mainPhone": "478-982-6300"
+   },
+   {
+    "name": "Johnson State Prison",
+    "institutionType": "state prison",
+    "city": "Wrightsville",
+    "addressLine1": "290 Donovan- Harrison Road",
+    "zip": "31096",
+    "mainPhone": "478-864-4100"
+   },
+   {
+    "name": "Lee Arrendale State Prison",
+    "institutionType": "state prison",
+    "city": "Alto",
+    "addressLine1": "2023 Gainesville Hwy",
+    "zip": "30510",
+    "mainPhone": "706-776-4700"
+   },
+   {
+    "name": "Lee State Prison",
+    "institutionType": "state prison",
+    "city": "Leesburg",
+    "addressLine1": "153 Pinewood Drive",
+    "zip": "31763",
+    "mainPhone": "229-759-3110"
+   },
+   {
+    "name": "Long Unit",
+    "institutionType": "state prison",
+    "city": "Ludowici",
+    "addressLine1": "1434 Us Hwy 84 East",
+    "zip": "31316",
+    "mainPhone": "912-545-3777"
+   },
+   {
+    "name": "Macon State Prison",
+    "institutionType": "state prison",
+    "city": "Oglethorpe",
+    "addressLine1": "2728 Hwy 49 South",
+    "zip": "31068",
+    "mainPhone": "478-472-3400"
+   },
+   {
+    "name": "Macon Transitional Center",
+    "institutionType": "transition center",
+    "city": "Macon",
+    "addressLine1": "200 Henry Street",
+    "zip": "31206",
+    "mainPhone": "478-751-6090"
+   },
+   {
+    "name": "McEver Detention Center",
+    "institutionType": "probation detention center",
+    "city": "Perry",
+    "addressLine1": "2100 Kings Chapel Rd.",
+    "zip": "31069",
+    "mainPhone": "478-988-7024"
+   },
+   {
+    "name": "McRae Women's Facility",
+    "institutionType": "state prison",
+    "city": "McRae-Helena",
+    "addressLine1": "112 Jim Hammock Drive",
+    "zip": "31055",
+    "mainPhone": "229-212-5100"
+   },
+   {
+    "name": "Metro Reentry Facility",
+    "institutionType": "state prison",
+    "city": "Atlanta",
+    "addressLine1": "1301 Constitution Road Se",
+    "zip": "30316",
+    "mainPhone": "404-460-2100"
+   },
+   {
+    "name": "Metro Reinvestment Center",
+    "institutionType": "transition center",
+    "city": "Atlanta",
+    "addressLine1": "1301 Constitution Rd",
+    "zip": "30316",
+    "mainPhone": "404-443-3373"
+   },
+   {
+    "name": "Metro Transitional Center",
+    "institutionType": "transition center",
+    "city": "Atlanta",
+    "addressLine1": "1303 Constitution Road",
+    "zip": "30316",
+    "mainPhone": "404-624-2380"
+   },
+   {
+    "name": "Mitchell County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Camilla",
+    "addressLine1": "4838 Highway 37 East",
+    "zip": "31730",
+    "mainPhone": "229-336-2045"
+   },
+   {
+    "name": "Montgomery State Prison",
+    "institutionType": "state prison",
+    "city": "Mt. Vernon",
+    "addressLine1": "650 Mt. Vernon/ Alston Rd",
+    "zip": "30445",
+    "mainPhone": "912-583-3600"
+   },
+   {
+    "name": "Muscogee County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Columbus",
+    "addressLine1": "7175 Sacerdote Lane",
+    "zip": "31908",
+    "mainPhone": "706-641-5800"
+   },
+   {
+    "name": "Northwest RSAT Center",
+    "institutionType": "residential substance abuse treatment center",
+    "city": "Rock Spring",
+    "addressLine1": "97 Kevin Lane",
+    "zip": "30739",
+    "mainPhone": "706-764-3742"
+   },
+   {
+    "name": "Patten PDC",
+    "institutionType": "probation detention center",
+    "city": "Lakeland",
+    "addressLine1": "1009 North 10Th Street",
+    "zip": "31635",
+    "mainPhone": "229-482-8241"
+   },
+   {
+    "name": "Paulding",
+    "institutionType": "probation detention center",
+    "city": "Dallas",
+    "addressLine1": "1295 North Industrial Boulevard",
+    "zip": "30132",
+    "mainPhone": "770-443-7807"
+   },
+   {
+    "name": "Phillips State Prison",
+    "institutionType": "state prison",
+    "city": "Buford",
+    "addressLine1": "2989 West Rock Quarry Road",
+    "zip": "30519",
+    "mainPhone": "770-932-4500"
+   },
+   {
+    "name": "Phillips Transitional Center",
+    "institutionType": "transition center",
+    "city": "Buford",
+    "addressLine1": "2989 West Rock Quarry Road",
+    "zip": "30519",
+    "mainPhone": "770-932-4671"
+   },
+   {
+    "name": "Pulaski State Prison",
+    "institutionType": "state prison",
+    "city": "Hawkinsville",
+    "addressLine1": "373 Upper River Road",
+    "zip": "31036",
+    "mainPhone": "478-783-6000"
+   },
+   {
+    "name": "Richmond County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Augusta",
+    "addressLine1": "2314 Tobacco Road",
+    "zip": "30906",
+    "mainPhone": "706-798-5572"
+   },
+   {
+    "name": "Riverbend Correctional Facility",
+    "institutionType": "private prison",
+    "city": "Milledgeville",
+    "addressLine1": "196 Laying Farm Rd",
+    "zip": "31061",
+    "mainPhone": "478-414-2300"
+   },
+   {
+    "name": "Rogers State Prison",
+    "institutionType": "state prison",
+    "city": "Reidsville",
+    "addressLine1": "1978 Georgia Highway 147",
+    "zip": "30453",
+    "mainPhone": "912-557-7771"
+   },
+   {
+    "name": "RSAT",
+    "institutionType": "residential substance abuse treatment center",
+    "city": "Sycamore",
+    "addressLine1": "514 South Railroad Ave",
+    "zip": "31790",
+    "mainPhone": "229-567-4301"
+   },
+   {
+    "name": "Rutledge State Prison",
+    "institutionType": "state prison",
+    "city": "Columbus",
+    "addressLine1": "7175 Manor Road",
+    "zip": "31907",
+    "mainPhone": "706-568-2340"
+   },
+   {
+    "name": "Screven County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Sylvania",
+    "addressLine1": "859 Rockyford Road",
+    "zip": "30467",
+    "mainPhone": "912-863-4555"
+   },
+   {
+    "name": "Smith State Prison",
+    "institutionType": "state prison",
+    "city": "Glennville",
+    "addressLine1": "9676 Hwy 301 North",
+    "zip": "30427",
+    "mainPhone": "912-654-5000"
+   },
+   {
+    "name": "Smith Transitional Center",
+    "institutionType": "transition center",
+    "city": "Claxton",
+    "addressLine1": "8631 Hwy 301 North",
+    "zip": "30417",
+    "mainPhone": "912-739-1911"
+   },
+   {
+    "name": "Spalding County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Griffin",
+    "addressLine1": "295 Justice Boulevard",
+    "zip": "30224",
+    "mainPhone": "770-467-4760"
+   },
+   {
+    "name": "Special Management Unit",
+    "institutionType": "state prison",
+    "city": "Jackson",
+    "addressLine1": "2978 Highway 36 West",
+    "zip": "30233",
+    "mainPhone": "770-504-7610"
+   },
+   {
+    "name": "Sumter County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Americus",
+    "addressLine1": "346 Mcmath Mill Road",
+    "zip": "31709",
+    "mainPhone": "229-928-4582"
+   },
+   {
+    "name": "Telfair State Prison",
+    "institutionType": "state prison",
+    "city": "Helena",
+    "addressLine1": "170 Longbridge Road",
+    "zip": "31037",
+    "mainPhone": "229-868-7721"
+   },
+   {
+    "name": "Terrell County Correctional Institution",
+    "institutionType": "county CI",
+    "city": "Dawson",
+    "addressLine1": "3110 Albany Highway",
+    "zip": "39842",
+    "mainPhone": "229-995-5381"
+   },
+   {
+    "name": "Treutlen Detention Center",
+    "institutionType": "probation detention center",
+    "city": "Soperton",
+    "addressLine1": "401 Cascade Circle",
+    "zip": "30457",
+    "mainPhone": "912-529-6760"
+   },
+   {
+    "name": "Valdosta State Prison",
+    "institutionType": "state prison",
+    "city": "Valdosta",
+    "addressLine1": "3259 Valtech Road",
+    "zip": "31601",
+    "mainPhone": "229-333-7955"
+   },
+   {
+    "name": "Valdosta Transitional Center",
+    "institutionType": "transition center",
+    "city": "Valdosta",
+    "addressLine1": "363 Gill Harbin Industrial Blvd.",
+    "zip": "31601",
+    "mainPhone": "229-333-7900"
+   },
+   {
+    "name": "Walker State Prison",
+    "institutionType": "state prison",
+    "city": "Rock Spring",
+    "addressLine1": "97 Kevin Lane",
+    "zip": "30739",
+    "mainPhone": "706-764-3600"
+   },
+   {
+    "name": "Ware State Prison",
+    "institutionType": "state prison",
+    "city": "Waycross",
+    "addressLine1": "3620 Harris Road",
+    "zip": "31503",
+    "mainPhone": "912-285-6402"
+   },
+   {
+    "name": "Washington State Prison",
+    "institutionType": "state prison",
+    "city": "Davisboro",
+    "addressLine1": "13262 Highway 24 East",
+    "zip": "31018",
+    "mainPhone": "478-348-5814"
+   },
+   {
+    "name": "West Central Integrated Treatment Facility",
+    "institutionType": "integrated treatment facility",
+    "city": "Zebulon",
+    "addressLine1": "1070 County Farm Road",
+    "zip": "30295",
+    "mainPhone": "770-567-0531"
+   },
+   {
+    "name": "Wheeler Correctional Institution",
+    "institutionType": "private prison",
+    "city": "Alamo",
+    "addressLine1": "195 North Broad Street",
+    "zip": "30411",
+    "mainPhone": "912-568-1731"
+   },
+   {
+    "name": "Whitworth Women's Facility",
+    "institutionType": "state prison",
+    "city": "Hartwell",
+    "addressLine1": "414 Valley Hart Road",
+    "zip": "30643",
+    "mainPhone": "706-856-2601"
+   },
+   {
+    "name": "Wilcox State Prison",
+    "institutionType": "state prison",
+    "city": "Abbeville",
+    "addressLine1": "470 South Broad Street",
+    "zip": "31001",
+    "mainPhone": "229-467-3000"
+   },
+   {
+    "name": "Womens Detention Center",
+    "institutionType": "probation detention center",
+    "city": "Claxton",
+    "addressLine1": "8662 U. S. Hwy 301 North",
+    "zip": "30417",
+    "mainPhone": "912-739-0716"
+   }
+  ]
+ },
+ {
+  "state": "NC",
+  "sources": [
+   "https://www.dac.nc.gov/divisions-and-sections/institutions/prison-facilities-and-regional-offices",
+   "https://www.dac.nc.gov/divisions-and-sections/institutions/prison-facilities-and-regional-offices-contacts"
+  ],
+  "coverage": "Complete per the official NC DAC site: both directory pages list the same 54 adult prison facilities, and all 54 individual facility pages were fetched successfully for addresses and phones. Street addresses were preferred over mailing addresses where both were listed; Brown Creek CI publishes only a P.O. Box, and Tyrrell Prison Work Farm's street address has no street number; juvenile facilities and community supervision offices are excluded.",
+  "facilities": [
+   {
+    "name": "Albemarle Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "New London",
+    "addressLine1": "44150 Airport Road",
+    "zip": "28127",
+    "mainPhone": "704-244-8700"
+   },
+   {
+    "name": "Alexander Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Taylorsville",
+    "addressLine1": "633 Old Landfill Road",
+    "zip": "28681",
+    "mainPhone": "828-848-5300"
+   },
+   {
+    "name": "Anson Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Polkton",
+    "addressLine1": "552 Prison Camp Road",
+    "zip": "28135",
+    "mainPhone": "704-695-1013"
+   },
+   {
+    "name": "Avery-Mitchell Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Spruce Pine",
+    "addressLine1": "600 Amity Park Road",
+    "zip": "28777",
+    "mainPhone": "828-592-7200"
+   },
+   {
+    "name": "Bertie Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Windsor",
+    "addressLine1": "218 Cooper Hill Road",
+    "zip": "27983",
+    "mainPhone": "252-509-0158"
+   },
+   {
+    "name": "Brown Creek Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Polkton",
+    "addressLine1": "P.O. Box 310",
+    "zip": "28135",
+    "mainPhone": "704-272-4570"
+   },
+   {
+    "name": "Caldwell Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Lenoir",
+    "addressLine1": "480 Pleasant Hill Road",
+    "zip": "28645",
+    "mainPhone": "828-726-2509"
+   },
+   {
+    "name": "Carteret Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Newport",
+    "addressLine1": "1084 Orange Street",
+    "zip": "28570",
+    "mainPhone": "252-223-5100"
+   },
+   {
+    "name": "Caswell Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Blanch",
+    "addressLine1": "444 County Home Road",
+    "zip": "27212",
+    "mainPhone": "336-694-4531"
+   },
+   {
+    "name": "Catawba Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Newton",
+    "addressLine1": "1347 Prison Camp Road",
+    "zip": "28658",
+    "mainPhone": "828-466-5521"
+   },
+   {
+    "name": "Central Prison",
+    "institutionType": "state prison",
+    "city": "Raleigh",
+    "addressLine1": "1300 Western Boulevard",
+    "zip": "27606",
+    "mainPhone": "919-733-0800"
+   },
+   {
+    "name": "Columbus Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Whiteville",
+    "addressLine1": "1255 Prison Camp Road",
+    "zip": "28472",
+    "mainPhone": "910-642-3285"
+   },
+   {
+    "name": "Craggy Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Asheville",
+    "addressLine1": "22 Canoe Lane",
+    "zip": "28804",
+    "mainPhone": "828-645-5315"
+   },
+   {
+    "name": "Craven Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Vanceboro",
+    "addressLine1": "600 Alligator Road",
+    "zip": "28586",
+    "mainPhone": "252-244-3337"
+   },
+   {
+    "name": "Dan River Prison Work Farm",
+    "institutionType": "prison work farm",
+    "city": "Blanch",
+    "addressLine1": "981 Murray Road",
+    "zip": "27212",
+    "mainPhone": "336-694-1583"
+   },
+   {
+    "name": "Davidson Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Lexington",
+    "addressLine1": "1400 Thomason Street",
+    "zip": "27292",
+    "mainPhone": "336-249-7528"
+   },
+   {
+    "name": "Eastern Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Maury",
+    "addressLine1": "2821 N.C. Highway 903",
+    "zip": "28554",
+    "mainPhone": "252-653-5774"
+   },
+   {
+    "name": "Foothills Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Morganton",
+    "addressLine1": "5150 Western Ave.",
+    "zip": "28655",
+    "mainPhone": "828-475-7600"
+   },
+   {
+    "name": "Forsyth Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Winston-Salem",
+    "addressLine1": "307 Craft Drive",
+    "zip": "27105",
+    "mainPhone": "336-896-7041"
+   },
+   {
+    "name": "Franklin Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Bunn",
+    "addressLine1": "5918 NC Highway 39 South",
+    "zip": "27508",
+    "mainPhone": "984-295-1200"
+   },
+   {
+    "name": "Gaston Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Dallas",
+    "addressLine1": "520 Justice Court",
+    "zip": "28034",
+    "mainPhone": "704-922-3861"
+   },
+   {
+    "name": "Granville Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Butner",
+    "addressLine1": "1001 Veazey Road",
+    "zip": "27509",
+    "mainPhone": "919-964-6200"
+   },
+   {
+    "name": "Greene Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Maury",
+    "addressLine1": "2699 NC Hwy. 903",
+    "zip": "28554",
+    "mainPhone": "252-653-4550"
+   },
+   {
+    "name": "Harnett Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Lillington",
+    "addressLine1": "1210 E. McNeill Street",
+    "zip": "27546",
+    "mainPhone": "910-893-2751"
+   },
+   {
+    "name": "Hyde Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Fairfield",
+    "addressLine1": "620 Prison Road",
+    "zip": "27826",
+    "mainPhone": "252-926-1810"
+   },
+   {
+    "name": "Johnston Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Smithfield",
+    "addressLine1": "794 Turnage Road",
+    "zip": "27577",
+    "mainPhone": "984-201-8200"
+   },
+   {
+    "name": "Lincoln Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Lincolnton",
+    "addressLine1": "464 Roper Drive",
+    "zip": "28092",
+    "mainPhone": "704-735-0485"
+   },
+   {
+    "name": "Lumberton Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Lumberton",
+    "addressLine1": "75 Legend Road",
+    "zip": "28359",
+    "mainPhone": "910-785-8533"
+   },
+   {
+    "name": "Marion Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Marion",
+    "addressLine1": "355 Old Glenwood Road",
+    "zip": "28752",
+    "mainPhone": "828-803-6300"
+   },
+   {
+    "name": "Maury Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Hookerton",
+    "addressLine1": "2568 Moore Rouse Road",
+    "zip": "28538",
+    "mainPhone": "252-653-5501"
+   },
+   {
+    "name": "Mountain View Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Spruce Pine",
+    "addressLine1": "545 Amity Park Road",
+    "zip": "28777",
+    "mainPhone": "828-592-3000"
+   },
+   {
+    "name": "Nash Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Nashville",
+    "addressLine1": "2869 US 64 Alt.",
+    "zip": "27856",
+    "mainPhone": "252-459-4455"
+   },
+   {
+    "name": "NC Correctional Institution for Women",
+    "institutionType": "correctional institution",
+    "city": "Raleigh",
+    "addressLine1": "1034 Bragg Street",
+    "zip": "27610",
+    "mainPhone": "919-873-5452"
+   },
+   {
+    "name": "Neuse Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Goldsboro",
+    "addressLine1": "701 Stevens Mill Rd",
+    "zip": "27533",
+    "mainPhone": "919-731-2023"
+   },
+   {
+    "name": "New Hanover Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Wilmington",
+    "addressLine1": "330 Division Drive",
+    "zip": "28401",
+    "mainPhone": "910-251-2666"
+   },
+   {
+    "name": "Orange Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Hillsborough",
+    "addressLine1": "2110 Clarence Walters Road",
+    "zip": "27278",
+    "mainPhone": "919-732-9301"
+   },
+   {
+    "name": "Pamlico Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Bayboro",
+    "addressLine1": "601 North 3rd Street",
+    "zip": "28515",
+    "mainPhone": "252-692-6200"
+   },
+   {
+    "name": "Pasquotank Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Elizabeth City",
+    "addressLine1": "527 Commerce Drive",
+    "zip": "27906",
+    "mainPhone": "252-331-4881"
+   },
+   {
+    "name": "Pender Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Burgaw",
+    "addressLine1": "906 Penderlea Highway",
+    "zip": "28425",
+    "mainPhone": "910-259-8735"
+   },
+   {
+    "name": "Piedmont Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Salisbury",
+    "addressLine1": "1245 Camp Road",
+    "zip": "28147",
+    "mainPhone": "980-407-6300"
+   },
+   {
+    "name": "Randolph Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Asheboro",
+    "addressLine1": "2760 US 220 Hwy. Business",
+    "zip": "27203",
+    "mainPhone": "336-625-2578"
+   },
+   {
+    "name": "Richmond Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Hoffman",
+    "addressLine1": "1573 McDonald Church Road",
+    "zip": "28347",
+    "mainPhone": "910-281-3161"
+   },
+   {
+    "name": "Roanoke River Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Tillery",
+    "addressLine1": "2787 Caledonia Drive",
+    "zip": "27882",
+    "mainPhone": "252-826-5621"
+   },
+   {
+    "name": "Rutherford Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Spindale",
+    "addressLine1": "549 Ledbetter Road",
+    "zip": "28160",
+    "mainPhone": "828-286-4121"
+   },
+   {
+    "name": "Sampson Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Clinton",
+    "addressLine1": "700 Northwest Blvd., US Hwy. 421 North",
+    "zip": "28328",
+    "mainPhone": "910-682-5200"
+   },
+   {
+    "name": "Sanford Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Sanford",
+    "addressLine1": "417 Advancement Center Road",
+    "zip": "27330",
+    "mainPhone": "919-895-7000"
+   },
+   {
+    "name": "Scotland Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Laurinburg",
+    "addressLine1": "22385 McGirts Bridge Road",
+    "zip": "28353",
+    "mainPhone": "910-390-4700"
+   },
+   {
+    "name": "Southern Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Troy",
+    "addressLine1": "272 Glen Road",
+    "zip": "27371",
+    "mainPhone": "910-572-3784"
+   },
+   {
+    "name": "Tabor Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Tabor City",
+    "addressLine1": "4600 Swamp Fox Highway West",
+    "zip": "28463",
+    "mainPhone": "910-653-6413"
+   },
+   {
+    "name": "Tyrrell Prison Work Farm",
+    "institutionType": "prison work farm",
+    "city": "Columbia",
+    "addressLine1": "Snell Road",
+    "zip": "27925",
+    "mainPhone": "252-796-1085"
+   },
+   {
+    "name": "Wake Correctional Center",
+    "institutionType": "correctional center",
+    "city": "Raleigh",
+    "addressLine1": "1000 Rock Quarry Road",
+    "zip": "27610",
+    "mainPhone": "919-733-7988"
+   },
+   {
+    "name": "Warren Correctional Institution",
+    "institutionType": "correctional institution",
+    "city": "Manson",
+    "addressLine1": "379 Collins Rd.",
+    "zip": "27553",
+    "mainPhone": "252-598-5400"
+   },
+   {
+    "name": "Western Correctional Center for Women",
+    "institutionType": "correctional center",
+    "city": "Black Mountain",
+    "addressLine1": "55 Lake Eden Road",
+    "zip": "28711",
+    "mainPhone": "828-259-6000"
+   },
+   {
+    "name": "Wilkes Correctional Center",
+    "institutionType": "correctional center",
+    "city": "North Wilkesboro",
+    "addressLine1": "404 Statesville Road",
+    "zip": "28659",
+    "mainPhone": "336-667-4533"
+   }
+  ]
+ },
+ {
+  "state": "OH",
+  "sources": [
+   "https://drc.ohio.gov/about/facilities"
+  ],
+  "coverage": "Complete: all 28 adult institutions listed on ODRC's official Facilities directory (drc.ohio.gov/about/facilities, rendered 2026-08-04) are included, each verified against its individual facility page for address and phone; facilities the site lists as closed were excluded. Three facilities are privately operated per the official pages (Lake Erie CI and North Central Correctional Complex are described as privately operated; Northeast Ohio Correctional Center is CoreCivic-operated per its page); Ross Correctional Institution's listed street address is labeled 'visiting address only' on its page.",
+  "facilities": [
+   {
+    "name": "Allen-Oakwood Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Lima",
+    "addressLine1": "2338 North West Street",
+    "zip": "45801",
+    "mainPhone": "419-224-8000"
+   },
+   {
+    "name": "Belmont Correctional Institution",
+    "institutionType": "state prison",
+    "city": "St. Clairsville",
+    "addressLine1": "68518 Bannock Road",
+    "zip": "43950",
+    "mainPhone": "740-695-5169"
+   },
+   {
+    "name": "Chillicothe Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Chillicothe",
+    "addressLine1": "15802 OH-104",
+    "zip": "45601",
+    "mainPhone": "740-774-7080"
+   },
+   {
+    "name": "Correctional Reception Center",
+    "institutionType": "reception center",
+    "city": "Orient",
+    "addressLine1": "11271 State Route 762",
+    "zip": "43146",
+    "mainPhone": "614-877-2441"
+   },
+   {
+    "name": "Dayton Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Dayton",
+    "addressLine1": "4104 Germantown St",
+    "zip": "45417",
+    "mainPhone": "937-263-0060"
+   },
+   {
+    "name": "Franklin Medical Center",
+    "institutionType": "medical center",
+    "city": "Columbus",
+    "addressLine1": "1990 Harmon Avenue",
+    "zip": "43223",
+    "mainPhone": "614-445-5960"
+   },
+   {
+    "name": "Grafton Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Grafton",
+    "addressLine1": "2500 Avon Belden Rd",
+    "zip": "44044",
+    "mainPhone": "440-748-1161"
+   },
+   {
+    "name": "Lake Erie Correctional Institution",
+    "institutionType": "private prison",
+    "city": "Conneaut",
+    "addressLine1": "501 Thompson Rd",
+    "zip": "44030",
+    "mainPhone": "440-599-4100"
+   },
+   {
+    "name": "Lebanon Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Lebanon",
+    "addressLine1": "3791 State Route 63",
+    "zip": "45036",
+    "mainPhone": "513-932-1211"
+   },
+   {
+    "name": "London Correctional Institution",
+    "institutionType": "state prison",
+    "city": "London",
+    "addressLine1": "1580 State Route 56 SW",
+    "zip": "43140",
+    "mainPhone": "740-852-2454"
+   },
+   {
+    "name": "Lorain Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Grafton",
+    "addressLine1": "2075 South Avon-Belden Road",
+    "zip": "44044",
+    "mainPhone": "440-748-1049"
+   },
+   {
+    "name": "Madison Correctional Institution",
+    "institutionType": "state prison",
+    "city": "London",
+    "addressLine1": "1851 State Route 56",
+    "zip": "43140",
+    "mainPhone": "740-852-9777"
+   },
+   {
+    "name": "Mansfield Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Mansfield",
+    "addressLine1": "1150 North Main Street",
+    "zip": "44903",
+    "mainPhone": "419-525-4455"
+   },
+   {
+    "name": "Marion Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Marion",
+    "addressLine1": "940 Marion-Williamsport Rd E",
+    "zip": "43302",
+    "mainPhone": "740-382-5781"
+   },
+   {
+    "name": "Noble Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Caldwell",
+    "addressLine1": "15708 McConnelsville Road",
+    "zip": "43724",
+    "mainPhone": "740-732-5188"
+   },
+   {
+    "name": "North Central Correctional Complex",
+    "institutionType": "private prison",
+    "city": "Marion",
+    "addressLine1": "670 Marion-Williamsport Rd",
+    "zip": "43302",
+    "mainPhone": "740-387-7040"
+   },
+   {
+    "name": "Northeast Ohio Correctional Center",
+    "institutionType": "private prison",
+    "city": "Youngstown",
+    "addressLine1": "2240 Hubbard Road",
+    "zip": "44505",
+    "mainPhone": "330-746-3777"
+   },
+   {
+    "name": "Northeast Reintegration Center",
+    "institutionType": "reintegration center",
+    "city": "Cleveland",
+    "addressLine1": "2675 E 30th St",
+    "zip": "44115",
+    "mainPhone": "216-771-6460"
+   },
+   {
+    "name": "Ohio Reformatory for Women",
+    "institutionType": "state prison",
+    "city": "Marysville",
+    "addressLine1": "1479 Collins Ave",
+    "zip": "43040",
+    "mainPhone": "937-642-1065"
+   },
+   {
+    "name": "Ohio State Penitentiary",
+    "institutionType": "state prison",
+    "city": "Youngstown",
+    "addressLine1": "878 Coitsville-Hubbard Road",
+    "zip": "44505",
+    "mainPhone": "330-743-0700"
+   },
+   {
+    "name": "Pickaway Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Orient",
+    "addressLine1": "11781 St. Route 762",
+    "zip": "43146",
+    "mainPhone": "614-877-4362"
+   },
+   {
+    "name": "Richland Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Mansfield",
+    "addressLine1": "1001 Olivesburg Road",
+    "zip": "44905",
+    "mainPhone": "419-526-2100"
+   },
+   {
+    "name": "Ross Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Chillicothe",
+    "addressLine1": "16197 State Route 104",
+    "zip": "45601",
+    "mainPhone": "740-774-7050"
+   },
+   {
+    "name": "Southeastern Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Lancaster",
+    "addressLine1": "5900 BIS Rd SW",
+    "zip": "43130",
+    "mainPhone": "740-653-4324"
+   },
+   {
+    "name": "Southern Ohio Correctional Facility",
+    "institutionType": "state prison",
+    "city": "Lucasville",
+    "addressLine1": "1724 St. Rt. 728",
+    "zip": "45699",
+    "mainPhone": "740-259-5544"
+   },
+   {
+    "name": "Toledo Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Toledo",
+    "addressLine1": "2001 E Central Ave",
+    "zip": "43608",
+    "mainPhone": "419-726-7977"
+   },
+   {
+    "name": "Trumbull Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Leavittsburg",
+    "addressLine1": "5701 Burnett Road",
+    "zip": "44430",
+    "mainPhone": "330-898-0820"
+   },
+   {
+    "name": "Warren Correctional Institution",
+    "institutionType": "state prison",
+    "city": "Lebanon",
+    "addressLine1": "5787 State Route 63",
+    "zip": "45036",
+    "mainPhone": "513-932-3388"
+   }
+  ]
+ },
+ {
+  "state": "SC",
+  "sources": [
+   "https://doc.sc.gov/institutions",
+   "https://www.doc.sc.gov/institution-information"
+  ],
+  "coverage": "Complete per the official SCDC single-page directory at doc.sc.gov/institutions, which SCDC describes as its 21 institutions; the page enumerates 23 named entries because Livesay C.I.'s A and B camps are listed separately and Broad River Secure Facility is listed as a standalone facility. No private/contract facilities are listed by SCDC; headquarters (administrative office) excluded.",
+  "facilities": [
+   {
+    "name": "Allendale Correctional Institution",
+    "institutionType": "state prison (medium security)",
+    "city": "Fairfax",
+    "addressLine1": "1057 Revolutionary Trail",
+    "zip": "29827",
+    "mainPhone": "803-632-2561"
+   },
+   {
+    "name": "Broad River Correctional Institution",
+    "institutionType": "state prison (close/medium security)",
+    "city": "Columbia",
+    "addressLine1": "4460 Broad River Road",
+    "zip": "29210",
+    "mainPhone": "803-896-2234"
+   },
+   {
+    "name": "Broad River Secure Facility",
+    "institutionType": "state prison (close security secure facility)",
+    "city": "Columbia",
+    "addressLine1": "4460 Broad River Road",
+    "zip": "29210",
+    "mainPhone": "803-896-2234"
+   },
+   {
+    "name": "Camille Griffin Graham Correctional Institution",
+    "institutionType": "state prison (medium security, women)",
+    "city": "Columbia",
+    "addressLine1": "4450 Broad River Road",
+    "zip": "29210",
+    "mainPhone": "803-896-8590"
+   },
+   {
+    "name": "Evans Correctional Institution",
+    "institutionType": "state prison (medium security)",
+    "city": "Bennettsville",
+    "addressLine1": "610 Highway 9 West",
+    "zip": "29512",
+    "mainPhone": "843-479-4181"
+   },
+   {
+    "name": "Goodman Correctional Institution",
+    "institutionType": "state prison (minimum security, women)",
+    "city": "Columbia",
+    "addressLine1": "4556 Broad River Road",
+    "zip": "29210",
+    "mainPhone": "803-896-8565"
+   },
+   {
+    "name": "Kershaw Correctional Institution and Reentry Center",
+    "institutionType": "state prison (medium security)",
+    "city": "Kershaw",
+    "addressLine1": "4848 Gold Mine Highway",
+    "zip": "29067",
+    "mainPhone": "803-896-3300"
+   },
+   {
+    "name": "Kirkland Reception and Evaluation Center",
+    "institutionType": "reception center (close security)",
+    "city": "Columbia",
+    "addressLine1": "4344 Broad River Road",
+    "zip": "29210",
+    "mainPhone": "803-896-1521"
+   },
+   {
+    "name": "Leath Correctional Institution",
+    "institutionType": "state prison (medium security, women)",
+    "city": "Greenwood",
+    "addressLine1": "2809 Airport Road",
+    "zip": "29649",
+    "mainPhone": "864-229-5709"
+   },
+   {
+    "name": "Lee Correctional Institution",
+    "institutionType": "state prison (close/medium security)",
+    "city": "Bishopville",
+    "addressLine1": "990 Wisacky Highway",
+    "zip": "29010",
+    "mainPhone": "803-896-2400"
+   },
+   {
+    "name": "Lieber Correctional Institution and Reentry Center",
+    "institutionType": "state prison (close security)",
+    "city": "Ridgeville",
+    "addressLine1": "136 Wilborn Avenue",
+    "zip": "29472",
+    "mainPhone": "843-875-3332"
+   },
+   {
+    "name": "Livesay Correctional Institution \"A\" Camp",
+    "institutionType": "state prison (minimum-out custody work camp)",
+    "city": "Spartanburg",
+    "addressLine1": "104 Broadcast Drive",
+    "zip": "29303",
+    "mainPhone": "864-594-4915"
+   },
+   {
+    "name": "Livesay Correctional Institution \"B\" Camp",
+    "institutionType": "state prison (minimum security)",
+    "city": "Spartanburg",
+    "addressLine1": "104 Broadcast Drive",
+    "zip": "29303",
+    "mainPhone": "864-495-4920"
+   },
+   {
+    "name": "MacDougall Correctional Institution",
+    "institutionType": "state prison (medium/minimum security)",
+    "city": "Ridgeville",
+    "addressLine1": "1516 Old Gilliard Road",
+    "zip": "29472",
+    "mainPhone": "803-737-3036"
+   },
+   {
+    "name": "Manning Reentry/Work Release Center",
+    "institutionType": "work release center",
+    "city": "Columbia",
+    "addressLine1": "502 Beckman Road",
+    "zip": "29203",
+    "mainPhone": "803-935-6000"
+   },
+   {
+    "name": "McCormick Correctional Institution",
+    "institutionType": "state prison (close security)",
+    "city": "McCormick",
+    "addressLine1": "386 Redemption Way",
+    "zip": "29899",
+    "mainPhone": "864-443-2114"
+   },
+   {
+    "name": "Palmer Pre-Release Center",
+    "institutionType": "pre-release center",
+    "city": "Florence",
+    "addressLine1": "2012 Pisgah Road",
+    "zip": "29501",
+    "mainPhone": "843-661-4770"
+   },
+   {
+    "name": "Perry Correctional Institution",
+    "institutionType": "state prison (close/medium security)",
+    "city": "Pelzer",
+    "addressLine1": "430 Oaklawn Road",
+    "zip": "29669",
+    "mainPhone": "864-243-4700"
+   },
+   {
+    "name": "Ridgeland Correctional Institution",
+    "institutionType": "state prison (medium security)",
+    "city": "Ridgeland",
+    "addressLine1": "5 Correctional Road",
+    "zip": "29936",
+    "mainPhone": "803-896-3200"
+   },
+   {
+    "name": "Trenton Correctional Institution",
+    "institutionType": "state prison (medium/minimum security)",
+    "city": "Trenton",
+    "addressLine1": "84 Greenhouse Road",
+    "zip": "29847",
+    "mainPhone": "803-896-3000"
+   },
+   {
+    "name": "Turbeville Correctional Institution",
+    "institutionType": "state prison (medium security)",
+    "city": "Turbeville",
+    "addressLine1": "1578 Clarence Coker Hwy",
+    "zip": "29162",
+    "mainPhone": "843-659-4800"
+   },
+   {
+    "name": "Tyger River Correctional Center",
+    "institutionType": "state prison (medium security)",
+    "city": "Enoree",
+    "addressLine1": "100-200 Prison Road",
+    "zip": "29335",
+    "mainPhone": "803-896-3501"
+   },
+   {
+    "name": "Wateree River Correctional Institution",
+    "institutionType": "state prison (minimum security)",
+    "city": "Rembert",
+    "addressLine1": "Highway 261",
+    "zip": "29128",
+    "mainPhone": "803-432-6191"
+   }
+  ]
+ },
+ {
+  "state": "TX",
+  "sources": [
+   "https://www.tdcj.texas.gov/unit_directory/"
+  ],
+  "coverage": "Complete per the official TDCJ Unit Directory index table (104 units), with address/city/zip/phone taken from all 104 individual unit pages under tdcj.texas.gov/unit_directory/. The current directory no longer uses 'state jail' or 'transfer facility' type labels; types shown are the directory's own designations (prison, pre-release, ISF, SAFPF, medical, geriatric, DDP, and one MTC-operated private multi-use facility). Juvenile facilities, county jails, and parole offices are not part of this directory and are excluded.",
+  "facilities": [
+   {
+    "name": "A. M. \"Mac\" Stringfellow Unit",
+    "institutionType": "prison unit",
+    "city": "Rosharon",
+    "addressLine1": "1200 FM 655",
+    "zip": "77583",
+    "mainPhone": "281-595-3413"
+   },
+   {
+    "name": "Alfred D. Hughes Unit",
+    "institutionType": "prison unit",
+    "city": "Gatesville",
+    "addressLine1": "3201 FM 929",
+    "zip": "76597",
+    "mainPhone": "254-865-6663"
+   },
+   {
+    "name": "Allan B. Polunsky Unit",
+    "institutionType": "prison unit",
+    "city": "Livingston",
+    "addressLine1": "3872 FM 350 South",
+    "zip": "77352",
+    "mainPhone": "936-967-8082"
+   },
+   {
+    "name": "Barry B. Telford Unit",
+    "institutionType": "prison unit",
+    "city": "New Boston",
+    "addressLine1": "3899 Hwy 98",
+    "zip": "75570",
+    "mainPhone": "903-628-3171"
+   },
+   {
+    "name": "Bartlett Unit",
+    "institutionType": "prison unit",
+    "city": "Bartlett",
+    "addressLine1": "1018 Arnold Drive",
+    "zip": "76511",
+    "mainPhone": "254-527-4218"
+   },
+   {
+    "name": "Baten Intermediate Sanction Facility",
+    "institutionType": "intermediate sanction facility",
+    "city": "Pampa",
+    "addressLine1": "1995 Helton Road",
+    "zip": "79065",
+    "mainPhone": "806-665-7070"
+   },
+   {
+    "name": "Beauford H. Jester III Unit",
+    "institutionType": "prison unit",
+    "city": "Richmond",
+    "addressLine1": "3 Jester Road",
+    "zip": "77406",
+    "mainPhone": "281-277-7000"
+   },
+   {
+    "name": "Billy Moore Unit",
+    "institutionType": "prison unit",
+    "city": "Overton",
+    "addressLine1": "8500 North FM 3053",
+    "zip": "75684",
+    "mainPhone": "903-834-6186"
+   },
+   {
+    "name": "Bridgeport Unit",
+    "institutionType": "prison unit",
+    "city": "Bridgeport",
+    "addressLine1": "4000 North Tenth Street",
+    "zip": "76426",
+    "mainPhone": "940-683-3010"
+   },
+   {
+    "name": "Buster Cole Unit",
+    "institutionType": "prison unit",
+    "city": "Bonham",
+    "addressLine1": "3801 Silo Road",
+    "zip": "75418",
+    "mainPhone": "903-583-1100"
+   },
+   {
+    "name": "C. T. Terrell Unit",
+    "institutionType": "prison unit",
+    "city": "Rosharon",
+    "addressLine1": "1300 FM 655",
+    "zip": "77583",
+    "mainPhone": "281-595-3481"
+   },
+   {
+    "name": "Carol S. Vance Unit",
+    "institutionType": "prison unit",
+    "city": "Richmond",
+    "addressLine1": "2 Jester Road",
+    "zip": "77406",
+    "mainPhone": "281-277-3030"
+   },
+   {
+    "name": "Carole S. Young Medical Facility",
+    "institutionType": "medical unit",
+    "city": "Dickinson",
+    "addressLine1": "5509 Attwater Ave",
+    "zip": "77539",
+    "mainPhone": "409-948-0001"
+   },
+   {
+    "name": "Choice Moore Unit",
+    "institutionType": "prison unit",
+    "city": "Bonham",
+    "addressLine1": "1700 North FM 87",
+    "zip": "75418",
+    "mainPhone": "903-583-4464"
+   },
+   {
+    "name": "Christina Melton Crain Unit",
+    "institutionType": "prison unit",
+    "city": "Gatesville",
+    "addressLine1": "1401 State School Road",
+    "zip": "76599",
+    "mainPhone": "254-865-8431"
+   },
+   {
+    "name": "Clarence N. Stevenson Unit",
+    "institutionType": "prison unit",
+    "city": "Cuero",
+    "addressLine1": "1525 FM 766",
+    "zip": "77954",
+    "mainPhone": "361-275-2075"
+   },
+   {
+    "name": "Clyde M. Johnston Unit",
+    "institutionType": "substance abuse felony punishment facility",
+    "city": "Winnsboro",
+    "addressLine1": "703 Airport Road",
+    "zip": "75494",
+    "mainPhone": "903-342-6166"
+   },
+   {
+    "name": "Cotulla Unit",
+    "institutionType": "prison unit",
+    "city": "Cotulla",
+    "addressLine1": "610 FM 624",
+    "zip": "78014",
+    "mainPhone": "830-879-3077"
+   },
+   {
+    "name": "Dalhart Unit",
+    "institutionType": "prison unit",
+    "city": "Dalhart",
+    "addressLine1": "11950 FM 998",
+    "zip": "79022",
+    "mainPhone": "806-249-8432"
+   },
+   {
+    "name": "Daniel Webster Wallace Unit",
+    "institutionType": "prison unit",
+    "city": "Colorado City",
+    "addressLine1": "1675 South FM 3525",
+    "zip": "79512",
+    "mainPhone": "325-728-2162"
+   },
+   {
+    "name": "Dempsie Henley Unit",
+    "institutionType": "prison/intermediate sanction facility",
+    "city": "Dayton",
+    "addressLine1": "7581 Hwy 321",
+    "zip": "77535",
+    "mainPhone": "936-258-2476"
+   },
+   {
+    "name": "Diboll Unit",
+    "institutionType": "pre-release facility",
+    "city": "Diboll",
+    "addressLine1": "1604 South First Street",
+    "zip": "75941",
+    "mainPhone": "936-829-2295"
+   },
+   {
+    "name": "Dolph Briscoe Unit",
+    "institutionType": "prison unit",
+    "city": "Dilley",
+    "addressLine1": "1459 West Highway 85",
+    "zip": "78017",
+    "mainPhone": "830-965-4444"
+   },
+   {
+    "name": "Dr. Lane Murray Unit",
+    "institutionType": "prison unit",
+    "city": "Gatesville",
+    "addressLine1": "1916 North Hwy 36 Bypass",
+    "zip": "76596",
+    "mainPhone": "254-865-2000"
+   },
+   {
+    "name": "East Texas Multi-Use Facility",
+    "institutionType": "privately-operated multi-use facility",
+    "city": "Henderson",
+    "addressLine1": "900 Industrial Drive",
+    "zip": "75652",
+    "mainPhone": "903-655-3300"
+   },
+   {
+    "name": "Ellen Halbert Unit",
+    "institutionType": "substance abuse felony punishment facility",
+    "city": "Burnet",
+    "addressLine1": "800 Ellen Halbert Drive",
+    "zip": "78611",
+    "mainPhone": "512-756-6171"
+   },
+   {
+    "name": "Ernestine Glossbrenner Unit",
+    "institutionType": "substance abuse felony punishment facility",
+    "city": "San Diego",
+    "addressLine1": "5100 South FM 1329",
+    "zip": "78384",
+    "mainPhone": "361-279-2705"
+   },
+   {
+    "name": "Fabian Dale Dominguez Unit",
+    "institutionType": "prison unit",
+    "city": "San Antonio",
+    "addressLine1": "6535 Cagnon Road",
+    "zip": "78252",
+    "mainPhone": "210-675-6620"
+   },
+   {
+    "name": "Formby Unit",
+    "institutionType": "prison unit",
+    "city": "Plainview",
+    "addressLine1": "998 County Road AA",
+    "zip": "79072",
+    "mainPhone": "806-296-2448"
+   },
+   {
+    "name": "Fort Stockton Unit",
+    "institutionType": "prison unit",
+    "city": "Fort Stockton",
+    "addressLine1": "1536 IH-10 East",
+    "zip": "79735",
+    "mainPhone": "432-336-7676"
+   },
+   {
+    "name": "French Robertson Unit",
+    "institutionType": "prison unit",
+    "city": "Abilene",
+    "addressLine1": "12071 FM 3522",
+    "zip": "79601",
+    "mainPhone": "325-548-9035"
+   },
+   {
+    "name": "Garza East Unit",
+    "institutionType": "prison unit",
+    "city": "Beeville",
+    "addressLine1": "4304 Highway 202",
+    "zip": "78102",
+    "mainPhone": "361-358-9880"
+   },
+   {
+    "name": "Garza West Unit",
+    "institutionType": "prison unit",
+    "city": "Beeville",
+    "addressLine1": "4250 Highway 202",
+    "zip": "78102",
+    "mainPhone": "361-358-9890"
+   },
+   {
+    "name": "George Beto Unit",
+    "institutionType": "prison unit",
+    "city": "Tennessee Colony",
+    "addressLine1": "1391 FM 3328",
+    "zip": "75880",
+    "mainPhone": "903-928-2217"
+   },
+   {
+    "name": "Gib Lewis Unit",
+    "institutionType": "prison unit",
+    "city": "Woodville",
+    "addressLine1": "777 FM 3497",
+    "zip": "75990",
+    "mainPhone": "409-283-8181"
+   },
+   {
+    "name": "Giles W. Dalby Unit",
+    "institutionType": "prison unit",
+    "city": "Post",
+    "addressLine1": "805 N Avenue F",
+    "zip": "79356",
+    "mainPhone": "806-990-2175"
+   },
+   {
+    "name": "Glen Ray Goodman Unit",
+    "institutionType": "prison/intermediate sanction facility",
+    "city": "Jasper",
+    "addressLine1": "349 Private Road 8430",
+    "zip": "75951",
+    "mainPhone": "409-383-0012"
+   },
+   {
+    "name": "Gregory S. Coleman Unit",
+    "institutionType": "prison unit",
+    "city": "Lockhart",
+    "addressLine1": "1400 Industrial Blvd",
+    "zip": "78644",
+    "mainPhone": "512-398-3480"
+   },
+   {
+    "name": "H. H. Coffield Unit",
+    "institutionType": "prison unit",
+    "city": "Tennessee Colony",
+    "addressLine1": "2661 FM 2054",
+    "zip": "75884",
+    "mainPhone": "903-928-2211"
+   },
+   {
+    "name": "Hilltop Unit",
+    "institutionType": "prison unit",
+    "city": "Gatesville",
+    "addressLine1": "1500 State School Road",
+    "zip": "76598",
+    "mainPhone": "254-865-8901"
+   },
+   {
+    "name": "Hospital Galveston",
+    "institutionType": "medical unit",
+    "city": "Galveston",
+    "addressLine1": "P.O. Box 48, Substation #1",
+    "zip": "77555",
+    "mainPhone": "409-772-2875"
+   },
+   {
+    "name": "Huntsville Unit",
+    "institutionType": "prison unit",
+    "city": "Huntsville",
+    "addressLine1": "815 12th Street",
+    "zip": "77348",
+    "mainPhone": "936-437-1555"
+   },
+   {
+    "name": "Hutchins Unit",
+    "institutionType": "prison unit",
+    "city": "Dallas",
+    "addressLine1": "1500 East Langdon Road",
+    "zip": "75241",
+    "mainPhone": "972-225-1304"
+   },
+   {
+    "name": "J. Dale Wainwright Unit",
+    "institutionType": "prison unit",
+    "city": "Lovelady",
+    "addressLine1": "2665 Jovian Motley Boulevard",
+    "zip": "75851",
+    "mainPhone": "936-636-7321"
+   },
+   {
+    "name": "J. W. Hamilton Unit",
+    "institutionType": "pre-release facility",
+    "city": "Bryan",
+    "addressLine1": "200 Lee Morrison Lane",
+    "zip": "77807",
+    "mainPhone": "979-779-1633"
+   },
+   {
+    "name": "J.B. Wheeler Unit",
+    "institutionType": "prison unit",
+    "city": "Plainview",
+    "addressLine1": "986 County Road AA",
+    "zip": "79072",
+    "mainPhone": "806-293-1081"
+   },
+   {
+    "name": "James \"Jay\" H. Byrd Unit",
+    "institutionType": "prison unit",
+    "city": "Huntsville",
+    "addressLine1": "21 FM 247",
+    "zip": "77320",
+    "mainPhone": "936-295-5768"
+   },
+   {
+    "name": "James Bradshaw Unit",
+    "institutionType": "prison/intermediate sanction facility",
+    "city": "Henderson",
+    "addressLine1": "3900 West Loop 571",
+    "zip": "75652",
+    "mainPhone": "903-655-0880"
+   },
+   {
+    "name": "James Lynaugh Unit",
+    "institutionType": "prison unit",
+    "city": "Fort Stockton",
+    "addressLine1": "1098 South Highway 2037",
+    "zip": "79735",
+    "mainPhone": "432-395-2938"
+   },
+   {
+    "name": "James V. Allred Unit",
+    "institutionType": "prison unit",
+    "city": "Iowa Park",
+    "addressLine1": "2101 FM 369 North",
+    "zip": "76367",
+    "mainPhone": "940-855-7477"
+   },
+   {
+    "name": "Jerry H. Hodge Unit",
+    "institutionType": "developmental disabilities program facility",
+    "city": "Rusk",
+    "addressLine1": "379 FM 2972 West",
+    "zip": "75785",
+    "mainPhone": "903-683-5781"
+   },
+   {
+    "name": "Jim Ferguson Unit",
+    "institutionType": "prison unit",
+    "city": "Midway",
+    "addressLine1": "12120 Savage Drive",
+    "zip": "75852",
+    "mainPhone": "936-348-3751"
+   },
+   {
+    "name": "Joe F. Gurney Transfer Facility",
+    "institutionType": "prison unit",
+    "city": "Palestine",
+    "addressLine1": "1385 FM 3328",
+    "zip": "75803",
+    "mainPhone": "903-928-3118"
+   },
+   {
+    "name": "Joe Kegans Intermediate Sanction Facility",
+    "institutionType": "intermediate sanction facility",
+    "city": "Houston",
+    "addressLine1": "707 Top Street",
+    "zip": "77002",
+    "mainPhone": "713-224-6584"
+   },
+   {
+    "name": "Joe Ney Unit",
+    "institutionType": "prison unit",
+    "city": "Hondo",
+    "addressLine1": "114 Private Road 4303",
+    "zip": "78861",
+    "mainPhone": "830-426-8030"
+   },
+   {
+    "name": "John B. Connally Unit",
+    "institutionType": "prison unit",
+    "city": "Kenedy",
+    "addressLine1": "899 FM 632",
+    "zip": "78119",
+    "mainPhone": "830-583-4003"
+   },
+   {
+    "name": "John M. Wynne Unit",
+    "institutionType": "prison unit",
+    "city": "Huntsville",
+    "addressLine1": "810 FM 2821",
+    "zip": "77349",
+    "mainPhone": "936-295-9126"
+   },
+   {
+    "name": "John Middleton Unit",
+    "institutionType": "prison unit",
+    "city": "Abilene",
+    "addressLine1": "13055 FM 3522",
+    "zip": "79601",
+    "mainPhone": "325-548-9075"
+   },
+   {
+    "name": "John Montford Unit",
+    "institutionType": "prison unit",
+    "city": "Lubbock",
+    "addressLine1": "8602 Peach Street",
+    "zip": "79404",
+    "mainPhone": "806-745-1021"
+   },
+   {
+    "name": "John R. Lindsey Unit",
+    "institutionType": "prison unit",
+    "city": "Jacksboro",
+    "addressLine1": "1620 FM 3344",
+    "zip": "76458",
+    "mainPhone": "940-567-2272"
+   },
+   {
+    "name": "Kyle Unit",
+    "institutionType": "prison unit",
+    "city": "Kyle",
+    "addressLine1": "23001 IH-35",
+    "zip": "78640",
+    "mainPhone": "512-268-0079"
+   },
+   {
+    "name": "L.V. Hightower Unit",
+    "institutionType": "prison unit",
+    "city": "Dayton",
+    "addressLine1": "902 FM 686",
+    "zip": "77535",
+    "mainPhone": "936-258-8013"
+   },
+   {
+    "name": "Larry Gist Unit",
+    "institutionType": "prison unit",
+    "city": "Beaumont",
+    "addressLine1": "3295 FM 3514",
+    "zip": "77705",
+    "mainPhone": "409-727-8400"
+   },
+   {
+    "name": "Linda Woodman Unit",
+    "institutionType": "prison unit",
+    "city": "Gatesville",
+    "addressLine1": "1210 Coryell City Road",
+    "zip": "76528",
+    "mainPhone": "254-865-9398"
+   },
+   {
+    "name": "Louis C. Powledge Unit",
+    "institutionType": "prison unit",
+    "city": "Palestine",
+    "addressLine1": "1400 FM 3452",
+    "zip": "75803",
+    "mainPhone": "903-723-5074"
+   },
+   {
+    "name": "Lucile Plane Unit",
+    "institutionType": "prison unit",
+    "city": "Dayton",
+    "addressLine1": "904 FM 686",
+    "zip": "77535",
+    "mainPhone": "936-258-2476"
+   },
+   {
+    "name": "Manuel A. Segovia Unit",
+    "institutionType": "pre-release facility",
+    "city": "Edinburg",
+    "addressLine1": "1201 E. El Cibolo Road",
+    "zip": "78542",
+    "mainPhone": "956-316-2400"
+   },
+   {
+    "name": "Mark W. Michael Unit",
+    "institutionType": "prison unit",
+    "city": "Tennessee Colony",
+    "addressLine1": "2664 FM 2054",
+    "zip": "75886",
+    "mainPhone": "903-928-2311"
+   },
+   {
+    "name": "Mark W. Stiles Unit",
+    "institutionType": "prison unit",
+    "city": "Beaumont",
+    "addressLine1": "3060 FM 3514",
+    "zip": "77705",
+    "mainPhone": "409-722-5255"
+   },
+   {
+    "name": "Marlin Unit",
+    "institutionType": "prison unit",
+    "city": "Marlin",
+    "addressLine1": "2893 State Hwy 6",
+    "zip": "76661",
+    "mainPhone": "254-883-3858"
+   },
+   {
+    "name": "Memorial Unit",
+    "institutionType": "prison unit",
+    "city": "Rosharon",
+    "addressLine1": "59 Darrington Road",
+    "zip": "77583",
+    "mainPhone": "281-595-3465"
+   },
+   {
+    "name": "O. L. Luther Unit",
+    "institutionType": "prison unit",
+    "city": "Navasota",
+    "addressLine1": "1800 Luther Drive",
+    "zip": "77868",
+    "mainPhone": "936-825-7547"
+   },
+   {
+    "name": "O.B. Ellis Unit",
+    "institutionType": "prison unit",
+    "city": "Huntsville",
+    "addressLine1": "1697 FM 980",
+    "zip": "77343",
+    "mainPhone": "936-295-5756"
+   },
+   {
+    "name": "Oliver J. Bell Unit",
+    "institutionType": "pre-release facility",
+    "city": "Cleveland",
+    "addressLine1": "901 East Fifth Street",
+    "zip": "77327",
+    "mainPhone": "281-592-9559"
+   },
+   {
+    "name": "Pam Lychner Unit",
+    "institutionType": "prison unit",
+    "city": "Humble",
+    "addressLine1": "2350 Atascocita Road",
+    "zip": "77396",
+    "mainPhone": "281-454-5036"
+   },
+   {
+    "name": "Patrick L. O'Daniel Unit",
+    "institutionType": "prison unit",
+    "city": "Gatesville",
+    "addressLine1": "2305 Ransom Road",
+    "zip": "76528",
+    "mainPhone": "254-865-7226"
+   },
+   {
+    "name": "Preston E. Smith Unit",
+    "institutionType": "prison unit",
+    "city": "Lamesa",
+    "addressLine1": "1313 CR 19",
+    "zip": "79331",
+    "mainPhone": "806-872-6741"
+   },
+   {
+    "name": "Price Daniel Unit",
+    "institutionType": "prison unit",
+    "city": "Snyder",
+    "addressLine1": "938 South FM 1673",
+    "zip": "79549",
+    "mainPhone": "325-573-1114"
+   },
+   {
+    "name": "Reverend C.A. Holliday Unit",
+    "institutionType": "prison unit",
+    "city": "Huntsville",
+    "addressLine1": "295 IH-45 North",
+    "zip": "77320",
+    "mainPhone": "936-295-8200"
+   },
+   {
+    "name": "Reynaldo V. Lopez Unit",
+    "institutionType": "prison unit",
+    "city": "Edinburg",
+    "addressLine1": "1203 El Cibolo Road",
+    "zip": "78542",
+    "mainPhone": "956-316-3810"
+   },
+   {
+    "name": "Richard P. LeBlanc Unit",
+    "institutionType": "pre-release facility",
+    "city": "Beaumont",
+    "addressLine1": "3695 FM 3514",
+    "zip": "77705",
+    "mainPhone": "409-724-1515"
+   },
+   {
+    "name": "Rogelio Sanchez Unit",
+    "institutionType": "prison unit",
+    "city": "El Paso",
+    "addressLine1": "3901 State Jail Road",
+    "zip": "79938",
+    "mainPhone": "915-856-0046"
+   },
+   {
+    "name": "Ruben M. Torres Unit",
+    "institutionType": "prison unit",
+    "city": "Hondo",
+    "addressLine1": "125 Private Road 4303",
+    "zip": "78861",
+    "mainPhone": "830-426-5325"
+   },
+   {
+    "name": "Rufe Jordan Unit",
+    "institutionType": "prison unit",
+    "city": "Pampa",
+    "addressLine1": "1992 Helton Road",
+    "zip": "79065",
+    "mainPhone": "806-665-7070"
+   },
+   {
+    "name": "Rufus H. Duncan Geriatric Facility",
+    "institutionType": "geriatric facility",
+    "city": "Diboll",
+    "addressLine1": "1502 South First Street",
+    "zip": "75941",
+    "mainPhone": "936-829-2616"
+   },
+   {
+    "name": "San Saba Unit",
+    "institutionType": "prison unit",
+    "city": "San Saba",
+    "addressLine1": "206 South Wallace Creek Road",
+    "zip": "76877",
+    "mainPhone": "325-372-4255"
+   },
+   {
+    "name": "Sanders \"Sandy\" Estes Unit",
+    "institutionType": "pre-release facility",
+    "city": "Venus",
+    "addressLine1": "1100 Hwy 1807",
+    "zip": "76084",
+    "mainPhone": "972-366-3334"
+   },
+   {
+    "name": "Skyview Unit",
+    "institutionType": "prison unit",
+    "city": "Rusk",
+    "addressLine1": "379 FM 2972 West",
+    "zip": "75785",
+    "mainPhone": "903-683-5781"
+   },
+   {
+    "name": "T. L. Roach Unit",
+    "institutionType": "prison unit",
+    "city": "Childress",
+    "addressLine1": "15845 FM 164",
+    "zip": "79201",
+    "mainPhone": "940-937-6364"
+   },
+   {
+    "name": "Thomas Goree Unit",
+    "institutionType": "prison unit",
+    "city": "Huntsville",
+    "addressLine1": "7405 Hwy 75 South",
+    "zip": "77344",
+    "mainPhone": "936-295-6331"
+   },
+   {
+    "name": "Thomas R. Havins Unit",
+    "institutionType": "pre-release facility",
+    "city": "Brownwood",
+    "addressLine1": "500 FM 45 East",
+    "zip": "76801",
+    "mainPhone": "325-643-5575"
+   },
+   {
+    "name": "Thomas R. Mechler Unit",
+    "institutionType": "prison unit",
+    "city": "Tulia",
+    "addressLine1": "4000 Highway 86 West",
+    "zip": "79088",
+    "mainPhone": "806-995-4109"
+   },
+   {
+    "name": "Travis Unit",
+    "institutionType": "prison unit",
+    "city": "Austin",
+    "addressLine1": "8101 FM 969",
+    "zip": "78724",
+    "mainPhone": "512-926-4482"
+   },
+   {
+    "name": "W. F. Ramsey Unit",
+    "institutionType": "prison unit",
+    "city": "Rosharon",
+    "addressLine1": "1100 FM 655",
+    "zip": "77583",
+    "mainPhone": "281-595-3491"
+   },
+   {
+    "name": "W. J. \"Jim\" Estelle Unit",
+    "institutionType": "prison unit",
+    "city": "Huntsville",
+    "addressLine1": "264 FM 3478",
+    "zip": "77320",
+    "mainPhone": "936-291-4200"
+   },
+   {
+    "name": "Walker Sayle Unit",
+    "institutionType": "substance abuse felony punishment facility",
+    "city": "Breckenridge",
+    "addressLine1": "4176 FM 1800",
+    "zip": "76424",
+    "mainPhone": "254-559-1581"
+   },
+   {
+    "name": "Wallace Pack Unit",
+    "institutionType": "prison unit",
+    "city": "Navasota",
+    "addressLine1": "2400 Wallace Pack Road",
+    "zip": "77868",
+    "mainPhone": "936-825-3728"
+   },
+   {
+    "name": "Wayne Scott Unit",
+    "institutionType": "prison unit",
+    "city": "Richmond",
+    "addressLine1": "4 Jester Road",
+    "zip": "77406",
+    "mainPhone": "281-277-3700"
+   },
+   {
+    "name": "Willacy Unit",
+    "institutionType": "prison unit",
+    "city": "Raymondville",
+    "addressLine1": "1695 South Buffalo Drive",
+    "zip": "78580",
+    "mainPhone": "956-689-4806"
+   },
+   {
+    "name": "William C. Clemens Unit",
+    "institutionType": "prison unit",
+    "city": "Brazoria",
+    "addressLine1": "11034 Hwy 36",
+    "zip": "77422",
+    "mainPhone": "979-798-2188"
+   },
+   {
+    "name": "William G. McConnell Unit",
+    "institutionType": "prison unit",
+    "city": "Beeville",
+    "addressLine1": "3001 South Emily Drive",
+    "zip": "78102",
+    "mainPhone": "361-362-2300"
+   },
+   {
+    "name": "William P. Clements Unit",
+    "institutionType": "prison unit",
+    "city": "Amarillo",
+    "addressLine1": "9601 Spur 591",
+    "zip": "79107",
+    "mainPhone": "806-381-7080"
+   },
+   {
+    "name": "William P. Hobby Unit",
+    "institutionType": "prison unit",
+    "city": "Marlin",
+    "addressLine1": "742 FM 712",
+    "zip": "76661",
+    "mainPhone": "254-883-5561"
+   },
+   {
+    "name": "William R. Boyd Unit",
+    "institutionType": "prison unit",
+    "city": "Teague",
+    "addressLine1": "200 Spur 113",
+    "zip": "75860",
+    "mainPhone": "254-739-5555"
+   }
+  ]
+ }
+]
