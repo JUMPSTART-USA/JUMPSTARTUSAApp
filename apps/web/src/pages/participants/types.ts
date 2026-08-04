@@ -79,6 +79,16 @@ export interface DocIdRow {
   dataSharingAgreementId: string | null;
 }
 
+export interface InsideLocationRow {
+  id: string;
+  institutionId: string;
+  status: string;
+  startDate: string | null;
+  endDate: string | null;
+  notes: string | null;
+  institution: { id: string; name: string; state: string };
+}
+
 /** Justice field class (§7.2): whole rows are absent without fields.justice.read. */
 export interface OffenseRow {
   id: string;
@@ -138,6 +148,7 @@ export interface ParticipantDetail {
   docIds: DocIdRow[];
   /** Justice field class (§7.2): absent without fields.justice.read. */
   offenses?: OffenseRow[];
+  insideLocations: InsideLocationRow[];
   assignedCaseManager: UserName | null;
 }
 

@@ -13,6 +13,7 @@ import type {
   OutsideStatus,
   ParticipantCreateInput,
   ParticipantUpdateInput,
+  ReleaseInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess } from '../../common/chapter.util';
@@ -302,6 +303,11 @@ export class ParticipantsService {
           where: { deletedAt: null },
           orderBy: [{ convictionDate: 'desc' }, { createdAt: 'desc' }],
         },
+        insideLocations: {
+          where: { deletedAt: null },
+          include: { institution: { select: { id: true, name: true, state: true } } },
+          orderBy: [{ status: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
+        },
         assignedCaseManager: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
@@ -394,6 +400,51 @@ export class ParticipantsService {
       include: { person: true },
     });
     await this.audit.logUpdate(userId, 'participant_profile', id, existing, updated);
+    return updated;
+  }
+
+  /**
+   * Records release from custody (§6.1): inside status → released with the
+   * release date, the transition appended to status history (§4.1.6), and any
+   * active inside location closed as of the release date.
+   */
+  async release(id: string, input: ReleaseInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.prisma.participantProfile.findFirst({
+      where: { id, deletedAt: null },
+      include: { person: { select: { state: true } } },
+    });
+    if (!existing) throw new NotFoundException('Participant not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
+    assertChapterAccess(user.chapter, existing.person.state);
+    if (existing.insideStatus === 'released') {
+      throw new ConflictException('Participant is already recorded as released');
+    }
+
+    const releaseDate = input.releaseDate;
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.participantProfile.update({
+        where: { id },
+        data: { insideStatus: 'released', releaseDate, updatedById: userId },
+      }),
+      this.prisma.participantStatusHistory.create({
+        data: {
+          participantProfileId: id,
+          domain: 'inside_status',
+          fromValue: existing.insideStatus,
+          toValue: 'released',
+          effectiveDate: releaseDate,
+          reason: input.reason ?? 'Released from custody',
+          changedById: userId,
+        },
+      }),
+      this.prisma.participantInsideLocation.updateMany({
+        where: { participantProfileId: id, status: 'active', deletedAt: null },
+        data: { status: 'inactive', endDate: releaseDate, updatedById: userId },
+      }),
+    ]);
+    const { person: _person, ...profileOnly } = existing;
+    await this.audit.logUpdate(userId, 'participant_profile', id, profileOnly, updated);
     return updated;
   }
 

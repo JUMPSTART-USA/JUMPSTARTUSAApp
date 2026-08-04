@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@jumpstart/database';
 import type {
   ParticipantDocIdInput,
+  ParticipantInsideLocationInput,
   ParticipantOffenseInput,
   PersonAddressInput,
   PersonContactInput,
@@ -259,6 +260,130 @@ export class ParticipantSubresourcesService {
       select: { id: true },
     });
     if (!agreement) throw new BadRequestException('Data-sharing agreement does not exist');
+  }
+
+  // ── Inside locations (current + past institutions — §6.1) ─────────────────
+
+  private static readonly LOCATION_INCLUDE = {
+    institution: { select: { id: true, name: true, state: true } },
+  } as const;
+
+  async listInsideLocations(participantId: string) {
+    await this.personIdFor(participantId);
+    return this.prisma.participantInsideLocation.findMany({
+      where: { participantProfileId: participantId, deletedAt: null },
+      include: ParticipantSubresourcesService.LOCATION_INCLUDE,
+      orderBy: [{ status: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async createInsideLocation(
+    participantId: string,
+    input: ParticipantInsideLocationInput,
+    userId: string,
+  ) {
+    await this.personIdFor(participantId);
+    await this.assertInstitutionExists(input.institutionId);
+    const location = await this.prisma.$transaction(async (tx) => {
+      if (input.status === 'active') {
+        await this.closeActiveLocations(tx, participantId, input.startDate ?? new Date(), userId);
+      }
+      return tx.participantInsideLocation.create({
+        data: {
+          ...this.locationData(input),
+          participantProfileId: participantId,
+          createdById: userId,
+          updatedById: userId,
+        },
+        include: ParticipantSubresourcesService.LOCATION_INCLUDE,
+      });
+    });
+    await this.audit.logCreate(userId, 'participant_inside_location', location.id, location);
+    return location;
+  }
+
+  async updateInsideLocation(
+    participantId: string,
+    locationId: string,
+    input: ParticipantInsideLocationInput,
+    userId: string,
+  ) {
+    await this.personIdFor(participantId);
+    await this.assertInstitutionExists(input.institutionId);
+    const existing = await this.prisma.participantInsideLocation.findFirst({
+      where: { id: locationId, participantProfileId: participantId, deletedAt: null },
+    });
+    if (!existing) throw new NotFoundException('Inside location not found');
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (input.status === 'active') {
+        await this.closeActiveLocations(
+          tx,
+          participantId,
+          input.startDate ?? new Date(),
+          userId,
+          locationId,
+        );
+      }
+      return tx.participantInsideLocation.update({
+        where: { id: locationId },
+        data: { ...this.locationData(input), updatedById: userId },
+        include: ParticipantSubresourcesService.LOCATION_INCLUDE,
+      });
+    });
+    await this.audit.logUpdate(userId, 'participant_inside_location', locationId, existing, updated);
+    return updated;
+  }
+
+  async deleteInsideLocation(participantId: string, locationId: string, userId: string) {
+    await this.personIdFor(participantId);
+    const existing = await this.prisma.participantInsideLocation.findFirst({
+      where: { id: locationId, participantProfileId: participantId, deletedAt: null },
+    });
+    if (!existing) throw new NotFoundException('Inside location not found');
+    await this.prisma.participantInsideLocation.update({
+      where: { id: locationId },
+      data: { deletedAt: new Date(), updatedById: userId },
+    });
+    await this.audit.logDelete(userId, 'participant_inside_location', locationId, existing);
+    return { ok: true };
+  }
+
+  /** One active location per participant: close the others when one goes active. */
+  private closeActiveLocations(
+    tx: Prisma.TransactionClient,
+    participantId: string,
+    endDate: Date,
+    userId: string,
+    excludeId?: string,
+  ) {
+    return tx.participantInsideLocation.updateMany({
+      where: {
+        participantProfileId: participantId,
+        status: 'active',
+        deletedAt: null,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      data: { status: 'inactive', endDate, updatedById: userId },
+    });
+  }
+
+  /** Whole-record replacement: omitted optionals clear to null. */
+  private locationData(input: ParticipantInsideLocationInput) {
+    return {
+      institutionId: input.institutionId,
+      status: input.status,
+      startDate: input.startDate ?? null,
+      endDate: input.endDate ?? null,
+      notes: input.notes ?? null,
+    };
+  }
+
+  private async assertInstitutionExists(institutionId: string) {
+    const institution = await this.prisma.institution.findFirst({
+      where: { id: institutionId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!institution) throw new BadRequestException('Institution does not exist');
   }
 
   // ── Most serious offenses (§7.2 justice field class, like DOC IDs) ────────

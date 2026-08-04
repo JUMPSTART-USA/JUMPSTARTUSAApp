@@ -13,6 +13,7 @@ const PAIRS: Array<[string, readonly string[], Record<string, string>]> = [
   ['OutsideStatus', shared.OUTSIDE_STATUSES, prisma.OutsideStatus],
   ['AlumniStatus', shared.ALUMNI_STATUSES, prisma.AlumniStatus],
   ['OffenseType', shared.OFFENSE_TYPES, prisma.OffenseType],
+  ['InsideLocationStatus', shared.INSIDE_LOCATION_STATUSES, prisma.InsideLocationStatus],
   ['EnrollmentStatus', shared.ENROLLMENT_STATUSES, prisma.EnrollmentStatus],
   ['HousingStatus', shared.HOUSING_STATUSES, prisma.HousingStatus],
   ['FinalAssessment', shared.FINAL_ASSESSMENTS, prisma.FinalAssessment],

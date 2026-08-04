@@ -611,6 +611,7 @@ model ParticipantProfile {
 
   docIds              ParticipantDocId[]
   offenses            ParticipantOffense[]
+  insideLocations     ParticipantInsideLocation[]
   statusHistory       ParticipantStatusHistory[]
   insideEnrollments   InsideClassEnrollment[]
   outsideEnrollments  OutsideProgramEnrollment[]
@@ -671,6 +672,36 @@ model ParticipantDocId {
 enum OffenseType {
   violent
   non_violent
+}
+
+enum InsideLocationStatus {
+  active
+  inactive
+}
+
+// Where a participant is (or was) incarcerated (§6.1). One active row per
+// participant = their current inside location; creating a new active row
+// closes the previous one — history is preserved, never overwritten.
+model ParticipantInsideLocation {
+  id                   String               @id @default(uuid())
+  participantProfileId String
+  participantProfile   ParticipantProfile   @relation(fields: [participantProfileId], references: [id])
+  institutionId        String
+  institution          Institution          @relation(fields: [institutionId], references: [id])
+  status               InsideLocationStatus @default(active)
+  startDate            DateTime?            @db.Date
+  endDate              DateTime?            @db.Date
+  notes                String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([participantProfileId, status])
+  @@index([institutionId])
+  @@map("participant_inside_locations")
 }
 
 // Most serious offenses (§7.2 justice field class): the whole record is
@@ -938,6 +969,7 @@ model Institution {
   insideClasses         InsideClass[]
   volunteerAssignments  VolunteerAssignment[]
   clearanceRequirements FacilityClearanceRequirement[]
+  participantLocations  ParticipantInsideLocation[]
 
   @@index([state])
   @@index([active])

@@ -23,10 +23,12 @@ import {
   ConsentDialog,
   ContactDialog,
   DocIdDialog,
+  InsideLocationDialog,
   OffenseDialog,
 } from './subresource-dialogs';
 import type {
   DocIdRow,
+  InsideLocationRow,
   OffenseRow,
   ParticipantDetail,
   PersonAddressRow,
@@ -45,6 +47,7 @@ type DialogState =
   | { kind: 'contact'; row: PersonContactRow | null }
   | { kind: 'address'; row: PersonAddressRow | null }
   | { kind: 'docId'; row: DocIdRow | null }
+  | { kind: 'insideLocation'; row: InsideLocationRow | null }
   | { kind: 'offense'; row: OffenseRow | null }
   | { kind: 'consent'; row: TestimonyConsentRow | null }
   | null;
@@ -66,6 +69,7 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
   const [dialog, setDialog] = useState<DialogState>(null);
   const [deleteTarget, setDeleteTarget] = useState<PersonContactRow | null>(null);
   const [deleteOffenseTarget, setDeleteOffenseTarget] = useState<OffenseRow | null>(null);
+  const [deleteLocationTarget, setDeleteLocationTarget] = useState<InsideLocationRow | null>(null);
   const person = participant.person;
 
   const historyQuery = useQuery({
@@ -83,6 +87,13 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
   const deleteOffense = useMutation({
     mutationFn: (offenseId: string) =>
       api.delete(`/participants/${participant.id}/offenses/${offenseId}`),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ['participants', participant.id] }),
+  });
+
+  const deleteLocation = useMutation({
+    mutationFn: (locationId: string) =>
+      api.delete(`/participants/${participant.id}/inside-locations/${locationId}`),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ['participants', participant.id] }),
   });
@@ -337,6 +348,64 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
       </Card>
 
       <Card>
+        <CardHeaderRow title="Inside locations">
+          {addButton('Add location', () => setDialog({ kind: 'insideLocation', row: null }))}
+        </CardHeaderRow>
+        <CardContent>
+          {participant.insideLocations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No inside locations recorded.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Institution</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Arrived</TableHead>
+                  <TableHead>Left</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {participant.insideLocations.map((l) => (
+                  <TableRow key={l.id}>
+                    <TableCell>
+                      {l.institution.name}{' '}
+                      <span className="text-xs text-muted-foreground">({l.institution.state})</span>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={l.status} />
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(l.startDate)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(l.endDate)}</TableCell>
+                    <TableCell className="text-right">
+                      <span className="inline-flex">
+                        {editButton(() => setDialog({ kind: 'insideLocation', row: l }))}
+                        {canEdit ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive"
+                            disabled={deleteLocation.isPending}
+                            onClick={() => {
+                              deleteLocation.reset();
+                              setDeleteLocationTarget(l);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span className="sr-only">Delete</span>
+                          </Button>
+                        ) : null}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeaderRow title="DOC IDs">
           {addButton('Add DOC ID', () => setDialog({ kind: 'docId', row: null }))}
         </CardHeaderRow>
@@ -508,6 +577,12 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
         open={dialog?.kind === 'docId'}
         onOpenChange={(o) => !o && setDialog(null)}
       />
+      <InsideLocationDialog
+        participantId={participant.id}
+        existing={dialog?.kind === 'insideLocation' ? dialog.row : null}
+        open={dialog?.kind === 'insideLocation'}
+        onOpenChange={(o) => !o && setDialog(null)}
+      />
       <OffenseDialog
         participantId={participant.id}
         existing={dialog?.kind === 'offense' ? dialog.row : null}
@@ -519,6 +594,26 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
         existing={dialog?.kind === 'consent' ? dialog.row : null}
         open={dialog?.kind === 'consent'}
         onOpenChange={(o) => !o && setDialog(null)}
+      />
+      <ConfirmDialog
+        open={deleteLocationTarget !== null}
+        onOpenChange={(o) => !o && setDeleteLocationTarget(null)}
+        title="Remove inside location"
+        description={
+          deleteLocationTarget
+            ? `Remove the location record for "${deleteLocationTarget.institution.name}"?`
+            : undefined
+        }
+        confirmLabel="Delete"
+        isPending={deleteLocation.isPending}
+        error={deleteLocation.error ? deleteLocation.error.message : null}
+        onConfirm={() => {
+          if (deleteLocationTarget) {
+            deleteLocation.mutate(deleteLocationTarget.id, {
+              onSuccess: () => setDeleteLocationTarget(null),
+            });
+          }
+        }}
       />
       <ConfirmDialog
         open={deleteOffenseTarget !== null}

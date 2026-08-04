@@ -21,20 +21,24 @@ import {
   optionalPhone,
   participantCreateSchema,
   participantDocIdSchema,
+  participantInsideLocationSchema,
   participantOffenseSchema,
   participantUpdateSchema,
   personAddressSchema,
   personContactSchema,
+  releaseSchema,
   requiredTrimmed,
   testimonyConsentSchema,
   type GraduationInput,
   type ListQuery,
   type ParticipantCreateInput,
   type ParticipantDocIdInput,
+  type ParticipantInsideLocationInput,
   type ParticipantOffenseInput,
   type ParticipantUpdateInput,
   type PersonAddressInput,
   type PersonContactInput,
+  type ReleaseInput,
   type TestimonyConsentInput,
 } from '@jumpstart/shared';
 import { z } from 'zod';
@@ -255,6 +259,56 @@ export class ParticipantsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.subresources.updateDocId(id, docIdId, body, user.id);
+  }
+
+  // ── Inside locations (current + past institutions — §6.1) ─────────────────
+
+  @Get(':id/inside-locations')
+  @RequirePermission('participants.read')
+  listInsideLocations(@Param('id', ParseUUIDPipe) id: string) {
+    return this.subresources.listInsideLocations(id);
+  }
+
+  @Post(':id/inside-locations')
+  @RequirePermission('participants.update')
+  createInsideLocation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(zodBody(participantInsideLocationSchema)) body: ParticipantInsideLocationInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subresources.createInsideLocation(id, body, user.id);
+  }
+
+  @Patch(':id/inside-locations/:locationId')
+  @RequirePermission('participants.update')
+  updateInsideLocation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('locationId', ParseUUIDPipe) locationId: string,
+    @Body(zodBody(participantInsideLocationSchema)) body: ParticipantInsideLocationInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subresources.updateInsideLocation(id, locationId, body, user.id);
+  }
+
+  @Delete(':id/inside-locations/:locationId')
+  @RequirePermission('participants.update')
+  deleteInsideLocation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('locationId', ParseUUIDPipe) locationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subresources.deleteInsideLocation(id, locationId, user.id);
+  }
+
+  /** Records release from custody (§6.1) — see ParticipantsService.release. */
+  @Post(':id/release')
+  @RequirePermission('participants.update')
+  release(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(zodBody(releaseSchema)) body: ReleaseInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.participants.release(id, body, user);
   }
 
   // ── Most serious offenses (§7.2: justice field class gates READ; writes are staff edits) ─

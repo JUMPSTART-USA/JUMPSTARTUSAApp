@@ -1,14 +1,16 @@
 import {
+  INSIDE_LOCATION_STATUSES,
   OFFENSE_TYPE_LABELS,
   OFFENSE_TYPES,
   participantDocIdSchema,
+  participantInsideLocationSchema,
   participantOffenseSchema,
   personAddressSchema,
   personContactSchema,
   testimonyConsentSchema,
   US_STATES,
 } from '@jumpstart/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm, type FieldValues, type UseFormSetError } from 'react-hook-form';
 import { FormField } from '@/components/FormField';
@@ -24,11 +26,12 @@ import {
 import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
 import { FormError, Notice } from '@/components/ui/notice';
 import { PhoneInput } from '@/components/ui/phone-input';
-import { api } from '@/lib/api';
+import { api, qs, type Paged } from '@/lib/api';
 import { applyApiError, formResolver, toDateInput, todayInput } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import type {
   DocIdRow,
+  InsideLocationRow,
   OffenseRow,
   PersonAddressRow,
   PersonContactRow,
@@ -305,6 +308,125 @@ export function AddressDialog({
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <Checkbox {...form.register('isCurrent')} /> Current address
           </label>
+          <FormField label="Notes" error={errors.notes}>
+            <Textarea rows={2} {...form.register('notes')} />
+          </FormField>
+          <FormError message={topError} />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Inside locations (current + past institutions — §6.1) ───────────────────
+
+interface InsideLocationFormValues {
+  institutionId: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  notes: string;
+}
+
+function insideLocationDefaults(existing: InsideLocationRow | null): InsideLocationFormValues {
+  return {
+    institutionId: existing?.institutionId ?? '',
+    status: existing?.status ?? 'active',
+    startDate: toDateInput(existing?.startDate ?? null),
+    endDate: toDateInput(existing?.endDate ?? null),
+    notes: existing?.notes ?? '',
+  };
+}
+
+export function InsideLocationDialog({
+  participantId,
+  existing,
+  open,
+  onOpenChange,
+}: SubresourceDialogProps<InsideLocationRow>) {
+  const [topError, setTopError] = useState<string | null>(null);
+  const institutions = useQuery({
+    queryKey: ['participants', 'institution-options'],
+    queryFn: () =>
+      api.get<Paged<{ id: string; name: string; state: string }>>(
+        `/institutions${qs({ pageSize: 200, sortBy: 'name' })}`,
+      ),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const form = useForm<InsideLocationFormValues>({
+    resolver: formResolver<InsideLocationFormValues>(participantInsideLocationSchema),
+    defaultValues: insideLocationDefaults(existing),
+  });
+  useEffect(() => {
+    if (open) {
+      form.reset(insideLocationDefaults(existing));
+      setTopError(null);
+    }
+  }, [open, existing, form]);
+
+  const save = useSaveMutation(
+    participantId,
+    'inside-locations',
+    existing?.id,
+    form.setError,
+    setTopError,
+    onOpenChange,
+  );
+  const errors = form.formState.errors;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{existing ? 'Edit inside location' : 'Add inside location'}</DialogTitle>
+          <DialogDescription>
+            Institution where the participant is (or was) incarcerated. Marking a location Active
+            automatically closes any other active location.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void form.handleSubmit((raw) => save.mutate(raw as object))();
+          }}
+          className="space-y-4"
+        >
+          <FormField label="Institution" required error={errors.institutionId}>
+            <Select {...form.register('institutionId')}>
+              <option value="">—</option>
+              {(institutions.data?.items ?? []).map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name} ({i.state})
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <FormField label="Status" required error={errors.status}>
+              <Select {...form.register('status')}>
+                {INSIDE_LOCATION_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {humanize(s)}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Arrived" error={errors.startDate}>
+              <Input type="date" {...form.register('startDate')} />
+            </FormField>
+            <FormField label="Left" error={errors.endDate}>
+              <Input type="date" {...form.register('endDate')} />
+            </FormField>
+          </div>
           <FormField label="Notes" error={errors.notes}>
             <Textarea rows={2} {...form.register('notes')} />
           </FormField>
