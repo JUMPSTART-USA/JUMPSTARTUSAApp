@@ -20,7 +20,7 @@ import { BackLink, backTo } from '@/components/BackLink';
 import { AssignmentDialog, type AssignmentRowLite } from '../volunteers/AssignmentDialog';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { cn, formatDate, humanize } from '@/lib/utils';
+import { cn, formatDate, fullName, humanize } from '@/lib/utils';
 import { InstitutionFormDialog } from './InstitutionFormDialog';
 import type { InstitutionProfile } from './types';
 
@@ -68,7 +68,8 @@ export function InstitutionProfilePage() {
   if (query.isError) return <ErrorState error={query.error} />;
   if (!query.data) return null;
 
-  const { institution, classes, participantsServedCount, volunteerAssignments } = query.data;
+  const { institution, classes, participantsServedCount, volunteerAssignments, currentParticipants } =
+    query.data;
 
   return (
     <div className="space-y-4">
@@ -156,6 +157,56 @@ export function InstitutionProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {currentParticipants !== undefined ? (
+        // Omitted by the API without participants.read — the card hides with it.
+        <Card>
+          <CardHeader>
+            <CardTitle>Currently housed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {currentParticipants.length === 0 ? (
+              <EmptyState title="No participants currently at this institution" />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Participant</TableHead>
+                    <TableHead>Number</TableHead>
+                    <TableHead>Inside status</TableHead>
+                    <TableHead>Arrived</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentParticipants.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      className="cursor-pointer transition-colors hover:bg-muted/60"
+                      onClick={() =>
+                        navigate(
+                          `/participants/${row.participantProfile.id}`,
+                          backTo(`/institutions/${institution.id}`, 'Institution profile'),
+                        )
+                      }
+                    >
+                      <TableCell className="font-medium text-primary">
+                        {fullName(row.participantProfile.person)}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {row.participantProfile.participantNumber}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={row.participantProfile.insideStatus} />
+                      </TableCell>
+                      <TableCell>{formatDate(row.startDate)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

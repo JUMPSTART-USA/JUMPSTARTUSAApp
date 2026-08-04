@@ -55,6 +55,8 @@ const listFiltersSchema = listQuerySchema.extend({
   alumniStatus: z.enum(ALUMNI_STATUSES).optional(),
   state: z.enum(US_STATES).optional(),
   assignedCaseManagerId: z.string().uuid().optional(),
+  /** Filter to participants whose ACTIVE inside location is this institution. */
+  institutionId: z.string().uuid().optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -87,6 +89,7 @@ export class ParticipantsController {
       alumniStatus,
       state: requestedState,
       assignedCaseManagerId,
+      institutionId,
       ...listQuery
     } = query;
     // Chapter scoping (§7.2): scoped users always see their own chapter.
@@ -97,6 +100,7 @@ export class ParticipantsController {
       alumniStatus,
       state,
       assignedCaseManagerId,
+      institutionId,
     });
   }
 

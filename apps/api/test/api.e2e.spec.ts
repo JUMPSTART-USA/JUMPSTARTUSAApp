@@ -398,6 +398,26 @@ describe('inside locations & release (§6.1)', () => {
       expect(closed.status).toBe('inactive');
       expect(closed.endDate).toBeTruthy();
 
+      // The participant list filters by active location and carries it.
+      const filtered = await request(server)
+        .get(`/api/participants?institutionId=${instB.id}&pageSize=100`)
+        .set('Cookie', cookie)
+        .expect(200);
+      const row = filtered.body.items.find((p: { id: string }) => p.id === id);
+      expect(row).toBeTruthy();
+      expect(row.insideLocations[0].institution.id).toBe(instB.id);
+
+      // The institution profile lists them under "currently housed".
+      const roster = await request(server)
+        .get(`/api/institutions/${instB.id}/profile`)
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(
+        roster.body.currentParticipants.some(
+          (r: { participantProfile: { id: string } }) => r.participantProfile.id === id,
+        ),
+      ).toBe(true);
+
       // Release: inside status → released, date stamped, location closed.
       const released = await request(server)
         .post(`/api/participants/${id}/release`)
@@ -412,6 +432,17 @@ describe('inside locations & release (§6.1)', () => {
         .set('Cookie', cookie)
         .expect(200);
       expect(after.body.every((l: { status: string }) => l.status === 'inactive')).toBe(true);
+
+      // Released → off the institution roster.
+      const rosterAfter = await request(server)
+        .get(`/api/institutions/${instB.id}/profile`)
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(
+        rosterAfter.body.currentParticipants.some(
+          (r: { participantProfile: { id: string } }) => r.participantProfile.id === id,
+        ),
+      ).toBe(false);
 
       // Releasing twice conflicts.
       await request(server)

@@ -57,6 +57,16 @@ const columns: Column<ParticipantListItem>[] = [
     render: (row) => statusCell(row.insideStatus),
   },
   {
+    key: 'location',
+    header: 'Location',
+    render: (row) =>
+      row.insideLocations[0] ? (
+        row.insideLocations[0].institution.name
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      ),
+  },
+  {
     key: 'outsideStatus',
     header: 'Outside',
     sortKey: 'outsideStatus',
@@ -96,8 +106,21 @@ export function ParticipantListPage() {
   const [outsideStatus, setOutsideStatus] = useState('');
   const [alumniStatus, setAlumniStatus] = useState('');
   const [state, setState] = useState('');
+  const [institutionId, setInstitutionId] = useState('');
   const [myCaseload, setMyCaseload] = useState(false);
   const debouncedSearch = useDebounced(search);
+
+  // Location filter options: institutions are only listable with the
+  // institutions.read permission — the filter hides without it.
+  const institutionOptions = useQuery({
+    queryKey: ['participants', 'institution-options'],
+    queryFn: () =>
+      api.get<Paged<{ id: string; name: string; state: string }>>(
+        `/institutions${qs({ pageSize: 200, sortBy: 'name' })}`,
+      ),
+    staleTime: 5 * 60 * 1000,
+    enabled: can('institutions.read'),
+  });
 
   // Any filter change resets to page 1 — otherwise the page can outrun the total.
   const filter = (apply: () => void) => {
@@ -115,6 +138,7 @@ export function ParticipantListPage() {
     outsideStatus: outsideStatus || undefined,
     alumniStatus: alumniStatus || undefined,
     state: state || undefined,
+    institutionId: institutionId || undefined,
     assignedCaseManagerId: myCaseload ? user?.id : undefined,
   };
 
@@ -192,6 +216,20 @@ export function ParticipantListPage() {
             </option>
           ))}
         </Select>
+        {can('institutions.read') ? (
+          <Select
+            value={institutionId}
+            onChange={(e) => filter(() => setInstitutionId(e.target.value))}
+            className="w-full sm:w-56"
+          >
+            <option value="">Location: all</option>
+            {(institutionOptions.data?.items ?? []).map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name} ({i.state})
+              </option>
+            ))}
+          </Select>
+        ) : null}
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <Checkbox
             checked={myCaseload}

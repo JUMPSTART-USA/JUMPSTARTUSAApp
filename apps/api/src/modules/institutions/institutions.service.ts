@@ -4,7 +4,7 @@ import type { InstitutionInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
-import type { AuthenticatedUser } from '../../common/types';
+import { hasPerm, type AuthenticatedUser } from '../../common/types';
 
 export interface InstitutionListFilters {
   state?: string;
@@ -93,11 +93,39 @@ export class InstitutionsService {
       }),
     ]);
 
+    // Currently housed (§6.1 inside locations): active location rows here.
+    // Participant names need participants.read — the roster is OMITTED (not
+    // empty) for viewers without it, so the SPA can hide the card entirely.
+    const currentParticipants = hasPerm(user, 'participants.read')
+      ? await this.prisma.participantInsideLocation.findMany({
+          where: {
+            institutionId: id,
+            status: 'active',
+            deletedAt: null,
+            participantProfile: { deletedAt: null },
+          },
+          select: {
+            id: true,
+            startDate: true,
+            participantProfile: {
+              select: {
+                id: true,
+                participantNumber: true,
+                insideStatus: true,
+                person: { select: { firstName: true, lastName: true, preferredName: true } },
+              },
+            },
+          },
+          orderBy: { startDate: 'asc' },
+        })
+      : undefined;
+
     return {
       institution,
       classes,
       participantsServedCount: participantsServed.length,
       volunteerAssignments,
+      ...(currentParticipants !== undefined ? { currentParticipants } : {}),
     };
   }
 

@@ -26,6 +26,8 @@ export interface ParticipantListFilters {
   alumniStatus?: AlumniStatus;
   state?: string;
   assignedCaseManagerId?: string;
+  /** Participants whose ACTIVE inside location is this institution. */
+  institutionId?: string;
 }
 
 export interface DuplicateCheckInput {
@@ -85,6 +87,13 @@ export class ParticipantsService {
       ...(filters.assignedCaseManagerId
         ? { assignedCaseManagerId: filters.assignedCaseManagerId }
         : {}),
+      ...(filters.institutionId
+        ? {
+            insideLocations: {
+              some: { institutionId: filters.institutionId, status: 'active', deletedAt: null },
+            },
+          }
+        : {}),
       ...(query.search
         ? {
             OR: [
@@ -126,6 +135,12 @@ export class ParticipantsService {
             },
           },
           assignedCaseManager: { select: { id: true, firstName: true, lastName: true } },
+          // Current inside location (§6.1): at most one active row exists.
+          insideLocations: {
+            where: { status: 'active', deletedAt: null },
+            select: { institution: { select: { id: true, name: true } } },
+            take: 1,
+          },
         },
       }),
       this.prisma.participantProfile.count({ where }),

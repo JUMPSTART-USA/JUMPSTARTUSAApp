@@ -48,10 +48,23 @@ export interface InstitutionVolunteerAssignment {
   };
 }
 
+export interface CurrentParticipantRow {
+  id: string;
+  startDate: string | null;
+  participantProfile: {
+    id: string;
+    participantNumber: string;
+    insideStatus: string;
+    person: { firstName: string; lastName: string; preferredName: string | null };
+  };
+}
+
 /** GET /institutions/:id/profile — §6.2 institution profile requirement. */
 export interface InstitutionProfile {
   institution: Institution;
   classes: InstitutionClassRow[];
   participantsServedCount: number;
   volunteerAssignments: InstitutionVolunteerAssignment[];
+  /** Omitted by the API for viewers without participants.read. */
+  currentParticipants?: CurrentParticipantRow[];
 }
