@@ -10,9 +10,11 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  institutionContactSchema,
   institutionSchema,
   listQuerySchema,
   US_STATES,
+  type InstitutionContactInput,
   type InstitutionInput,
   type ListQuery,
 } from '@jumpstart/shared';
@@ -84,5 +86,44 @@ export class InstitutionsController {
   @RequirePermission('institutions.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.institutions.softDelete(id, user);
+  }
+
+  // ── Contacts (chaplains, wardens, coordinators… — no limit) ────────────────
+
+  @Get(':id/contacts')
+  @RequirePermission('institutions.read')
+  listContacts(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.institutions.listContacts(id, user);
+  }
+
+  @Post(':id/contacts')
+  @RequirePermission('institutions.update')
+  createContact(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(zodBody(institutionContactSchema)) body: InstitutionContactInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.institutions.createContact(id, body, user);
+  }
+
+  @Patch(':id/contacts/:contactId')
+  @RequirePermission('institutions.update')
+  updateContact(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+    @Body(zodBody(institutionContactSchema)) body: InstitutionContactInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.institutions.updateContact(id, contactId, body, user);
+  }
+
+  @Delete(':id/contacts/:contactId')
+  @RequirePermission('institutions.update')
+  deleteContact(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.institutions.deleteContact(id, contactId, user);
   }
 }

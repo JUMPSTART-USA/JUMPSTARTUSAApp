@@ -284,16 +284,31 @@ async function seedInstitutions(): Promise<InstitutionInfo[]> {
         state: spec.state,
         zip: `${37000 + i * 111}`,
         mainPhone: phone(spec.state, i + 1),
-        chaplainName: spec.chaplain,
-        chaplainPhone: phone(spec.state, i + 20),
-        chaplainEmail: `chaplain.${spec.state.toLowerCase()}${i}@example.org`,
-        primaryContactName: spec.contact,
-        primaryContactRole: spec.contactRole,
-        primaryContactPhone: phone(spec.state, i + 40),
-        primaryContactEmail: `contact.${spec.state.toLowerCase()}${i}@example.org`,
         active: true,
         ...AUDIT,
       },
+    });
+
+    // Contact people live in institution_contacts — any number per facility.
+    await prisma.institutionContact.createMany({
+      data: [
+        {
+          institutionId: inst.id,
+          name: spec.chaplain,
+          role: 'Chaplain',
+          phone: phone(spec.state, i + 20),
+          email: `chaplain.${spec.state.toLowerCase()}${i}@example.org`,
+          ...AUDIT,
+        },
+        {
+          institutionId: inst.id,
+          name: spec.contact,
+          role: spec.contactRole,
+          phone: phone(spec.state, i + 40),
+          email: `contact.${spec.state.toLowerCase()}${i}@example.org`,
+          ...AUDIT,
+        },
+      ],
     });
 
     const reqSpecs: { name: string; requirementType: 'background_check' | 'training' | 'document' | 'approval' | 'medical'; renewalMonths: number | null; hardBlock: boolean }[] = [

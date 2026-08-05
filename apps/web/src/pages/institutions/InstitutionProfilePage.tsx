@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { Pencil, Plus } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
@@ -17,46 +17,32 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { BackLink, backTo } from '@/components/BackLink';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { AssignmentDialog, type AssignmentRowLite } from '../volunteers/AssignmentDialog';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, formatDate, fullName, humanize } from '@/lib/utils';
+import { InstitutionContactDialog } from './InstitutionContactDialog';
 import { InstitutionFormDialog } from './InstitutionFormDialog';
-import type { InstitutionProfile } from './types';
-
-function ContactBlock({
-  heading,
-  name,
-  role,
-  phone,
-  email,
-}: {
-  heading: string;
-  name: string | null;
-  role?: string | null;
-  phone: string | null;
-  email: string | null;
-}) {
-  return (
-    <InfoItem label={heading}>
-      <span className="block font-medium">
-        {name ?? '—'}
-        {role ? <span className="ml-1 font-normal text-muted-foreground">({role})</span> : null}
-      </span>
-      <span className="block">{phone ?? '—'}</span>
-      <span className="block">{email ?? '—'}</span>
-    </InfoItem>
-  );
-}
+import type { InstitutionContactRow, InstitutionProfile } from './types';
 
 export function InstitutionProfilePage() {
   const { id = '' } = useParams();
   const { can } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const canOpenVolunteer = can('volunteers.read');
   const canManageVolunteers = can('volunteers.create');
+  const canEditInstitution = can('institutions.update');
   const [assignmentState, setAssignmentState] = useState<AssignmentRowLite | 'new' | null>(null);
+  const [contactDialog, setContactDialog] = useState<InstitutionContactRow | 'new' | null>(null);
+  const [deleteContactTarget, setDeleteContactTarget] = useState<InstitutionContactRow | null>(null);
+
+  const deleteContact = useMutation({
+    mutationFn: (contactId: string) => api.delete(`/institutions/${id}/contacts/${contactId}`),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['institutions'] }),
+  });
 
   const query = useQuery({
     queryKey: ['institutions', id, 'profile'],
@@ -68,7 +54,7 @@ export function InstitutionProfilePage() {
   if (query.isError) return <ErrorState error={query.error} />;
   if (!query.data) return null;
 
-  const { institution, classes, participantsServedCount, volunteerAssignments, currentParticipants } =
+  const { institution, contacts, classes, participantsServedCount, volunteerAssignments, currentParticipants } =
     query.data;
 
   return (
@@ -102,32 +88,20 @@ export function InstitutionProfilePage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Contact information</CardTitle>
+            <CardTitle>Facility information</CardTitle>
           </CardHeader>
           <CardContent>
             <DescriptionList columns={3}>
-              <InfoItem label="Facility">
+              <InfoItem label="Address">
                 <span className="block">{institution.addressLine1 ?? '—'}</span>
                 <span className="block">
                   {[institution.city, institution.state, institution.zip]
                     .filter(Boolean)
                     .join(', ') || '—'}
                 </span>
-                <span className="block">{institution.mainPhone ?? '—'}</span>
               </InfoItem>
-              <ContactBlock
-                heading="Chaplain"
-                name={institution.chaplainName}
-                phone={institution.chaplainPhone}
-                email={institution.chaplainEmail}
-              />
-              <ContactBlock
-                heading="Primary contact"
-                name={institution.primaryContactName}
-                role={institution.primaryContactRole}
-                phone={institution.primaryContactPhone}
-                email={institution.primaryContactEmail}
-              />
+              <InfoItem label="Main phone">{institution.mainPhone ?? '—'}</InfoItem>
+              <InfoItem label="Type">{institution.institutionType ?? '—'}</InfoItem>
               {institution.notes ? (
                 <InfoItem label="Notes" className="sm:col-span-2 lg:col-span-3">
                   <span className="whitespace-pre-wrap">{institution.notes}</span>
@@ -157,6 +131,80 @@ export function InstitutionProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeaderRow title="Contacts">
+          {canEditInstitution ? (
+            <Button size="sm" variant="outline" onClick={() => setContactDialog('new')}>
+              <Plus className="h-4 w-4" /> Add contact
+            </Button>
+          ) : null}
+        </CardHeaderRow>
+        <CardContent>
+          {contacts.length === 0 ? (
+            <EmptyState
+              title="No contacts recorded"
+              hint="Add chaplains, wardens, program and release coordinators — any number."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Notes</TableHead>
+                  <TableHead className="w-20" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {contacts.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{c.role}</Badge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{c.phone ?? '—'}</TableCell>
+                    <TableCell>{c.email ?? '—'}</TableCell>
+                    <TableCell className="max-w-56 truncate text-muted-foreground">
+                      {c.notes ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {canEditInstitution ? (
+                        <span className="inline-flex">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setContactDialog(c)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            <span className="sr-only">Edit</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive"
+                            disabled={deleteContact.isPending}
+                            onClick={() => {
+                              deleteContact.reset();
+                              setDeleteContactTarget(c);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span className="sr-only">Delete</span>
+                          </Button>
+                        </span>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {currentParticipants !== undefined ? (
         // Omitted by the API without participants.read — the card hides with it.
@@ -322,6 +370,32 @@ export function InstitutionProfilePage() {
       </Card>
 
       <InstitutionFormDialog open={editOpen} onOpenChange={setEditOpen} institution={institution} />
+      <InstitutionContactDialog
+        institutionId={institution.id}
+        existing={contactDialog !== null && contactDialog !== 'new' ? contactDialog : null}
+        open={contactDialog !== null}
+        onOpenChange={(o) => !o && setContactDialog(null)}
+      />
+      <ConfirmDialog
+        open={deleteContactTarget !== null}
+        onOpenChange={(o) => !o && setDeleteContactTarget(null)}
+        title="Remove contact"
+        description={
+          deleteContactTarget
+            ? `Remove ${deleteContactTarget.name} (${deleteContactTarget.role})?`
+            : undefined
+        }
+        confirmLabel="Delete"
+        isPending={deleteContact.isPending}
+        error={deleteContact.error ? deleteContact.error.message : null}
+        onConfirm={() => {
+          if (deleteContactTarget) {
+            deleteContact.mutate(deleteContactTarget.id, {
+              onSuccess: () => setDeleteContactTarget(null),
+            });
+          }
+        }}
+      />
       <AssignmentDialog
         context={{ institutionId: institution.id, invalidate: [['institutions', institution.id, 'profile']] }}
         state={assignmentState}

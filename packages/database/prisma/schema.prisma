@@ -948,15 +948,6 @@ model Institution {
   zip             String?
   mainPhone       String?
 
-  chaplainName  String?
-  chaplainPhone String?
-  chaplainEmail String?
-
-  primaryContactName  String?
-  primaryContactRole  String?
-  primaryContactPhone String?
-  primaryContactEmail String?
-
   notes  String?
   active Boolean @default(true)
 
@@ -970,10 +961,34 @@ model Institution {
   volunteerAssignments  VolunteerAssignment[]
   clearanceRequirements FacilityClearanceRequirement[]
   participantLocations  ParticipantInsideLocation[]
+  contacts              InstitutionContact[]
 
   @@index([state])
   @@index([active])
   @@map("institutions")
+}
+
+// Contact people at an institution — chaplains, wardens, program and release
+// coordinators… any number per facility. Replaced the old flat chaplain*/
+// primaryContact* columns (backfilled by the migration that dropped them).
+model InstitutionContact {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id])
+  name          String
+  role          String // free text: Chaplain, Warden, Program Coordinator…
+  phone         String?
+  email         String?
+  notes         String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([institutionId])
+  @@map("institution_contacts")
 }
 
 model InsideClass {

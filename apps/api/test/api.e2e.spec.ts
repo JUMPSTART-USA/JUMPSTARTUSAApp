@@ -348,6 +348,80 @@ describe('portal requests surface on the dashboard', () => {
   });
 });
 
+describe('institution contacts (chaplains, wardens, coordinators…)', () => {
+  it('supports full CRUD with any number of contacts', async () => {
+    const cookie = await login(ADMIN);
+
+    // Throwaway institution so seeded records stay untouched.
+    const inst = await request(server)
+      .post('/api/institutions')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ name: 'Api Contact Test Facility', state: 'SC' })
+      .expect(201);
+    const id = inst.body.id;
+
+    try {
+      const specs = [
+        { name: 'Rev. Test Chaplain', role: 'Chaplain', phone: '803-555-0111' },
+        { name: 'Warden Test Person', role: 'Warden', email: 'warden@example.org' },
+        { name: 'Pat Coordinator', role: 'Release Coordinator' },
+        { name: 'Sam Programs', role: 'Program Coordinator' },
+      ];
+      const created = [];
+      for (const spec of specs) {
+        const res = await request(server)
+          .post(`/api/institutions/${id}/contacts`)
+          .set('Cookie', cookie)
+          .set('Origin', ORIGIN)
+          .send(spec)
+          .expect(201);
+        created.push(res.body);
+      }
+
+      const list = await request(server)
+        .get(`/api/institutions/${id}/contacts`)
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(list.body).toHaveLength(4);
+
+      // Whole-record PATCH: omitted optionals clear.
+      const updated = await request(server)
+        .patch(`/api/institutions/${id}/contacts/${created[0].id}`)
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ name: 'Rev. Test Chaplain', role: 'Senior Chaplain' })
+        .expect(200);
+      expect(updated.body.role).toBe('Senior Chaplain');
+      expect(updated.body.phone).toBeNull();
+
+      // The profile payload carries the contacts.
+      const profile = await request(server)
+        .get(`/api/institutions/${id}/profile`)
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(profile.body.contacts).toHaveLength(4);
+
+      await request(server)
+        .delete(`/api/institutions/${id}/contacts/${created[3].id}`)
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .expect(200);
+      const afterDelete = await request(server)
+        .get(`/api/institutions/${id}/contacts`)
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(afterDelete.body).toHaveLength(3);
+    } finally {
+      await request(server)
+        .delete(`/api/institutions/${id}`)
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .expect(200);
+    }
+  });
+});
+
 describe('inside locations & release (§6.1)', () => {
   it('keeps one active location and records release', async () => {
     const cookie = await login(ADMIN);

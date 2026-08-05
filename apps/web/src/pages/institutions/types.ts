@@ -9,20 +9,25 @@ export interface Institution {
   state: string;
   zip: string | null;
   mainPhone: string | null;
-  chaplainName: string | null;
-  chaplainPhone: string | null;
-  chaplainEmail: string | null;
-  primaryContactName: string | null;
-  primaryContactRole: string | null;
-  primaryContactPhone: string | null;
-  primaryContactEmail: string | null;
   notes: string | null;
   active: boolean;
   createdAt: string;
 }
 
+/** Any number per facility: chaplains, wardens, program/release coordinators… */
+export interface InstitutionContactRow {
+  id: string;
+  name: string;
+  role: string;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+}
+
 export interface InstitutionListItem extends Institution {
-  _count: { insideClasses: number };
+  _count: { insideClasses: number; contacts: number };
+  /** First contact (role asc, name asc) for the list summary. */
+  contacts: Pick<InstitutionContactRow, 'id' | 'name' | 'role'>[];
 }
 
 export interface InstitutionClassRow {
@@ -62,6 +67,7 @@ export interface CurrentParticipantRow {
 /** GET /institutions/:id/profile — §6.2 institution profile requirement. */
 export interface InstitutionProfile {
   institution: Institution;
+  contacts: InstitutionContactRow[];
   classes: InstitutionClassRow[];
   participantsServedCount: number;
   volunteerAssignments: InstitutionVolunteerAssignment[];

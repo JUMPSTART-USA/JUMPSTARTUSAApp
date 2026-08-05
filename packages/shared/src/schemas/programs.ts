@@ -30,17 +30,24 @@ export const institutionSchema = z.object({
   state: z.enum(US_STATES),
   zip: optionalTrimmed,
   mainPhone: optionalPhone,
-  chaplainName: optionalTrimmed,
-  chaplainPhone: optionalPhone,
-  chaplainEmail: optionalEmail,
-  primaryContactName: optionalTrimmed,
-  primaryContactRole: optionalTrimmed,
-  primaryContactPhone: optionalPhone,
-  primaryContactEmail: optionalEmail,
   notes: optionalTrimmed,
   active: z.boolean().default(true),
 });
 export type InstitutionInput = z.infer<typeof institutionSchema>;
+
+/**
+ * Contact people at an institution — chaplains, wardens, program and release
+ * coordinators… any number per facility. PATCH validates the FULL schema
+ * (whole-record replacement — omitted optionals clear).
+ */
+export const institutionContactSchema = z.object({
+  name: requiredTrimmed.pipe(z.string().max(200)),
+  role: requiredTrimmed.pipe(z.string().max(100)),
+  phone: optionalPhone,
+  email: optionalEmail,
+  notes: optionalTrimmed,
+});
+export type InstitutionContactInput = z.infer<typeof institutionContactSchema>;
 
 // ── Inside classes ──────────────────────────────────────────────────────────
 

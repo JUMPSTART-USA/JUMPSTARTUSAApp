@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@jumpstart/database';
-import type { InstitutionInput, ListQuery } from '@jumpstart/shared';
+import type { InstitutionContactInput, InstitutionInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -32,7 +32,14 @@ export class InstitutionsService {
             OR: [
               { name: { contains: query.search, mode: 'insensitive' } },
               { city: { contains: query.search, mode: 'insensitive' } },
-              { chaplainName: { contains: query.search, mode: 'insensitive' } },
+              {
+                contacts: {
+                  some: {
+                    deletedAt: null,
+                    name: { contains: query.search, mode: 'insensitive' },
+                  },
+                },
+              },
             ],
           }
         : {}),
@@ -49,7 +56,20 @@ export class InstitutionsService {
         orderBy,
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
-        include: { _count: { select: { insideClasses: { where: { deletedAt: null } } } } },
+        include: {
+          _count: {
+            select: {
+              insideClasses: { where: { deletedAt: null } },
+              contacts: { where: { deletedAt: null } },
+            },
+          },
+          contacts: {
+            where: { deletedAt: null },
+            select: { id: true, name: true, role: true },
+            orderBy: [{ role: 'asc' }, { name: 'asc' }],
+            take: 1,
+          },
+        },
       }),
       this.prisma.institution.count({ where }),
     ]);
@@ -67,9 +87,14 @@ export class InstitutionsService {
     return institution;
   }
 
-  /** Institution profile page: classes held, participants served, volunteers (§6.2). */
+  /** Institution profile page: contacts, classes held, participants served, volunteers (§6.2). */
   async profile(id: string, user: AuthenticatedUser) {
     const institution = await this.get(id, user);
+
+    const contacts = await this.prisma.institutionContact.findMany({
+      where: { institutionId: id, deletedAt: null },
+      orderBy: [{ role: 'asc' }, { name: 'asc' }],
+    });
 
     const [classes, participantsServed, volunteerAssignments] = await this.prisma.$transaction([
       this.prisma.insideClass.findMany({
@@ -122,10 +147,79 @@ export class InstitutionsService {
 
     return {
       institution,
+      contacts,
       classes,
       participantsServedCount: participantsServed.length,
       volunteerAssignments,
       ...(currentParticipants !== undefined ? { currentParticipants } : {}),
+    };
+  }
+
+  // ── Contacts (chaplains, wardens, coordinators… — no limit) ────────────────
+
+  async listContacts(id: string, user: AuthenticatedUser) {
+    await this.get(id, user); // 404 + chapter check
+    return this.prisma.institutionContact.findMany({
+      where: { institutionId: id, deletedAt: null },
+      orderBy: [{ role: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  async createContact(id: string, input: InstitutionContactInput, user: AuthenticatedUser) {
+    await this.get(id, user);
+    const contact = await this.prisma.institutionContact.create({
+      data: {
+        ...this.contactData(input),
+        institutionId: id,
+        createdById: user.id,
+        updatedById: user.id,
+      },
+    });
+    await this.audit.logCreate(user.id, 'institution_contact', contact.id, contact);
+    return contact;
+  }
+
+  async updateContact(
+    id: string,
+    contactId: string,
+    input: InstitutionContactInput,
+    user: AuthenticatedUser,
+  ) {
+    await this.get(id, user);
+    const existing = await this.prisma.institutionContact.findFirst({
+      where: { id: contactId, institutionId: id, deletedAt: null },
+    });
+    if (!existing) throw new NotFoundException('Contact not found');
+    const updated = await this.prisma.institutionContact.update({
+      where: { id: contactId },
+      data: { ...this.contactData(input), updatedById: user.id },
+    });
+    await this.audit.logUpdate(user.id, 'institution_contact', contactId, existing, updated);
+    return updated;
+  }
+
+  async deleteContact(id: string, contactId: string, user: AuthenticatedUser) {
+    await this.get(id, user);
+    const existing = await this.prisma.institutionContact.findFirst({
+      where: { id: contactId, institutionId: id, deletedAt: null },
+    });
+    if (!existing) throw new NotFoundException('Contact not found');
+    await this.prisma.institutionContact.update({
+      where: { id: contactId },
+      data: { deletedAt: new Date(), updatedById: user.id },
+    });
+    await this.audit.logDelete(user.id, 'institution_contact', contactId, existing);
+    return { ok: true };
+  }
+
+  /** Whole-record replacement: omitted optionals clear to null. */
+  private contactData(input: InstitutionContactInput) {
+    return {
+      name: input.name,
+      role: input.role,
+      phone: input.phone ?? null,
+      email: input.email ?? null,
+      notes: input.notes ?? null,
     };
   }
 
