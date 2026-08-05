@@ -36,7 +36,7 @@ import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
 import { useRecordScreenHistory } from '@/components/BackLink';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
-import { useAuth } from '@/lib/auth';
+import { useAuth, type Me, type ViewAsChange } from '@/lib/auth';
 import { usePortalRequestsPending } from '@/lib/portal-requests';
 import { cn } from '@/lib/utils';
 import { GlobalSearch } from './GlobalSearch';
@@ -104,6 +104,73 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
   },
 ];
 
+const DARK_SELECT =
+  'border-white/20 bg-white/10 text-white [&>option]:bg-navy-deep [&>option]:text-white';
+
+/** Admin "view as role" switcher (§7.1) — the API applies and enforces the choice. */
+function RoleSwitcher({
+  user,
+  viewAs,
+  className,
+  dark,
+}: {
+  user: Me;
+  viewAs: (change: ViewAsChange) => Promise<void>;
+  className?: string;
+  dark?: boolean;
+}) {
+  return (
+    <Select
+      aria-label="View as role"
+      value={user.viewAsRole ?? ''}
+      onChange={(e) => void viewAs({ role: (e.target.value || null) as RoleKey | null })}
+      className={cn(dark && DARK_SELECT, className)}
+    >
+      <option value="">My access (Administrator)</option>
+      {ROLE_KEYS.filter((role) => role !== 'admin').map((role) => (
+        <option key={role} value={role}>
+          {ROLE_NAMES[role]}
+        </option>
+      ))}
+    </Select>
+  );
+}
+
+/** Chapter switcher (§7.2) — shown only when the account may view more than one. */
+function ChapterSwitcher({
+  user,
+  viewAs,
+  className,
+  dark,
+}: {
+  user: Me;
+  viewAs: (change: ViewAsChange) => Promise<void>;
+  className?: string;
+  dark?: boolean;
+}) {
+  return (
+    <Select
+      aria-label="Viewing chapter"
+      value={user.viewChapter ?? ''}
+      onChange={(e) => void viewAs({ chapter: (e.target.value || null) as ChapterState | null })}
+      className={cn(dark && DARK_SELECT, className)}
+    >
+      <option value="">
+        {user.actualChapter
+          ? `${CHAPTER_NAMES[user.actualChapter as ChapterState] ?? user.actualChapter} (default)`
+          : 'All chapters'}
+      </option>
+      {(user.allowedChapters ?? CHAPTER_STATES)
+        .filter((state) => state !== user.actualChapter)
+        .map((state) => (
+          <option key={state} value={state}>
+            {CHAPTER_NAMES[state as ChapterState] ?? state}
+          </option>
+        ))}
+    </Select>
+  );
+}
+
 export function AppLayout() {
   const { user, can, logout, viewAs } = useAuth();
   const navigate = useNavigate();
@@ -122,6 +189,11 @@ export function AppLayout() {
     user.viewChapter && user.viewChapter !== user.actualChapter
       ? (user.viewChapter as ChapterState)
       : null;
+  const isRealAdmin = user.actualRoles.includes('admin');
+  const chapterSwitchable = user.allowedChapters === null || user.allowedChapters.length > 1;
+  const chapterLabel = user.chapter
+    ? `${CHAPTER_NAMES[user.chapter as ChapterState] ?? user.chapter} chapter`
+    : 'All chapters';
 
   return (
     <div className="flex min-h-screen">
@@ -198,27 +270,13 @@ export function AppLayout() {
         </nav>
 
         <div className="border-t border-white/10 p-3">
-          {user.actualRoles.includes('admin') ? (
-            <div className="mb-3 px-2">
-              <label
-                htmlFor="view-as-role"
-                className="text-[11px] font-semibold uppercase tracking-wider text-white/40"
-              >
+          {/* Below md the header hides the switchers — the drawer carries them. */}
+          {isRealAdmin ? (
+            <div className="mb-3 px-2 md:hidden">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
                 View as role
-              </label>
-              <Select
-                id="view-as-role"
-                value={user.viewAsRole ?? ''}
-                onChange={(e) => void viewAs({ role: (e.target.value || null) as RoleKey | null })}
-                className="mt-1 h-8 w-full border-white/20 bg-white/10 text-white [&>option]:bg-navy-deep [&>option]:text-white"
-              >
-                <option value="">My access (Administrator)</option>
-                {ROLE_KEYS.filter((role) => role !== 'admin').map((role) => (
-                  <option key={role} value={role}>
-                    {ROLE_NAMES[role]}
-                  </option>
-                ))}
-              </Select>
+              </div>
+              <RoleSwitcher user={user} viewAs={viewAs} dark className="mt-1 h-8 w-full" />
             </div>
           ) : null}
           <div className="mb-2 px-2 leading-tight">
@@ -226,34 +284,15 @@ export function AppLayout() {
               {user.firstName} {user.lastName}
             </div>
             <div className="truncate text-xs text-white/50">{user.email}</div>
-            {user.allowedChapters === null || user.allowedChapters.length > 1 ? (
-              <Select
-                aria-label="Viewing chapter"
-                value={user.viewChapter ?? ''}
-                onChange={(e) =>
-                  void viewAs({ chapter: (e.target.value || null) as ChapterState | null })
-                }
-                className="mt-1.5 h-8 w-full border-white/20 bg-white/10 text-white [&>option]:bg-navy-deep [&>option]:text-white"
-              >
-                <option value="">
-                  {user.actualChapter
-                    ? `${CHAPTER_NAMES[user.actualChapter as ChapterState] ?? user.actualChapter} (default)`
-                    : 'All chapters'}
-                </option>
-                {(user.allowedChapters ?? CHAPTER_STATES)
-                  .filter((state) => state !== user.actualChapter)
-                  .map((state) => (
-                    <option key={state} value={state}>
-                      {CHAPTER_NAMES[state as ChapterState] ?? state}
-                    </option>
-                  ))}
-              </Select>
+            {chapterSwitchable ? (
+              <>
+                <ChapterSwitcher user={user} viewAs={viewAs} dark className="mt-1.5 h-8 w-full md:hidden" />
+                <div className="mt-0.5 hidden text-[11px] font-medium text-gold md:block">
+                  {chapterLabel}
+                </div>
+              </>
             ) : (
-              <div className="mt-0.5 text-[11px] font-medium text-gold">
-                {user.chapter
-                  ? `${CHAPTER_NAMES[user.chapter as ChapterState] ?? user.chapter} chapter`
-                  : 'All chapters'}
-              </div>
+              <div className="mt-0.5 text-[11px] font-medium text-gold">{chapterLabel}</div>
             )}
           </div>
           <Button
@@ -305,6 +344,15 @@ export function AppLayout() {
               <Menu className="h-5 w-5" />
             </button>
             <GlobalSearch />
+            {/* View-as switchers: top right on every page (drawer carries them below md). */}
+            {isRealAdmin || chapterSwitchable ? (
+              <div className="ml-auto hidden shrink-0 items-center gap-2 md:flex">
+                {isRealAdmin ? <RoleSwitcher user={user} viewAs={viewAs} className="w-52" /> : null}
+                {chapterSwitchable ? (
+                  <ChapterSwitcher user={user} viewAs={viewAs} className="w-44" />
+                ) : null}
+              </div>
+            ) : null}
           </header>
         </div>
         <main className="flex-1 p-4 sm:p-6">
