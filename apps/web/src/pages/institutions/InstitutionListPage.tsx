@@ -31,7 +31,22 @@ const columns: Column<InstitutionListItem>[] = [
   },
   { key: 'city', header: 'City', sortKey: 'city', render: (row) => row.city ?? '—' },
   { key: 'state', header: 'State', sortKey: 'state', render: (row) => row.state },
-  { key: 'chaplain', header: 'Chaplain', render: (row) => row.chaplainName ?? '—' },
+  {
+    key: 'contacts',
+    header: 'Contacts',
+    render: (row) => {
+      const first = row.contacts[0];
+      if (!first) return <span className="text-muted-foreground">—</span>;
+      return (
+        <span>
+          {first.name} <span className="text-xs text-muted-foreground">({first.role})</span>
+          {row._count.contacts > 1 ? (
+            <span className="text-xs text-muted-foreground"> +{row._count.contacts - 1}</span>
+          ) : null}
+        </span>
+      );
+    },
+  },
   {
     key: 'classes',
     header: 'Classes',
@@ -90,7 +105,7 @@ export function InstitutionListPage() {
 
       <ListToolbar>
         <SearchInput
-          placeholder="Search name, city, chaplain…"
+          placeholder="Search name, city, contact…"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);

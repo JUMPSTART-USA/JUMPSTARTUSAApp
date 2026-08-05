@@ -26,13 +26,6 @@ interface InstitutionFormValues {
   state: string;
   zip: string;
   mainPhone: string;
-  chaplainName: string;
-  chaplainPhone: string;
-  chaplainEmail: string;
-  primaryContactName: string;
-  primaryContactRole: string;
-  primaryContactPhone: string;
-  primaryContactEmail: string;
   notes: string;
   active: boolean;
 }
@@ -46,13 +39,6 @@ function buildDefaults(institution?: Institution): InstitutionFormValues {
     state: institution?.state ?? '',
     zip: institution?.zip ?? '',
     mainPhone: institution?.mainPhone ?? '',
-    chaplainName: institution?.chaplainName ?? '',
-    chaplainPhone: institution?.chaplainPhone ?? '',
-    chaplainEmail: institution?.chaplainEmail ?? '',
-    primaryContactName: institution?.primaryContactName ?? '',
-    primaryContactRole: institution?.primaryContactRole ?? '',
-    primaryContactPhone: institution?.primaryContactPhone ?? '',
-    primaryContactEmail: institution?.primaryContactEmail ?? '',
     notes: institution?.notes ?? '',
     active: institution?.active ?? true,
   };
@@ -144,38 +130,6 @@ export function InstitutionFormDialog({
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-4">
-              <p className="text-sm font-medium text-muted-foreground">Chaplain</p>
-              <FormField label="Name" error={errors.chaplainName}>
-                <Input {...register('chaplainName')} />
-              </FormField>
-              <FormField label="Phone" error={errors.chaplainPhone}>
-                <PhoneInput {...register('chaplainPhone')} />
-              </FormField>
-              <FormField label="Email" error={errors.chaplainEmail}>
-                <Input type="email" {...register('chaplainEmail')} />
-              </FormField>
-            </div>
-            <div className="space-y-4">
-              <p className="text-sm font-medium text-muted-foreground">Primary contact</p>
-              <FormField label="Name" error={errors.primaryContactName}>
-                <Input {...register('primaryContactName')} />
-              </FormField>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField label="Role" error={errors.primaryContactRole}>
-                  <Input {...register('primaryContactRole')} />
-                </FormField>
-                <FormField label="Phone" error={errors.primaryContactPhone}>
-                  <PhoneInput {...register('primaryContactPhone')} />
-                </FormField>
-              </div>
-              <FormField label="Email" error={errors.primaryContactEmail}>
-                <Input type="email" {...register('primaryContactEmail')} />
-              </FormField>
-            </div>
-          </div>
-
           <FormField label="Notes" error={errors.notes}>
             <Textarea rows={3} {...register('notes')} />
           </FormField>
@@ -184,6 +138,11 @@ export function InstitutionFormDialog({
             <Checkbox {...register('active')} />
             Active — currently partnering with JUMPSTART
           </label>
+
+          <p className="text-xs text-muted-foreground">
+            Contact people (chaplains, wardens, coordinators…) are managed on the institution's
+            profile page.
+          </p>
 
           <FormError message={topError} />
 
