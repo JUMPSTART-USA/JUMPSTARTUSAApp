@@ -10,11 +10,13 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  donorCreateSchema,
   donorRelationshipSchema,
   donorSchema,
   DONOR_TYPES,
   listQuerySchema,
   uuid,
+  type DonorCreateInput,
   type DonorInput,
   type DonorRelationshipInput,
   type ListQuery,
@@ -64,10 +66,12 @@ export class DonorsController {
     return this.donors.detail(id);
   }
 
+  // §5: 409s with person candidates when an individual donor matches an
+  // existing participant/volunteer and no personId/confirmNotDuplicate is set.
   @Post()
   @RequirePermission('donors.create')
   create(
-    @Body(zodBody(donorSchema)) body: DonorInput,
+    @Body(zodBody(donorCreateSchema)) body: DonorCreateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.donors.create(body, user.id);

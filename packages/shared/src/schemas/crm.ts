@@ -87,6 +87,15 @@ export const donorSchema = z.object({
 });
 export type DonorInput = z.infer<typeof donorSchema>;
 
+// Create-only wrapper: the duplicate-person check flag rides the payload but
+// is not a donor column (§5 — individual donors are often existing
+// participants/volunteers; the API surfaces matches so staff link instead of
+// creating a disconnected record).
+export const donorCreateSchema = donorSchema.extend({
+  confirmNotDuplicate: z.boolean().default(false),
+});
+export type DonorCreateInput = z.infer<typeof donorCreateSchema>;
+
 export const householdSchema = z.object({
   name: requiredTrimmed.pipe(z.string().max(300)),
   envelopeName: optionalTrimmed,

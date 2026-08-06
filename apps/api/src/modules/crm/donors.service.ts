@@ -5,7 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Prisma } from '@jumpstart/database';
-import type { DonorInput, DonorRelationshipInput, DonorType, ListQuery } from '@jumpstart/shared';
+import type {
+  DonorCreateInput,
+  DonorInput,
+  DonorRelationshipInput,
+  DonorType,
+  ListQuery,
+} from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -382,11 +388,27 @@ export class DonorsService {
     };
   }
 
-  async create(input: DonorInput, userId: string) {
-    await this.assertPersonExists(input.personId);
-    await this.assertHouseholdExists(input.householdId);
+  async create(input: DonorCreateInput, userId: string) {
+    const { confirmNotDuplicate, ...data } = input;
+    await this.assertPersonExists(data.personId);
+    await this.assertHouseholdExists(data.householdId);
+
+    // §5: individual donors are often existing participants or volunteers.
+    // Surface matching people so staff link the donor to them (or open the
+    // donor that already exists) instead of creating a disconnected record.
+    if (data.donorType === 'individual' && !data.personId && !confirmNotDuplicate) {
+      const candidates = await this.findPersonCandidates(data);
+      if (candidates.length > 0) {
+        throw new ConflictException({
+          message:
+            'Possible matching person(s) found — link the donor to one, or re-submit with confirmNotDuplicate to create anyway',
+          candidates,
+        });
+      }
+    }
+
     const donor = await this.prisma.donor.create({
-      data: { ...input, createdById: userId, updatedById: userId },
+      data: { ...data, createdById: userId, updatedById: userId },
     });
     if (donor.isHeadOfHousehold && donor.householdId) {
       await this.clearOtherHeads(donor.householdId, donor.id, userId);
@@ -509,5 +531,63 @@ export class DonorsService {
       where: { id: householdId, deletedAt: null },
     });
     if (!household) throw new BadRequestException('Household not found');
+  }
+
+  /**
+   * People who look like this new individual donor (§5) — mirrors the
+   * volunteer duplicate matcher: name (first+last, case-insensitive), email,
+   * or normalized phone. Donor names are a single string, so the name clause
+   * only applies when it splits into at least two tokens.
+   */
+  private async findPersonCandidates(input: {
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+  }) {
+    const or: Prisma.PersonWhereInput[] = [];
+    const tokens = input.name.trim().split(/\s+/);
+    if (tokens.length >= 2) {
+      or.push({
+        AND: [
+          { firstName: { equals: tokens[0]!, mode: 'insensitive' } },
+          { lastName: { equals: tokens[tokens.length - 1]!, mode: 'insensitive' } },
+        ],
+      });
+    }
+    if (input.email) or.push({ primaryEmail: { equals: input.email, mode: 'insensitive' } });
+    if (input.phone) or.push({ primaryPhone: input.phone });
+    if (or.length === 0) return [];
+
+    const people = await this.prisma.person.findMany({
+      where: { deletedAt: null, OR: or },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        primaryEmail: true,
+        primaryPhone: true,
+        city: true,
+        state: true,
+        participantProfile: { select: { id: true, deletedAt: true } },
+        volunteerProfile: { select: { id: true, deletedAt: true } },
+        // A donor already linked to this person means "open that donor", not
+        // "create another one".
+        donors: { where: { deletedAt: null }, select: { id: true, name: true }, take: 1 },
+      },
+      take: 10,
+    });
+
+    return people.map((p) => ({
+      personId: p.id,
+      firstName: p.firstName,
+      lastName: p.lastName,
+      primaryEmail: p.primaryEmail,
+      primaryPhone: p.primaryPhone,
+      city: p.city,
+      state: p.state,
+      isParticipant: Boolean(p.participantProfile && !p.participantProfile.deletedAt),
+      isVolunteer: Boolean(p.volunteerProfile && !p.volunteerProfile.deletedAt),
+      existingDonor: p.donors[0] ?? null,
+    }));
   }
 }

@@ -98,7 +98,6 @@ jobs:
           action: upload
           app_location: apps/web/dist
           skip_app_build: true
-          skip_api_build: true
 
       - name: Wait for API health through the SWA front door
         run: |
@@ -203,4 +202,3 @@ jobs:
           action: upload
           app_location: apps/web/dist
           skip_app_build: true
-          skip_api_build: true
