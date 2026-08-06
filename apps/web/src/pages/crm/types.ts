@@ -24,6 +24,23 @@ export interface NamedRef {
   name: string;
 }
 
+/**
+ * Person match returned in the 409 body when creating an individual donor who
+ * looks like an existing participant/volunteer (§5).
+ */
+export interface DuplicatePersonCandidate {
+  personId: string;
+  firstName: string;
+  lastName: string;
+  primaryEmail: string | null;
+  primaryPhone: string | null;
+  city: string | null;
+  state: string | null;
+  isParticipant: boolean;
+  isVolunteer: boolean;
+  existingDonor: NamedRef | null;
+}
+
 /** Computed giving lifecycle: prospective (no gifts) → new → active → lapsed → inactive. */
 export type DonorLifecycle = 'prospective' | 'new' | 'active' | 'lapsed' | 'inactive';
 

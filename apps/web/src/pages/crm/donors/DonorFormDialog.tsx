@@ -1,8 +1,10 @@
 import { donorSchema, DONOR_TYPES, US_STATES } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { FormField } from '@/components/FormField';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,13 +14,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input, Select, Textarea } from '@/components/ui/input';
-import { FormError } from '@/components/ui/notice';
+import { FormError, Notice } from '@/components/ui/notice';
 import { PhoneInput } from '@/components/ui/phone-input';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { applyApiError, formResolver } from '@/lib/form';
 import { fullName, humanize } from '@/lib/utils';
 import { PersonSearch, type PersonHit } from '../shared';
-import type { Donor, PersonRef } from '../types';
+import type { Donor, DuplicatePersonCandidate, PersonRef } from '../types';
 
 const DONOR_STATUSES = ['active', 'lapsed', 'inactive'] as const;
 
@@ -69,8 +71,12 @@ export function DonorFormDialog({
   person?: PersonRef | null;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [topError, setTopError] = useState<string | null>(null);
   const [linkedPerson, setLinkedPerson] = useState<PersonHit | null>(null);
+  // §5: person matches from the create 409 — reviewed before creating anew.
+  const [candidates, setCandidates] = useState<DuplicatePersonCandidate[] | null>(null);
+  const lastValues = useRef<DonorFormValues | null>(null);
 
   const {
     register,
@@ -91,11 +97,13 @@ export function DonorFormDialog({
         person ? { personId: person.id, name: fullName(person), source: 'Linked' } : null,
       );
       setTopError(null);
+      setCandidates(null);
+      lastValues.current = null;
     }
   }, [open, donor, person, reset]);
 
   const mutation = useMutation({
-    mutationFn: (values: DonorFormValues) =>
+    mutationFn: (values: DonorFormValues & { confirmNotDuplicate?: boolean }) =>
       donor
         ? api.patch<Donor>(`/donors/${donor.id}`, {
             ...values,
@@ -115,8 +123,45 @@ export function DonorFormDialog({
       void queryClient.invalidateQueries({ queryKey: ['crm', 'donors'] });
       onOpenChange(false);
     },
-    onError: (err) => setTopError(applyApiError(err, setError)),
+    onError: (err) => {
+      // Create-mode 409 carries person candidates — surface them for review.
+      if (!donor && err instanceof ApiError && err.status === 409) {
+        const body = err.body as { candidates?: DuplicatePersonCandidate[] } | undefined;
+        if (body?.candidates && body.candidates.length > 0) {
+          setCandidates(body.candidates);
+          setTopError(null);
+          return;
+        }
+      }
+      setTopError(applyApiError(err, setError));
+    },
   });
+
+  const submitValues = (values: DonorFormValues) => {
+    lastValues.current = values;
+    mutation.mutate(values);
+  };
+
+  /** Candidate action: create the donor already linked to the chosen person. */
+  const linkAndCreate = (c: DuplicatePersonCandidate) => {
+    const values = lastValues.current;
+    if (!values) return;
+    setLinkedPerson({
+      personId: c.personId,
+      name: `${c.firstName} ${c.lastName}`,
+      source: 'Linked',
+    });
+    setValue('personId', c.personId, { shouldDirty: true });
+    setCandidates(null);
+    mutation.mutate({ ...values, personId: c.personId });
+  };
+
+  const createAnyway = () => {
+    const values = lastValues.current;
+    if (!values) return;
+    setCandidates(null);
+    mutation.mutate({ ...values, confirmNotDuplicate: true });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -124,11 +169,75 @@ export function DonorFormDialog({
         <DialogHeader>
           <DialogTitle>{donor ? 'Edit donor' : 'New donor'}</DialogTitle>
         </DialogHeader>
-        <form
-          onSubmit={handleSubmit((values) => mutation.mutate(values))}
-          className="space-y-4"
-          noValidate
-        >
+        {candidates ? (
+          <div className="space-y-3">
+            <Notice variant="warning">
+              This donor looks like {candidates.length === 1 ? 'an existing person' : 'existing people'}{' '}
+              already in the system. Linking keeps one record per human (§5) — giving, volunteering
+              and program history stay connected.
+            </Notice>
+            <div className="space-y-2">
+              {candidates.map((c) => (
+                <div
+                  key={c.personId}
+                  className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 font-medium">
+                      <span className="truncate">
+                        {c.firstName} {c.lastName}
+                      </span>
+                      {c.isParticipant ? <Badge variant="info">Participant</Badge> : null}
+                      {c.isVolunteer ? <Badge variant="gold">Volunteer</Badge> : null}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {[
+                        c.primaryEmail,
+                        c.primaryPhone,
+                        [c.city, c.state].filter(Boolean).join(', ') || null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || 'No contact details on file'}
+                    </div>
+                  </div>
+                  {c.existingDonor ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => {
+                        onOpenChange(false);
+                        navigate(`/donors/${c.existingDonor!.id}`);
+                      }}
+                    >
+                      Open existing donor
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      disabled={mutation.isPending}
+                      onClick={() => linkAndCreate(c)}
+                    >
+                      Link this person
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <FormError message={topError} />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCandidates(null)}>
+                Back to form
+              </Button>
+              <Button onClick={createAnyway} disabled={mutation.isPending}>
+                {mutation.isPending ? 'Saving…' : 'Create anyway — not a match'}
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+        <form onSubmit={handleSubmit(submitValues)} className="space-y-4" noValidate>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Name" required error={errors.name} className="sm:col-span-2">
               <Input {...register('name')} autoFocus />
@@ -212,6 +321,7 @@ export function DonorFormDialog({
             </Button>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );
