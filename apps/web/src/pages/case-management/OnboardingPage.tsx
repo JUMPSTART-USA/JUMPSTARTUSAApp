@@ -9,6 +9,14 @@ import { Input, Select } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -116,6 +124,80 @@ function ChecklistCard({ checklist }: { checklist: ChecklistRow }) {
   );
 }
 
+/** Every checklist across participants — shown until a participant is chosen. */
+function OnboardingOverview({ onOpen }: { onOpen: (participant: PickerOption) => void }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['case-management', 'onboarding', 'overview'],
+    queryFn: () => api.get<Paged<ChecklistRow>>(`/onboarding/checklists${qs({ pageSize: 200 })}`),
+  });
+
+  if (isLoading) return <PageLoader />;
+  if (error) return <ErrorState error={error} />;
+  if (!data || data.items.length === 0) {
+    return (
+      <EmptyState
+        title="No onboarding checklists yet"
+        hint="Search for a participant above to start their checklist."
+      />
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>All onboarding checklists</CardTitle>
+        <CardDescription>
+          {data.total} checklist{data.total === 1 ? '' : 's'} — click a row to open, or search
+          above.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Participant</TableHead>
+              <TableHead>Checklist</TableHead>
+              <TableHead>Started</TableHead>
+              <TableHead>Required items</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.items.map((checklist) => {
+              const name = `${checklist.participantProfile.person.firstName} ${checklist.participantProfile.person.lastName}`;
+              const required = checklist.items.filter((i) => i.required);
+              const requiredDone = required.filter(
+                (i) => i.status === 'completed' || i.status === 'not_applicable',
+              ).length;
+              return (
+                <TableRow
+                  key={checklist.id}
+                  className="cursor-pointer"
+                  onClick={() => onOpen({ id: checklist.participantProfileId, label: name })}
+                >
+                  <TableCell className="font-medium">{name}</TableCell>
+                  <TableCell>{checklist.template?.name ?? 'Onboarding checklist'}</TableCell>
+                  <TableCell>{formatDate(checklist.startedAt)}</TableCell>
+                  <TableCell>
+                    {requiredDone} of {required.length}
+                  </TableCell>
+                  <TableCell>
+                    {checklist.completedAt ? (
+                      <Badge variant="success">Completed</Badge>
+                    ) : (
+                      <Badge variant="warning">In progress</Badge>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function OnboardingPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
@@ -149,10 +231,7 @@ export function OnboardingPage() {
       />
 
       {!participant ? (
-        <EmptyState
-          title="Select a participant"
-          hint="Search above to view or start their onboarding checklist."
-        />
+        <OnboardingOverview onOpen={setParticipant} />
       ) : isLoading ? (
         <PageLoader />
       ) : error ? (

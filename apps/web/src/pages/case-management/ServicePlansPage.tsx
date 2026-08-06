@@ -26,6 +26,14 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -433,6 +441,72 @@ function CreatePlanCard({ participant }: { participant: PickerOption }) {
   );
 }
 
+/** All plans across participants — shown until a participant is chosen. */
+function PlansOverview({ onOpen }: { onOpen: (participant: PickerOption) => void }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['case-management', 'service-plans', 'overview'],
+    queryFn: () =>
+      api.get<Paged<ServicePlanRow>>(
+        `/service-plans${qs({ pageSize: 200, sortBy: 'createdAt', sortDir: 'desc' })}`,
+      ),
+  });
+
+  if (isLoading) return <PageLoader />;
+  if (error) return <ErrorState error={error} />;
+  if (!data || data.items.length === 0) {
+    return (
+      <EmptyState
+        title="No service plans yet"
+        hint="Search for a participant above to start their first plan."
+      />
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>All service plans</CardTitle>
+        <CardDescription>
+          {data.total} plan{data.total === 1 ? '' : 's'} — click a row to open, or search above.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Participant</TableHead>
+              <TableHead>Title</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Review date</TableHead>
+              <TableHead className="text-right">Goals</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.items.map((plan) => {
+              const name = `${plan.participantProfile.person.firstName} ${plan.participantProfile.person.lastName}`;
+              return (
+                <TableRow
+                  key={plan.id}
+                  className="cursor-pointer"
+                  onClick={() => onOpen({ id: plan.participantProfileId, label: name })}
+                >
+                  <TableCell className="font-medium">{name}</TableCell>
+                  <TableCell>{plan.title}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={plan.status} />
+                  </TableCell>
+                  <TableCell>{formatDate(plan.reviewDate)}</TableCell>
+                  <TableCell className="text-right">{plan._count?.goals ?? 0}</TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ServicePlansPage() {
   const { can } = useAuth();
   const [participant, setParticipant] = useState<PickerOption | null>(null);
@@ -472,9 +546,11 @@ export function ServicePlansPage() {
       />
 
       {!participant ? (
-        <EmptyState
-          title="Select a participant"
-          hint="Search above to view or start their service plan."
+        <PlansOverview
+          onOpen={(p) => {
+            setParticipant(p);
+            setSelectedPlanId(null);
+          }}
         />
       ) : isLoading ? (
         <PageLoader />
