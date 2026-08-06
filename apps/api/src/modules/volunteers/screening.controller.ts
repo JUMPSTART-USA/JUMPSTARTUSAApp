@@ -30,8 +30,19 @@ import { hasPerm, type AuthenticatedUser } from '../../common/types';
 import { ScreeningService } from './screening.service';
 
 // backgroundCheckSchema carries a superRefine (cross-field date rule) —
-// unwrap to the base object for PATCH.
-const backgroundCheckUpdateSchema = backgroundCheckSchema.innerType().partial();
+// unwrap to the base object for PATCH. personId is create-only: a recorded
+// check can never be repointed to another person.
+const backgroundCheckUpdateSchema = backgroundCheckSchema
+  .innerType()
+  .omit({ personId: true })
+  .partial();
+
+// FK fields are create-only on PATCH for the same reason (clearance renewals
+// go through the POST upsert).
+const trainingUpdateSchema = volunteerTrainingSchema.omit({ volunteerProfileId: true }).partial();
+const clearanceUpdateSchema = volunteerClearanceSchema
+  .omit({ volunteerProfileId: true, requirementId: true })
+  .partial();
 
 const checksQuerySchema = listQuerySchema.extend({ personId: uuid.optional() });
 type ChecksQuery = z.infer<typeof checksQuerySchema>;
@@ -70,6 +81,7 @@ export class BackgroundChecksController {
       listQuery as ListQuery,
       personId,
       hasPerm(user, 'fields.background_checks.read'),
+      user.chapter,
     );
   }
 
@@ -86,7 +98,7 @@ export class BackgroundChecksController {
   @RequirePermission('volunteers.update', 'fields.background_checks.read')
   update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body(zodBody(backgroundCheckUpdateSchema)) body: Partial<BackgroundCheckInput>,
+    @Body(zodBody(backgroundCheckUpdateSchema)) body: Partial<Omit<BackgroundCheckInput, 'personId'>>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.screening.updateCheck(id, body, user.id);
@@ -99,9 +111,12 @@ export class TrainingsController {
 
   @Get()
   @RequirePermission('volunteers.read')
-  list(@Query(zodQuery(trainingsQuerySchema)) query: TrainingsQuery) {
+  list(
+    @Query(zodQuery(trainingsQuerySchema)) query: TrainingsQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const { volunteerProfileId, ...listQuery } = query;
-    return this.screening.listTrainings(listQuery as ListQuery, volunteerProfileId);
+    return this.screening.listTrainings(listQuery as ListQuery, volunteerProfileId, user.chapter);
   }
 
   @Post()
@@ -117,7 +132,8 @@ export class TrainingsController {
   @RequirePermission('volunteers.update')
   update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body(zodBody(volunteerTrainingSchema.partial())) body: Partial<VolunteerTrainingInput>,
+    @Body(zodBody(trainingUpdateSchema))
+    body: Partial<Omit<VolunteerTrainingInput, 'volunteerProfileId'>>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.screening.updateTraining(id, body, user.id);
@@ -173,14 +189,21 @@ export class ClearancesController {
 
   @Get()
   @RequirePermission('volunteers.read')
-  list(@Query(zodQuery(clearancesQuerySchema)) query: ClearancesQuery) {
+  list(
+    @Query(zodQuery(clearancesQuerySchema)) query: ClearancesQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const { volunteerProfileId, requirementId, institutionId, status, ...listQuery } = query;
-    return this.screening.listClearances(listQuery as ListQuery, {
-      volunteerProfileId,
-      requirementId,
-      institutionId,
-      status,
-    });
+    return this.screening.listClearances(
+      listQuery as ListQuery,
+      {
+        volunteerProfileId,
+        requirementId,
+        institutionId,
+        status,
+      },
+      user.chapter,
+    );
   }
 
   // Upsert: volunteerProfileId+requirementId is unique — re-posting a renewal
@@ -198,7 +221,8 @@ export class ClearancesController {
   @RequirePermission('volunteers.update')
   update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body(zodBody(volunteerClearanceSchema.partial())) body: Partial<VolunteerClearanceInput>,
+    @Body(zodBody(clearanceUpdateSchema))
+    body: Partial<Omit<VolunteerClearanceInput, 'volunteerProfileId' | 'requirementId'>>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.screening.updateClearance(id, body, user.id);

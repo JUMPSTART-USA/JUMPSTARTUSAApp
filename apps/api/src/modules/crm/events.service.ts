@@ -222,7 +222,7 @@ export class EventsService {
     return updated;
   }
 
-  private async assertCampaignExists(campaignId?: string) {
+  private async assertCampaignExists(campaignId?: string | null) {
     if (!campaignId) return;
     const campaign = await this.prisma.campaign.findFirst({
       where: { id: campaignId, deletedAt: null },

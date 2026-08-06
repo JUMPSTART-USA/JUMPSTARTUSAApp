@@ -8,7 +8,6 @@ import {
   Bus,
   CalendarDays,
   CheckCircle2,
-  Clock,
   GraduationCap,
   HandCoins,
   HandHeart,
@@ -66,7 +65,12 @@ interface DashboardOverview {
   volunteersActive?: number;
   donorCount?: number;
   donationTotal?: number;
-  donationsLastSyncedAt?: string | null;
+  pledgesActive?: { count: number; outstanding: number };
+  recurringActive?: number;
+  unacknowledgedDonations?: number;
+  volunteerHoursMonth?: number;
+  pendingTimesheets?: number;
+  upcomingShifts7?: number;
   activeCampaigns?: DashboardCampaign[];
   upcomingEvents?: DashboardEvent[];
   activeEmployers?: number;
@@ -88,6 +92,8 @@ const ATTENTION_SEVERITY: Record<string, BadgeProps['variant']> = {
   overdue_follow_ups: 'destructive',
   intake_sla_breaches: 'destructive',
   portal_requests_pending: 'warning',
+  unacknowledged_donations: 'warning',
+  pending_timesheets: 'warning',
 };
 
 // Every dashboard widget links to the functional area its numbers come from.
@@ -97,6 +103,8 @@ const ATTENTION_LINKS: Record<string, string> = {
   overdue_follow_ups: '/case-management',
   intake_sla_breaches: '/intake',
   portal_requests_pending: '/case-management/requests',
+  unacknowledged_donations: '/donors/acknowledgments',
+  pending_timesheets: '/volunteers/hours',
 };
 
 const fmtCount = (n: number) => n.toLocaleString('en-US');
@@ -306,7 +314,22 @@ export function DashboardPage() {
               <StatCard icon={GraduationCap} label="Outside programs" value={data.activeOutsidePrograms} hint="Active" to="/outside-programs" />
             ) : null}
             {data.volunteersActive !== undefined ? (
-              <StatCard icon={HandHeart} label="Volunteers" value={data.volunteersActive} hint="Active" to="/volunteers" />
+              <StatCard
+                icon={HandHeart}
+                label="Volunteers"
+                value={data.volunteersActive}
+                hint={
+                  [
+                    data.volunteerHoursMonth !== undefined
+                      ? `${fmtCount(data.volunteerHoursMonth)} hrs this month`
+                      : null,
+                    data.upcomingShifts7 ? `${fmtCount(data.upcomingShifts7)} shifts next 7 days` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || 'Active'
+                }
+                to="/volunteers"
+              />
             ) : null}
             {data.employedParticipants !== undefined ? (
               <StatCard icon={Briefcase} label="Employed participants" value={data.employedParticipants} to="/employers" />
@@ -406,16 +429,35 @@ export function DashboardPage() {
                       {hasPeriod ? 'gave in this period' : 'on record'}
                     </p>
                   ) : null}
-                  {data.donationsLastSyncedAt !== undefined ? (
-                    data.donationsLastSyncedAt ? (
-                      <p className="flex items-center gap-1.5 border-t pt-2 text-[11px] text-muted-foreground">
-                        <Clock className="h-3 w-3" /> Bloomerang · last synced {fmtDateTime(data.donationsLastSyncedAt)}
-                      </p>
-                    ) : (
-                      <p className="rounded-md border border-warning/30 bg-warning/10 px-2 py-1.5 text-[11px] text-warning">
-                        No successful Bloomerang sync on record — totals may be incomplete.
-                      </p>
-                    )
+                  {data.pledgesActive !== undefined ||
+                  data.recurringActive !== undefined ||
+                  data.unacknowledgedDonations !== undefined ? (
+                    <div className="space-y-1.5 border-t pt-2">
+                      {data.pledgesActive !== undefined ? (
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-muted-foreground">
+                            Pledges outstanding ({fmtCount(data.pledgesActive.count)} active)
+                          </span>
+                          <span className="font-semibold tabular-nums">
+                            {formatMoney(data.pledgesActive.outstanding)}
+                          </span>
+                        </div>
+                      ) : null}
+                      {data.recurringActive !== undefined ? (
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-muted-foreground">Recurring gifts active</span>
+                          <span className="font-semibold tabular-nums">{fmtCount(data.recurringActive)}</span>
+                        </div>
+                      ) : null}
+                      {data.unacknowledgedDonations !== undefined ? (
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-muted-foreground">Awaiting acknowledgment</span>
+                          <span className="font-semibold tabular-nums">
+                            {fmtCount(data.unacknowledgedDonations)}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
                 </CardContent>
               </NavCard>

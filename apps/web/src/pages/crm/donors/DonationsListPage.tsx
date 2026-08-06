@@ -13,12 +13,20 @@ import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useDebounced } from '@/lib/form';
-import { formatDate, formatMoney } from '@/lib/utils';
-import { useCampaignOptions } from '../shared';
+import { formatDate, formatMoney, humanize } from '@/lib/utils';
+import { useAppealOptions, useCampaignOptions, useFundOptions } from '../shared';
 import type { Donation, DonationSummary } from '../types';
 import { DonationFormDialog } from './DonationFormDialog';
 import { DonorsNav } from './DonorsNav';
 import { BackLink } from '@/components/BackLink';
+
+export function AcknowledgedBadge({ acknowledgedAt }: { acknowledgedAt: string | null }) {
+  return acknowledgedAt ? (
+    <Badge variant="success">Acknowledged</Badge>
+  ) : (
+    <Badge variant="warning">Pending</Badge>
+  );
+}
 
 const columns: Column<Donation>[] = [
   { key: 'donationDate', header: 'Date', sortKey: 'donationDate', render: (d) => formatDate(d.donationDate) },
@@ -45,8 +53,12 @@ const columns: Column<Donation>[] = [
     className: 'text-right',
     render: (d) => <span className="tabular-nums">{formatMoney(d.amount)}</span>,
   },
-  { key: 'fund', header: 'Fund', render: (d) => d.fund ?? '—' },
-  { key: 'paymentMethod', header: 'Method', render: (d) => d.paymentMethod ?? '—' },
+  { key: 'fund', header: 'Fund', render: (d) => d.fund?.name ?? '—' },
+  {
+    key: 'paymentMethod',
+    header: 'Method',
+    render: (d) => (d.paymentMethod ? humanize(d.paymentMethod) : '—'),
+  },
   {
     key: 'isRecurring',
     header: 'Recurring',
@@ -84,6 +96,11 @@ const columns: Column<Donation>[] = [
         '—'
       ),
   },
+  {
+    key: 'acknowledged',
+    header: 'Acknowledged',
+    render: (d) => <AcknowledgedBadge acknowledgedAt={d.acknowledgedAt} />,
+  },
 ];
 
 export function DonationsListPage() {
@@ -98,46 +115,52 @@ export function DonationsListPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [campaignId, setCampaignId] = useState('');
-  const [fund, setFund] = useState('');
+  const [fundId, setFundId] = useState('');
+  const [appealId, setAppealId] = useState('');
   const [recurring, setRecurring] = useState('');
+  const [acknowledged, setAcknowledged] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<Donation | null>(null);
   const debouncedSearch = useDebounced(search);
-  const debouncedFund = useDebounced(fund);
   const campaignOptions = useCampaignOptions();
+  const fundOptions = useFundOptions(false);
+  const appealOptions = useAppealOptions(undefined, false);
 
   useEffect(() => {
     setState((s) => ({ ...s, page: 1 }));
-  }, [debouncedSearch, debouncedFund]);
+  }, [debouncedSearch]);
 
+  const filterParams = {
+    search: debouncedSearch,
+    from,
+    to,
+    campaignId,
+    fundId,
+    appealId,
+    isRecurring: recurring,
+    acknowledged,
+  };
   const listParams = qs({
     page: state.page,
     pageSize: state.pageSize,
     sortBy: state.sortBy,
     sortDir: state.sortDir,
-    search: debouncedSearch,
-    from,
-    to,
-    campaignId,
-    fund: debouncedFund,
-    isRecurring: recurring,
+    ...filterParams,
   });
   const listQuery = useQuery({
     queryKey: ['crm', 'donations', 'list', listParams],
     queryFn: () => api.get<Paged<Donation>>(`/donations${listParams}`),
   });
 
-  // GET /donations/summary supports from/to/campaignId (not fund/recurring).
-  const summaryParams = qs({ from, to, campaignId });
+  const summaryParams = qs(filterParams);
   const summaryQuery = useQuery({
     queryKey: ['crm', 'donations', 'summary', summaryParams],
     queryFn: () => api.get<DonationSummary>(`/donations/summary${summaryParams}`),
   });
 
-  const dateFilter = (
-    label: string,
-    value: string,
-    setValue: (v: string) => void,
-  ) => (
+  const resetPage = () => setState((s) => ({ ...s, page: 1 }));
+
+  const dateFilter = (label: string, value: string, setValue: (v: string) => void) => (
     <div className="flex items-center gap-1.5">
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <Input
@@ -145,7 +168,7 @@ export function DonationsListPage() {
         value={value}
         onChange={(e) => {
           setValue(e.target.value);
-          setState((s) => ({ ...s, page: 1 }));
+          resetPage();
         }}
         className="w-40"
       />
@@ -157,7 +180,7 @@ export function DonationsListPage() {
       <BackLink stateOnly />
       <PageHeader
         title="Donations"
-        description="Gift history mirrored from Bloomerang."
+        description="Every gift on record — click a row to edit."
         actions={
           can('donors.create') ? (
             <Button onClick={() => setCreateOpen(true)}>
@@ -181,7 +204,7 @@ export function DonationsListPage() {
           value={campaignId}
           onChange={(e) => {
             setCampaignId(e.target.value);
-            setState((s) => ({ ...s, page: 1 }));
+            resetPage();
           }}
           className="w-full sm:w-56"
         >
@@ -192,17 +215,53 @@ export function DonationsListPage() {
             </option>
           ))}
         </Select>
-        <Input
-          value={fund}
-          onChange={(e) => setFund(e.target.value)}
-          placeholder="Fund…"
-          className="w-full sm:w-36"
-        />
+        <Select
+          value={fundId}
+          onChange={(e) => {
+            setFundId(e.target.value);
+            resetPage();
+          }}
+          className="w-full sm:w-44"
+        >
+          <option value="">All funds</option>
+          {fundOptions.data?.items.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </Select>
+        <Select
+          value={appealId}
+          onChange={(e) => {
+            setAppealId(e.target.value);
+            resetPage();
+          }}
+          className="w-full sm:w-44"
+        >
+          <option value="">All appeals</option>
+          {appealOptions.data?.items.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </Select>
+        <Select
+          value={acknowledged}
+          onChange={(e) => {
+            setAcknowledged(e.target.value);
+            resetPage();
+          }}
+          className="w-full sm:w-44"
+        >
+          <option value="">All acknowledgments</option>
+          <option value="true">Acknowledged</option>
+          <option value="false">Not acknowledged</option>
+        </Select>
         <Select
           value={recurring}
           onChange={(e) => {
             setRecurring(e.target.value);
-            setState((s) => ({ ...s, page: 1 }));
+            resetPage();
           }}
           className="w-full sm:w-44"
         >
@@ -230,9 +289,15 @@ export function DonationsListPage() {
               {summaryQuery.isLoading ? '…' : (summaryQuery.data?.count ?? '—')}
             </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Totals reflect the date range and campaign filters.
-          </p>
+          <div>
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Average
+            </span>
+            <p className="text-xl font-semibold tabular-nums">
+              {summaryQuery.isLoading ? '…' : formatMoney(summaryQuery.data?.average)}
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">Totals reflect the filters above.</p>
         </CardContent>
       </Card>
 
@@ -243,10 +308,18 @@ export function DonationsListPage() {
         isLoading={listQuery.isLoading}
         state={state}
         onStateChange={setState}
+        onRowClick={can('donors.update') ? (row) => setEditing(row) : undefined}
         emptyMessage="No donations match these filters"
       />
 
       <DonationFormDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <DonationFormDialog
+        open={Boolean(editing)}
+        onOpenChange={(next) => {
+          if (!next) setEditing(null);
+        }}
+        donation={editing ?? undefined}
+      />
     </div>
   );
 }

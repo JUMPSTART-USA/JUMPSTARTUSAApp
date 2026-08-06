@@ -15,7 +15,7 @@ export const MODULES = [
   'volunteers', // profiles, assignments, trainings, clearances, background checks
   'mentoring', // screenings, assignments, session logs (Phase 3 workflows)
   'alumni', // engagements, outcome check-ins
-  'donors', // read-mostly Bloomerang mirror
+  'donors', // donors, donations, pledges, recurring gifts, interactions, tasks, funds, households
   'campaigns',
   'events',
   'vendors',
@@ -218,7 +218,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
 
   development_staff: [
     ...read('dashboard'),
-    ...readExport('donors'), // mirror — edits happen in Bloomerang
+    ...crue('donors'), // full native donor management (§6.8)
     ...crue('campaigns'),
     ...crue('events'),
     ...crue('vendors'),

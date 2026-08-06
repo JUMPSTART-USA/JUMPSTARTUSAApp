@@ -14,9 +14,6 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === 'true'),
-  BLOOMERANG_API_KEY: z.string().optional(),
-  NEONCRM_ORG_ID: z.string().optional(),
-  NEONCRM_API_KEY: z.string().optional(),
   POSTMARK_SERVER_TOKEN: z.string().optional(),
   // Twilio SMS (§6.12) — all three required for sends; otherwise SMS fails
   // gracefully with "SMS provider not configured (Twilio pending)".

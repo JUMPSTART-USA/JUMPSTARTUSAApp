@@ -55,6 +55,12 @@ function addDays(base: Date, n: number): Date {
   d.setDate(d.getDate() + n);
   return d;
 }
+/** Timestamp on a given calendar day at local h:mm (shift check-in/out). */
+function atTime(day: Date, h: number, m = 0): Date {
+  const x = new Date(day);
+  x.setHours(h, m, 0, 0);
+  return x;
+}
 /** Fixed calendar date (UTC midnight) for historical anchors. */
 const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 const min = (a: Date, b: Date) => (a < b ? a : b);
@@ -78,7 +84,7 @@ async function wipe(): Promise<void> {
     'outside_programs', 'transitional_homes', 'onboarding_checklist_templates',
     'mentor_screening_templates', 'donors', 'campaigns', 'events', 'vendors',
     'employers', 'vehicles', 'communication_templates', 'communication_batches',
-    'data_sharing_agreements', 'app_settings', 'sync_runs', 'audit_logs',
+    'data_sharing_agreements', 'app_settings', 'funds', 'households', 'audit_logs',
     'attachments', 'volunteer_applications', 'referrals_inbox', 'session',
   ];
   await prisma.$executeRawUnsafe(
@@ -874,7 +880,8 @@ async function seedHousing(participants: PRec[]): Promise<void> {
   }
 }
 
-// ═══ 14. CRM — donors, donations, campaigns, events, vendors ════════════════
+// ═══ 14. CRM / DEVELOPMENT — funds, appeals, donors, households, pledges,
+// recurring gifts, donations, soft credits, interactions, tasks, vendors ═════
 // (Seeded before case management/volunteers: referrals need vendors, event
 // assignments/registrations need events.)
 
@@ -945,20 +952,72 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
     });
   }
 
-  // Donors (12) — one is also an internal person (volunteer/donor overlap set later is unnecessary; leave personId null here, linked donor added in volunteers step is overkill — keep one linked below via alumni person)
-  const donorSpecs: { name: string; type: 'individual' | 'organization' | 'church' | 'business' | 'foundation'; bloomerang?: string; contact?: string; state: string; personIdx?: number }[] = [
-    { name: 'Harold & June Wetherby', type: 'individual', bloomerang: 'BL-84512', state: 'TN' },
-    { name: 'First Covenant Church of Nashville', type: 'church', bloomerang: 'BL-84520', contact: 'Pastor Neil Ogden', state: 'TN' },
-    { name: 'Stanton Freight Lines LLC', type: 'business', bloomerang: 'BL-84533', contact: 'Rhonda Stanton', state: 'TN' },
-    { name: 'The Kettering Family Foundation', type: 'foundation', bloomerang: 'BL-84541', contact: 'Grants Office', state: 'GA' },
+  // Funds — created with upsert-by-name so the names stay aligned with the
+  // Fund rows the migration promoted from the old free-text donations.fund
+  // strings ('General', 'Housing'); a reseeded database recreates them all.
+  const fundSpecs: { name: string; description: string; sortOrder: number; isActive?: boolean }[] = [
+    { name: 'General', description: 'General operating fund — undesignated gifts.', sortOrder: 1 },
+    { name: 'Housing', description: 'Transitional home operations and the Homes of Hope build-out.', sortOrder: 2 },
+    { name: 'Scholarship Fund', description: 'Program fees, class materials, and participant scholarships.', sortOrder: 3 },
+    { name: 'Reentry Services', description: 'Case management and outside program services.', sortOrder: 4 },
+    { name: 'Vehicle Fund', description: 'Ministry van purchases, fuel, and fleet maintenance.', sortOrder: 5 },
+    { name: 'Chapel Fund', description: 'Legacy fund — chapel construction completed in 2024.', sortOrder: 6, isActive: false },
+  ];
+  const fundIdByName = new Map<string, string>();
+  for (const f of fundSpecs) {
+    const fund = await prisma.fund.upsert({
+      where: { name: f.name },
+      update: { description: f.description, sortOrder: f.sortOrder, isActive: f.isActive ?? true, updatedById: AUDIT.updatedById },
+      create: { name: f.name, description: f.description, sortOrder: f.sortOrder, isActive: f.isActive ?? true, ...AUDIT },
+    });
+    fundIdByName.set(f.name, fund.id);
+  }
+  const fundId = (name: string): string => {
+    const id = fundIdByName.get(name);
+    if (!id) throw new Error(`unknown fund ${name}`);
+    return id;
+  };
+
+  // Appeals — the specific solicitations under the two campaigns.
+  const appealSpecs: { key: string; name: string; description: string; campaignId: string; goal: number; start: Date; end: Date; active: boolean }[] = [
+    { key: 'year_end', name: '2025 Year-End Letter', description: 'December appeal letter to the full house file.', campaignId: campaignA.id, goal: 15000, start: d('2025-11-15'), end: d('2025-12-31'), active: false },
+    { key: 'giving_tuesday', name: 'Giving Tuesday 2025', description: 'One-day online giving push on Giving Tuesday.', campaignId: campaignA.id, goal: 5000, start: d('2025-12-02'), end: d('2025-12-02'), active: false },
+    { key: 'spring_mailer', name: 'Spring Mailer 2026', description: 'Spring letter introducing the Homes of Hope campaign.', campaignId: campaignB.id, goal: 10000, start: d('2026-03-01'), end: d('2026-05-31'), active: true },
+    { key: 'gala', name: 'Gala Sponsorships 2026', description: 'Sponsorship packets for the 2026 Second Chance Banquet.', campaignId: campaignB.id, goal: 20000, start: d('2026-08-01'), end: d('2026-11-30'), active: true },
+  ];
+  const appealIdByKey = new Map<string, string>();
+  for (const a of appealSpecs) {
+    const appeal = await prisma.appeal.create({
+      data: {
+        name: a.name, description: a.description, campaignId: a.campaignId,
+        goalAmount: a.goal, startDate: a.start, endDate: a.end, isActive: a.active, ...AUDIT,
+      },
+    });
+    appealIdByKey.set(a.key, appeal.id);
+  }
+  const appealId = (key: string): string => {
+    const id = appealIdByKey.get(key);
+    if (!id) throw new Error(`unknown appeal ${key}`);
+    return id;
+  };
+
+  // Donors (14) — one linked to an alumnus person; the two spouses at the end
+  // exist so households and soft credits have individual members to point at.
+  const donorSpecs: { name: string; type: 'individual' | 'organization' | 'church' | 'business' | 'foundation'; contact?: string; state: string; personIdx?: number }[] = [
+    { name: 'Harold & June Wetherby', type: 'individual', state: 'TN' },
+    { name: 'First Covenant Church of Nashville', type: 'church', contact: 'Pastor Neil Ogden', state: 'TN' },
+    { name: 'Stanton Freight Lines LLC', type: 'business', contact: 'Rhonda Stanton', state: 'TN' },
+    { name: 'The Kettering Family Foundation', type: 'foundation', contact: 'Grants Office', state: 'GA' },
     { name: 'Miriam Doss', type: 'individual', state: 'SC' },
-    { name: 'Calvary Ridge Fellowship', type: 'church', bloomerang: 'BL-84559', contact: 'Deacon Ed Pratt', state: 'SC' },
+    { name: 'Calvary Ridge Fellowship', type: 'church', contact: 'Deacon Ed Pratt', state: 'SC' },
     { name: 'Aldon Perry', type: 'individual', state: 'TN' },
     { name: 'Grace Point Community Church', type: 'church', state: 'GA' },
     { name: 'Trumbull & Vance CPAs', type: 'business', contact: 'Kay Trumbull', state: 'TN' },
-    { name: 'Evelyn Roundtree', type: 'individual', bloomerang: 'BL-84568', state: 'TX' },
+    { name: 'Evelyn Roundtree', type: 'individual', state: 'TX' },
     { name: 'Doyle Hutchins', type: 'individual', state: 'TN' },
     { name: 'Marguerite Sablan', type: 'individual', state: 'TN', personIdx: 30 }, // an alumnus who now gives
+    { name: 'Charlene Perry', type: 'individual', state: 'TN' }, // spouse of Aldon (household + soft credit)
+    { name: 'Bernice Hutchins', type: 'individual', state: 'TN' }, // spouse of Doyle (household)
   ];
   const donors: { id: string }[] = [];
   for (let i = 0; i < donorSpecs.length; i++) {
@@ -968,7 +1027,6 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
       data: {
         name: linkedPerson ? `${linkedPerson.firstName} ${linkedPerson.lastName}` : s.name,
         donorType: s.type,
-        bloomerangId: s.bloomerang ?? null,
         contactPerson: s.contact ?? null,
         phone: phone(s.state, i + 10),
         email: `donor${i + 1}@example.org`,
@@ -976,7 +1034,6 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
         city: CITY[s.state], state: s.state, zip: `${37100 + i}`,
         status: i === 10 ? 'lapsed' : 'active',
         personId: linkedPerson?.personId ?? null,
-        lastSyncedAt: s.bloomerang ? daysAgo(1) : null,
         ...AUDIT,
       },
     });
@@ -984,24 +1041,140 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
   }
   const donorAt = (n: number) => at(donors, n);
 
-  // Donations (35): campaign A exceeds its 25k goal; campaign B sits ~60% of 40k
-  const donationSpecs: { donor: number; date: Date; amount: number; fund: string; campaignId?: string; eventId?: string; recurring?: boolean; method?: string }[] = [
+  // Households — combined giving rollups; the head drives envelope addressing.
+  const householdSpecs: { name: string; envelopeName: string; head: number; members: number[] }[] = [
+    { name: 'The Perry Household', envelopeName: 'Mr. & Mrs. Aldon Perry', head: 6, members: [6, 12] },
+    { name: 'The Hutchins Household', envelopeName: 'Mr. & Mrs. Doyle Hutchins', head: 10, members: [10, 13] },
+  ];
+  for (const h of householdSpecs) {
+    const household = await prisma.household.create({
+      data: { name: h.name, envelopeName: h.envelopeName, ...AUDIT },
+    });
+    for (const m of h.members) {
+      await prisma.donor.update({
+        where: { id: donorAt(m).id },
+        data: { householdId: household.id, isHeadOfHousehold: m === h.head, updatedById: AUDIT.updatedById },
+      });
+    }
+  }
+
+  // Donor relationships — two spouse pairs, an employer/employee link, and a
+  // church affiliation.
+  await prisma.donorRelationship.createMany({
+    data: [
+      { donorId: donorAt(6).id, relatedDonorId: donorAt(12).id, relationshipType: 'Spouse', reciprocalType: 'Spouse', ...AUDIT },
+      { donorId: donorAt(10).id, relatedDonorId: donorAt(13).id, relationshipType: 'Spouse', reciprocalType: 'Spouse', ...AUDIT },
+      { donorId: donorAt(2).id, relatedDonorId: donorAt(6).id, relationshipType: 'Employer', reciprocalType: 'Employee', notes: 'Aldon drives for Stanton Freight; the company matches employee gifts.', ...AUDIT },
+      { donorId: donorAt(1).id, relatedDonorId: donorAt(0).id, relationshipType: 'Congregant', reciprocalType: 'Church home', ...AUDIT },
+    ],
+  });
+
+  // Pledges — one paying on schedule, one in arrears, one fulfilled.
+  const onSchedulePledge = await prisma.pledge.create({
+    data: {
+      donorId: donorAt(3).id, // Kettering Family Foundation
+      pledgeDate: daysAgo(40), totalAmount: 12000, installmentAmount: 1000,
+      frequency: 'monthly', startDate: daysAgo(35), endDate: daysFromNow(330),
+      campaignId: campaignB.id, fundId: fundId('Housing'), status: 'active',
+      notes: 'Board-approved pledge toward the sixth transitional home.',
+      ...AUDIT,
+    },
+  });
+  const arrearsPledge = await prisma.pledge.create({
+    data: {
+      donorId: donorAt(2).id, // Stanton Freight Lines — 3 months in, no payments
+      pledgeDate: daysAgo(95), totalAmount: 5000, installmentAmount: 500,
+      frequency: 'monthly', startDate: daysAgo(90),
+      fundId: fundId('General'), status: 'active',
+      notes: 'No payments received yet — see the open pledge-reminder task.',
+      ...AUDIT,
+    },
+  });
+  void arrearsPledge;
+  const fulfilledPledge = await prisma.pledge.create({
+    data: {
+      donorId: donorAt(1).id, // First Covenant Church — paid in full
+      pledgeDate: d('2025-09-15'), totalAmount: 1500,
+      campaignId: campaignA.id, fundId: fundId('General'), status: 'fulfilled',
+      notes: 'Paid in full ahead of the year-end deadline.',
+      ...AUDIT,
+    },
+  });
+
+  // Recurring gifts — an on-track monthly sustainer, an overdue schedule, and
+  // a closed one.
+  const sustainerGift = await prisma.recurringGift.create({
+    data: {
+      donorId: donorAt(6).id, // Aldon Perry
+      amount: 100, frequency: 'monthly', startDate: daysAgo(115),
+      nextGiftDate: daysFromNow(5), paymentMethod: 'credit_card',
+      fundId: fundId('General'), status: 'active', ...AUDIT,
+    },
+  });
+  const overdueGift = await prisma.recurringGift.create({
+    data: {
+      donorId: donorAt(9).id, // Evelyn Roundtree
+      amount: 50, frequency: 'monthly', startDate: daysAgo(40),
+      nextGiftDate: daysAgo(10), paymentMethod: 'credit_card',
+      fundId: fundId('Reentry Services'), status: 'active',
+      notes: 'Card declined on the last scheduled charge — follow-up task open.',
+      ...AUDIT,
+    },
+  });
+  await prisma.recurringGift.create({
+    data: {
+      donorId: donorAt(5).id, // Calvary Ridge Fellowship
+      amount: 200, frequency: 'monthly', startDate: d('2025-01-15'), endDate: d('2025-12-15'),
+      paymentMethod: 'check', fundId: fundId('General'), status: 'closed',
+      notes: 'Closed at the donor’s request after their 2025 giving year.',
+      ...AUDIT,
+    },
+  });
+
+  // Donations (~46): campaign A exceeds its 25k goal; campaign B sits ~60% of
+  // 40k. Every gift carries a fund; roughly half carry the appeal that
+  // prompted them; the most recent handful stay unacknowledged so the
+  // stewardship queue has work in it.
+  interface DonationSpec {
+    donor: number; date: Date; amount: number; fund: string;
+    appeal?: string; campaignId?: string; eventId?: string;
+    pledgeId?: string; recurringGiftId?: string; recurring?: boolean;
+    method?: string; unacknowledged?: boolean; key?: string;
+    tributeType?: 'in_honor_of' | 'in_memory_of'; tributeName?: string; tributeNotify?: string;
+    isAnonymous?: boolean; nonDeductibleAmount?: number;
+    inKindDescription?: string; inKindFmv?: number; notes?: string;
+  }
+  const donationSpecs: DonationSpec[] = [
     // Campaign A: 10,000 + 8,500 + 5,000 + 2,500 + 1,500 = 27,500 (goal exceeded)
     { donor: 3, date: d('2025-09-20'), amount: 10000, fund: 'General', campaignId: campaignA.id, method: 'check' },
-    { donor: 2, date: d('2025-10-17'), amount: 8500, fund: 'General', campaignId: campaignA.id, eventId: banquet.id, method: 'check' },
-    { donor: 1, date: d('2025-11-05'), amount: 5000, fund: 'General', campaignId: campaignA.id, method: 'ach' },
-    { donor: 0, date: d('2025-12-12'), amount: 2500, fund: 'General', campaignId: campaignA.id, method: 'card' },
-    { donor: 8, date: d('2025-12-30'), amount: 1500, fund: 'General', campaignId: campaignA.id, method: 'card' },
+    { donor: 2, date: d('2025-10-17'), amount: 8500, fund: 'General', campaignId: campaignA.id, eventId: banquet.id, method: 'check', nonDeductibleAmount: 500, notes: 'Banquet sponsorship — dinner benefit excluded from the deductible amount.' },
+    { donor: 1, date: d('2025-11-05'), amount: 5000, fund: 'General', campaignId: campaignA.id, appeal: 'year_end', method: 'ach_eft' },
+    { donor: 0, date: d('2025-12-12'), amount: 2500, fund: 'General', campaignId: campaignA.id, appeal: 'giving_tuesday', method: 'credit_card' },
+    { donor: 8, date: d('2025-12-30'), amount: 1500, fund: 'General', campaignId: campaignA.id, appeal: 'year_end', method: 'credit_card' },
     // Campaign B: 10,000 + 7,500 + 5,000 + 1,500 = 24,000 (~60% of 40,000)
-    { donor: 3, date: d('2026-03-02'), amount: 10000, fund: 'Housing', campaignId: campaignB.id, method: 'check' },
-    { donor: 5, date: d('2026-04-14'), amount: 7500, fund: 'Housing', campaignId: campaignB.id, method: 'check' },
-    { donor: 2, date: d('2026-05-21'), amount: 5000, fund: 'Housing', campaignId: campaignB.id, method: 'ach' },
-    { donor: 4, date: d('2026-06-10'), amount: 1500, fund: 'Housing', campaignId: campaignB.id, method: 'card' },
+    { donor: 3, date: d('2026-03-02'), amount: 10000, fund: 'Housing', campaignId: campaignB.id, appeal: 'spring_mailer', method: 'check' },
+    { donor: 5, date: d('2026-04-14'), amount: 7500, fund: 'Housing', campaignId: campaignB.id, appeal: 'spring_mailer', method: 'check' },
+    { donor: 2, date: d('2026-05-21'), amount: 5000, fund: 'Housing', campaignId: campaignB.id, appeal: 'spring_mailer', method: 'ach_eft' },
+    { donor: 4, date: d('2026-06-10'), amount: 1500, fund: 'Housing', campaignId: campaignB.id, appeal: 'spring_mailer', method: 'credit_card', unacknowledged: true },
+    // Pledge payments (Kettering on schedule; First Covenant paid in full)
+    { donor: 3, date: daysAgo(35), amount: 1000, fund: 'Housing', campaignId: campaignB.id, pledgeId: onSchedulePledge.id, method: 'check' },
+    { donor: 3, date: daysAgo(5), amount: 1000, fund: 'Housing', campaignId: campaignB.id, pledgeId: onSchedulePledge.id, method: 'check', unacknowledged: true },
+    { donor: 1, date: d('2025-11-20'), amount: 750, fund: 'General', campaignId: campaignA.id, appeal: 'year_end', pledgeId: fulfilledPledge.id, method: 'check' },
+    { donor: 1, date: d('2025-12-18'), amount: 750, fund: 'General', campaignId: campaignA.id, appeal: 'year_end', pledgeId: fulfilledPledge.id, method: 'check' },
+    // Recurring sustainer payments (Aldon Perry, monthly) + the overdue
+    // schedule's single collected charge before the card started declining
+    { donor: 6, date: daysAgo(115), amount: 100, fund: 'General', recurringGiftId: sustainerGift.id, recurring: true, method: 'credit_card' },
+    { donor: 6, date: daysAgo(85), amount: 100, fund: 'General', recurringGiftId: sustainerGift.id, recurring: true, method: 'credit_card' },
+    { donor: 6, date: daysAgo(55), amount: 100, fund: 'General', recurringGiftId: sustainerGift.id, recurring: true, method: 'credit_card' },
+    { donor: 6, date: daysAgo(25), amount: 100, fund: 'General', recurringGiftId: sustainerGift.id, recurring: true, method: 'credit_card', unacknowledged: true },
+    { donor: 9, date: daysAgo(40), amount: 50, fund: 'Reentry Services', recurringGiftId: overdueGift.id, recurring: true, method: 'credit_card' },
+    // Tribute, in-kind, anonymous, and employer-match gifts
+    { donor: 0, date: d('2026-05-10'), amount: 250, fund: 'General', appeal: 'spring_mailer', method: 'check', tributeType: 'in_memory_of', tributeName: 'Pastor Gene Wetherby', tributeNotify: 'June Wetherby — mail a memorial card to the home address' },
+    { donor: 4, date: d('2026-06-22'), amount: 100, fund: 'Scholarship Fund', method: 'credit_card', tributeType: 'in_honor_of', tributeName: 'Rev. Curtis Mabry', tributeNotify: 'Notify Rev. Mabry by email via the Palmetto Pines chaplain office', unacknowledged: true },
+    { donor: 8, date: d('2026-04-28'), amount: 1200, fund: 'General', method: 'in_kind', inKindDescription: 'Four refurbished office workstations for the Nashville office', inKindFmv: 1200 },
+    { donor: 9, date: d('2026-03-14'), amount: 500, fund: 'Reentry Services', appeal: 'spring_mailer', method: 'cash', isAnonymous: true, notes: 'Donor asked to remain anonymous in all public recognition.' },
+    { donor: 2, date: d('2026-04-20'), amount: 125, fund: 'General', appeal: 'spring_mailer', method: 'check', key: 'employer_match', notes: 'Corporate match of Aldon Perry’s April gift.' },
   ];
-  // Recurring monthly gifts (donor 6): Jan–Jun 2026
-  for (let m = 1; m <= 6; m++) {
-    donationSpecs.push({ donor: 6, date: d(`2026-0${m}-15`), amount: 100, fund: 'General', recurring: true, method: 'card' });
-  }
   // General giving spread across 2024–2026
   const generalDates = ['2024-03-08', '2024-05-19', '2024-07-30', '2024-09-12', '2024-11-29', '2024-12-20', '2025-01-25', '2025-03-16', '2025-05-04', '2025-06-27', '2025-08-09', '2026-01-31', '2026-02-19', '2026-04-06', '2026-05-27', '2026-06-30', '2026-07-10', '2024-12-31', '2025-04-21', '2026-03-25'];
   const generalAmounts = [25, 250, 75, 1200, 500, 3500, 150, 60, 800, 40, 2000, 350, 90, 125, 600, 275, 50, 4500, 175, 1000];
@@ -1010,23 +1183,117 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
       donor: (g * 5 + 1) % 12,
       date: d(at(generalDates, g)),
       amount: at(generalAmounts, g),
-      fund: g % 4 === 0 ? 'Housing' : 'General',
-      method: at(['card', 'check', 'cash', 'ach'], g),
+      fund: g % 4 === 0 ? 'Housing' : g === 18 ? 'Vehicle Fund' : g % 7 === 3 ? 'Reentry Services' : g % 9 === 5 ? 'Scholarship Fund' : 'General',
+      appeal: [13, 14, 15, 16, 19].includes(g) ? 'spring_mailer' : undefined, // 2026 spring/summer gifts
+      method: at(['credit_card', 'check', 'cash', 'ach_eft'], g),
+      unacknowledged: g === 15 || g === 16, // the two most recent general gifts
+      key: g === 1 ? 'spouse_gift' : undefined, // Aldon's $250 — spouse soft credit
     });
   }
+  const donationIdByKey = new Map<string, string>();
   for (const s of donationSpecs) {
-    await prisma.donation.create({
+    const acknowledged = !s.unacknowledged;
+    const donation = await prisma.donation.create({
       data: {
         donorId: donorAt(s.donor).id,
         donationDate: s.date,
         amount: s.amount,
-        paymentMethod: s.method ?? 'card',
-        fund: s.fund,
+        paymentMethod: s.method ?? 'credit_card',
+        fundId: fundId(s.fund),
+        appealId: s.appeal ? appealId(s.appeal) : null,
         isRecurring: s.recurring ?? false,
         receiptSent: s.date < daysAgo(14),
         campaignId: s.campaignId ?? null,
         eventId: s.eventId ?? null,
-        lastSyncedAt: daysAgo(1),
+        pledgeId: s.pledgeId ?? null,
+        recurringGiftId: s.recurringGiftId ?? null,
+        tributeType: s.tributeType ?? null,
+        tributeName: s.tributeName ?? null,
+        tributeNotify: s.tributeNotify ?? null,
+        isAnonymous: s.isAnonymous ?? false,
+        nonDeductibleAmount: s.nonDeductibleAmount ?? null,
+        inKindDescription: s.inKindDescription ?? null,
+        inKindFairMarketValue: s.inKindFmv ?? null,
+        acknowledgedAt: acknowledged ? min(addDays(s.date, 6), daysAgo(1)) : null,
+        acknowledgedById: acknowledged ? users.byRole.development_staff : null,
+        notes: s.notes ?? null,
+        ...AUDIT,
+      },
+    });
+    if (s.key) donationIdByKey.set(s.key, donation.id);
+  }
+
+  // Soft credits — a spouse credit on a household gift and an employer match.
+  const spouseGiftId = donationIdByKey.get('spouse_gift');
+  const matchGiftId = donationIdByKey.get('employer_match');
+  if (!spouseGiftId || !matchGiftId) throw new Error('soft-credit target donations missing');
+  await prisma.softCredit.create({
+    data: { donationId: spouseGiftId, donorId: donorAt(12).id, amount: 250, notes: 'Spouse — joint household gift.', ...AUDIT },
+  });
+  await prisma.softCredit.create({
+    data: { donationId: matchGiftId, donorId: donorAt(6).id, amount: 125, notes: 'Employer match of Aldon Perry’s spring-mailer gift.', ...AUDIT },
+  });
+
+  // Donor interactions (~11) — the stewardship timeline: acknowledgments,
+  // cultivation calls, mailings, and one inbound website request.
+  const interactionSpecs: {
+    donor: number; days: number;
+    channel: 'email' | 'phone' | 'mail' | 'in_person' | 'text_message' | 'social_media' | 'website' | 'other';
+    purpose: 'acknowledgment' | 'cultivation' | 'newsletter' | 'receipt' | 'solicitation' | 'event_followup' | 'pledge_reminder' | 'welcome' | 'other';
+    subject: string; notes?: string; isInbound?: boolean;
+  }[] = [
+    { donor: 0, days: 230, channel: 'mail', purpose: 'acknowledgment', subject: 'Year-end gift acknowledgment letter mailed' },
+    { donor: 3, days: 150, channel: 'email', purpose: 'solicitation', subject: 'Submitted Homes of Hope grant renewal request' },
+    { donor: 3, days: 45, channel: 'phone', purpose: 'cultivation', subject: 'Quarterly update call with the grants office' },
+    { donor: 1, days: 60, channel: 'in_person', purpose: 'cultivation', subject: 'Lunch with Pastor Ogden about hosting a 2026 banquet table' },
+    { donor: 2, days: 100, channel: 'email', purpose: 'acknowledgment', subject: 'Thanked Rhonda Stanton for the matching-gift program' },
+    { donor: 2, days: 12, channel: 'phone', purpose: 'pledge_reminder', subject: 'Called about pledge installments now three months behind', notes: 'Left a voicemail; follow-up task open.' },
+    { donor: 4, days: 90, channel: 'mail', purpose: 'newsletter', subject: 'Spring newsletter mailed' },
+    { donor: 9, days: 30, channel: 'website', purpose: 'other', subject: 'Requested a duplicate 2025 giving receipt via the website form', isInbound: true },
+    { donor: 9, days: 28, channel: 'email', purpose: 'receipt', subject: 'Emailed duplicate 2025 giving receipt' },
+    { donor: 11, days: 280, channel: 'in_person', purpose: 'event_followup', subject: 'Banquet follow-up conversation at the alumni table' },
+    { donor: 12, days: 20, channel: 'mail', purpose: 'welcome', subject: 'Welcome letter for the new household record' },
+  ];
+  for (const s of interactionSpecs) {
+    await prisma.donorInteraction.create({
+      data: {
+        donorId: donorAt(s.donor).id,
+        date: daysAgo(s.days),
+        channel: s.channel,
+        purpose: s.purpose,
+        subject: s.subject,
+        notes: s.notes ?? null,
+        isInbound: s.isInbound ?? false,
+        ...AUDIT,
+      },
+    });
+  }
+
+  // Donor tasks (5) — one overdue, one completed, assigned across the admin
+  // and development staff users.
+  const devStaff = users.byRole.development_staff;
+  const taskSpecs: {
+    donor: number; subject: string; due: Date | null; assignee: string;
+    status: 'open' | 'completed'; completedDays?: number;
+    channel?: 'email' | 'phone' | 'mail' | 'in_person'; purpose?: 'cultivation' | 'solicitation' | 'pledge_reminder' | 'acknowledgment';
+  }[] = [
+    { donor: 2, subject: 'Call Rhonda Stanton about catching up pledge installments', due: daysAgo(6), assignee: devStaff, status: 'open', channel: 'phone', purpose: 'pledge_reminder' }, // overdue
+    { donor: 3, subject: 'Send Homes of Hope Q2 impact report to the grants office', due: daysAgo(30), assignee: devStaff, status: 'completed', completedDays: 28, channel: 'email', purpose: 'cultivation' },
+    { donor: 9, subject: 'Follow up on declined recurring gift card', due: daysFromNow(3), assignee: devStaff, status: 'open', channel: 'phone', purpose: 'solicitation' },
+    { donor: 1, subject: 'Invite First Covenant to host a 2026 banquet table', due: daysFromNow(14), assignee: users.adminId, status: 'open', channel: 'in_person', purpose: 'cultivation' },
+    { donor: 7, subject: 'Research Grace Point giving capacity before fall ask', due: daysFromNow(30), assignee: users.adminId, status: 'open' },
+  ];
+  for (const s of taskSpecs) {
+    await prisma.donorTask.create({
+      data: {
+        donorId: donorAt(s.donor).id,
+        assignedToId: s.assignee,
+        subject: s.subject,
+        dueDate: s.due,
+        status: s.status,
+        completedAt: s.completedDays !== undefined ? daysAgo(s.completedDays) : null,
+        channel: s.channel ?? null,
+        purpose: s.purpose ?? null,
         ...AUDIT,
       },
     });
@@ -1517,6 +1784,180 @@ async function seedVolunteers(
   }
 
   return { profiles, mentorProfiles };
+}
+
+// ═══ 12b. VOLUNTEER ENGAGEMENT — opportunities, shifts, signups, hours ══════
+
+async function seedVolunteerEngagement(
+  volunteers: VolunteersInfo,
+  institutions: InstitutionInfo[],
+  crm: CrmInfo,
+  users: SeedUsers,
+): Promise<void> {
+  const coordinator = users.byRole.volunteer_coordinator;
+  const volAt = (n: number) => at(volunteers.profiles, n);
+  const cumberland = at(institutions, 0);
+  const graduation = at(crm.events, 2); // upcoming Summer Graduation Celebration
+
+  // 3 opportunities: institution-linked, event-linked, standalone.
+  const bibleStudy = await prisma.volunteerOpportunity.create({
+    data: {
+      name: 'Cumberland Ridge Bible Study Support',
+      description: 'Weekly evening Bible study inside Cumberland Ridge — facilitators and greeters needed.',
+      state: cumberland.state,
+      institutionId: cumberland.id,
+      location: cumberland.name,
+      status: 'open',
+      ...AUDIT,
+    },
+  });
+  const eventSupport = await prisma.volunteerOpportunity.create({
+    data: {
+      name: 'Summer Graduation Celebration Support',
+      description: 'Setup, greeting, and teardown crews for the graduation celebration.',
+      state: 'TN',
+      eventId: graduation.id,
+      location: 'Nashville, TN',
+      status: 'open',
+      ...AUDIT,
+    },
+  });
+  const officeSupport = await prisma.volunteerOpportunity.create({
+    data: {
+      name: 'Office & Admin Support',
+      description: 'Standing weekday help with mailings, filing, and donation receipting.',
+      state: 'TN',
+      location: 'JUMPSTART USA office — Nashville',
+      status: 'open',
+      ...AUDIT,
+    },
+  });
+
+  // Shifts — past and upcoming, all with capacities.
+  const shiftSpecs: { key: string; opp: typeof bibleStudy; date: Date; start: string; end: string; capacity: number; role: string }[] = [
+    { key: 'bs_past2', opp: bibleStudy, date: daysAgo(21), start: '18:00', end: '20:00', capacity: 4, role: 'Study facilitator' },
+    { key: 'bs_past1', opp: bibleStudy, date: daysAgo(7), start: '18:00', end: '20:00', capacity: 4, role: 'Study facilitator' },
+    { key: 'bs_next1', opp: bibleStudy, date: daysFromNow(7), start: '18:00', end: '20:00', capacity: 4, role: 'Study facilitator' },
+    { key: 'bs_next2', opp: bibleStudy, date: daysFromNow(21), start: '18:00', end: '20:00', capacity: 4, role: 'Study facilitator' },
+    { key: 'ev_setup', opp: eventSupport, date: daysFromNow(17), start: '14:00', end: '17:00', capacity: 6, role: 'Setup crew' },
+    { key: 'ev_dayof', opp: eventSupport, date: daysFromNow(18), start: '10:00', end: '14:00', capacity: 8, role: 'Day-of support' },
+    { key: 'of_past2', opp: officeSupport, date: daysAgo(24), start: '09:00', end: '12:00', capacity: 2, role: 'Mailing team' },
+    { key: 'of_past1', opp: officeSupport, date: daysAgo(10), start: '09:00', end: '12:00', capacity: 2, role: 'Mailing team' },
+    { key: 'of_next1', opp: officeSupport, date: daysFromNow(3), start: '09:00', end: '12:00', capacity: 2, role: 'Mailing team' },
+  ];
+  const shiftByKey = new Map<string, { id: string; date: Date; opportunityId: string; institutionId: string | null }>();
+  for (const s of shiftSpecs) {
+    const shift = await prisma.volunteerShift.create({
+      data: {
+        opportunityId: s.opp.id, shiftDate: s.date, startTime: s.start, endTime: s.end,
+        capacity: s.capacity, role: s.role, location: s.opp.location, ...AUDIT,
+      },
+    });
+    shiftByKey.set(s.key, { id: shift.id, date: s.date, opportunityId: s.opp.id, institutionId: s.opp.institutionId ?? null });
+  }
+  const shiftAt = (key: string) => {
+    const s = shiftByKey.get(key);
+    if (!s) throw new Error(`shift ${key} missing`);
+    return s;
+  };
+
+  // Signups. Past-shift rows are attended with check-in/out times (each one
+  // also generating the approved check_in hours entry, mirroring the API);
+  // the capacity-2 office shift is full with one waitlisted signup.
+  const signupSpecs: {
+    shift: string; vol: number;
+    status: 'signed_up' | 'confirmed' | 'attended' | 'no_show' | 'waitlisted';
+    inH?: number; inM?: number; outH?: number; outM?: number; hours?: number;
+  }[] = [
+    { shift: 'bs_past2', vol: 0, status: 'attended', inH: 17, inM: 50, outH: 20, outM: 5, hours: 2.25 },
+    { shift: 'bs_past2', vol: 1, status: 'attended', inH: 18, inM: 0, outH: 20, outM: 0, hours: 2 },
+    { shift: 'bs_past1', vol: 0, status: 'attended', inH: 17, inM: 55, outH: 20, outM: 10, hours: 2.25 },
+    { shift: 'bs_past1', vol: 4, status: 'attended', inH: 18, inM: 5, outH: 20, outM: 5, hours: 2 },
+    { shift: 'bs_next1', vol: 0, status: 'confirmed' },
+    { shift: 'bs_next1', vol: 1, status: 'signed_up' },
+    { shift: 'bs_next2', vol: 0, status: 'signed_up' },
+    { shift: 'ev_setup', vol: 8, status: 'signed_up' },
+    { shift: 'ev_setup', vol: 9, status: 'signed_up' },
+    { shift: 'ev_dayof', vol: 8, status: 'confirmed' },
+    { shift: 'ev_dayof', vol: 3, status: 'signed_up' },
+    { shift: 'of_past2', vol: 7, status: 'attended', inH: 9, inM: 0, outH: 12, outM: 0, hours: 3 },
+    { shift: 'of_past2', vol: 8, status: 'no_show' },
+    { shift: 'of_past1', vol: 7, status: 'attended', inH: 8, inM: 55, outH: 12, outM: 10, hours: 3.25 },
+    { shift: 'of_past1', vol: 9, status: 'attended', inH: 9, inM: 10, outH: 12, outM: 0, hours: 2.83 },
+    // capacity 2 → two active signups + one waitlisted
+    { shift: 'of_next1', vol: 7, status: 'confirmed' },
+    { shift: 'of_next1', vol: 8, status: 'signed_up' },
+    { shift: 'of_next1', vol: 9, status: 'waitlisted' },
+  ];
+  for (const s of signupSpecs) {
+    const shift = shiftAt(s.shift);
+    await prisma.volunteerShiftSignup.create({
+      data: {
+        shiftId: shift.id,
+        volunteerProfileId: volAt(s.vol).profileId,
+        status: s.status,
+        checkedInAt: s.inH !== undefined ? atTime(shift.date, s.inH, s.inM ?? 0) : null,
+        checkedOutAt: s.outH !== undefined ? atTime(shift.date, s.outH, s.outM ?? 0) : null,
+        ...AUDIT,
+      },
+    });
+    if (s.status === 'attended' && s.hours !== undefined) {
+      await prisma.volunteerHoursEntry.create({
+        data: {
+          volunteerProfileId: volAt(s.vol).profileId,
+          activityDate: shift.date,
+          hours: s.hours,
+          description: 'Shift check-out',
+          opportunityId: shift.opportunityId,
+          shiftId: shift.id,
+          institutionId: shift.institutionId,
+          source: 'check_in',
+          status: 'approved',
+          approvedById: coordinator,
+          approvedAt: atTime(shift.date, s.outH ?? 12, s.outM ?? 0),
+          ...AUDIT,
+        },
+      });
+    }
+  }
+
+  // Staff-logged hours plus the self-reported review queue
+  // (7 check_in entries above + 7 staff approved = 14 approved).
+  const hoursSpecs: {
+    vol: number; days: number; hours: number; description: string;
+    opp?: typeof bibleStudy; source: 'staff' | 'self';
+    status: 'approved' | 'pending' | 'rejected';
+  }[] = [
+    { vol: 0, days: 60, hours: 2, description: 'Bible study — attendance sheet backfill', opp: bibleStudy, source: 'staff', status: 'approved' },
+    { vol: 1, days: 40, hours: 2, description: 'Bible study — attendance sheet backfill', opp: bibleStudy, source: 'staff', status: 'approved' },
+    { vol: 2, days: 30, hours: 3, description: 'Sorted donated clothing and hygiene kits', opp: officeSupport, source: 'staff', status: 'approved' },
+    { vol: 3, days: 45, hours: 2.5, description: 'Spring mailer stuffing and labels', opp: officeSupport, source: 'staff', status: 'approved' },
+    { vol: 4, days: 33, hours: 3, description: 'Reception coverage during staff retreat', opp: officeSupport, source: 'staff', status: 'approved' },
+    { vol: 5, days: 18, hours: 2, description: 'Van cleanout and fuel run', source: 'staff', status: 'approved' },
+    { vol: 6, days: 9, hours: 4, description: 'Graduation celebration planning committee', source: 'staff', status: 'approved' },
+    { vol: 5, days: 4, hours: 1.5, description: 'Prepared study materials at home', opp: bibleStudy, source: 'self', status: 'pending' },
+    { vol: 6, days: 2, hours: 2, description: 'Phone calls confirming event volunteers', source: 'self', status: 'pending' },
+    { vol: 9, days: 6, hours: 3, description: 'Picked up donated office furniture', opp: officeSupport, source: 'self', status: 'pending' },
+    { vol: 8, days: 12, hours: 8, description: 'Community outreach — duplicate of an already-logged office shift', opp: officeSupport, source: 'self', status: 'rejected' },
+  ];
+  for (const s of hoursSpecs) {
+    const reviewed = s.status !== 'pending';
+    await prisma.volunteerHoursEntry.create({
+      data: {
+        volunteerProfileId: volAt(s.vol).profileId,
+        activityDate: daysAgo(s.days),
+        hours: s.hours,
+        description: s.description,
+        opportunityId: s.opp?.id ?? null,
+        institutionId: s.opp?.institutionId ?? null,
+        source: s.source,
+        status: s.status,
+        approvedById: reviewed ? coordinator : null,
+        approvedAt: reviewed ? daysAgo(Math.max(0, s.days - 1)) : null,
+        ...AUDIT,
+      },
+    });
+  }
 }
 
 // ═══ 13. MENTORING — screenings, assignments, sessions, alumni outcomes ═════
@@ -2209,15 +2650,6 @@ async function seedCompliance(participants: PRec[], users: SeedUsers): Promise<v
     });
   }
 
-  await prisma.syncRun.create({
-    data: {
-      target: 'bloomerang',
-      startedAt: addDays(daysAgo(1), 0),
-      finishedAt: addDays(daysAgo(1), 0),
-      status: 'success',
-      stats: { donorsCreated: 12, donorsUpdated: 0, donationsCreated: 35, donationsUpdated: 0, skipped: 3 },
-    },
-  });
 }
 
 // ═══ 20. AUDIT LOG SAMPLES ══════════════════════════════════════════════════
@@ -2263,6 +2695,7 @@ async function main(): Promise<void> {
   const crm = await seedCrm(participants, users); // before case mgmt (vendors) & volunteers (events)
   await seedCaseManagement(participants, onboardingTemplate, users, crm);
   const volunteers = await seedVolunteers(participants, institutions, classes, programs, crm);
+  await seedVolunteerEngagement(volunteers, institutions, crm, users);
   await seedMentoring(participants, volunteers, mentorTemplate, users);
   await seedEmployment(participants, users);
   await seedFleet(crm);
@@ -2291,10 +2724,23 @@ async function main(): Promise<void> {
     ['service plans', await prisma.servicePlan.count()],
     ['case tasks', await prisma.caseTask.count()],
     ['volunteers', await prisma.volunteerProfile.count()],
+    ['vol. opportunities', await prisma.volunteerOpportunity.count()],
+    ['vol. shifts', await prisma.volunteerShift.count()],
+    ['shift signups', await prisma.volunteerShiftSignup.count()],
+    ['hours entries', await prisma.volunteerHoursEntry.count()],
     ['mentor assignments', await prisma.mentorAssignment.count()],
     ['outcome check-ins', await prisma.outcomeCheckin.count()],
     ['donors', await prisma.donor.count()],
+    ['households', await prisma.household.count()],
+    ['donor relationships', await prisma.donorRelationship.count()],
+    ['funds', await prisma.fund.count()],
+    ['appeals', await prisma.appeal.count()],
     ['donations', await prisma.donation.count()],
+    ['pledges', await prisma.pledge.count()],
+    ['recurring gifts', await prisma.recurringGift.count()],
+    ['soft credits', await prisma.softCredit.count()],
+    ['donor interactions', await prisma.donorInteraction.count()],
+    ['donor tasks', await prisma.donorTask.count()],
     ['events', await prisma.event.count()],
     ['employers', await prisma.employer.count()],
     ['employment records', await prisma.participantEmployment.count()],

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -9,26 +10,33 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  donorRelationshipSchema,
   donorSchema,
   DONOR_TYPES,
   listQuerySchema,
+  uuid,
   type DonorInput,
+  type DonorRelationshipInput,
   type ListQuery,
 } from '@jumpstart/shared';
 import { z } from 'zod';
 import { CurrentUser, RequirePermission } from '../../common/decorators';
 import { zodBody, zodQuery } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser } from '../../common/types';
-import { DonorsService, type DonorLocalUpdate } from './donors.service';
+import { DonorsService } from './donors.service';
 
 const listFiltersSchema = listQuerySchema.extend({
   donorType: z.enum(DONOR_TYPES).optional(),
   status: z.enum(['active', 'lapsed', 'inactive']).optional(),
+  householdId: uuid.optional(),
+  hasEmail: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
-// PATCH accepts LOCAL fields only — Bloomerang owns the rest (§6.8).
-const donorLocalUpdateSchema = donorSchema.pick({ personId: true, notes: true }).partial();
+const donorUpdateSchema = donorSchema.partial();
 
 @Controller('donors')
 export class DonorsController {
@@ -37,8 +45,17 @@ export class DonorsController {
   @Get()
   @RequirePermission('donors.read')
   list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { donorType, status, ...listQuery } = query;
-    return this.donors.list(listQuery as ListQuery, { donorType, status });
+    const { donorType, status, householdId, hasEmail, ...listQuery } = query;
+    return this.donors.list(listQuery as ListQuery, { donorType, status, householdId, hasEmail });
+  }
+
+  @Get(':id/timeline')
+  @RequirePermission('donors.read')
+  timeline(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query(zodQuery(listQuerySchema)) query: ListQuery,
+  ) {
+    return this.donors.timeline(id, query);
   }
 
   @Get(':id')
@@ -47,7 +64,6 @@ export class DonorsController {
     return this.donors.detail(id);
   }
 
-  // Manual entry path (historical import fixes) — admin-only in practice.
   @Post()
   @RequirePermission('donors.create')
   create(
@@ -61,9 +77,35 @@ export class DonorsController {
   @RequirePermission('donors.update')
   update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body(zodBody(donorLocalUpdateSchema)) body: DonorLocalUpdate,
+    @Body(zodBody(donorUpdateSchema)) body: Partial<DonorInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.donors.updateLocal(id, body, user.id);
+    return this.donors.update(id, body, user.id);
+  }
+
+  // Relationship edits are an edit of the donor record — 'donors.update'.
+  @Post(':id/relationships')
+  @RequirePermission('donors.update')
+  addRelationship(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(zodBody(donorRelationshipSchema)) body: DonorRelationshipInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.donors.addRelationship(id, body, user.id);
+  }
+
+  @Delete('relationships/:rid')
+  @RequirePermission('donors.update')
+  removeRelationship(
+    @Param('rid', ParseUUIDPipe) rid: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.donors.removeRelationship(rid, user.id);
+  }
+
+  @Delete(':id')
+  @RequirePermission('donors.delete')
+  remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.donors.softDelete(id, user.id);
   }
 }

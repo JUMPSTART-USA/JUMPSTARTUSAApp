@@ -74,7 +74,18 @@ export function EventFormDialog({
   const mutation = useMutation({
     mutationFn: (values: EventFormValues) =>
       event
-        ? api.patch<EventRecord>(`/events/${event.id}`, values)
+        ? api.patch<EventRecord>(`/events/${event.id}`, {
+            ...values,
+            // Clearable fields: blank means "clear" on edit, not "no change".
+            eventType: values.eventType ?? null,
+            location: values.location ?? null,
+            campaignId: values.campaignId ?? null,
+            description: values.description ?? null,
+            attendanceCount: values.attendanceCount ?? null,
+            revenue: values.revenue ?? null,
+            expenses: values.expenses ?? null,
+            notes: values.notes ?? null,
+          })
         : api.post<EventRecord>('/events', values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm', 'events'] });

@@ -7,14 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader, SectionHeader } from '@/components/ui/page-header';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
@@ -26,13 +18,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { FormField } from '@/components/FormField';
-import { Select, Textarea } from '@/components/ui/input';
-import { api, ApiError } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { applyApiError } from '@/lib/form';
 import { cn, formatDate, formatMoney, fullName, humanize } from '@/lib/utils';
-import { useCampaignOptions, useDonorCrm } from '../shared';
 import type { EventDetail, RegistrationStatus } from '../types';
 import { EventFormDialog } from './EventFormDialog';
 import { RegistrationDialog } from './RegistrationDialog';
@@ -48,12 +37,10 @@ const REGISTRATION_VARIANTS: Record<RegistrationStatus, BadgeProps['variant']> =
 export function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { can } = useAuth();
-  const { label: crmLabel, mirrored } = useDonorCrm();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [localOpen, setLocalOpen] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
 
@@ -104,26 +91,18 @@ export function EventDetailPage() {
           </>
         }
         actions={
-          mirrored ? (
-            canUpdate ? (
-              <Button variant="outline" onClick={() => setLocalOpen(true)}>
-                <Pencil className="h-4 w-4" /> Edit local fields
+          <>
+            {canUpdate ? (
+              <Button variant="outline" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-4 w-4" /> Edit
               </Button>
-            ) : null
-          ) : (
-            <>
-              {canUpdate ? (
-                <Button variant="outline" onClick={() => setEditOpen(true)}>
-                  <Pencil className="h-4 w-4" /> Edit
-                </Button>
-              ) : null}
-              {can('events.delete') ? (
-                <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
-                  <Trash2 className="h-4 w-4" /> Delete
-                </Button>
-              ) : null}
-            </>
-          )
+            ) : null}
+            {can('events.delete') ? (
+              <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="h-4 w-4" /> Delete
+              </Button>
+            ) : null}
+          </>
         }
       />
 
@@ -294,14 +273,6 @@ export function EventDetailPage() {
       )}
 
       <EventFormDialog open={editOpen} onOpenChange={setEditOpen} event={event} />
-      <EditEventLocalDialog
-        open={localOpen}
-        onOpenChange={setLocalOpen}
-        eventId={event.id}
-        currentCampaignId={event.campaign?.id ?? ''}
-        currentNotes={event.notes}
-        crmLabel={crmLabel}
-      />
       {id ? (
         <RegistrationDialog
           open={registrationOpen}
@@ -320,83 +291,5 @@ export function EventDetailPage() {
         onConfirm={() => deleteMutation.mutate()}
       />
     </div>
-  );
-}
-
-/**
- * With an active donor CRM, only the campaign link and local notes are
- * editable here (§6.8) — the CRM owns every other event field.
- */
-function EditEventLocalDialog({
-  open,
-  onOpenChange,
-  eventId,
-  currentCampaignId,
-  currentNotes,
-  crmLabel,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  eventId: string;
-  currentCampaignId: string;
-  currentNotes: string | null;
-  crmLabel: string | null;
-}) {
-  const queryClient = useQueryClient();
-  const campaigns = useCampaignOptions();
-  const [campaignId, setCampaignId] = useState(currentCampaignId);
-  const [notes, setNotes] = useState(currentNotes ?? '');
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      api.patch(`/events/${eventId}`, {
-        campaignId: campaignId || undefined,
-        notes: notes || undefined,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['crm', 'events'] });
-      onOpenChange(false);
-    },
-    onError: (err) =>
-      setFormError(err instanceof ApiError ? err.message : 'Save failed'),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit local fields</DialogTitle>
-          <DialogDescription>
-            Only the campaign link and local notes are stored here — every other event field is
-            managed in {crmLabel ?? 'the donor CRM'}.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <FormField label="Campaign">
-            <Select value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
-              <option value="">—</option>
-              {(campaigns.data?.items ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-          <FormField label="Local notes">
-            <Textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </FormField>
-          <FormError message={formError} />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Save'}
-            </Button>
-          </DialogFooter>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

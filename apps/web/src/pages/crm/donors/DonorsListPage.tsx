@@ -1,19 +1,23 @@
 import { DONOR_TYPES } from '@jumpstart/shared';
 import { useQuery } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { useDebounced } from '@/lib/form';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
-import type { DonorCrmStatus, DonorListItem } from '../types';
+import { LifecycleBadge } from '../shared';
+import type { DonorListItem } from '../types';
+import { DonorFormDialog } from './DonorFormDialog';
 import { DonorsNav } from './DonorsNav';
-import { SyncStatusChip } from './SyncStatusChip';
 
 const DONOR_STATUSES = ['active', 'lapsed', 'inactive'] as const;
 
@@ -21,6 +25,8 @@ const columns: Column<DonorListItem>[] = [
   { key: 'name', header: 'Name', sortKey: 'name', render: (d) => <span className="font-medium">{d.name}</span> },
   { key: 'donorType', header: 'Type', sortKey: 'donorType', render: (d) => humanize(d.donorType) },
   { key: 'status', header: 'Status', sortKey: 'status', render: (d) => <StatusBadge status={d.status} /> },
+  { key: 'lifecycle', header: 'Lifecycle', render: (d) => <LifecycleBadge lifecycle={d.lifecycle} /> },
+  { key: 'household', header: 'Household', render: (d) => d.household?.name ?? '—' },
   { key: 'email', header: 'Email', render: (d) => d.email ?? '—' },
   {
     key: 'location',
@@ -38,18 +44,14 @@ const columns: Column<DonorListItem>[] = [
 ];
 
 export function DonorsListPage() {
+  const { can } = useAuth();
   const navigate = useNavigate();
   const [state, setState] = useState<ListState>(initialListState);
   const [search, setSearch] = useState('');
   const [donorType, setDonorType] = useState('');
   const [status, setStatus] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
   const debouncedSearch = useDebounced(search);
-
-  const crmStatus = useQuery({
-    queryKey: ['crm', 'sync', 'status'],
-    queryFn: () => api.get<DonorCrmStatus>('/sync/status'),
-  });
-  const crmName = crmStatus.data?.provider === 'none' ? null : crmStatus.data?.providerLabel;
 
   useEffect(() => {
     setState((s) => ({ ...s, page: 1 }));
@@ -73,12 +75,14 @@ export function DonorsListPage() {
     <div className="space-y-4">
       <PageHeader
         title="Donors"
-        description={
-          crmName
-            ? `Read-only mirror of ${crmName} — edits to giving data happen there.`
-            : 'Donor records — no external donor CRM is configured.'
+        description="Donor records, households and giving history."
+        actions={
+          can('donors.create') ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" /> New donor
+            </Button>
+          ) : null
         }
-        actions={<SyncStatusChip />}
       />
 
       <DonorsNav />
@@ -131,6 +135,8 @@ export function DonorsListPage() {
         onRowClick={(row) => navigate(`/donors/${row.id}`)}
         emptyMessage="No donors found"
       />
+
+      <DonorFormDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import type { VolunteerAssignmentInput } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { ScreeningService, type MissingClearance } from './screening.service';
 
 const names = (missing: MissingClearance[]) => missing.map((m) => m.requirement.name).join(', ');
@@ -14,7 +15,8 @@ export class AssignmentsService {
     private readonly screening: ScreeningService,
   ) {}
 
-  async create(input: VolunteerAssignmentInput, userId: string) {
+  async create(input: VolunteerAssignmentInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const profile = await this.prisma.volunteerProfile.findFirst({
       where: { id: input.volunteerProfileId, deletedAt: null },
     });
@@ -40,6 +42,7 @@ export class AssignmentsService {
       ({ missing } = await this.screening.computeEligibility(
         input.volunteerProfileId,
         institutionId,
+        user,
       ));
       if (missing.length > 0) {
         const hard = missing.filter((m) => m.requirement.hardBlock);

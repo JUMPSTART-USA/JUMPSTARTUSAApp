@@ -1,9 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { EntityPicker, type PickerOption } from '@/components/ui/entity-picker';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, fullName } from '@/lib/utils';
-import type { Campaign, DonorCrmStatus, PersonRef } from './types';
+import type {
+  AppealListItem,
+  Campaign,
+  DonorLifecycle,
+  DonorListItem,
+  FundListItem,
+  PersonRef,
+} from './types';
 
 export function ProgressBar({ pct }: { pct: number | null }) {
   if (pct === null) return <span className="text-xs text-muted-foreground">No goal set</span>;
@@ -21,6 +29,31 @@ export function ProgressBar({ pct }: { pct: number | null }) {
   );
 }
 
+/** Compact label + value tile for giving-summary rows. */
+export function StatTile({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-lg font-semibold tabular-nums">{children}</p>
+    </div>
+  );
+}
+
+const LIFECYCLE_META: Record<DonorLifecycle, { label: string; variant: BadgeProps['variant'] }> = {
+  prospective: { label: 'Prospective', variant: 'outline' },
+  new: { label: 'New', variant: 'info' },
+  active: { label: 'Active', variant: 'success' },
+  lapsed: { label: 'Lapsed', variant: 'warning' },
+  inactive: { label: 'Inactive', variant: 'outline' },
+};
+
+/** Computed giving-lifecycle badge (prospective/new/active/lapsed/inactive). */
+export function LifecycleBadge({ lifecycle }: { lifecycle: DonorLifecycle | null | undefined }) {
+  if (!lifecycle) return <span className="text-muted-foreground">—</span>;
+  const meta = LIFECYCLE_META[lifecycle];
+  return <Badge variant={meta.variant}>{meta.label}</Badge>;
+}
+
 /** All campaigns for select controls — small dataset, cached per session. */
 export function useCampaignOptions() {
   return useQuery({
@@ -29,6 +62,67 @@ export function useCampaignOptions() {
       api.get<Paged<Campaign>>(`/campaigns${qs({ pageSize: 200, sortBy: 'name', sortDir: 'asc' })}`),
     staleTime: 60_000,
   });
+}
+
+/** Funds for select controls. Pass activeOnly=false for filter dropdowns. */
+export function useFundOptions(activeOnly = true) {
+  return useQuery({
+    queryKey: ['crm', 'funds', 'options', activeOnly],
+    queryFn: () =>
+      api.get<Paged<FundListItem>>(
+        `/funds${qs({ pageSize: 200, active: activeOnly ? 'true' : undefined })}`,
+      ),
+    staleTime: 60_000,
+  });
+}
+
+/** Appeals for select controls, optionally narrowed to a campaign. */
+export function useAppealOptions(campaignId?: string, activeOnly = true) {
+  return useQuery({
+    queryKey: ['crm', 'appeals', 'options', campaignId ?? '', activeOnly],
+    queryFn: () =>
+      api.get<Paged<AppealListItem>>(
+        `/appeals${qs({
+          pageSize: 200,
+          campaignId,
+          active: activeOnly ? 'true' : undefined,
+        })}`,
+      ),
+    staleTime: 60_000,
+  });
+}
+
+/** Debounced donor search-and-pick — the standard donor control (§6.8). */
+export function DonorPicker({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+}: {
+  value: PickerOption | null;
+  onChange: (option: PickerOption | null) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <EntityPicker
+      value={value}
+      onChange={onChange}
+      queryKey="crm-donor-picker"
+      placeholder={placeholder ?? 'Search donors…'}
+      disabled={disabled}
+      search={async (term) => {
+        const page = await api.get<Paged<DonorListItem>>(
+          `/donors${qs({ search: term, pageSize: 8 })}`,
+        );
+        return page.items.map((donor) => ({
+          id: donor.id,
+          label: donor.name,
+          sublabel: donor.email ?? undefined,
+        }));
+      }}
+    />
+  );
 }
 
 export interface PersonHit {
@@ -111,23 +205,4 @@ export function PersonSearch({
       }}
     />
   );
-}
-
-/**
- * Active donor CRM (§6.8). When a provider is configured, donors/donations/
- * campaigns/events are read-only mirrors — pages hide create/edit/delete and
- * offer local-field editing only.
- */
-export function useDonorCrm() {
-  const query = useQuery({
-    queryKey: ['crm', 'sync', 'status'],
-    queryFn: () => api.get<DonorCrmStatus>('/sync/status'),
-  });
-  const provider = query.data?.provider;
-  return {
-    provider,
-    label: query.data?.providerLabel ?? null,
-    // Treat "unknown yet" as mirrored so edit affordances never flash in.
-    mirrored: provider === undefined ? true : provider !== 'none',
-  };
 }

@@ -83,7 +83,19 @@ export function VendorFormDialog({
   const mutation = useMutation({
     mutationFn: (values: VendorFormValues) =>
       vendor
-        ? api.patch<Vendor>(`/vendors/${vendor.id}`, values)
+        ? api.patch<Vendor>(`/vendors/${vendor.id}`, {
+            ...values,
+            // Clearable fields: blank means "clear" on edit, not "no change".
+            contactPerson: values.contactPerson ?? null,
+            phone: values.phone ?? null,
+            email: values.email ?? null,
+            addressLine1: values.addressLine1 ?? null,
+            city: values.city ?? null,
+            state: values.state ?? null,
+            zip: values.zip ?? null,
+            servicesProvided: values.servicesProvided ?? null,
+            notes: values.notes ?? null,
+          })
         : api.post<Vendor>('/vendors', values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm', 'vendors'] });

@@ -3,20 +3,11 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DataTable, type Column, type ListState } from '@/components/DataTable';
-import { StatusBadge } from '@/components/ui/badge';
+import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
@@ -28,13 +19,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FormField } from '@/components/FormField';
-import { Textarea } from '@/components/ui/input';
-import { api, ApiError, qs, type Paged } from '@/lib/api';
+import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { applyApiError } from '@/lib/form';
 import { formatDate, formatMoney } from '@/lib/utils';
-import { ProgressBar, useDonorCrm } from '../shared';
+import { ProgressBar } from '../shared';
 import type { CampaignDetail, Donation } from '../types';
 import { CampaignFormDialog } from './CampaignFormDialog';
 import { BackLink } from '@/components/BackLink';
@@ -60,7 +49,8 @@ const donationColumns: Column<Donation>[] = [
     className: 'text-right',
     render: (d) => <span className="tabular-nums">{formatMoney(d.amount)}</span>,
   },
-  { key: 'fund', header: 'Fund', render: (d) => d.fund ?? '—' },
+  { key: 'fund', header: 'Fund', render: (d) => d.fund?.name ?? '—' },
+  { key: 'appeal', header: 'Appeal', render: (d) => d.appeal?.name ?? '—' },
   {
     key: 'event',
     header: 'Event',
@@ -78,12 +68,10 @@ const donationColumns: Column<Donation>[] = [
 export function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { can } = useAuth();
-  const { label: crmLabel, mirrored } = useDonorCrm();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [localOpen, setLocalOpen] = useState(false);
   const [donationState, setDonationState] = useState<ListState>({
     page: 1,
     pageSize: 25,
@@ -104,16 +92,19 @@ export function CampaignDetailPage() {
     sortBy: donationState.sortBy,
     sortDir: donationState.sortDir,
   });
+  // GET /donations requires donors.read — a campaigns-only role (e.g. the
+  // seeded read_only) must not fire the query or see the tab at all.
+  const canViewDonations = can('donors.read');
   const donationsQuery = useQuery({
     queryKey: ['crm', 'donations', 'list', donationParams],
     queryFn: () => api.get<Paged<Donation>>(`/donations${donationParams}`),
-    enabled: Boolean(id),
+    enabled: Boolean(id) && canViewDonations,
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => api.delete(`/campaigns/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['crm', 'campaigns'] });
+      void queryClient.invalidateQueries({ queryKey: ['crm', 'campaigns'] });
       navigate('/campaigns');
     },
   });
@@ -122,7 +113,7 @@ export function CampaignDetailPage() {
   if (query.isError) return <ErrorState error={query.error} />;
   if (!query.data) return null;
 
-  const { campaign, raisedToDate, donationCount, progressPct, events } = query.data;
+  const { campaign, raisedToDate, donationCount, progressPct, events, appeals } = query.data;
 
   return (
     <div className="space-y-4">
@@ -136,26 +127,18 @@ export function CampaignDetailPage() {
           </span>
         }
         actions={
-          mirrored ? (
-            can('campaigns.update') ? (
-              <Button variant="outline" onClick={() => setLocalOpen(true)}>
-                <Pencil className="h-4 w-4" /> Edit local fields
+          <>
+            {can('campaigns.update') ? (
+              <Button variant="outline" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-4 w-4" /> Edit
               </Button>
-            ) : null
-          ) : (
-            <>
-              {can('campaigns.update') ? (
-                <Button variant="outline" onClick={() => setEditOpen(true)}>
-                  <Pencil className="h-4 w-4" /> Edit
-                </Button>
-              ) : null}
-              {can('campaigns.delete') ? (
-                <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
-                  <Trash2 className="h-4 w-4" /> Delete
-                </Button>
-              ) : null}
-            </>
-          )
+            ) : null}
+            {can('campaigns.delete') ? (
+              <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="h-4 w-4" /> Delete
+              </Button>
+            ) : null}
+          </>
         }
       />
 
@@ -199,23 +182,78 @@ export function CampaignDetailPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="donations">
+      <Card>
+        <CardHeaderRow
+          title="Appeals"
+          description="Specific asks under this campaign."
+        >
+          {can('donors.read') ? (
+            <Link to="/donors/setup" className="text-sm text-primary hover:underline">
+              Manage in Development setup
+            </Link>
+          ) : null}
+        </CardHeaderRow>
+        <CardContent>
+          {appeals.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No appeals linked to this campaign.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Goal</TableHead>
+                  <TableHead className="text-right">Raised</TableHead>
+                  <TableHead>Progress</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {appeals.map((appeal) => (
+                  <TableRow key={appeal.id}>
+                    <TableCell className="font-medium">{appeal.name}</TableCell>
+                    <TableCell>
+                      {appeal.isActive ? (
+                        <Badge variant="success">Active</Badge>
+                      ) : (
+                        <Badge variant="outline">Inactive</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(appeal.goalAmount)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(appeal.raisedToDate)}
+                    </TableCell>
+                    <TableCell>
+                      <ProgressBar pct={appeal.progressPct} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue={canViewDonations ? 'donations' : 'events'}>
         <TabsList>
-          <TabsTrigger value="donations">Donations</TabsTrigger>
+          {canViewDonations ? <TabsTrigger value="donations">Donations</TabsTrigger> : null}
           <TabsTrigger value="events">Events ({events.length})</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="donations">
-          {donationsQuery.isError ? <ErrorState error={donationsQuery.error} /> : null}
-          <DataTable
-            columns={donationColumns}
-            data={donationsQuery.data}
-            isLoading={donationsQuery.isLoading}
-            state={donationState}
-            onStateChange={setDonationState}
-            emptyMessage="No donations linked to this campaign"
-          />
-        </TabsContent>
+        {canViewDonations ? (
+          <TabsContent value="donations">
+            {donationsQuery.isError ? <ErrorState error={donationsQuery.error} /> : null}
+            <DataTable
+              columns={donationColumns}
+              data={donationsQuery.data}
+              isLoading={donationsQuery.isLoading}
+              state={donationState}
+              onStateChange={setDonationState}
+              emptyMessage="No donations linked to this campaign"
+            />
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="events">
           {events.length === 0 ? (
@@ -256,13 +294,6 @@ export function CampaignDetailPage() {
       </Tabs>
 
       <CampaignFormDialog open={editOpen} onOpenChange={setEditOpen} campaign={campaign} />
-      <EditCampaignLocalDialog
-        open={localOpen}
-        onOpenChange={setLocalOpen}
-        campaignId={campaign.id}
-        currentNotes={campaign.notes}
-        crmLabel={crmLabel}
-      />
 
       <ConfirmDialog
         open={deleteOpen}
@@ -274,62 +305,5 @@ export function CampaignDetailPage() {
         onConfirm={() => deleteMutation.mutate()}
       />
     </div>
-  );
-}
-
-/** With an active donor CRM, only local notes are editable here (§6.8). */
-function EditCampaignLocalDialog({
-  open,
-  onOpenChange,
-  campaignId,
-  currentNotes,
-  crmLabel,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  campaignId: string;
-  currentNotes: string | null;
-  crmLabel: string | null;
-}) {
-  const queryClient = useQueryClient();
-  const [notes, setNotes] = useState(currentNotes ?? '');
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const mutation = useMutation({
-    mutationFn: () => api.patch(`/campaigns/${campaignId}`, { notes: notes || undefined }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['crm', 'campaigns'] });
-      onOpenChange(false);
-    },
-    onError: (err) =>
-      setFormError(err instanceof ApiError ? err.message : 'Save failed'),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit local fields</DialogTitle>
-          <DialogDescription>
-            Only local notes are stored here — every other campaign field is managed in{' '}
-            {crmLabel ?? 'the donor CRM'}.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <FormField label="Local notes">
-            <Textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </FormField>
-          <FormError message={formError} />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Save'}
-            </Button>
-          </DialogFooter>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

@@ -39,10 +39,13 @@ import { AssignmentsTab } from './tabs/AssignmentsTab';
 import { ChecksTab } from './tabs/ChecksTab';
 import { ClearancesTab } from './tabs/ClearancesTab';
 import { EligibilityTab } from './tabs/EligibilityTab';
+import { HoursTab } from './tabs/HoursTab';
 import { ServiceHistoryTab } from './tabs/ServiceHistoryTab';
 import { TrainingsTab } from './tabs/TrainingsTab';
+import { SignupStatusBadge, formatHours, formatTime } from './shared';
 import type { VolunteerDetail } from './types';
 import { BackLink } from '@/components/BackLink';
+import { Link } from 'react-router-dom';
 
 export function VolunteerDetailPage() {
   const { id = '' } = useParams();
@@ -129,6 +132,71 @@ export function VolunteerDetailPage() {
             </DescriptionList>
           </CardContent>
         </Card>
+
+        {data.hoursSummary ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Volunteer hours</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-3 rounded-md border bg-muted/30 p-3 text-center">
+                <div>
+                  <p className="text-2xl font-semibold">
+                    {formatHours(data.hoursSummary.totalApproved)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Approved total</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold">
+                    {formatHours(data.hoursSummary.ytdApproved)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">This year</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold">{data.hoursSummary.pendingCount}</p>
+                  <p className="text-xs text-muted-foreground">Pending</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {data.upcomingSignups ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Upcoming shifts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {data.upcomingSignups.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No upcoming shift signups.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {data.upcomingSignups.map((signup) => (
+                    <li
+                      key={signup.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <Link
+                          to={`/volunteers/opportunities/${signup.shift.opportunity.id}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {signup.shift.opportunity.name}
+                        </Link>
+                        <span className="block text-xs text-muted-foreground">
+                          {formatDate(signup.shift.shiftDate)} · {formatTime(signup.shift.startTime)}{' '}
+                          – {formatTime(signup.shift.endTime)}
+                          {signup.shift.role ? ` · ${signup.shift.role}` : ''}
+                        </span>
+                      </div>
+                      <SignupStatusBadge status={signup.status} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
 
       <Tabs defaultValue="assignments">
@@ -138,6 +206,7 @@ export function VolunteerDetailPage() {
           <TabsTrigger value="checks">Background Checks</TabsTrigger>
           <TabsTrigger value="clearances">Clearances</TabsTrigger>
           <TabsTrigger value="eligibility">Eligibility</TabsTrigger>
+          <TabsTrigger value="hours">Hours</TabsTrigger>
           <TabsTrigger value="history">Service History</TabsTrigger>
         </TabsList>
         <TabsContent value="assignments">
@@ -154,6 +223,13 @@ export function VolunteerDetailPage() {
         </TabsContent>
         <TabsContent value="eligibility">
           <EligibilityTab volunteerProfileId={data.id} />
+        </TabsContent>
+        <TabsContent value="hours">
+          <HoursTab
+            volunteerProfileId={data.id}
+            volunteerName={fullName(person)}
+            summary={data.hoursSummary}
+          />
         </TabsContent>
         <TabsContent value="history">
           <ServiceHistoryTab volunteerProfileId={data.id} />
@@ -247,6 +323,10 @@ function EditVolunteerDialog({
       person: data.person,
       profile: {
         ...data.profile,
+        // Blank inputs mean "no value" — send explicit nulls so edits can clear.
+        availability: data.profile.availability ?? null,
+        churchAffiliation: data.profile.churchAffiliation ?? null,
+        notes: data.profile.notes ?? null,
         volunteerRoles: rolesText
           .split(',')
           .map((r) => r.trim())

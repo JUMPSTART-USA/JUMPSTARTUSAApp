@@ -13,8 +13,7 @@ import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useDebounced } from '@/lib/form';
 import { formatDate } from '@/lib/utils';
-import { SyncStatusChip } from '../donors/SyncStatusChip';
-import { useCampaignOptions, useDonorCrm } from '../shared';
+import { useCampaignOptions } from '../shared';
 import type { EventRecord } from '../types';
 import { EventFormDialog } from './EventFormDialog';
 import { BackLink } from '@/components/BackLink';
@@ -52,7 +51,6 @@ type EventTab = 'upcoming' | 'past';
 
 export function EventsListPage() {
   const { can } = useAuth();
-  const { label: crmLabel, mirrored } = useDonorCrm();
   const navigate = useNavigate();
   const [tab, setTab] = useState<EventTab>('upcoming');
   const [state, setState] = useState<ListState>({
@@ -106,15 +104,9 @@ export function EventsListPage() {
       <BackLink stateOnly />
       <PageHeader
         title="Events"
-        description={
-          mirrored && crmLabel
-            ? `Read-only mirror of ${crmLabel} — events are managed there; registrations stay local.`
-            : 'Fundraising and community events, registrations, and financials.'
-        }
+        description="Fundraising and community events, registrations, and financials."
         actions={
-          mirrored ? (
-            <SyncStatusChip />
-          ) : can('events.create') ? (
+          can('events.create') ? (
             <Button onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" /> New event
             </Button>
