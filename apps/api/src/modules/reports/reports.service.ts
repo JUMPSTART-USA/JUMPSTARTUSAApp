@@ -11,16 +11,21 @@ import {
   HOUSING_EXIT_STATUSES,
   INSIDE_STATUSES,
   OUTSIDE_STATUSES,
+  PLEDGE_STATUSES,
   PROGRAM_TYPES,
+  RECURRING_GIFT_STATUSES,
   US_STATES,
   type AssignmentType,
   type EnrollmentStatus,
   type InsideStatus,
   type OutsideStatus,
   type PermissionKey,
+  type PledgeStatus,
   type ProgramType,
+  type RecurringGiftStatus,
 } from '@jumpstart/shared';
 import { hasPerm, type AuthenticatedUser } from '../../common/types';
+import { pledgeComputed } from '../crm/giving.util';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface ReportColumn {
@@ -58,6 +63,8 @@ export interface ReportParams {
   participantProfileId?: string;
   employerId?: string;
   vehicleId?: string;
+  opportunityId?: string;
+  year?: number;
 }
 
 interface ReportDefinition {
@@ -186,7 +193,10 @@ export class ReportsService {
       key: 'volunteer-trainings',
       name: 'Volunteer Trainings',
       permission: 'volunteers.read',
-      params: [{ name: 'expiringWithinDays', label: 'Expiring Within (days)', type: 'number' }],
+      params: [
+        { name: 'state', label: 'State', type: 'enum', values: US_STATES },
+        { name: 'expiringWithinDays', label: 'Expiring Within (days)', type: 'number' },
+      ],
       run: (p) => this.volunteerTrainings(p),
     },
     {
@@ -216,6 +226,39 @@ export class ReportsService {
         { name: 'to', label: 'To', type: 'date' },
       ],
       run: (p) => this.eventFinancials(p),
+    },
+    {
+      key: 'pledge-status',
+      name: 'Pledge Status',
+      permission: 'donors.read',
+      params: [{ name: 'status', label: 'Status', type: 'enum', values: PLEDGE_STATUSES }],
+      run: (p) => this.pledgeStatus(p),
+    },
+    {
+      key: 'recurring-gifts',
+      name: 'Recurring Gifts',
+      permission: 'donors.read',
+      params: [{ name: 'status', label: 'Status', type: 'enum', values: RECURRING_GIFT_STATUSES }],
+      run: (p) => this.recurringGifts(p),
+    },
+    {
+      key: 'giving-statements',
+      name: 'Year-End Giving Statements',
+      permission: 'donors.read',
+      params: [{ name: 'year', label: 'Year', type: 'number', required: true }],
+      run: (p) => this.givingStatements(p),
+    },
+    {
+      key: 'volunteer-hours',
+      name: 'Volunteer Hours',
+      permission: 'volunteers.read',
+      params: [
+        { name: 'state', label: 'State', type: 'enum', values: US_STATES },
+        { name: 'from', label: 'From', type: 'date' },
+        { name: 'to', label: 'To', type: 'date' },
+        { name: 'opportunityId', label: 'Opportunity', type: 'uuid' },
+      ],
+      run: (p) => this.volunteerHours(p),
     },
     {
       key: 'employer-participation',
@@ -838,9 +881,14 @@ export class ReportsService {
   private async volunteerTrainings(p: ReportParams): Promise<ReportResult> {
     const today = startOfUtcDay(new Date());
     const rows = await this.prisma.volunteerTraining.findMany({
-      where: p.expiringWithinDays
-        ? { expiresAt: { lte: addDays(today, p.expiringWithinDays) } }
-        : {},
+      where: {
+        // Chapter scoping (§7.2): the controller forces state for scoped users
+        // — derive it the way the volunteers list does (person.state).
+        ...(p.state ? { volunteerProfile: { person: { state: p.state } } } : {}),
+        ...(p.expiringWithinDays
+          ? { expiresAt: { lte: addDays(today, p.expiringWithinDays) } }
+          : {}),
+      },
       orderBy: [{ expiresAt: 'asc' }],
       select: {
         trainingType: true,
@@ -871,7 +919,81 @@ export class ReportsService {
     };
   }
 
-  // ── Development (Bloomerang mirror §6.8) ──────────────────────────────────
+  /** Approved service hours rolled up per volunteer. */
+  private async volunteerHours(p: ReportParams): Promise<ReportResult> {
+    const range = dateRange(p.from, p.to);
+    const entries = await this.prisma.volunteerHoursEntry.findMany({
+      where: {
+        deletedAt: null,
+        status: 'approved',
+        // Chapter scoping (§7.2): the controller forces state for scoped users
+        // — derive it the way the volunteers list does (person.state).
+        ...(p.state ? { volunteerProfile: { person: { state: p.state } } } : {}),
+        ...(range ? { activityDate: range } : {}),
+        ...(p.opportunityId ? { opportunityId: p.opportunityId } : {}),
+      },
+      select: {
+        hours: true,
+        activityDate: true,
+        opportunityId: true,
+        volunteerProfile: {
+          select: { id: true, person: { select: { firstName: true, lastName: true } } },
+        },
+      },
+    });
+
+    interface Rollup {
+      volunteer: string;
+      hours: number;
+      entries: number;
+      opportunities: Set<string>;
+      firstDate: Date;
+      lastDate: Date;
+    }
+    const byVolunteer = new Map<string, Rollup>();
+    for (const e of entries) {
+      let r = byVolunteer.get(e.volunteerProfile.id);
+      if (!r) {
+        r = {
+          volunteer: personName(e.volunteerProfile.person),
+          hours: 0,
+          entries: 0,
+          opportunities: new Set<string>(),
+          firstDate: e.activityDate,
+          lastDate: e.activityDate,
+        };
+        byVolunteer.set(e.volunteerProfile.id, r);
+      }
+      r.hours += Number(e.hours);
+      r.entries += 1;
+      if (e.opportunityId) r.opportunities.add(e.opportunityId);
+      if (e.activityDate < r.firstDate) r.firstDate = e.activityDate;
+      if (e.activityDate > r.lastDate) r.lastDate = e.activityDate;
+    }
+
+    return {
+      columns: [
+        { key: 'volunteer', label: 'Volunteer' },
+        { key: 'hours', label: 'Approved Hours' },
+        { key: 'entries', label: 'Entries' },
+        { key: 'opportunities', label: 'Opportunities' },
+        { key: 'firstDate', label: 'First Activity' },
+        { key: 'lastDate', label: 'Last Activity' },
+      ],
+      rows: [...byVolunteer.values()]
+        .sort((a, b) => a.volunteer.localeCompare(b.volunteer))
+        .map((r) => ({
+          volunteer: r.volunteer,
+          hours: Math.round(r.hours * 100) / 100,
+          entries: r.entries,
+          opportunities: r.opportunities.size,
+          firstDate: fmtDate(r.firstDate),
+          lastDate: fmtDate(r.lastDate),
+        })),
+    };
+  }
+
+  // ── Development (native donor management §6.8) ────────────────────────────
 
   private async donorGiving(p: ReportParams): Promise<ReportResult> {
     const range = dateRange(p.from, p.to);
@@ -885,7 +1007,7 @@ export class ReportsService {
       select: {
         donationDate: true,
         amount: true,
-        fund: true,
+        fund: { select: { name: true } },
         paymentMethod: true,
         isRecurring: true,
         donor: { select: { name: true, donorType: true } },
@@ -910,12 +1032,197 @@ export class ReportsService {
         donorType: r.donor.donorType,
         donationDate: fmtDate(r.donationDate),
         amount: num(r.amount),
-        fund: r.fund ?? null,
+        fund: r.fund?.name ?? null,
         paymentMethod: r.paymentMethod ?? null,
         isRecurring: r.isRecurring,
         campaign: r.campaign?.name ?? null,
         event: r.event?.name ?? null,
       })),
+    };
+  }
+
+  private async pledgeStatus(p: ReportParams): Promise<ReportResult> {
+    const status = this.validateEnum(p.status, PLEDGE_STATUSES, 'status') as
+      | PledgeStatus
+      | undefined;
+    const pledges = await this.prisma.pledge.findMany({
+      where: { deletedAt: null, ...(status ? { status } : {}) },
+      orderBy: { pledgeDate: 'desc' },
+      select: {
+        id: true,
+        pledgeDate: true,
+        totalAmount: true,
+        installmentAmount: true,
+        frequency: true,
+        startDate: true,
+        writtenOffAmount: true,
+        status: true,
+        donor: { select: { name: true } },
+      },
+    });
+    // Paid/balance/arrears are computed from payments — never stored.
+    const paid = pledges.length
+      ? await this.prisma.donation.groupBy({
+          by: ['pledgeId'],
+          where: { deletedAt: null, pledgeId: { in: pledges.map((pl) => pl.id) } },
+          _sum: { amount: true },
+        })
+      : [];
+    const paidByPledge = new Map(paid.map((s) => [s.pledgeId, num(s._sum.amount) ?? 0]));
+    const today = new Date();
+    return {
+      columns: [
+        { key: 'donor', label: 'Donor' },
+        { key: 'pledgeDate', label: 'Pledge Date' },
+        { key: 'totalAmount', label: 'Total Pledged' },
+        { key: 'paid', label: 'Paid' },
+        { key: 'balance', label: 'Balance' },
+        { key: 'status', label: 'Status' },
+        { key: 'inArrears', label: 'In Arrears' },
+      ],
+      rows: pledges.map((pl) => {
+        const computed = pledgeComputed(pl, paidByPledge.get(pl.id) ?? 0, today);
+        return {
+          donor: pl.donor.name,
+          pledgeDate: fmtDate(pl.pledgeDate),
+          totalAmount: num(pl.totalAmount),
+          paid: computed.amountPaid,
+          balance: computed.balance,
+          status: pl.status,
+          inArrears: computed.inArrears,
+        };
+      }),
+    };
+  }
+
+  private async recurringGifts(p: ReportParams): Promise<ReportResult> {
+    const status = this.validateEnum(p.status, RECURRING_GIFT_STATUSES, 'status') as
+      | RecurringGiftStatus
+      | undefined;
+    const gifts = await this.prisma.recurringGift.findMany({
+      where: { deletedAt: null, ...(status ? { status } : {}) },
+      orderBy: { startDate: 'desc' },
+      select: {
+        id: true,
+        amount: true,
+        frequency: true,
+        startDate: true,
+        nextGiftDate: true,
+        status: true,
+        donor: { select: { name: true } },
+      },
+    });
+    const payments = gifts.length
+      ? await this.prisma.donation.groupBy({
+          by: ['recurringGiftId'],
+          where: { deletedAt: null, recurringGiftId: { in: gifts.map((g) => g.id) } },
+          _sum: { amount: true },
+          _max: { donationDate: true },
+        })
+      : [];
+    const byGift = new Map(payments.map((s) => [s.recurringGiftId, s]));
+    return {
+      columns: [
+        { key: 'donor', label: 'Donor' },
+        { key: 'amount', label: 'Amount' },
+        { key: 'frequency', label: 'Frequency' },
+        { key: 'startDate', label: 'Start Date' },
+        { key: 'nextGiftDate', label: 'Next Gift' },
+        { key: 'lastPaymentDate', label: 'Last Payment' },
+        { key: 'totalGiven', label: 'Total Given' },
+        { key: 'status', label: 'Status' },
+      ],
+      rows: gifts.map((g) => ({
+        donor: g.donor.name,
+        amount: num(g.amount),
+        frequency: g.frequency,
+        startDate: fmtDate(g.startDate),
+        nextGiftDate: fmtDate(g.nextGiftDate),
+        lastPaymentDate: fmtDate(byGift.get(g.id)?._max.donationDate),
+        totalGiven: num(byGift.get(g.id)?._sum.amount) ?? 0,
+        status: g.status,
+      })),
+    };
+  }
+
+  /** Year-end statement data — one row per donor with any gift that year. */
+  private async givingStatements(p: ReportParams): Promise<ReportResult> {
+    const year = p.year ?? new Date().getUTCFullYear();
+    const donations = await this.prisma.donation.findMany({
+      where: {
+        deletedAt: null,
+        donationDate: {
+          gte: new Date(Date.UTC(year, 0, 1)),
+          lte: new Date(Date.UTC(year, 11, 31)),
+        },
+      },
+      select: {
+        amount: true,
+        nonDeductibleAmount: true,
+        donor: {
+          select: {
+            id: true,
+            name: true,
+            addressLine1: true,
+            city: true,
+            state: true,
+            zip: true,
+          },
+        },
+      },
+    });
+
+    interface Statement {
+      donor: string;
+      address: string | null;
+      giftCount: number;
+      totalAmount: number;
+      totalDeductible: number;
+      largestGift: number;
+    }
+    const byDonor = new Map<string, Statement>();
+    for (const d of donations) {
+      let s = byDonor.get(d.donor.id);
+      if (!s) {
+        const cityLine = [d.donor.city, [d.donor.state, d.donor.zip].filter(Boolean).join(' ')]
+          .filter(Boolean)
+          .join(', ');
+        const address = [d.donor.addressLine1, cityLine].filter(Boolean).join(', ');
+        s = {
+          donor: d.donor.name,
+          address: address || null,
+          giftCount: 0,
+          totalAmount: 0,
+          totalDeductible: 0,
+          largestGift: 0,
+        };
+        byDonor.set(d.donor.id, s);
+      }
+      const amount = Number(d.amount);
+      s.giftCount += 1;
+      s.totalAmount += amount;
+      s.totalDeductible += amount - Number(d.nonDeductibleAmount ?? 0);
+      s.largestGift = Math.max(s.largestGift, amount);
+    }
+
+    const round2 = (v: number) => Math.round(v * 100) / 100;
+    return {
+      columns: [
+        { key: 'donor', label: 'Donor' },
+        { key: 'address', label: 'Address' },
+        { key: 'giftCount', label: 'Gifts' },
+        { key: 'totalAmount', label: 'Total Given' },
+        { key: 'totalDeductible', label: 'Tax-Deductible' },
+        { key: 'largestGift', label: 'Largest Gift' },
+      ],
+      rows: [...byDonor.values()]
+        .sort((a, b) => a.donor.localeCompare(b.donor))
+        .map((s) => ({
+          ...s,
+          totalAmount: round2(s.totalAmount),
+          totalDeductible: round2(s.totalDeductible),
+          largestGift: round2(s.largestGift),
+        })),
     };
   }
 
@@ -933,8 +1240,8 @@ export class ReportsService {
       },
     });
     const ids = campaigns.map((c) => c.id);
-    // Raised amounts are computed from mirrored donations — no second source
-    // of truth (§6.8).
+    // Raised amounts are computed from donations — no second source of
+    // truth (§6.8).
     const sums = ids.length
       ? await this.prisma.donation.groupBy({
           by: ['campaignId'],

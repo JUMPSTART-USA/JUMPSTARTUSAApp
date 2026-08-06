@@ -61,3 +61,17 @@ export function useEventsLookup() {
   });
   return { items: query.data?.items ?? [], allowed: can('events.read') };
 }
+
+export function useOpportunitiesLookup() {
+  const { can } = useAuth();
+  const query = useQuery({
+    queryKey: ['volunteers', 'lookup', 'opportunities'],
+    queryFn: () =>
+      api.get<Paged<NamedRef & { status?: string }>>(
+        `/volunteers/opportunities${qs({ pageSize: 200, sortBy: 'name' })}`,
+      ),
+    enabled: can('volunteers.read'),
+    staleTime: LOOKUP_STALE,
+  });
+  return { items: query.data?.items ?? [], allowed: can('volunteers.read') };
+}

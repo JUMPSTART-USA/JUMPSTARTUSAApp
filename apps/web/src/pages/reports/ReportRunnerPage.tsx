@@ -28,6 +28,7 @@ import {
   useEmployerOptions,
   useInsideClassOptions,
   useInstitutionOptions,
+  useOpportunityOptions,
   useParticipantOptions,
   useReportCatalog,
   useVehicleOptions,
@@ -49,6 +50,12 @@ const MONEY_KEYS = new Set([
   'raisedToDate',
   'linkedDonations',
   'payRate',
+  'paid',
+  'balance',
+  'totalGiven',
+  'totalAmount',
+  'totalDeductible',
+  'largestGift',
 ]);
 const PERCENT_KEYS = new Set(['occupancyPct', 'pctOfGoal']);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -99,7 +106,13 @@ export function ReportRunnerPage() {
 function RunnerInner({ report }: { report: ReportSummary }) {
   const { can } = useAuth();
 
-  const [values, setValues] = useState<Record<string, string>>({});
+  // A required numeric 'year' param (giving-statements) defaults to the current year.
+  const [values, setValues] = useState<Record<string, string>>(
+    (): Record<string, string> =>
+      report.params.some((p) => p.name === 'year' && p.type === 'number' && p.required)
+        ? { year: String(new Date().getFullYear()) }
+        : {},
+  );
   const [submitted, setSubmitted] = useState<Record<string, string> | null>(null);
   // Bumped on every Run so identical params still refetch fresh data.
   const [runId, setRunId] = useState(0);
@@ -111,6 +124,7 @@ function RunnerInner({ report }: { report: ReportSummary }) {
   const campaigns = useCampaignOptions(has('campaignId'));
   const employers = useEmployerOptions(has('employerId'));
   const caseManagers = useCaseManagerOptions(has('caseManagerId'));
+  const opportunities = useOpportunityOptions(has('opportunityId'));
 
   // Zero-param reports run immediately — there is nothing to fill in.
   useEffect(() => {
@@ -137,8 +151,10 @@ function RunnerInner({ report }: { report: ReportSummary }) {
   };
 
   // Plain <GET> download — session cookie auth means no token plumbing needed.
+  // Built from the submitted snapshot, not live form state, so exports always
+  // match the displayed run even if params were edited since.
   const exportUrl = (format: 'csv' | 'xlsx' | 'pdf') =>
-    `/api/reports/${report.key}/export${qs({ ...cleanParams(), format })}`;
+    `/api/reports/${report.key}/export${qs({ ...(submitted ?? {}), format })}`;
 
   const uuidOptions: Record<string, { options: EntityOption[]; isLoading: boolean }> = {
     institutionId: institutions,
@@ -147,6 +163,7 @@ function RunnerInner({ report }: { report: ReportSummary }) {
     campaignId: campaigns,
     employerId: employers,
     caseManagerId: caseManagers,
+    opportunityId: opportunities,
   };
 
   const renderControl = (param: ReportParamDef) => {
@@ -219,21 +236,21 @@ function RunnerInner({ report }: { report: ReportSummary }) {
               <>
                 <Button
                   variant="outline"
-                  disabled={missingRequired.length > 0}
+                  disabled={submitted === null}
                   onClick={() => window.open(exportUrl('csv'))}
                 >
                   <Download className="h-4 w-4" /> Export CSV
                 </Button>
                 <Button
                   variant="outline"
-                  disabled={missingRequired.length > 0}
+                  disabled={submitted === null}
                   onClick={() => window.open(exportUrl('xlsx'))}
                 >
                   <Download className="h-4 w-4" /> Export Excel
                 </Button>
                 <Button
                   variant="outline"
-                  disabled={missingRequired.length > 0}
+                  disabled={submitted === null}
                   onClick={() => window.open(exportUrl('pdf'))}
                 >
                   <Download className="h-4 w-4" /> Export PDF

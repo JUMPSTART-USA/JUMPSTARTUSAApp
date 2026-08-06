@@ -4,6 +4,10 @@ import type {
   BackgroundCheckResult,
   ClearanceRequirementType,
   ClearanceStatus,
+  HoursSource,
+  HoursStatus,
+  OpportunityStatus,
+  ShiftSignupStatus,
   VolunteerStatus,
 } from '@jumpstart/shared';
 
@@ -147,6 +151,10 @@ export interface VolunteerDetail extends VolunteerProfileFields {
   assignments: AssignmentRow[];
   trainings: TrainingRow[];
   clearances: ClearanceRow[];
+  /** Approved-hours rollup — optional so the page degrades while the API lands. */
+  hoursSummary?: VolunteerHoursSummary;
+  /** Next 5 upcoming shift signups with opportunity names. */
+  upcomingSignups?: UpcomingSignupRow[];
 }
 
 /** GET /volunteers/:id/eligibility — computed, never stored (§6.6). */
@@ -187,6 +195,121 @@ export interface ServiceHistoryResult {
       event: (NamedRef & { eventDate: string }) | null;
     }
   >;
+  /** Sum of approved hours entries (Decimal serialized). */
+  totalApprovedHours?: string | number;
+}
+
+// ── Volunteer engagement: opportunities, shifts & hours ─────────────────────
+
+export interface OpportunityFields {
+  id: string;
+  name: string;
+  description: string | null;
+  /** Chapter column. */
+  state: string | null;
+  institutionId: string | null;
+  outsideProgramId: string | null;
+  eventId: string | null;
+  location: string | null;
+  status: OpportunityStatus;
+  notes: string | null;
+  createdAt: string;
+  institution?: NamedRef | null;
+  outsideProgram?: (NamedRef & { programType?: string }) | null;
+  event?: (NamedRef & { eventDate?: string }) | null;
+}
+
+export interface OpportunityListItem extends OpportunityFields {
+  shiftCount: number;
+  upcomingShiftCount: number;
+  signupCount: number;
+  /** Sum of approved hours (Prisma Decimal — arrives serialized). */
+  approvedHours: string | number;
+}
+
+export interface ShiftSignupRow {
+  id: string;
+  shiftId: string;
+  volunteerProfileId: string;
+  status: ShiftSignupStatus;
+  checkedInAt: string | null;
+  checkedOutAt: string | null;
+  notes: string | null;
+  volunteerProfile: { id: string; person: PersonName };
+}
+
+/**
+ * Mutation responses on signups: the created/updated row; when a cancellation
+ * frees a seat the API also returns the auto-promoted waitlisted signup.
+ */
+export interface SignupMutationResult extends ShiftSignupRow {
+  promoted?: ShiftSignupRow | null;
+}
+
+export interface ShiftRow {
+  id: string;
+  opportunityId: string;
+  shiftDate: string;
+  /** 24-hour HH:MM. */
+  startTime: string;
+  endTime: string;
+  capacity: number | null;
+  role: string | null;
+  location: string | null;
+  notes: string | null;
+  signedUpCount: number;
+  waitlistCount: number;
+  signups: ShiftSignupRow[];
+}
+
+export interface OpportunityHoursSummary {
+  totalApproved: string | number;
+  approvedEntries: number;
+  pendingEntries: number;
+}
+
+export interface OpportunityDetail extends OpportunityFields {
+  shifts: ShiftRow[];
+  hoursSummary: OpportunityHoursSummary;
+}
+
+export interface HoursEntryRow {
+  id: string;
+  volunteerProfileId: string;
+  activityDate: string;
+  hours: string | number;
+  description: string | null;
+  opportunityId: string | null;
+  shiftId: string | null;
+  institutionId: string | null;
+  assignmentId: string | null;
+  source: HoursSource;
+  status: HoursStatus;
+  approvedById: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+  volunteerProfile?: { id: string; person: PersonName };
+  opportunity?: NamedRef | null;
+  institution?: NamedRef | null;
+}
+
+export interface VolunteerHoursSummary {
+  totalApproved: string | number;
+  ytdApproved: string | number;
+  pendingCount: number;
+}
+
+export interface UpcomingSignupRow {
+  id: string;
+  status: ShiftSignupStatus;
+  shift: {
+    id: string;
+    shiftDate: string;
+    startTime: string;
+    endTime: string;
+    role: string | null;
+    opportunity: NamedRef;
+  };
 }
 
 /** §5 duplicate prevention: candidates returned in the 409 body on create. */

@@ -9,7 +9,7 @@ import {
   type VolunteerStatus,
 } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, ClipboardList, Plus } from 'lucide-react';
+import { CalendarClock, CalendarDays, ClipboardList, Clock, Plus } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -141,6 +141,12 @@ export function VolunteerListPage() {
         title="Volunteers"
         actions={
           <>
+            <Button variant="outline" onClick={() => navigate('opportunities')}>
+              <CalendarDays className="h-4 w-4" /> Opportunities
+            </Button>
+            <Button variant="outline" onClick={() => navigate('hours')}>
+              <Clock className="h-4 w-4" /> Hours
+            </Button>
             <Button variant="outline" onClick={() => navigate('expirations')}>
               <CalendarClock className="h-4 w-4" /> Expirations
             </Button>

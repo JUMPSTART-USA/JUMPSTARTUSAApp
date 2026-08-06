@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table';
 import { api } from '@/lib/api';
 import { formatDate, humanize } from '@/lib/utils';
+import { formatHours } from '../shared';
 import type { ServiceHistoryResult } from '../types';
 
 /** §6.6 volunteer service report: where, when, in what role. */
@@ -26,12 +27,32 @@ export function ServiceHistoryTab({ volunteerProfileId }: { volunteerProfileId: 
 
   const assignments = data?.assignments ?? [];
 
+  const totalHoursLine =
+    data?.totalApprovedHours !== undefined ? (
+      <p className="text-sm text-muted-foreground">
+        Total approved volunteer hours:{' '}
+        <span className="font-medium text-foreground">
+          {formatHours(data.totalApprovedHours)}
+        </span>
+      </p>
+    ) : null;
+
   if (assignments.length === 0) {
-    return <EmptyState title="No service history" hint="Assignments will appear here as they are recorded." />;
+    return (
+      <div className="space-y-3">
+        {totalHoursLine}
+        <EmptyState
+          title="No service history"
+          hint="Assignments will appear here as they are recorded."
+        />
+      </div>
+    );
   }
 
   return (
-    <Table>
+    <div className="space-y-3">
+      {totalHoursLine}
+      <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Period</TableHead>
@@ -81,6 +102,7 @@ export function ServiceHistoryTab({ volunteerProfileId }: { volunteerProfileId: 
           );
         })}
       </TableBody>
-    </Table>
+      </Table>
+    </div>
   );
 }

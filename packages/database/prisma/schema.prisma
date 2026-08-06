@@ -371,6 +371,90 @@ enum DonorType {
   foundation
 }
 
+enum GiftFrequency {
+  weekly
+  biweekly
+  monthly
+  quarterly
+  semiannually
+  annually
+}
+
+enum PledgeStatus {
+  active
+  fulfilled
+  written_off
+  canceled
+}
+
+enum RecurringGiftStatus {
+  active
+  paused
+  closed
+}
+
+enum InteractionChannel {
+  email
+  phone
+  mail
+  in_person
+  text_message
+  social_media
+  website
+  other
+}
+
+enum InteractionPurpose {
+  acknowledgment
+  cultivation
+  newsletter
+  receipt
+  solicitation
+  event_followup
+  pledge_reminder
+  welcome
+  other
+}
+
+enum DonorTaskStatus {
+  open
+  completed
+  canceled
+}
+
+enum TributeType {
+  in_honor_of
+  in_memory_of
+}
+
+enum OpportunityStatus {
+  draft
+  open
+  closed
+  archived
+}
+
+enum ShiftSignupStatus {
+  signed_up
+  confirmed
+  attended
+  no_show
+  canceled
+  waitlisted
+}
+
+enum HoursStatus {
+  pending
+  approved
+  rejected
+}
+
+enum HoursSource {
+  staff
+  self
+  check_in
+}
+
 enum EmploymentStatus {
   applied
   interviewing
@@ -474,11 +558,11 @@ model Person {
 
   // Communication preferences & consent (TCPA: smsConsentAt is the timestamp
   // explicit SMS opt-in was recorded; STOP handling clears smsOk)
-  emailOk      Boolean   @default(true)
-  smsOk        Boolean   @default(false)
-  smsConsentAt DateTime?
-  mailOnly     Boolean   @default(false)
-  doNotContact Boolean   @default(false)
+  emailOk        Boolean   @default(true)
+  smsOk          Boolean   @default(false)
+  smsConsentAt   DateTime?
+  mailOnly       Boolean   @default(false)
+  doNotContact   Boolean   @default(false)
   // Deliverability, NOT consent: set by Postmark bounce/complaint webhooks;
   // emailOk stays strictly the opt-in/opt-out preference (TCPA comment above)
   emailBouncedAt DateTime?
@@ -491,16 +575,16 @@ model Person {
   updatedById String?
   deletedAt   DateTime?
 
-  participantProfile ParticipantProfile?
-  volunteerProfile   VolunteerProfile?
-  user               User?
-  contacts           PersonContact[]
-  addresses          PersonAddress[]
-  backgroundChecks   BackgroundCheck[]
-  testimonyConsents  TestimonyConsent[]
-  communications     Communication[]
-  eventRegistrations EventRegistration[]
-  donors             Donor[]
+  participantProfile    ParticipantProfile?
+  volunteerProfile      VolunteerProfile?
+  user                  User?
+  contacts              PersonContact[]
+  addresses             PersonAddress[]
+  backgroundChecks      BackgroundCheck[]
+  testimonyConsents     TestimonyConsent[]
+  communications        Communication[]
+  eventRegistrations    EventRegistration[]
+  donors                Donor[]
   volunteerApplications VolunteerApplication[]
 
   @@index([lastName, firstName])
@@ -510,21 +594,21 @@ model Person {
 }
 
 model PersonAddress {
-  id           String    @id @default(uuid())
-  personId     String
-  person       Person    @relation(fields: [personId], references: [id])
-  addressLine1 String
-  addressLine2 String?
-  city         String
-  state        String
-  zip          String
-  addressType  String? // home, transitional home, facility, mailing…
-  isCurrent    Boolean   @default(false)
-  validFrom    DateTime? @db.Date
-  validTo      DateTime? @db.Date
+  id             String    @id @default(uuid())
+  personId       String
+  person         Person    @relation(fields: [personId], references: [id])
+  addressLine1   String
+  addressLine2   String?
+  city           String
+  state          String
+  zip            String
+  addressType    String? // home, transitional home, facility, mailing…
+  isCurrent      Boolean   @default(false)
+  validFrom      DateTime? @db.Date
+  validTo        DateTime? @db.Date
   // Deliverability, NOT consent: set when physical mail comes back (§6.12)
   returnedMailAt DateTime?
-  notes        String?
+  notes          String?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -538,17 +622,17 @@ model PersonAddress {
 // Emergency contacts & family members. Minors NEVER become Person records —
 // they exist only here with an isMinor flag and minimal fields (§7.4).
 model PersonContact {
-  id            String  @id @default(uuid())
-  personId      String
-  person        Person  @relation(fields: [personId], references: [id])
-  name          String
-  relationship  String
-  phone         String?
-  email         String?
-  isEmergency   Boolean @default(false)
-  isMinor       Boolean @default(false)
-  guardianName  String? // when isMinor, phone belongs to the guardian
-  notes         String?
+  id           String  @id @default(uuid())
+  personId     String
+  person       Person  @relation(fields: [personId], references: [id])
+  name         String
+  relationship String
+  phone        String?
+  email        String?
+  isEmergency  Boolean @default(false)
+  isMinor      Boolean @default(false)
+  guardianName String? // when isMinor, phone belongs to the guardian
+  notes        String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -580,11 +664,11 @@ model TestimonyConsent {
 }
 
 model ParticipantProfile {
-  id                String  @id @default(uuid())
-  personId          String  @unique
-  person            Person  @relation(fields: [personId], references: [id])
+  id                String @id @default(uuid())
+  personId          String @unique
+  person            Person @relation(fields: [personId], references: [id])
   // Human-readable ID, e.g. P-2026-00341 — staff/DOC-speakable, not a DB key
-  participantNumber String  @unique
+  participantNumber String @unique
 
   insideStatus  InsideStatus  @default(not_applicable)
   outsideStatus OutsideStatus @default(not_applicable)
@@ -609,36 +693,36 @@ model ParticipantProfile {
   updatedById String?
   deletedAt   DateTime?
 
-  docIds              ParticipantDocId[]
-  offenses            ParticipantOffense[]
-  insideLocations     ParticipantInsideLocation[]
-  statusHistory       ParticipantStatusHistory[]
-  insideEnrollments   InsideClassEnrollment[]
-  outsideEnrollments  OutsideProgramEnrollment[]
-  housingEnrollments  HousingEnrollment[]
+  docIds               ParticipantDocId[]
+  offenses             ParticipantOffense[]
+  insideLocations      ParticipantInsideLocation[]
+  statusHistory        ParticipantStatusHistory[]
+  insideEnrollments    InsideClassEnrollment[]
+  outsideEnrollments   OutsideProgramEnrollment[]
+  housingEnrollments   HousingEnrollment[]
   onboardingChecklists OnboardingChecklist[]
-  caseNotes           CaseNote[]
-  caseServices        CaseService[]
-  drugTests           DrugTest[]
-  budgetItems         BudgetItem[]
-  budgetPayments      BudgetPayment[]
-  travelRequests      TravelRequest[]
-  incidentReports     IncidentReport[]
-  portalTokens        ParticipantPortalToken[]
-  portalMessages      PortalMessage[]
-  meetingRequests     MeetingRequest[]
-  transportRequests   TransportRequest[]
-  servicePlans        ServicePlan[]
-  needsAssessments    NeedsAssessment[]
-  outboundReferrals   OutboundReferral[]
-  caseTasks           CaseTask[]
-  employments         ParticipantEmployment[]
-  alumniEngagements   AlumniEngagement[]
-  outcomeCheckins     OutcomeCheckin[]
-  mentorAssignments   MentorAssignment[] // as mentee
-  alumniFormTokens    AlumniFormToken[]
-  alumniUpdates       AlumniUpdate[]
-  referralInboxLinks  ReferralInboxItem[]
+  caseNotes            CaseNote[]
+  caseServices         CaseService[]
+  drugTests            DrugTest[]
+  budgetItems          BudgetItem[]
+  budgetPayments       BudgetPayment[]
+  travelRequests       TravelRequest[]
+  incidentReports      IncidentReport[]
+  portalTokens         ParticipantPortalToken[]
+  portalMessages       PortalMessage[]
+  meetingRequests      MeetingRequest[]
+  transportRequests    TransportRequest[]
+  servicePlans         ServicePlan[]
+  needsAssessments     NeedsAssessment[]
+  outboundReferrals    OutboundReferral[]
+  caseTasks            CaseTask[]
+  employments          ParticipantEmployment[]
+  alumniEngagements    AlumniEngagement[]
+  outcomeCheckins      OutcomeCheckin[]
+  mentorAssignments    MentorAssignment[] // as mentee
+  alumniFormTokens     AlumniFormToken[]
+  alumniUpdates        AlumniUpdate[]
+  referralInboxLinks   ReferralInboxItem[]
 
   @@index([assignedCaseManagerId])
   @@index([insideStatus])
@@ -770,11 +854,13 @@ model VolunteerProfile {
   updatedById String?
   deletedAt   DateTime?
 
-  assignments      VolunteerAssignment[]
-  trainings        VolunteerTraining[]
-  clearances       VolunteerClearance[]
-  mentorScreenings MentorScreening[]
+  assignments       VolunteerAssignment[]
+  trainings         VolunteerTraining[]
+  clearances        VolunteerClearance[]
+  mentorScreenings  MentorScreening[]
   mentorAssignments MentorAssignment[] // as mentor
+  shiftSignups      VolunteerShiftSignup[]
+  hoursEntries      VolunteerHoursEntry[]
 
   @@index([status])
   @@index([isMentor])
@@ -813,7 +899,7 @@ model User {
   insideClassesLed    InsideClass[]
   outsideProgramsLed  OutsideProgram[]
   auditLogs           AuditLog[]
-  supportTickets      SupportTicket[]  @relation("TicketCreator")
+  supportTickets      SupportTicket[]      @relation("TicketCreator")
   supportMessages     SupportMessage[]
 
   @@map("users")
@@ -891,13 +977,13 @@ model UserRegionScope {
 // respond. The opening description is the first SupportMessage of the thread.
 
 model SupportTicket {
-  id          String   @id @default(uuid())
-  number      Int      @unique @default(autoincrement()) // human-friendly #
+  id          String @id @default(uuid())
+  number      Int    @unique @default(autoincrement()) // human-friendly #
   category    String // bug | feature | question | other
   subject     String
-  status      String   @default("open") // open | in_progress | resolved | closed
+  status      String @default("open") // open | in_progress | resolved | closed
   createdById String
-  createdBy   User     @relation("TicketCreator", fields: [createdById], references: [id])
+  createdBy   User   @relation("TicketCreator", fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -957,11 +1043,13 @@ model Institution {
   updatedById String?
   deletedAt   DateTime?
 
-  insideClasses         InsideClass[]
-  volunteerAssignments  VolunteerAssignment[]
-  clearanceRequirements FacilityClearanceRequirement[]
-  participantLocations  ParticipantInsideLocation[]
-  contacts              InstitutionContact[]
+  insideClasses          InsideClass[]
+  volunteerAssignments   VolunteerAssignment[]
+  clearanceRequirements  FacilityClearanceRequirement[]
+  participantLocations   ParticipantInsideLocation[]
+  contacts               InstitutionContact[]
+  volunteerOpportunities VolunteerOpportunity[]
+  volunteerHoursEntries  VolunteerHoursEntry[]
 
   @@index([state])
   @@index([active])
@@ -1118,9 +1206,10 @@ model OutsideProgram {
   updatedById String?
   deletedAt   DateTime?
 
-  enrollments          OutsideProgramEnrollment[]
-  sessions             OutsideProgramSession[]
-  volunteerAssignments VolunteerAssignment[]
+  enrollments            OutsideProgramEnrollment[]
+  sessions               OutsideProgramSession[]
+  volunteerAssignments   VolunteerAssignment[]
+  volunteerOpportunities VolunteerOpportunity[]
 
   @@index([programType])
   @@index([status])
@@ -1166,7 +1255,7 @@ model OutsideProgramEnrollment {
 // photo is stored inline (Bytes) — no external blob store in the stack; tests
 // are low-volume and photos are capped at 10 MB by the API.
 model DrugTest {
-  id                   String         @id @default(uuid())
+  id                   String             @id @default(uuid())
   participantProfileId String
   participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
   testDate             DateTime
@@ -1190,16 +1279,16 @@ model DrugTest {
 // supervision fees (probation/parole/community supervision), treatment
 // programs and other standard expenses. Payments log against an item.
 model BudgetItem {
-  id                   String   @id @default(uuid())
+  id                   String             @id @default(uuid())
   participantProfileId String
   participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
   category             BudgetCategory
   label                String?
-  amount               Decimal  @db.Decimal(12, 2)
+  amount               Decimal            @db.Decimal(12, 2)
   frequency            BudgetFrequency
   startDate            DateTime
   endDate              DateTime?
-  active               Boolean  @default(true)
+  active               Boolean            @default(true)
   notes                String?
 
   payments BudgetPayment[]
@@ -1214,13 +1303,13 @@ model BudgetItem {
 }
 
 model BudgetPayment {
-  id                   String   @id @default(uuid())
+  id                   String             @id @default(uuid())
   budgetItemId         String
-  budgetItem           BudgetItem @relation(fields: [budgetItemId], references: [id])
+  budgetItem           BudgetItem         @relation(fields: [budgetItemId], references: [id])
   participantProfileId String
   participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
   paidDate             DateTime
-  amount               Decimal  @db.Decimal(12, 2)
+  amount               Decimal            @db.Decimal(12, 2)
   method               String?
   notes                String?
 
@@ -1237,9 +1326,9 @@ model BudgetPayment {
 // Travel-away requests (§6.7): time away from the housing program (family
 // visits etc.) with case-manager approval or denial.
 model TravelRequest {
-  id                   String   @id @default(uuid())
+  id                   String              @id @default(uuid())
   participantProfileId String
-  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  participantProfile   ParticipantProfile  @relation(fields: [participantProfileId], references: [id])
   startDate            DateTime
   endDate              DateTime
   destination          String
@@ -1261,7 +1350,7 @@ model TravelRequest {
 
 // Incident reports (§6.8): violations of the program rules agreement.
 model IncidentReport {
-  id                   String   @id @default(uuid())
+  id                   String             @id @default(uuid())
   participantProfileId String
   participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
   incidentDate         DateTime
@@ -1269,7 +1358,7 @@ model IncidentReport {
   severity             IncidentSeverity
   description          String
   actionTaken          String?
-  status               IncidentStatus @default(open)
+  status               IncidentStatus     @default(open)
   resolutionNotes      String?
   resolvedAt           DateTime?
 
@@ -1287,11 +1376,11 @@ model IncidentReport {
 // issue a private URL per participant; submissions land in staff queues and
 // never write operational records directly.
 model ParticipantPortalToken {
-  id                   String   @id @default(uuid())
+  id                   String             @id @default(uuid())
   participantProfileId String
   participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
-  token                String   @unique
-  active               Boolean  @default(true)
+  token                String             @unique
+  active               Boolean            @default(true)
   lastUsedAt           DateTime?
   revokedAt            DateTime?
 
@@ -1303,9 +1392,9 @@ model ParticipantPortalToken {
 }
 
 model PortalMessage {
-  id                   String   @id @default(uuid())
+  id                   String              @id @default(uuid())
   participantProfileId String
-  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  participantProfile   ParticipantProfile  @relation(fields: [participantProfileId], references: [id])
   subject              String?
   body                 String
   status               PortalMessageStatus @default(new)
@@ -1323,9 +1412,9 @@ model PortalMessage {
 }
 
 model MeetingRequest {
-  id                   String   @id @default(uuid())
+  id                   String               @id @default(uuid())
   participantProfileId String
-  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  participantProfile   ParticipantProfile   @relation(fields: [participantProfileId], references: [id])
   preferredDate        DateTime
   preferredTime        String? // 'HH:MM' — stored as wall-clock text, no TZ math
   reason               String
@@ -1345,20 +1434,20 @@ model MeetingRequest {
 }
 
 model TransportRequest {
-  id                   String   @id @default(uuid())
+  id                   String                 @id @default(uuid())
   participantProfileId String
-  participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
+  participantProfile   ParticipantProfile     @relation(fields: [participantProfileId], references: [id])
   tripDate             DateTime
   tripTime             String // 'HH:MM'
   destination          String
   purpose              String?
-  returnTripRequested  Boolean  @default(false)
+  returnTripRequested  Boolean                @default(false)
   returnDate           DateTime?
   returnTime           String? // 'HH:MM'
   returnDestination    String?
   status               TransportRequestStatus @default(pending)
   assignedVehicleId    String?
-  assignedVehicle      Vehicle? @relation(fields: [assignedVehicleId], references: [id])
+  assignedVehicle      Vehicle?               @relation(fields: [assignedVehicleId], references: [id])
   decisionNotes        String?
   decidedById          String?
   decidedAt            DateTime?
@@ -1412,21 +1501,21 @@ model OutsideSessionAttendance {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model TransitionalHome {
-  id                String  @id @default(uuid())
-  name              String
-  addressLine1      String?
-  city              String?
-  state             String
-  zip               String?
-  phone             String?
-  houseManagerName  String?
-  houseManagerPhone String?
-  houseManagerEmail String?
-  capacity          Int
-  gender            HomeGender @default(any)
-  sexOffenderApproved Boolean @default(false)
-  active            Boolean @default(true)
-  notes             String?
+  id                  String     @id @default(uuid())
+  name                String
+  addressLine1        String?
+  city                String?
+  state               String
+  zip                 String?
+  phone               String?
+  houseManagerName    String?
+  houseManagerPhone   String?
+  houseManagerEmail   String?
+  capacity            Int
+  gender              HomeGender @default(any)
+  sexOffenderApproved Boolean    @default(false)
+  active              Boolean    @default(true)
+  notes               String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -1531,19 +1620,19 @@ model OnboardingChecklist {
 }
 
 model OnboardingChecklistItem {
-  id            String              @id @default(uuid())
-  checklistId   String
-  checklist     OnboardingChecklist @relation(fields: [checklistId], references: [id])
-  label         String
-  sortOrder     Int
+  id             String              @id @default(uuid())
+  checklistId    String
+  checklist      OnboardingChecklist @relation(fields: [checklistId], references: [id])
+  label          String
+  sortOrder      Int
   // Snapshot of the template item at instantiation (templates are mutable;
   // history is not). templateItemId is provenance only, no FK.
-  required      Boolean             @default(true)
+  required       Boolean             @default(true)
   templateItemId String?
-  status        ChecklistItemStatus @default(pending)
-  completedAt   DateTime?
-  completedById String?
-  notes         String?
+  status         ChecklistItemStatus @default(pending)
+  completedAt    DateTime?
+  completedById  String?
+  notes          String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1627,13 +1716,13 @@ model ServicePlan {
 }
 
 model Goal {
-  id            String      @id @default(uuid())
+  id            String       @id @default(uuid())
   servicePlanId String
-  servicePlan   ServicePlan @relation(fields: [servicePlanId], references: [id])
+  servicePlan   ServicePlan  @relation(fields: [servicePlanId], references: [id])
   category      NoteCategory
   description   String
-  targetDate    DateTime?   @db.Date
-  status        GoalStatus  @default(not_started)
+  targetDate    DateTime?    @db.Date
+  status        GoalStatus   @default(not_started)
   notes         String?
 
   createdAt   DateTime @default(now())
@@ -1773,6 +1862,8 @@ model VolunteerAssignment {
   updatedById String?
   deletedAt   DateTime?
 
+  hoursEntries VolunteerHoursEntry[]
+
   @@index([volunteerProfileId])
   @@index([institutionId])
   @@index([outsideProgramId])
@@ -1872,6 +1963,133 @@ model VolunteerClearance {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// VOLUNTEER ENGAGEMENT: OPPORTUNITIES, SHIFTS & HOURS (§6.6)
+// Modeled on dedicated volunteer-management products (Bloomerang Volunteer /
+// Neon CRM volunteers): schedulable opportunities with capacity-limited
+// shifts and waitlists, check-in/check-out, and hours entries with an
+// approval workflow. Hours totals are computed from approved entries.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// A program or event volunteers serve in ("Cumberland Ridge Bible Study
+// Support"). Shifts hang off it; standalone hours can also reference it.
+model VolunteerOpportunity {
+  id               String            @id @default(uuid())
+  name             String
+  description      String?
+  state            String? // chapter column (§7.2)
+  institutionId    String?
+  institution      Institution?      @relation(fields: [institutionId], references: [id])
+  outsideProgramId String?
+  outsideProgram   OutsideProgram?   @relation(fields: [outsideProgramId], references: [id])
+  eventId          String?
+  event            Event?            @relation(fields: [eventId], references: [id])
+  location         String?
+  status           OpportunityStatus @default(open)
+  notes            String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  shifts       VolunteerShift[]
+  hoursEntries VolunteerHoursEntry[]
+
+  @@index([status])
+  @@index([state])
+  @@index([institutionId])
+  @@map("volunteer_opportunities")
+}
+
+// A schedulable slot: "Thursday 6–8pm, 4 people needed". Times are local
+// "HH:MM" strings alongside a calendar date, matching the @db.Date convention.
+model VolunteerShift {
+  id            String               @id @default(uuid())
+  opportunityId String
+  opportunity   VolunteerOpportunity @relation(fields: [opportunityId], references: [id])
+  shiftDate     DateTime             @db.Date
+  startTime     String // "18:00"
+  endTime       String // "20:00"
+  capacity      Int?
+  role          String? // job on the shift: greeter, driver, teacher…
+  location      String?
+  notes         String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  signups      VolunteerShiftSignup[]
+  hoursEntries VolunteerHoursEntry[]
+
+  @@index([opportunityId, shiftDate])
+  @@index([shiftDate])
+  @@map("volunteer_shifts")
+}
+
+// Roster row: volunteer × shift. Capacity overflow lands as waitlisted;
+// canceling promotes the oldest waitlisted signup. Check-out generates an
+// approved hours entry from the recorded in/out times.
+model VolunteerShiftSignup {
+  id                 String            @id @default(uuid())
+  shiftId            String
+  shift              VolunteerShift    @relation(fields: [shiftId], references: [id])
+  volunteerProfileId String
+  volunteerProfile   VolunteerProfile  @relation(fields: [volunteerProfileId], references: [id])
+  status             ShiftSignupStatus @default(signed_up)
+  checkedInAt        DateTime?
+  checkedOutAt       DateTime?
+  notes              String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([shiftId, volunteerProfileId])
+  @@index([volunteerProfileId])
+  @@map("volunteer_shift_signups")
+}
+
+// The currency of volunteer reporting: hours served. Staff entries are
+// approved on creation; self-reported and check-in entries flow through the
+// pending → approved/rejected review queue.
+model VolunteerHoursEntry {
+  id                 String                @id @default(uuid())
+  volunteerProfileId String
+  volunteerProfile   VolunteerProfile      @relation(fields: [volunteerProfileId], references: [id])
+  activityDate       DateTime              @db.Date
+  hours              Decimal               @db.Decimal(6, 2)
+  description        String?
+  opportunityId      String?
+  opportunity        VolunteerOpportunity? @relation(fields: [opportunityId], references: [id])
+  shiftId            String?
+  shift              VolunteerShift?       @relation(fields: [shiftId], references: [id])
+  institutionId      String?
+  institution        Institution?          @relation(fields: [institutionId], references: [id])
+  assignmentId       String?
+  assignment         VolunteerAssignment?  @relation(fields: [assignmentId], references: [id])
+  source             HoursSource           @default(staff)
+  status             HoursStatus           @default(approved)
+  approvedById       String?
+  approvedAt         DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  @@index([volunteerProfileId, activityDate])
+  @@index([status])
+  @@index([opportunityId])
+  @@map("volunteer_hours_entries")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ALUMNI-TO-MENTOR PROGRAM (§6.7) — Phase 3 workflows, Phase 1 schema
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1910,13 +2128,13 @@ model OutcomeCheckin {
 
   // Verification level is PER FIELD (§9.3): re-arrest may be self-reported
   // while re-incarceration is DOC-verified on the same check-in.
-  reArrested                Boolean?
-  reArrestedVerification    VerificationLevel?
-  reConvicted               Boolean?
-  reConvictedVerification   VerificationLevel?
-  reIncarcerated            Boolean?
+  reArrested                 Boolean?
+  reArrestedVerification     VerificationLevel?
+  reConvicted                Boolean?
+  reConvictedVerification    VerificationLevel?
+  reIncarcerated             Boolean?
   reIncarceratedVerification VerificationLevel?
-  justiceNotes              String?
+  justiceNotes               String?
 
   notes String?
 
@@ -1966,13 +2184,13 @@ model MentorScreeningTemplateItem {
 // participant history via the shared person model; conditions capture
 // restrictions like "outside programs only" (§6.7).
 model MentorScreening {
-  id                 String               @id @default(uuid())
+  id                 String                   @id @default(uuid())
   volunteerProfileId String
-  volunteerProfile   VolunteerProfile     @relation(fields: [volunteerProfileId], references: [id])
-  stage              MentorScreeningStage @default(applied)
+  volunteerProfile   VolunteerProfile         @relation(fields: [volunteerProfileId], references: [id])
+  stage              MentorScreeningStage     @default(applied)
   templateId         String?
   template           MentorScreeningTemplate? @relation(fields: [templateId], references: [id])
-  approvedAt         DateTime?            @db.Date
+  approvedAt         DateTime?                @db.Date
   approvedById       String?
   conditions         String?
   notes              String?
@@ -2077,29 +2295,34 @@ model MentorSessionLog {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DONORS, VENDORS, CAMPAIGNS & EVENTS (§6.8)
-// Donors/donations are a READ-MOSTLY MIRROR of Bloomerang — edits happen in
-// Bloomerang and sync back. The platform owns campaigns/events/vendors and
-// the links from donations to them.
+// DEVELOPMENT: DONORS, GIVING, CAMPAIGNS & EVENTS (§6.8)
+// Full native donor management modeled on the feature set of dedicated donor
+// CRMs (Bloomerang / Neon CRM): funds, campaigns & appeals as designations on
+// every gift, pledges with installment schedules, recurring gift schedules,
+// soft credits, tributes, households & relationships, interactions and tasks,
+// and an acknowledgment workflow. Giving aggregates (lifetime, raised-to-date)
+// are always COMPUTED from donations — never stored.
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Donor {
-  id            String    @id @default(uuid())
-  bloomerangId  String?   @unique
-  donorType     DonorType @default(individual)
-  name          String
-  contactPerson String?
-  phone         String?
-  email         String?
-  addressLine1  String?
-  city          String?
-  state         String?
-  zip           String?
-  status        String    @default("active") // active | lapsed | inactive
-  personId      String? // set when a donor is also a volunteer/alumnus (§5)
-  person        Person?   @relation(fields: [personId], references: [id])
-  notes         String? // local notes; Bloomerang fields sync over their own
-  lastSyncedAt  DateTime?
+  id                String     @id @default(uuid())
+  donorType         DonorType  @default(individual)
+  name              String
+  contactPerson     String?
+  phone             String?
+  email             String?
+  addressLine1      String?
+  city              String?
+  state             String?
+  zip               String?
+  status            String     @default("active") // active | lapsed | inactive
+  personId          String? // set when a donor is also a volunteer/alumnus (§5)
+  person            Person?    @relation(fields: [personId], references: [id])
+  householdId       String?
+  household         Household? @relation(fields: [householdId], references: [id])
+  // Head of household drives addressing on household statements/mailings.
+  isHeadOfHousehold Boolean    @default(false)
+  notes             String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -2107,58 +2330,321 @@ model Donor {
   updatedById String?
   deletedAt   DateTime?
 
-  donations Donation[]
+  donations      Donation[]
+  softCredits    SoftCredit[]
+  pledges        Pledge[]
+  recurringGifts RecurringGift[]
+  interactions   DonorInteraction[]
+  tasks          DonorTask[]
+  relationships  DonorRelationship[] @relation("DonorRelationshipFrom")
+  relatedTo      DonorRelationship[] @relation("DonorRelationshipTo")
 
   @@index([name])
   @@index([personId])
+  @@index([householdId])
   @@map("donors")
+}
+
+// Households group donors for combined giving rollups and single-envelope
+// addressing (year-end statements go to the household, not each member).
+model Household {
+  id           String  @id @default(uuid())
+  name         String // "The Smith Family"
+  envelopeName String? // "Mr. & Mrs. John Smith"
+  notes        String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  members Donor[]
+
+  @@index([name])
+  @@map("households")
+}
+
+// Typed link between two donors (spouse, employer/employee, foundation
+// contact…). Stored one row per pair; the reciprocal label covers the
+// reverse direction.
+model DonorRelationship {
+  id               String  @id @default(uuid())
+  donorId          String
+  donor            Donor   @relation("DonorRelationshipFrom", fields: [donorId], references: [id])
+  relatedDonorId   String
+  relatedDonor     Donor   @relation("DonorRelationshipTo", fields: [relatedDonorId], references: [id])
+  relationshipType String // e.g. "Spouse", "Employer"
+  reciprocalType   String? // e.g. "Employee" — label seen from the related side
+  notes            String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([donorId, relatedDonorId])
+  @@index([relatedDonorId])
+  @@map("donor_relationships")
+}
+
+// Fund = the accounting designation ("what the money is reserved for"),
+// independent of campaign (the effort) and appeal (the solicitation piece).
+model Fund {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  donations      Donation[]
+  pledges        Pledge[]
+  recurringGifts RecurringGift[]
+
+  @@map("funds")
+}
+
+// Appeal = the specific solicitation that prompted a gift (spring mailer,
+// year-end letter…), usually under a campaign.
+model Appeal {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id])
+  goalAmount  Decimal?  @db.Decimal(12, 2)
+  startDate   DateTime? @db.Date
+  endDate     DateTime? @db.Date
+  isActive    Boolean   @default(true)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  donations      Donation[]
+  pledges        Pledge[]
+  recurringGifts RecurringGift[]
+
+  @@index([campaignId])
+  @@map("appeals")
+}
+
+// A promise to give, paid down over time. Payments are Donations carrying
+// pledgeId; balance/arrears are computed from payments, never stored.
+model Pledge {
+  id                String         @id @default(uuid())
+  donorId           String
+  donor             Donor          @relation(fields: [donorId], references: [id])
+  pledgeDate        DateTime       @db.Date
+  totalAmount       Decimal        @db.Decimal(12, 2)
+  installmentAmount Decimal?       @db.Decimal(12, 2)
+  frequency         GiftFrequency?
+  startDate         DateTime?      @db.Date
+  endDate           DateTime?      @db.Date
+  campaignId        String?
+  campaign          Campaign?      @relation(fields: [campaignId], references: [id])
+  fundId            String?
+  fund              Fund?          @relation(fields: [fundId], references: [id])
+  appealId          String?
+  appeal            Appeal?        @relation(fields: [appealId], references: [id])
+  status            PledgeStatus   @default(active)
+  writtenOffAmount  Decimal?       @db.Decimal(12, 2)
+  notes             String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  payments Donation[]
+
+  @@index([donorId])
+  @@index([status])
+  @@map("pledges")
+}
+
+// An open-ended giving schedule (monthly sustainer…). Each collected payment
+// is a Donation carrying recurringGiftId; nextGiftDate advances as payments
+// are recorded so overdue schedules surface on the dashboard.
+model RecurringGift {
+  id            String              @id @default(uuid())
+  donorId       String
+  donor         Donor               @relation(fields: [donorId], references: [id])
+  amount        Decimal             @db.Decimal(12, 2)
+  frequency     GiftFrequency
+  startDate     DateTime            @db.Date
+  endDate       DateTime?           @db.Date
+  nextGiftDate  DateTime?           @db.Date
+  paymentMethod String?
+  campaignId    String?
+  campaign      Campaign?           @relation(fields: [campaignId], references: [id])
+  fundId        String?
+  fund          Fund?               @relation(fields: [fundId], references: [id])
+  appealId      String?
+  appeal        Appeal?             @relation(fields: [appealId], references: [id])
+  status        RecurringGiftStatus @default(active)
+  notes         String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+
+  payments Donation[]
+
+  @@index([donorId])
+  @@index([status])
+  @@map("recurring_gifts")
 }
 
 model Donation {
   id            String   @id @default(uuid())
-  bloomerangId  String?  @unique
   donorId       String
   donor         Donor    @relation(fields: [donorId], references: [id])
   donationDate  DateTime @db.Date
   amount        Decimal  @db.Decimal(12, 2)
-  paymentMethod String?
-  fund          String? // fund/designation
+  paymentMethod String? // cash | check | credit_card | ach_eft | … (shared PAYMENT_METHOD_OPTIONS)
   isRecurring   Boolean  @default(false)
   receiptSent   Boolean  @default(false)
-  campaignId    String?
-  campaign      Campaign? @relation(fields: [campaignId], references: [id])
-  eventId       String?
-  event         Event?    @relation(fields: [eventId], references: [id])
-  notes         String?
-  lastSyncedAt  DateTime?
+
+  fundId          String?
+  fund            Fund?          @relation(fields: [fundId], references: [id])
+  campaignId      String?
+  campaign        Campaign?      @relation(fields: [campaignId], references: [id])
+  appealId        String?
+  appeal          Appeal?        @relation(fields: [appealId], references: [id])
+  eventId         String?
+  event           Event?         @relation(fields: [eventId], references: [id])
+  pledgeId        String?
+  pledge          Pledge?        @relation(fields: [pledgeId], references: [id])
+  recurringGiftId String?
+  recurringGift   RecurringGift? @relation(fields: [recurringGiftId], references: [id])
+
+  // Tribute (in honor / in memory) gifts
+  tributeType   TributeType?
+  tributeName   String?
+  tributeNotify String? // who to notify and how — free text
+
+  isAnonymous           Boolean  @default(false)
+  nonDeductibleAmount   Decimal? @db.Decimal(12, 2) // benefit received (dinner, goods…)
+  inKindDescription     String? // set for in-kind gifts
+  inKindFairMarketValue Decimal? @db.Decimal(12, 2)
+
+  // Acknowledgment workflow — acknowledging a gift stamps these and logs a
+  // DonorInteraction on the donor's timeline.
+  acknowledgedAt   DateTime?
+  acknowledgedById String?
+
+  notes String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   createdById String?
   updatedById String?
   deletedAt   DateTime?
+
+  softCredits SoftCredit[]
 
   @@index([donorId])
   @@index([donationDate])
   @@index([campaignId])
   @@index([eventId])
+  @@index([fundId])
+  @@index([appealId])
+  @@index([pledgeId])
+  @@index([recurringGiftId])
+  @@index([acknowledgedAt])
   @@map("donations")
+}
+
+// Credits a donor other than the payer for a gift (spouse, employer match,
+// donor-advised-fund advisor). Never counted in hard-credit giving totals.
+model SoftCredit {
+  id         String   @id @default(uuid())
+  donationId String
+  donation   Donation @relation(fields: [donationId], references: [id])
+  donorId    String
+  donor      Donor    @relation(fields: [donorId], references: [id])
+  amount     Decimal  @db.Decimal(12, 2)
+  notes      String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([donationId, donorId])
+  @@index([donorId])
+  @@map("soft_credits")
+}
+
+// Every logged touchpoint with a donor — calls, letters, acknowledgments —
+// forming the donor timeline alongside gifts and tasks.
+model DonorInteraction {
+  id        String             @id @default(uuid())
+  donorId   String
+  donor     Donor              @relation(fields: [donorId], references: [id])
+  date      DateTime           @db.Date
+  channel   InteractionChannel
+  purpose   InteractionPurpose
+  subject   String
+  notes     String?
+  isInbound Boolean            @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([donorId, date])
+  @@map("donor_interactions")
+}
+
+// Stewardship to-dos attached to a donor (call, thank, invite…). Completing
+// a task can log a matching interaction.
+model DonorTask {
+  id           String              @id @default(uuid())
+  donorId      String
+  donor        Donor               @relation(fields: [donorId], references: [id])
+  assignedToId String? // users.id — logical ref, no FK by convention
+  subject      String
+  dueDate      DateTime?           @db.Date
+  status       DonorTaskStatus     @default(open)
+  completedAt  DateTime?
+  channel      InteractionChannel?
+  purpose      InteractionPurpose?
+  notes        String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([donorId])
+  @@index([status, dueDate])
+  @@index([assignedToId, status])
+  @@map("donor_tasks")
 }
 
 model Campaign {
   id          String    @id @default(uuid())
-  // External id in the active donor CRM (Bloomerang/Neon campaign) — the sync
-  // upsert key, mirroring donors.bloomerangId.
-  crmId        String?   @unique
   name        String
   description String?
   startDate   DateTime? @db.Date
   endDate     DateTime? @db.Date
   goalAmount  Decimal?  @db.Decimal(12, 2)
-  // amount raised is COMPUTED from mirrored donations — no second source of truth
+  // amount raised is COMPUTED from donations — no second source of truth
   status      String    @default("active") // planned | active | completed | canceled
-  notes       String? // local notes; CRM fields sync over their own
-  lastSyncedAt DateTime?
+  notes       String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -2166,8 +2652,11 @@ model Campaign {
   updatedById String?
   deletedAt   DateTime?
 
-  donations Donation[]
-  events    Event[]
+  donations      Donation[]
+  events         Event[]
+  appeals        Appeal[]
+  pledges        Pledge[]
+  recurringGifts RecurringGift[]
 
   @@index([status])
   @@map("campaigns")
@@ -2175,8 +2664,6 @@ model Campaign {
 
 model Event {
   id              String    @id @default(uuid())
-  // External id in the active donor CRM (Bloomerang appeal / Neon CRM event).
-  crmId           String?   @unique
   name            String
   eventType       String? // fundraiser, alumni event, volunteer appreciation, graduation…
   eventDate       DateTime  @db.Date
@@ -2187,8 +2674,7 @@ model Event {
   attendanceCount Int?
   revenue         Decimal?  @db.Decimal(12, 2)
   expenses        Decimal?  @db.Decimal(12, 2)
-  notes           String? // local notes; CRM fields sync over their own
-  lastSyncedAt    DateTime?
+  notes           String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -2196,9 +2682,10 @@ model Event {
   updatedById String?
   deletedAt   DateTime?
 
-  donations            Donation[]
-  registrations        EventRegistration[]
-  volunteerAssignments VolunteerAssignment[]
+  donations              Donation[]
+  registrations          EventRegistration[]
+  volunteerAssignments   VolunteerAssignment[]
+  volunteerOpportunities VolunteerOpportunity[]
 
   @@index([eventDate])
   @@index([campaignId])
@@ -2206,16 +2693,16 @@ model Event {
 }
 
 model EventRegistration {
-  id           String    @id @default(uuid())
-  eventId      String
-  event        Event     @relation(fields: [eventId], references: [id])
-  personId     String? // internal person (alumnus, volunteer…)
-  person       Person?   @relation(fields: [personId], references: [id])
-  externalName String? // or an outside guest
+  id            String    @id @default(uuid())
+  eventId       String
+  event         Event     @relation(fields: [eventId], references: [id])
+  personId      String? // internal person (alumnus, volunteer…)
+  person        Person?   @relation(fields: [personId], references: [id])
+  externalName  String? // or an outside guest
   externalEmail String?
-  status       String    @default("registered") // registered | attended | no_show | canceled
-  checkedInAt  DateTime?
-  notes        String?
+  status        String    @default("registered") // registered | attended | no_show | canceled
+  checkedInAt   DateTime?
+  notes         String?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -2323,14 +2810,14 @@ model ParticipantEmployment {
 }
 
 model EmploymentStatusHistory {
-  id           String                @id @default(uuid())
-  employmentId String
-  employment   ParticipantEmployment @relation(fields: [employmentId], references: [id])
-  fromStatus   EmploymentStatus?
-  toStatus     EmploymentStatus
-  effectiveDate DateTime             @db.Date
-  changedById  String?
-  notes        String?
+  id            String                @id @default(uuid())
+  employmentId  String
+  employment    ParticipantEmployment @relation(fields: [employmentId], references: [id])
+  fromStatus    EmploymentStatus?
+  toStatus      EmploymentStatus
+  effectiveDate DateTime              @db.Date
+  changedById   String?
+  notes         String?
 
   createdAt DateTime @default(now())
 
@@ -2371,19 +2858,19 @@ model Vehicle {
 }
 
 model VehicleMaintenanceRecord {
-  id                   String    @id @default(uuid())
-  vehicleId            String
-  vehicle              Vehicle   @relation(fields: [vehicleId], references: [id])
-  maintenanceDate      DateTime  @db.Date
-  maintenanceType      String
-  mileageAtService     Int?
-  vendorId             String?
-  vendor               Vendor?   @relation(fields: [vendorId], references: [id])
-  cost                 Decimal?  @db.Decimal(10, 2)
-  description          String?
-  nextServiceDueDate   DateTime? @db.Date
+  id                    String    @id @default(uuid())
+  vehicleId             String
+  vehicle               Vehicle   @relation(fields: [vehicleId], references: [id])
+  maintenanceDate       DateTime  @db.Date
+  maintenanceType       String
+  mileageAtService      Int?
+  vendorId              String?
+  vendor                Vendor?   @relation(fields: [vendorId], references: [id])
+  cost                  Decimal?  @db.Decimal(10, 2)
+  description           String?
+  nextServiceDueDate    DateTime? @db.Date
   nextServiceDueMileage Int?
-  notes                String?
+  notes                 String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -2437,22 +2924,22 @@ model CommunicationBatch {
 }
 
 model Communication {
-  id         String                 @id @default(uuid())
-  personId   String
-  person     Person                 @relation(fields: [personId], references: [id])
-  channel    CommChannel
-  templateId String?
-  template   CommunicationTemplate? @relation(fields: [templateId], references: [id])
-  batchId    String?
-  batch      CommunicationBatch?    @relation(fields: [batchId], references: [id])
-  subject    String?
-  body       String
-  status     CommStatus             @default(queued)
-  statusDetail String? // provider error, returned-mail note…
+  id                String                 @id @default(uuid())
+  personId          String
+  person            Person                 @relation(fields: [personId], references: [id])
+  channel           CommChannel
+  templateId        String?
+  template          CommunicationTemplate? @relation(fields: [templateId], references: [id])
+  batchId           String?
+  batch             CommunicationBatch?    @relation(fields: [batchId], references: [id])
+  subject           String?
+  body              String
+  status            CommStatus             @default(queued)
+  statusDetail      String? // provider error, returned-mail note…
   relatedEntityType String? // event | outcome_checkin | mentor_assignment | clearance…
   relatedEntityId   String?
-  sentById   String?
-  sentAt     DateTime?
+  sentById          String?
+  sentAt            DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2595,17 +3082,17 @@ model DataSharingAgreement {
 
 // Polymorphic attachments (R2/S3 object keys; server-generated signed URLs).
 model Attachment {
-  id          String                @id @default(uuid())
-  entityType  String // participant_profile | case_note | vehicle_maintenance_record | ...
-  entityId    String
+  id           String                @id @default(uuid())
+  entityType   String // participant_profile | case_note | vehicle_maintenance_record | ...
+  entityId     String
   // Inline storage (drug-test precedent — no external blob store in the
   // stack); fileKey remains for a future R2/S3 offload.
-  data        Bytes?
-  fileKey     String? // object storage key — files are never public
-  filename    String
-  contentType String?
-  sizeBytes   Int?
-  sensitivity AttachmentSensitivity @default(standard)
+  data         Bytes?
+  fileKey      String? // object storage key — files are never public
+  filename     String
+  contentType  String?
+  sizeBytes    Int?
+  sensitivity  AttachmentSensitivity @default(standard)
   uploadedById String?
 
   createdAt DateTime  @default(now())
@@ -2636,24 +3123,10 @@ model AuditLog {
 
 // System settings (org info, states list, configurable options) (§6.14).
 model AppSetting {
-  key       String   @id
-  value     Json
-  updatedAt DateTime @updatedAt
+  key         String   @id
+  value       Json
+  updatedAt   DateTime @updatedAt
   updatedById String?
 
   @@map("app_settings")
-}
-
-// Bloomerang (and future) sync bookkeeping — dashboards show last-synced.
-model SyncRun {
-  id         String    @id @default(uuid())
-  target     String // "bloomerang"
-  startedAt  DateTime  @default(now())
-  finishedAt DateTime?
-  status     String    @default("running") // running | success | failed
-  stats      Json? // counts created/updated/skipped
-  error      String?
-
-  @@index([target, startedAt])
-  @@map("sync_runs")
 }

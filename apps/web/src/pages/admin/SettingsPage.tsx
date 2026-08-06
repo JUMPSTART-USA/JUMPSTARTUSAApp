@@ -28,7 +28,6 @@ import {
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
-import type { DonorCrmConfig } from '../crm/types';
 import type { AppSetting, EmailConfig } from './types';
 
 /** Seed-known keys (admin/settings.service.ts) — offered even when not yet set. */
@@ -36,8 +35,7 @@ const KNOWN_SETTINGS: Record<string, string> = {
   'org.info': 'Organization name/address/contact block used on exports',
   'mentoring.maxActiveMentees': 'Cap on active mentees per mentor, enforced by the mentoring module',
   'states.active': 'States/regions the organization operates in',
-  'integrations.donorCrm': 'Active donor CRM for the Development module (see Integrations above)',
-  'email.fromAddress': 'Mailbox that invite emails are sent from (see Integrations above)',
+  'email.fromAddress': 'Mailbox that invite emails are sent from (see Email above)',
   'services.types': 'Service menu for participant case services (array of strings)',
   'portal.notifications':
     'Who is emailed when participants submit portal messages, meetings, or ride requests (see Portal request notifications above)',
@@ -91,7 +89,7 @@ export function SettingsPage() {
         }
       />
 
-      <IntegrationsCard />
+      <EmailSection />
 
       <PortalNotificationsCard
         current={settings.find((s) => s.key === PORTAL_NOTIFICATIONS_KEY)?.value}
@@ -170,85 +168,6 @@ export function SettingsPage() {
         />
       ) : null}
     </div>
-  );
-}
-
-/**
- * Development-module integrations: which donor CRM the donors/donations
- * mirror syncs from. The provider choice is an app setting; API credentials
- * are server environment variables and only their presence is shown here.
- */
-function IntegrationsCard() {
-  const queryClient = useQueryClient();
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  const { data: config } = useQuery({
-    queryKey: ['crm', 'sync', 'config'],
-    queryFn: () => api.get<DonorCrmConfig>('/sync/config'),
-  });
-
-  const save = useMutation({
-    mutationFn: (provider: string) =>
-      api.put(`/admin/settings/${encodeURIComponent(config?.settingKey ?? 'integrations.donorCrm')}`, {
-        value: { provider },
-      }),
-    onSuccess: () => {
-      setSaveError(null);
-      queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] });
-      queryClient.invalidateQueries({ queryKey: ['crm', 'sync'] });
-    },
-    onError: (err) => setSaveError(err instanceof Error ? err.message : 'Save failed'),
-  });
-
-  if (!config) return null;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Integrations</CardTitle>
-        <CardDescription>
-          Development module — donor CRM the donors/donations mirror syncs from. API credentials
-          are configured as server environment settings, never stored in the database.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-56">
-            <div className="mb-1 text-sm font-medium">Donor CRM provider</div>
-            <Select
-              value={config.provider}
-              disabled={save.isPending}
-              onChange={(e) => save.mutate(e.target.value)}
-            >
-              {config.providers.map((p) => (
-                <option key={p.key} value={p.key}>
-                  {p.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          {save.isPending ? <span className="text-sm text-muted-foreground">Saving…</span> : null}
-        </div>
-
-        <div className="space-y-1.5">
-          {config.providers
-            .filter((p) => p.key !== 'none')
-            .map((p) => (
-              <div key={p.key} className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="w-28 font-medium">{p.label}</span>
-                <Badge variant={p.envReady ? 'success' : 'outline'}>
-                  {p.envReady ? 'Credentials configured' : 'Credentials missing'}
-                </Badge>
-                <code className="text-xs text-muted-foreground">{p.envVars.join(', ')}</code>
-              </div>
-            ))}
-        </div>
-
-        <FormError message={saveError} />
-
-        <EmailSection />
-      </CardContent>
-    </Card>
   );
 }
 
@@ -355,7 +274,7 @@ function PortalNotificationsCard({ current }: { current: unknown }) {
         {email && !email.configured ? (
           <p className="text-sm text-warning">
             Outbound email is not configured — notifications will not send until the Graph
-            credentials are set (see Integrations above).
+            credentials are set (see Email above).
           </p>
         ) : null}
         {save.isPending ? <span className="text-sm text-muted-foreground">Saving…</span> : null}
@@ -407,47 +326,56 @@ function EmailSection() {
   const fromValue = fromDraft ?? email.fromAddress;
 
   return (
-    <div className="mt-4 space-y-3 border-t pt-4">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="w-28 font-medium">Email (invites)</span>
-        <Badge variant={email.configured ? 'success' : 'outline'}>
-          {email.configured ? 'Credentials configured' : 'Credentials missing'}
-        </Badge>
-        <code className="text-xs text-muted-foreground">{email.envVars.join(', ')}</code>
-      </div>
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="w-72">
-          <div className="mb-1 text-sm font-medium">Send invites from</div>
-          <Input
-            type="email"
-            value={fromValue}
-            onChange={(e) => setFromDraft(e.target.value)}
-            placeholder="no-reply@jumpstartusa.org"
-          />
+    <Card>
+      <CardHeader>
+        <CardTitle>Email</CardTitle>
+        <CardDescription>
+          Outbound email (invites) is sent through Microsoft 365. Graph credentials are
+          configured as server environment settings, never stored in the database.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="w-28 font-medium">Email (invites)</span>
+          <Badge variant={email.configured ? 'success' : 'outline'}>
+            {email.configured ? 'Credentials configured' : 'Credentials missing'}
+          </Badge>
+          <code className="text-xs text-muted-foreground">{email.envVars.join(', ')}</code>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={saveFrom.isPending || fromDraft === null || fromDraft === email.fromAddress}
-          onClick={() => saveFrom.mutate(fromValue)}
-        >
-          {saveFrom.isPending ? 'Saving…' : 'Save'}
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={sendTest.isPending || !email.configured}
-          onClick={() => sendTest.mutate()}
-        >
-          {sendTest.isPending ? 'Sending…' : 'Send test email'}
-        </Button>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Invites are sent through Microsoft 365 — the From account must be a real mailbox (or
-        shared mailbox) in the organization.
-      </p>
-      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
-    </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="w-72">
+            <div className="mb-1 text-sm font-medium">Send invites from</div>
+            <Input
+              type="email"
+              value={fromValue}
+              onChange={(e) => setFromDraft(e.target.value)}
+              placeholder="no-reply@jumpstartusa.org"
+            />
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={saveFrom.isPending || fromDraft === null || fromDraft === email.fromAddress}
+            onClick={() => saveFrom.mutate(fromValue)}
+          >
+            {saveFrom.isPending ? 'Saving…' : 'Save'}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={sendTest.isPending || !email.configured}
+            onClick={() => sendTest.mutate()}
+          >
+            {sendTest.isPending ? 'Sending…' : 'Send test email'}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Invites are sent through Microsoft 365 — the From account must be a real mailbox (or
+          shared mailbox) in the organization.
+        </p>
+        {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+      </CardContent>
+    </Card>
   );
 }
 

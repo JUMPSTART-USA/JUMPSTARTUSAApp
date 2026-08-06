@@ -99,6 +99,8 @@ export class DashboardService {
     let overdueFollowUps = 0;
     let intakeSlaBreaches = 0;
     let portalRequestsPending = 0;
+    let unacknowledgedDonations = 0;
+    let pendingTimesheets = 0;
 
     const tasks: Promise<void>[] = [];
 
@@ -229,16 +231,39 @@ export class DashboardService {
       tasks.push(
         (async () => {
           const soon = addDays(todayUtc, 30);
-          const [active, expiring] = await Promise.all([
+          const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+          const nextMonthStart = new Date(
+            Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+          );
+          const [active, expiring, hoursMonth, pendingHours, upcomingShifts] = await Promise.all([
             this.prisma.volunteerProfile.count({ where: { deletedAt: null, status: 'active' } }),
             // Includes already-expired clearances still marked satisfied —
             // those are the most urgent items on the list.
             this.prisma.volunteerClearance.count({
               where: { status: 'satisfied', expiresAt: { lte: soon } },
             }),
+            // Approved service hours logged for the current calendar month.
+            this.prisma.volunteerHoursEntry.aggregate({
+              where: {
+                deletedAt: null,
+                status: 'approved',
+                activityDate: { gte: monthStart, lt: nextMonthStart },
+              },
+              _sum: { hours: true },
+            }),
+            this.prisma.volunteerHoursEntry.count({
+              where: { deletedAt: null, status: 'pending' },
+            }),
+            this.prisma.volunteerShift.count({
+              where: { deletedAt: null, shiftDate: { gte: todayUtc, lte: addDays(todayUtc, 7) } },
+            }),
           ]);
           data.volunteersActive = active;
           clearanceExpirations = expiring;
+          data.volunteerHoursMonth = hoursMonth._sum.hours ? Number(hoursMonth._sum.hours) : 0;
+          data.pendingTimesheets = pendingHours;
+          pendingTimesheets = pendingHours;
+          data.upcomingShifts7 = upcomingShifts;
         })(),
       );
     }
@@ -250,24 +275,55 @@ export class DashboardService {
             deletedAt: null,
             ...(range ? { donationDate: range } : {}),
           };
-          const [sum, donorCount, lastSync] = await Promise.all([
-            this.prisma.donation.aggregate({ where: donationWhere, _sum: { amount: true } }),
-            // With a period: distinct donors who gave in it; without: all donors.
-            range
-              ? this.prisma.donation
-                  .findMany({ where: donationWhere, distinct: ['donorId'], select: { donorId: true } })
-                  .then((rows) => rows.length)
-              : this.prisma.donor.count({ where: { deletedAt: null } }),
-            this.prisma.syncRun.findFirst({
-              where: { target: { in: ['bloomerang', 'neoncrm'] }, status: 'success' },
-              orderBy: { startedAt: 'desc' },
-              select: { finishedAt: true },
-            }),
-          ]);
+          const [sum, donorCount, activePledges, recurringActive, unacknowledged] =
+            await Promise.all([
+              this.prisma.donation.aggregate({ where: donationWhere, _sum: { amount: true } }),
+              // With a period: distinct donors who gave in it; without: all donors.
+              range
+                ? this.prisma.donation
+                    .findMany({ where: donationWhere, distinct: ['donorId'], select: { donorId: true } })
+                    .then((rows) => rows.length)
+                : this.prisma.donor.count({ where: { deletedAt: null } }),
+              this.prisma.pledge.findMany({
+                where: { deletedAt: null, status: 'active' },
+                select: { id: true, totalAmount: true, writtenOffAmount: true },
+              }),
+              this.prisma.recurringGift.count({
+                where: { deletedAt: null, status: 'active' },
+              }),
+              this.prisma.donation.count({
+                where: { deletedAt: null, acknowledgedAt: null },
+              }),
+            ]);
           data.donorCount = donorCount;
           data.donationTotal = sum._sum.amount ? Number(sum._sum.amount) : 0;
-          // §6.8: donors/donations mirror the configured donor CRM — surface staleness.
-          data.donationsLastSyncedAt = lastSync?.finishedAt ?? null;
+
+          // Outstanding = total − written-off − paid, per active pledge —
+          // computed from payments, never stored (§6.8).
+          const paidRows = activePledges.length
+            ? await this.prisma.donation.groupBy({
+                by: ['pledgeId'],
+                where: { deletedAt: null, pledgeId: { in: activePledges.map((p) => p.id) } },
+                _sum: { amount: true },
+              })
+            : [];
+          const paidByPledge = new Map(
+            paidRows.map((r) => [r.pledgeId, r._sum.amount ? Number(r._sum.amount) : 0]),
+          );
+          const outstanding = activePledges.reduce((total, p) => {
+            const remaining =
+              Number(p.totalAmount) -
+              Number(p.writtenOffAmount ?? 0) -
+              (paidByPledge.get(p.id) ?? 0);
+            return total + Math.max(0, remaining);
+          }, 0);
+          data.pledgesActive = {
+            count: activePledges.length,
+            outstanding: Math.round(outstanding * 100) / 100,
+          };
+          data.recurringActive = recurringActive;
+          data.unacknowledgedDonations = unacknowledged;
+          unacknowledgedDonations = unacknowledged;
         })(),
       );
     }
@@ -280,7 +336,7 @@ export class DashboardService {
             select: { id: true, name: true, goalAmount: true, startDate: true, endDate: true },
             orderBy: { name: 'asc' },
           });
-          // Raised-to-date is computed from mirrored donations (§6.8) — it is
+          // Raised-to-date is computed from donations (§6.8) — it is
           // deliberately NOT period-filtered ("to date").
           const sums = campaigns.length
             ? await this.prisma.donation.groupBy({
@@ -499,6 +555,20 @@ export class DashboardService {
         key: 'portal_requests_pending',
         label: 'Participant portal requests awaiting review',
         count: portalRequestsPending,
+      });
+    }
+    if (unacknowledgedDonations > 0) {
+      attentionNeeded.push({
+        key: 'unacknowledged_donations',
+        label: 'Donations awaiting acknowledgment',
+        count: unacknowledgedDonations,
+      });
+    }
+    if (pendingTimesheets > 0) {
+      attentionNeeded.push({
+        key: 'pending_timesheets',
+        label: 'Volunteer timesheets awaiting approval',
+        count: pendingTimesheets,
       });
     }
     data.attentionNeeded = attentionNeeded;

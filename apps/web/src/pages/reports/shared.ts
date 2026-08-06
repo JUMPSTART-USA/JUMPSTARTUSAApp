@@ -101,6 +101,20 @@ export function useCampaignOptions(enabled: boolean) {
   );
 }
 
+/**
+ * Opportunity options for the volunteer-hours report's opportunityId param.
+ * Gated on volunteers.read — the endpoint requires it.
+ */
+export function useOpportunityOptions(enabled: boolean) {
+  const { can } = useAuth();
+  return useListOptions<{ id: string; name: string }>(
+    'opportunities',
+    `/volunteers/opportunities${qs({ pageSize: 200 })}`,
+    enabled && can('volunteers.read'),
+    (o) => ({ id: o.id, label: o.name }),
+  );
+}
+
 export function useEmployerOptions(enabled: boolean) {
   return useListOptions<{ id: string; name: string }>(
     'employers',

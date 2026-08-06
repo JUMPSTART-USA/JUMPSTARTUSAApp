@@ -138,11 +138,63 @@ export class VolunteersService {
     // Chapter scoping (§7.2): same derivation as the list filter (person.state).
     assertChapterAccess(user.chapter, profile.person.state);
 
+    // Hours summary + next shifts are COMPUTED, never stored (§6.6).
+    const now = new Date();
+    const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+    // shiftDate is a @db.Date (UTC midnight) — compare against UTC midnight today.
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const [approvedSum, ytdSum, pendingCount, upcomingSignups] = await this.prisma.$transaction([
+      this.prisma.volunteerHoursEntry.aggregate({
+        where: { volunteerProfileId: id, status: 'approved', deletedAt: null },
+        _sum: { hours: true },
+      }),
+      this.prisma.volunteerHoursEntry.aggregate({
+        where: {
+          volunteerProfileId: id,
+          status: 'approved',
+          deletedAt: null,
+          activityDate: { gte: yearStart },
+        },
+        _sum: { hours: true },
+      }),
+      this.prisma.volunteerHoursEntry.count({
+        where: { volunteerProfileId: id, status: 'pending', deletedAt: null },
+      }),
+      this.prisma.volunteerShiftSignup.findMany({
+        where: {
+          volunteerProfileId: id,
+          status: { in: ['signed_up', 'confirmed', 'waitlisted'] },
+          shift: { deletedAt: null, shiftDate: { gte: today }, opportunity: { deletedAt: null } },
+        },
+        orderBy: [{ shift: { shiftDate: 'asc' } }, { shift: { startTime: 'asc' } }],
+        take: 5,
+        include: {
+          shift: {
+            select: {
+              id: true,
+              shiftDate: true,
+              startTime: true,
+              endTime: true,
+              role: true,
+              location: true,
+              opportunity: { select: { id: true, name: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
     const { backgroundChecks, ...person } = profile.person;
     return {
       ...profile,
       person,
       backgroundChecks: backgroundChecks.map((c) => redactBackgroundCheck(c, canReadCheckResults)),
+      hoursSummary: {
+        totalApproved: Number(approvedSum._sum.hours ?? 0),
+        ytdApproved: Number(ytdSum._sum.hours ?? 0),
+        pendingCount,
+      },
+      upcomingSignups,
     };
   }
 
@@ -241,25 +293,37 @@ export class VolunteersService {
   }
 
   /** Volunteer service report: where, when, in what role (§6.6). */
-  async serviceHistory(id: string) {
+  async serviceHistory(id: string, user: AuthenticatedUser) {
     const profile = await this.prisma.volunteerProfile.findFirst({
       where: { id, deletedAt: null },
-      include: { person: { select: { id: true, firstName: true, lastName: true } } },
+      include: { person: { select: { id: true, firstName: true, lastName: true, state: true } } },
     });
     if (!profile) throw new NotFoundException('Volunteer not found');
+    // Chapter scoping (§7.2): same derivation as get() and the list filter.
+    assertChapterAccess(user.chapter, profile.person.state);
 
-    const assignments = await this.prisma.volunteerAssignment.findMany({
-      where: { volunteerProfileId: id, deletedAt: null },
-      orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
-      include: {
-        institution: { select: { id: true, name: true, state: true } },
-        insideClass: { select: { id: true, name: true } },
-        outsideProgram: { select: { id: true, name: true, programType: true } },
-        event: { select: { id: true, name: true, eventDate: true } },
-      },
-    });
+    const [assignments, approvedSum] = await this.prisma.$transaction([
+      this.prisma.volunteerAssignment.findMany({
+        where: { volunteerProfileId: id, deletedAt: null },
+        orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
+        include: {
+          institution: { select: { id: true, name: true, state: true } },
+          insideClass: { select: { id: true, name: true } },
+          outsideProgram: { select: { id: true, name: true, programType: true } },
+          event: { select: { id: true, name: true, eventDate: true } },
+        },
+      }),
+      this.prisma.volunteerHoursEntry.aggregate({
+        where: { volunteerProfileId: id, status: 'approved', deletedAt: null },
+        _sum: { hours: true },
+      }),
+    ]);
 
-    return { volunteer: profile, assignments };
+    return {
+      volunteer: profile,
+      assignments,
+      totalApprovedHours: Number(approvedSum._sum.hours ?? 0),
+    };
   }
 
   private findDuplicateCandidates(person: PersonCoreInput) {

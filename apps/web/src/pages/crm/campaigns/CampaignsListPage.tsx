@@ -13,8 +13,7 @@ import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useDebounced } from '@/lib/form';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
-import { SyncStatusChip } from '../donors/SyncStatusChip';
-import { ProgressBar, useDonorCrm } from '../shared';
+import { ProgressBar } from '../shared';
 import type { CampaignListItem, CampaignStatus } from '../types';
 import { CampaignFormDialog } from './CampaignFormDialog';
 import { BackLink } from '@/components/BackLink';
@@ -44,7 +43,6 @@ const columns: Column<CampaignListItem>[] = [
 
 export function CampaignsListPage() {
   const { can } = useAuth();
-  const { label: crmLabel, mirrored } = useDonorCrm();
   const navigate = useNavigate();
   const [state, setState] = useState<ListState>(initialListState);
   const [search, setSearch] = useState('');
@@ -74,15 +72,9 @@ export function CampaignsListPage() {
       <BackLink stateOnly />
       <PageHeader
         title="Campaigns"
-        description={
-          mirrored && crmLabel
-            ? `Read-only mirror of ${crmLabel} — campaigns are managed there; raised-to-date is computed from mirrored gifts.`
-            : 'Fundraising campaigns with raised-to-date computed from mirrored gifts.'
-        }
+        description="Fundraising campaigns with raised-to-date computed from recorded gifts."
         actions={
-          mirrored ? (
-            <SyncStatusChip />
-          ) : can('campaigns.create') ? (
+          can('campaigns.create') ? (
             <Button onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" /> New campaign
             </Button>

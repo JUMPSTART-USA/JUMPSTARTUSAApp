@@ -69,7 +69,15 @@ export function CampaignFormDialog({
   const mutation = useMutation({
     mutationFn: (values: CampaignFormValues) =>
       campaign
-        ? api.patch<Campaign>(`/campaigns/${campaign.id}`, values)
+        ? api.patch<Campaign>(`/campaigns/${campaign.id}`, {
+            ...values,
+            // Clearable fields: blank means "clear" on edit, not "no change".
+            description: values.description ?? null,
+            startDate: values.startDate ?? null,
+            endDate: values.endDate ?? null,
+            goalAmount: values.goalAmount ?? null,
+            notes: values.notes ?? null,
+          })
         : api.post<Campaign>('/campaigns', values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm', 'campaigns'] });

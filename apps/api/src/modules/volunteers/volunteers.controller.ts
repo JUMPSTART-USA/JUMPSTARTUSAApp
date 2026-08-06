@@ -90,14 +90,15 @@ export class VolunteersController {
   eligibility(
     @Param('id', ParseUUIDPipe) id: string,
     @Query(zodQuery(eligibilityQuerySchema)) query: { institutionId: string },
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screening.computeEligibility(id, query.institutionId);
+    return this.screening.computeEligibility(id, query.institutionId, user);
   }
 
   @Get(':id/service-history')
   @RequirePermission('volunteers.read')
-  serviceHistory(@Param('id', ParseUUIDPipe) id: string) {
-    return this.volunteers.serviceHistory(id);
+  serviceHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.volunteers.serviceHistory(id, user);
   }
 
   @Post()

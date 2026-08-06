@@ -373,6 +373,55 @@ export type ClearanceRequirementType = (typeof CLEARANCE_REQUIREMENT_TYPES)[numb
 export const CLEARANCE_STATUSES = ['pending', 'satisfied', 'expired', 'rejected'] as const;
 export type ClearanceStatus = (typeof CLEARANCE_STATUSES)[number];
 
+// ── Volunteer engagement: opportunities, shifts & hours (§6.6) ──────────────
+
+export const OPPORTUNITY_STATUSES = ['draft', 'open', 'closed', 'archived'] as const;
+export type OpportunityStatus = (typeof OPPORTUNITY_STATUSES)[number];
+
+export const OPPORTUNITY_STATUS_LABELS: Record<OpportunityStatus, string> = {
+  draft: 'Draft',
+  open: 'Open',
+  closed: 'Closed',
+  archived: 'Archived',
+};
+
+export const SHIFT_SIGNUP_STATUSES = [
+  'signed_up',
+  'confirmed',
+  'attended',
+  'no_show',
+  'canceled',
+  'waitlisted',
+] as const;
+export type ShiftSignupStatus = (typeof SHIFT_SIGNUP_STATUSES)[number];
+
+export const SHIFT_SIGNUP_STATUS_LABELS: Record<ShiftSignupStatus, string> = {
+  signed_up: 'Signed up',
+  confirmed: 'Confirmed',
+  attended: 'Attended',
+  no_show: 'No-show',
+  canceled: 'Canceled',
+  waitlisted: 'Waitlisted',
+};
+
+export const HOURS_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export type HoursStatus = (typeof HOURS_STATUSES)[number];
+
+export const HOURS_STATUS_LABELS: Record<HoursStatus, string> = {
+  pending: 'Pending',
+  approved: 'Approved',
+  rejected: 'Rejected',
+};
+
+export const HOURS_SOURCES = ['staff', 'self', 'check_in'] as const;
+export type HoursSource = (typeof HOURS_SOURCES)[number];
+
+export const HOURS_SOURCE_LABELS: Record<HoursSource, string> = {
+  staff: 'Staff entered',
+  self: 'Self reported',
+  check_in: 'Check-in',
+};
+
 export const MENTOR_SCREENING_STAGES = [
   'applied',
   'interview',
@@ -450,6 +499,111 @@ export const DONOR_TYPES = [
   'foundation',
 ] as const;
 export type DonorType = (typeof DONOR_TYPES)[number];
+
+// ── Development: giving schedules, tributes, interactions & tasks (§6.8) ────
+
+export const GIFT_FREQUENCIES = [
+  'weekly',
+  'biweekly',
+  'monthly',
+  'quarterly',
+  'semiannually',
+  'annually',
+] as const;
+export type GiftFrequency = (typeof GIFT_FREQUENCIES)[number];
+
+export const GIFT_FREQUENCY_LABELS: Record<GiftFrequency, string> = {
+  weekly: 'Weekly',
+  biweekly: 'Every other week',
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  semiannually: 'Twice a year',
+  annually: 'Annually',
+};
+
+export const PLEDGE_STATUSES = ['active', 'fulfilled', 'written_off', 'canceled'] as const;
+export type PledgeStatus = (typeof PLEDGE_STATUSES)[number];
+
+export const PLEDGE_STATUS_LABELS: Record<PledgeStatus, string> = {
+  active: 'Active',
+  fulfilled: 'Fulfilled',
+  written_off: 'Written off',
+  canceled: 'Canceled',
+};
+
+export const RECURRING_GIFT_STATUSES = ['active', 'paused', 'closed'] as const;
+export type RecurringGiftStatus = (typeof RECURRING_GIFT_STATUSES)[number];
+
+export const RECURRING_GIFT_STATUS_LABELS: Record<RecurringGiftStatus, string> = {
+  active: 'Active',
+  paused: 'Paused',
+  closed: 'Closed',
+};
+
+export const INTERACTION_CHANNELS = [
+  'email',
+  'phone',
+  'mail',
+  'in_person',
+  'text_message',
+  'social_media',
+  'website',
+  'other',
+] as const;
+export type InteractionChannel = (typeof INTERACTION_CHANNELS)[number];
+
+export const INTERACTION_CHANNEL_LABELS: Record<InteractionChannel, string> = {
+  email: 'Email',
+  phone: 'Phone',
+  mail: 'Mail',
+  in_person: 'In person',
+  text_message: 'Text message',
+  social_media: 'Social media',
+  website: 'Website',
+  other: 'Other',
+};
+
+export const INTERACTION_PURPOSES = [
+  'acknowledgment',
+  'cultivation',
+  'newsletter',
+  'receipt',
+  'solicitation',
+  'event_followup',
+  'pledge_reminder',
+  'welcome',
+  'other',
+] as const;
+export type InteractionPurpose = (typeof INTERACTION_PURPOSES)[number];
+
+export const INTERACTION_PURPOSE_LABELS: Record<InteractionPurpose, string> = {
+  acknowledgment: 'Acknowledgment',
+  cultivation: 'Cultivation',
+  newsletter: 'Newsletter',
+  receipt: 'Receipt',
+  solicitation: 'Solicitation',
+  event_followup: 'Event follow-up',
+  pledge_reminder: 'Pledge reminder',
+  welcome: 'Welcome',
+  other: 'Other',
+};
+
+export const DONOR_TASK_STATUSES = ['open', 'completed', 'canceled'] as const;
+export type DonorTaskStatus = (typeof DONOR_TASK_STATUSES)[number];
+
+export const DONOR_TASK_STATUS_LABELS: Record<DonorTaskStatus, string> = {
+  open: 'Open',
+  completed: 'Completed',
+  canceled: 'Canceled',
+};
+
+export const TRIBUTE_TYPES = ['in_honor_of', 'in_memory_of'] as const;
+export type TributeType = (typeof TRIBUTE_TYPES)[number];
+
+export const TRIBUTE_TYPE_LABELS: Record<TributeType, string> = {
+  in_honor_of: 'In honor of',
+  in_memory_of: 'In memory of',
+};
 
 export const EMPLOYMENT_STATUSES = [
   'applied',

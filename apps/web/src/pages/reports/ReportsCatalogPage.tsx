@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import { useReportCatalog, type ReportSummary } from './shared';
 
-/** Display grouping for the 17 registry reports; unknown keys land in Other. */
+/** Display grouping for the 21 registry reports; unknown keys land in Other. */
 const GROUPS: { name: string; keys: string[] }[] = [
   {
     name: 'Programs',
@@ -20,8 +20,18 @@ const GROUPS: { name: string; keys: string[] }[] = [
   },
   { name: 'Housing', keys: ['housing-occupancy', 'housing-exits'] },
   { name: 'Case Management', keys: ['case-activity'] },
-  { name: 'Volunteers', keys: ['volunteer-assignments', 'volunteer-trainings'] },
-  { name: 'Development', keys: ['donor-giving', 'campaign-performance', 'event-financials'] },
+  { name: 'Volunteers', keys: ['volunteer-assignments', 'volunteer-trainings', 'volunteer-hours'] },
+  {
+    name: 'Development',
+    keys: [
+      'donor-giving',
+      'campaign-performance',
+      'event-financials',
+      'pledge-status',
+      'recurring-gifts',
+      'giving-statements',
+    ],
+  },
   { name: 'Employment', keys: ['employer-participation', 'employment-history'] },
   { name: 'Fleet', keys: ['vehicle-maintenance', 'upcoming-maintenance'] },
 ];

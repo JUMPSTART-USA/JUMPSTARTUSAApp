@@ -10,7 +10,9 @@ import type {
   VolunteerTrainingInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 /**
  * §7.2 field class: background-check adjudication results are visible only
@@ -60,15 +62,18 @@ export class ScreeningService {
    * Eligible at institution X iff every ACTIVE requirement of X has a
    * clearance with status `satisfied` and no past expiry date.
    */
-  async computeEligibility(volunteerProfileId: string, institutionId: string) {
+  async computeEligibility(volunteerProfileId: string, institutionId: string, user: AuthenticatedUser) {
     const [profile, institution] = await this.prisma.$transaction([
       this.prisma.volunteerProfile.findFirst({
         where: { id: volunteerProfileId, deletedAt: null },
+        include: { person: { select: { state: true } } },
       }),
       this.prisma.institution.findFirst({ where: { id: institutionId, deletedAt: null } }),
     ]);
     if (!profile) throw new NotFoundException('Volunteer not found');
     if (!institution) throw new NotFoundException('Institution not found');
+    // Chapter scoping (§7.2): same derivation as the volunteer get-by-id guard.
+    assertChapterAccess(user.chapter, profile.person.state);
 
     const requirements = await this.prisma.facilityClearanceRequirement.findMany({
       where: { institutionId, active: true },
@@ -169,8 +174,15 @@ export class ScreeningService {
 
   // ── Background checks (adjudication result only — §7.4) ───────────────────
 
-  async listChecks(query: ListQuery, personId: string | undefined, canReadResults: boolean) {
+  async listChecks(
+    query: ListQuery,
+    personId: string | undefined,
+    canReadResults: boolean,
+    chapter: string | null,
+  ) {
     const where: Prisma.BackgroundCheckWhereInput = {
+      // Chapter scoping (§7.2): same derivation as the volunteers list (person.state).
+      ...(chapter ? { person: { state: chapter } } : {}),
       ...(personId ? { personId } : {}),
       ...(query.search
         ? {
@@ -219,7 +231,13 @@ export class ScreeningService {
     return check;
   }
 
-  async updateCheck(id: string, input: Partial<BackgroundCheckInput>, userId: string) {
+  // personId is create-only — the PATCH schema omits it so a recorded check
+  // can never be repointed to another person.
+  async updateCheck(
+    id: string,
+    input: Partial<Omit<BackgroundCheckInput, 'personId'>>,
+    userId: string,
+  ) {
     const existing = await this.prisma.backgroundCheck.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Background check not found');
 
@@ -233,8 +251,14 @@ export class ScreeningService {
 
   // ── Trainings ─────────────────────────────────────────────────────────────
 
-  async listTrainings(query: ListQuery, volunteerProfileId: string | undefined) {
+  async listTrainings(
+    query: ListQuery,
+    volunteerProfileId: string | undefined,
+    chapter: string | null,
+  ) {
     const where: Prisma.VolunteerTrainingWhereInput = {
+      // Chapter scoping (§7.2): same derivation as the volunteers list (person.state).
+      ...(chapter ? { volunteerProfile: { person: { state: chapter } } } : {}),
       ...(volunteerProfileId ? { volunteerProfileId } : {}),
       ...(query.search
         ? { trainingType: { contains: query.search, mode: 'insensitive' } }
@@ -274,7 +298,12 @@ export class ScreeningService {
     return training;
   }
 
-  async updateTraining(id: string, input: Partial<VolunteerTrainingInput>, userId: string) {
+  // volunteerProfileId is create-only — the PATCH schema omits it.
+  async updateTraining(
+    id: string,
+    input: Partial<Omit<VolunteerTrainingInput, 'volunteerProfileId'>>,
+    userId: string,
+  ) {
     const existing = await this.prisma.volunteerTraining.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Training record not found');
 
@@ -381,8 +410,11 @@ export class ScreeningService {
       institutionId?: string;
       status?: ClearanceStatus;
     },
+    chapter: string | null,
   ) {
     const where: Prisma.VolunteerClearanceWhereInput = {
+      // Chapter scoping (§7.2): same derivation as the volunteers list (person.state).
+      ...(chapter ? { volunteerProfile: { person: { state: chapter } } } : {}),
       ...(filters.volunteerProfileId ? { volunteerProfileId: filters.volunteerProfileId } : {}),
       ...(filters.requirementId ? { requirementId: filters.requirementId } : {}),
       ...(filters.institutionId ? { requirement: { institutionId: filters.institutionId } } : {}),
@@ -471,7 +503,13 @@ export class ScreeningService {
     return clearance;
   }
 
-  async updateClearance(id: string, input: Partial<VolunteerClearanceInput>, userId: string) {
+  // volunteerProfileId/requirementId are create-only — the PATCH schema omits
+  // them (renewals go through the POST upsert).
+  async updateClearance(
+    id: string,
+    input: Partial<Omit<VolunteerClearanceInput, 'volunteerProfileId' | 'requirementId'>>,
+    userId: string,
+  ) {
     const existing = await this.prisma.volunteerClearance.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Clearance not found');
 

@@ -33,6 +33,8 @@ const baseParamsSchema = z.object({
   participantProfileId: uuid.optional(),
   employerId: uuid.optional(),
   vehicleId: uuid.optional(),
+  opportunityId: uuid.optional(),
+  year: z.coerce.number().int().min(1990).max(2100).optional(),
 });
 const reportParamsSchema = baseParamsSchema.superRefine(endNotBeforeStart('from', 'to'));
 type ReportQuery = z.infer<typeof reportParamsSchema>;

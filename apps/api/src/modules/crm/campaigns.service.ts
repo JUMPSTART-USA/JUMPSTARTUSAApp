@@ -55,7 +55,7 @@ export class CampaignsService {
       this.prisma.campaign.count({ where }),
     ]);
 
-    // raised-to-date is COMPUTED from mirrored donations — never stored (§6.8).
+    // raised-to-date is COMPUTED from donations — never stored (§6.8).
     const sums = campaigns.length
       ? await this.prisma.donation.groupBy({
           by: ['campaignId'],
@@ -84,7 +84,7 @@ export class CampaignsService {
   async detail(id: string) {
     const campaign = await this.get(id);
 
-    const [agg, events] = await this.prisma.$transaction([
+    const [agg, events, appeals] = await this.prisma.$transaction([
       this.prisma.donation.aggregate({
         where: { campaignId: id, deletedAt: null },
         _count: true,
@@ -94,7 +94,22 @@ export class CampaignsService {
         where: { campaignId: id, deletedAt: null },
         orderBy: { eventDate: 'desc' },
       }),
+      this.prisma.appeal.findMany({
+        where: { campaignId: id, deletedAt: null },
+        orderBy: { name: 'asc' },
+      }),
     ]);
+
+    // Per-appeal raised-to-date — computed from donations, like the campaign's.
+    const appealSums = appeals.length
+      ? await this.prisma.donation.groupBy({
+          by: ['appealId'],
+          where: { appealId: { in: appeals.map((a) => a.id) }, deletedAt: null },
+          _sum: { amount: true },
+          _count: { _all: true },
+        })
+      : [];
+    const raisedByAppeal = new Map(appealSums.map((s) => [s.appealId, s]));
 
     const raisedToDate = Number(agg._sum.amount ?? 0);
     return {
@@ -103,6 +118,15 @@ export class CampaignsService {
       donationCount: agg._count,
       progressPct: progressPct(campaign.goalAmount, raisedToDate),
       events,
+      appeals: appeals.map((appeal) => {
+        const raised = Number(raisedByAppeal.get(appeal.id)?._sum.amount ?? 0);
+        return {
+          ...appeal,
+          raisedToDate: raised,
+          donationCount: raisedByAppeal.get(appeal.id)?._count._all ?? 0,
+          progressPct: progressPct(appeal.goalAmount, raised),
+        };
+      }),
     };
   }
 

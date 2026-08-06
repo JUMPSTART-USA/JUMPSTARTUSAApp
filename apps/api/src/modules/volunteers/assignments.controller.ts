@@ -19,7 +19,7 @@ export class AssignmentsController {
     @Body(zodBody(volunteerAssignmentSchema)) body: VolunteerAssignmentInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.assignments.create(body, user.id);
+    return this.assignments.create(body, user);
   }
 
   @Patch(':id')
