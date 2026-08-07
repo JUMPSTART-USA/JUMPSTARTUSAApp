@@ -645,6 +645,38 @@ describe('sex offender registry flag (§7.2 justice field class)', () => {
   });
 });
 
+describe('app settings delete', () => {
+  it('removes a key entirely; deleting a missing key 404s', async () => {
+    const cookie = await login(ADMIN);
+    const key = 'test.scratch-delete';
+
+    await request(server)
+      .put(`/api/admin/settings/${key}`)
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ value: { scratch: true } })
+      .expect(200);
+
+    await request(server)
+      .delete(`/api/admin/settings/${key}`)
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .expect(200);
+
+    const list = await request(server)
+      .get('/api/admin/settings')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(list.body.some((s: { key: string }) => s.key === key)).toBe(false);
+
+    await request(server)
+      .delete(`/api/admin/settings/${key}`)
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .expect(404);
+  });
+});
+
 describe('portal notification designation', () => {
   it('admins set per-type recipients and submissions still succeed', async () => {
     const cookie = await login(ADMIN);

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@jumpstart/database';
 import { AuditService } from '../../audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -37,5 +37,14 @@ export class AdminSettingsService {
       await this.audit.logCreate(userId, 'app_setting', key, { value });
     }
     return setting;
+  }
+
+  /** Hard delete — AppSetting has no soft-delete column; the audit row keeps the last value. */
+  async remove(key: string, userId: string) {
+    const existing = await this.prisma.appSetting.findUnique({ where: { key } });
+    if (!existing) throw new NotFoundException('Setting not found');
+    await this.prisma.appSetting.delete({ where: { key } });
+    await this.audit.logDelete(userId, 'app_setting', key, { value: existing.value });
+    return { ok: true };
   }
 }
