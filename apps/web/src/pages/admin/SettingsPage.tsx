@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -59,12 +60,19 @@ interface EditorState {
 
 export function SettingsPage() {
   const { can } = useAuth();
+  const queryClient = useQueryClient();
   const [editor, setEditor] = useState<EditorState | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AppSetting | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin', 'settings'],
     queryFn: () => api.get<AppSetting[]>('/admin/settings'),
     enabled: can('admin.settings'),
+  });
+
+  const deleteSetting = useMutation({
+    mutationFn: (key: string) => api.delete(`/admin/settings/${encodeURIComponent(key)}`),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] }),
   });
 
   if (!can('admin.settings')) {
@@ -126,13 +134,28 @@ export function SettingsPage() {
                 {formatDate(s.updatedAt)}
               </TableCell>
               <TableCell className="text-right">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEditor({ key: s.key, isNew: false, value: s.value })}
-                >
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </Button>
+                <span className="inline-flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditor({ key: s.key, isNew: false, value: s.value })}
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive"
+                    disabled={deleteSetting.isPending}
+                    onClick={() => {
+                      deleteSetting.reset();
+                      setDeleteTarget(s);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="sr-only">Delete</span>
+                  </Button>
+                </span>
               </TableCell>
             </TableRow>
           ))}
@@ -167,6 +190,25 @@ export function SettingsPage() {
           onClose={() => setEditor(null)}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="Delete setting"
+        description={
+          deleteTarget
+            ? `Delete "${deleteTarget.key}"? Modules that read this key fall back to their defaults; the last value is kept in the audit log.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        isPending={deleteSetting.isPending}
+        error={deleteSetting.error ? deleteSetting.error.message : null}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteSetting.mutate(deleteTarget.key, { onSuccess: () => setDeleteTarget(null) });
+          }
+        }}
+      />
     </div>
   );
 }

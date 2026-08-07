@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Put } from '@nestjs/common';
 import { z } from 'zod';
 import { CurrentUser, RequirePermission } from '../../common/decorators';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
@@ -37,5 +37,15 @@ export class AdminSettingsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.settings.upsert(key, body.value, user.id);
+  }
+
+  /** Removes an obsolete key entirely (audit-logged) — upsert cannot. */
+  @Delete(':key')
+  @RequirePermission('admin.settings')
+  remove(
+    @Param('key', zodBody(settingKeySchema)) key: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.settings.remove(key, user.id);
   }
 }
