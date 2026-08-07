@@ -38,7 +38,7 @@ const TABLES = [
   'outside_programs', 'transitional_homes', 'onboarding_checklist_templates',
   'mentor_screening_templates', 'donors', 'campaigns', 'events', 'vendors',
   'employers', 'vehicles', 'communication_templates', 'communication_batches',
-  'data_sharing_agreements', 'app_settings', 'sync_runs', 'audit_logs',
+  'data_sharing_agreements', 'app_settings', 'audit_logs',
   'attachments', 'volunteer_applications', 'referrals_inbox', 'session',
 ];
 
