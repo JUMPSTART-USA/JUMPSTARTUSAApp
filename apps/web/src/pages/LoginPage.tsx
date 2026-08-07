@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { CHAPTER_STATES, usChapterMap } from '@/assets/brand/chapters';
 import logoColor from '@/assets/brand/jumpstart-logo.png';
 import logoTaglineWhite from '@/assets/brand/jumpstart-usa-tagline-white.png';
@@ -86,7 +86,16 @@ export function LoginPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="password">Password</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Password</Label>
+                    <Link
+                      to="/forgot-password"
+                      className="text-xs text-primary hover:underline"
+                      tabIndex={-1}
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
                   <Input
                     id="password"
                     type="password"
