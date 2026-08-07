@@ -12,12 +12,16 @@ import { Throttle } from '@nestjs/throttler';
 import {
   changePasswordSchema,
   CHAPTER_STATES,
+  forgotPasswordSchema,
   loginSchema,
   ROLE_KEYS,
+  setPasswordSchema,
   type ChangePasswordInput,
   type ChapterState,
+  type ForgotPasswordInput,
   type LoginInput,
   type RoleKey,
+  type SetPasswordInput,
 } from '@jumpstart/shared';
 import { z } from 'zod';
 import { AuditService } from '../audit/audit.service';
@@ -167,6 +171,30 @@ export class AuthController {
     await this.authService.changePassword(user.id, body.currentPassword, body.password);
     // Password change invalidates the current session; sign in again.
     await new Promise<void>((resolve) => req.session.destroy(() => resolve()));
+    return { ok: true };
+  }
+
+  /**
+   * Self-service reset, step 1 (§3.1). ALWAYS answers { ok: true } —
+   * responses never reveal whether an email is registered. Tightly throttled:
+   * each request can send an email.
+   */
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgotPassword(@Body(zodBody(forgotPasswordSchema)) body: ForgotPasswordInput) {
+    await this.authService.requestPasswordReset(body.email);
+    return { ok: true };
+  }
+
+  /** Step 2: the emailed single-use token sets the new password. */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(@Body(zodBody(setPasswordSchema)) body: SetPasswordInput) {
+    await this.authService.resetPassword(body.token, body.password);
     return { ok: true };
   }
 

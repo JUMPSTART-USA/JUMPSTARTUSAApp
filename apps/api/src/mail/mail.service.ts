@@ -85,6 +85,22 @@ export class MailService {
     }
   }
 
+  async sendPasswordReset(
+    to: string,
+    firstName: string,
+    resetUrl: string,
+  ): Promise<{ sent: boolean; from: string }> {
+    const subject = 'Reset your JUMPSTART USA Operations Platform password';
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>A password reset was requested for your account. If that was you, choose a new
+      password here within the next hour:</p>
+      <p><a href="${resetUrl}">Reset my password</a></p>
+      <p>If you did not request this, you can ignore this email — your password is unchanged.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(to, subject, html);
+  }
+
   async sendInvite(
     to: string,
     firstName: string,

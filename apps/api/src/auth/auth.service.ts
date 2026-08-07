@@ -4,13 +4,21 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { createHash, randomBytes } from 'node:crypto';
 import * as argon2 from 'argon2';
 import { authenticator } from 'otplib';
 import { AuditService } from '../audit/audit.service';
+import { loadEnv } from '../config/env';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Roles for which TOTP two-factor is mandatory (§3.1). */
 const TOTP_REQUIRED_ROLES = new Set(['admin', 'executive']);
+
+/** Reset links die after an hour — long enough for email delivery, no longer. */
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
 export interface LoginResult {
   status: 'ok' | 'totp_required';
@@ -30,6 +38,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   async validateLogin(email: string, password: string, totpCode?: string): Promise<LoginResult> {
@@ -140,6 +149,75 @@ export class AuthService {
       entityType: 'user',
       entityId: userId,
       newValues: { totpEnabled: true },
+    });
+  }
+
+  /**
+   * Self-service reset, step 1 (§3.1): store a HASHED single-use token and
+   * email the raw one. Silent no-op for unknown or inactive accounts — the
+   * endpoint's response never reveals whether an email is registered.
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (!user || user.deletedAt || (user.status !== 'active' && user.status !== 'invited')) {
+      return;
+    }
+
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: sha256(token),
+        expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+      },
+    });
+
+    const resetUrl = `${loadEnv().WEB_ORIGIN}/reset-password/${token}`;
+    await this.mail.sendPasswordReset(user.email, user.firstName, resetUrl);
+    await this.audit.log({
+      userId: user.id,
+      action: 'update',
+      entityType: 'user',
+      entityId: user.id,
+      metadata: { event: 'password_reset_requested' },
+    });
+  }
+
+  /**
+   * Step 2: one valid token sets the new password, burns every outstanding
+   * token for the account, and kills its sessions — whoever held the old
+   * password is signed out on their next request.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const row = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: sha256(token) },
+      include: { user: { select: { id: true, deletedAt: true, status: true } } },
+    });
+    const invalid =
+      !row ||
+      row.usedAt !== null ||
+      row.expiresAt < new Date() ||
+      row.user.deletedAt !== null ||
+      row.user.status === 'deactivated';
+    if (invalid) {
+      throw new BadRequestException('This reset link is invalid or has expired — request a new one');
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: row.userId }, data: { passwordHash } }),
+      this.prisma.passwordResetToken.updateMany({
+        where: { userId: row.userId, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
+    ]);
+    await this.prisma.$executeRaw`DELETE FROM "session" WHERE sess->>'userId' = ${row.userId}`;
+    await this.audit.log({
+      userId: row.userId,
+      action: 'update',
+      entityType: 'user',
+      entityId: row.userId,
+      metadata: { event: 'password_reset_completed' },
     });
   }
 

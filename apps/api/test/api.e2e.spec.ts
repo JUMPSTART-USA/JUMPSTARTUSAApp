@@ -1,9 +1,12 @@
+import { createHash } from 'node:crypto';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
+import { hashPassword } from '../src/auth/auth.service';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 /**
  * Integration tests against the REAL app wiring (sessions, guards, prefix)
@@ -641,6 +644,82 @@ describe('sex offender registry flag (§7.2 justice field class)', () => {
         .set('Origin', ORIGIN)
         .send({ profile: { sexOffenderRegistry: false } })
         .expect(200);
+    }
+  });
+});
+
+describe('self-service password reset (§3.1)', () => {
+  it('resets with a valid token, burns it, and never leaks account existence', async () => {
+    // Enumeration-safe: unknown email answers ok all the same.
+    await request(server)
+      .post('/api/auth/forgot-password')
+      .set('Origin', ORIGIN)
+      .send({ email: 'nobody@example.org' })
+      .expect(200);
+
+    // Mail is unconfigured under test, so plant the token directly — the
+    // endpoint stores only the SHA-256 of what it emails.
+    const prisma = app.get(PrismaService);
+    const email = `api-reset-${Date.now()}@jumpstartusa.org`;
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash: await hashPassword('OldPassword123!!'),
+        firstName: 'Api',
+        lastName: 'ResetTest',
+        status: 'active',
+      },
+    });
+    const readOnly = await prisma.role.findUniqueOrThrow({ where: { key: 'read_only' } });
+    await prisma.userRole.create({ data: { userId: user.id, roleId: readOnly.id } });
+    const rawToken = 'e2e-reset-token-abcdef0123456789';
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: createHash('sha256').update(rawToken).digest('hex'),
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    try {
+      await request(server)
+        .post('/api/auth/reset-password')
+        .set('Origin', ORIGIN)
+        .send({
+          token: rawToken,
+          password: 'NewPassword123!!',
+          confirmPassword: 'NewPassword123!!',
+        })
+        .expect(200);
+
+      // New password signs in; the old one does not.
+      await request(server)
+        .post('/api/auth/login')
+        .set('Origin', ORIGIN)
+        .send({ email, password: 'NewPassword123!!' })
+        .expect(200);
+      await request(server)
+        .post('/api/auth/login')
+        .set('Origin', ORIGIN)
+        .send({ email, password: 'OldPassword123!!' })
+        .expect(401);
+
+      // Single use: the same token is dead.
+      await request(server)
+        .post('/api/auth/reset-password')
+        .set('Origin', ORIGIN)
+        .send({
+          token: rawToken,
+          password: 'AnotherPass123!!',
+          confirmPassword: 'AnotherPass123!!',
+        })
+        .expect(400);
+    } finally {
+      // Soft-delete like the app would — audit rows stay append-only.
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { deletedAt: new Date(), status: 'deactivated' },
+      });
     }
   });
 });

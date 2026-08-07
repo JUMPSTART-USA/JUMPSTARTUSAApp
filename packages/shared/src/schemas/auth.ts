@@ -36,6 +36,12 @@ export const updateUserSchema = createUserSchema.partial().extend({
 });
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 
+/** Enumeration-safe: the endpoint answers { ok: true } whether or not the email exists. */
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+});
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
 export const setPasswordSchema = z
   .object({
     token: z.string().min(1),
