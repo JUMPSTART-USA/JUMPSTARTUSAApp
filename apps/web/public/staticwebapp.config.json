@@ -17,6 +17,10 @@
       "headers": { "cache-control": "no-cache" }
     },
     {
+      "route": "/version.txt",
+      "headers": { "cache-control": "no-store" }
+    },
+    {
       "route": "/manifest.webmanifest",
       "headers": { "cache-control": "no-cache", "content-type": "application/manifest+json" }
     }

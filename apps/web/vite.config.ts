@@ -2,8 +2,23 @@ import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { defineConfig } from 'vite';
 
+// Identifies the built bundle. CI passes the commit; local builds get a
+// timestamp. Compiled into the app AND emitted as /version.txt so a running
+// client can tell whether a newer build has been deployed (see
+// src/lib/build-version.ts).
+const BUILD_ID = process.env.GITHUB_SHA ?? `dev-${Date.now()}`;
+
 export default defineConfig({
-  plugins: [react()],
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
+  plugins: [
+    react(),
+    {
+      name: 'emit-build-id',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'version.txt', source: BUILD_ID });
+      },
+    },
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
