@@ -1,4 +1,4 @@
-import { INSIDE_STATUSES, OUTSIDE_STATUSES, US_STATES } from '@jumpstart/shared';
+import { INSIDE_STATUSES, OUTSIDE_STATUSES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import {
@@ -22,6 +22,7 @@ import {
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { backTo } from '@/components/BackLink';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -247,19 +248,9 @@ export function DashboardPage() {
           value={to}
           onChange={(e) => setTo(e.target.value)}
         />
-        <Select
-          aria-label="State"
-          className="w-full sm:w-44"
-          value={state}
-          onChange={(e) => setState(e.target.value)}
-        >
-          <option value="">All states</option>
-          {US_STATES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </Select>
+        {/* Chapter (§7.2), not a 50-state address filter: the API validates
+            against CHAPTER_STATES and forces a scoped user's own chapter. */}
+        <ChapterFilterSelect value={state} onChange={setState} />
         <Select
           aria-label="Participant status"
           className="w-full sm:w-44"
@@ -280,7 +271,7 @@ export function DashboardPage() {
         ) : null}
         <ToolbarSpacer />
         <p className="text-xs text-muted-foreground">
-          Filters apply only to widgets that carry the dimension.
+          Chapter applies to every widget; the date range only to those that carry a date.
         </p>
       </ListToolbar>
 
