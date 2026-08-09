@@ -8,7 +8,7 @@ import { DataTable, initialListState, type Column, type ListState } from '@/comp
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -232,16 +232,16 @@ function HomesTab() {
         />
         {/* Home state IS the chapter (§7.2) — hidden for scoped users. */}
         <ChapterFilterSelect value={state} onChange={setState} />
-        <Select
+        <FilterSelect
           aria-label="Home status"
           value={active}
-          onChange={(e) => setActive(e.target.value)}
+          onChange={setActive}
           className="w-full sm:w-44"
         >
           <option value="">All homes</option>
           <option value="true">Active only</option>
           <option value="false">Inactive only</option>
-        </Select>
+        </FilterSelect>
       </ListToolbar>
       {query.error ? <ErrorState error={query.error} /> : null}
       <DataTable
@@ -339,10 +339,10 @@ function ResidentsTab() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Select
+        <FilterSelect
           aria-label="Residency status"
           value={status}
-          onChange={(e) => setStatus(e.target.value)}
+          onChange={setStatus}
           className="w-full sm:w-44"
         >
           <option value="">All statuses</option>
@@ -351,7 +351,7 @@ function ResidentsTab() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
       </ListToolbar>
       {query.error ? <ErrorState error={query.error} /> : null}
       <DataTable

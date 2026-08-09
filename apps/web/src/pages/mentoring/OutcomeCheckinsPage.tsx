@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
@@ -379,25 +380,25 @@ export function OutcomeCheckinsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Select
+        <FilterSelect
           aria-label="Due status"
           className="w-full sm:w-44"
           value={due}
-          onChange={(e) => {
-            setDue(e.target.value as typeof due);
+          onChange={(value) => {
+            setDue(value as typeof due);
             setState((s) => ({ ...s, page: 1 }));
           }}
         >
           <option value="overdue">Overdue</option>
           <option value="upcoming">Upcoming</option>
           <option value="">All</option>
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Wave"
           className="w-full sm:w-44"
           value={wave}
-          onChange={(e) => {
-            setWave(e.target.value);
+          onChange={(value) => {
+            setWave(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -407,7 +408,7 @@ export function OutcomeCheckinsPage() {
               {humanize(w)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         <ChapterFilterSelect
           value={chapter}
           onChange={(value) => {

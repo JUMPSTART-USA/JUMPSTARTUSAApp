@@ -18,7 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Select, Textarea } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -274,12 +275,12 @@ export function ScreeningsPage() {
 
       <Card>
         <CardHeaderRow title="Decided screenings">
-          <Select
+          <FilterSelect
             aria-label="Outcome"
             className="w-full sm:w-44"
             value={decidedStage}
-            onChange={(e) => {
-              setDecidedStage(e.target.value);
+            onChange={(value) => {
+              setDecidedStage(value);
               setDecidedState((s) => ({ ...s, page: 1 }));
             }}
           >
@@ -288,7 +289,7 @@ export function ScreeningsPage() {
                 {humanize(s)}
               </option>
             ))}
-          </Select>
+          </FilterSelect>
         </CardHeaderRow>
         <CardContent>
           {decided.isError ? (

@@ -17,7 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, Select, Textarea } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -199,12 +200,12 @@ export function AssignmentsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -214,7 +215,7 @@ export function AssignmentsPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         <ChapterFilterSelect
           value={chapter}
           onChange={(value) => {

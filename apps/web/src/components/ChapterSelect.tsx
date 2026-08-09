@@ -3,6 +3,7 @@ import { forwardRef } from 'react';
 import type { FieldError } from 'react-hook-form';
 import { FormField } from '@/components/FormField';
 import { Select } from '@/components/ui/input';
+import { SelectMenu } from '@/components/ui/select-menu';
 import { useAuth } from '@/lib/auth';
 
 /**
@@ -61,19 +62,19 @@ export function ChapterFilterSelect({
 }) {
   const { user } = useAuth();
   if (user?.chapter) return null;
+  // SelectMenu, not a native <select>: a toolbar parked under the sticky header
+  // sits near the top of the window, where a macOS popup anchored to the
+  // selected row opens off-screen (see components/ui/select-menu.tsx).
   return (
-    <Select
+    <SelectMenu
       aria-label={label}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={onChange}
       className={className}
-    >
-      <option value="">All chapters</option>
-      {CHAPTER_STATES.map((s) => (
-        <option key={s} value={s}>
-          {CHAPTER_NAMES[s]}
-        </option>
-      ))}
-    </Select>
+      options={[
+        { value: '', label: 'All chapters' },
+        ...CHAPTER_STATES.map((s) => ({ value: s, label: CHAPTER_NAMES[s] })),
+      ]}
+    />
   );
 }

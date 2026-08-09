@@ -26,7 +26,7 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
@@ -251,11 +251,11 @@ export function DashboardPage() {
         {/* Chapter (§7.2), not a 50-state address filter: the API validates
             against CHAPTER_STATES and forces a scoped user's own chapter. */}
         <ChapterFilterSelect value={state} onChange={setState} />
-        <Select
+        <FilterSelect
           aria-label="Participant status"
           className="w-full sm:w-44"
           value={participantStatus}
-          onChange={(e) => setParticipantStatus(e.target.value)}
+          onChange={setParticipantStatus}
         >
           <option value="">Active (default)</option>
           {PARTICIPANT_STATUS_OPTIONS.map((s) => (
@@ -263,7 +263,7 @@ export function DashboardPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {hasFilters ? (
           <Button variant="ghost" onClick={reset}>
             Reset

@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
@@ -301,10 +302,10 @@ function PlanDetail({ planId }: { planId: string }) {
         }
       >
         {canUpdate ? (
-          <Select
+          <FilterSelect
             className="h-8 w-32 text-xs"
             value={plan.status}
-            onChange={(e) => updatePlanStatus.mutate(e.target.value)}
+            onChange={(value) => updatePlanStatus.mutate(value)}
             aria-label="Plan status"
           >
             {['active', 'completed', 'archived'].map((s) => (
@@ -312,7 +313,7 @@ function PlanDetail({ planId }: { planId: string }) {
                 {humanize(s)}
               </option>
             ))}
-          </Select>
+          </FilterSelect>
         ) : null}
         {canCreate ? (
           <Button size="sm" onClick={() => setAddGoalOpen(true)}>
@@ -347,11 +348,11 @@ function PlanDetail({ planId }: { planId: string }) {
                   ) : null}
                 </div>
                 {canUpdate ? (
-                  <Select
+                  <FilterSelect
                     className="h-8 w-36 shrink-0 text-xs"
                     value={goal.status}
-                    onChange={(e) =>
-                      updateGoalStatus.mutate({ goalId: goal.id, status: e.target.value })
+                    onChange={(value) =>
+                      updateGoalStatus.mutate({ goalId: goal.id, status: value })
                     }
                     aria-label="Goal status"
                   >
@@ -360,7 +361,7 @@ function PlanDetail({ planId }: { planId: string }) {
                         {humanize(s)}
                       </option>
                     ))}
-                  </Select>
+                  </FilterSelect>
                 ) : null}
               </div>
               <MilestoneList goal={goal} canUpdate={canUpdate} canDelete={canDelete} />

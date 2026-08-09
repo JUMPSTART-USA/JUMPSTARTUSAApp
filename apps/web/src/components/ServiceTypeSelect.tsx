@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState, type InputHTMLAttributes, type Ref } from 'react';
-import { Input, Select } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
+import { SelectMenu } from '@/components/ui/select-menu';
 import { api } from '@/lib/api';
 
 /**
@@ -35,27 +36,24 @@ export function ServiceTypeSelect({
 
   return (
     <div className="space-y-2">
-      <Select
+      <SelectMenu
         aria-label={label}
         value={otherMode ? '__other__' : value}
-        onChange={(e) => {
-          if (e.target.value === '__other__') {
+        onChange={(next) => {
+          if (next === '__other__') {
             setManualOther(true);
             onChange('');
           } else {
             setManualOther(false);
-            onChange(e.target.value);
+            onChange(next);
           }
         }}
-      >
-        <option value="">Select a service…</option>
-        {types.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-        <option value="__other__">Other…</option>
-      </Select>
+        options={[
+          { value: '', label: 'Select a service…' },
+          ...types.map((t) => ({ value: t, label: t })),
+          { value: '__other__', label: 'Other…' },
+        ]}
+      />
       {otherMode ? <Input placeholder="Describe the service" {...otherInputProps} /> : null}
     </div>
   );

@@ -6,7 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -120,12 +121,12 @@ export function EmployersListPage() {
             resetPage();
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Hiring status"
           className="w-full sm:w-44"
           value={hiringStatus}
-          onChange={(e) => {
-            setHiringStatus(e.target.value);
+          onChange={(value) => {
+            setHiringStatus(value);
             resetPage();
           }}
         >
@@ -135,7 +136,7 @@ export function EmployersListPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         <Input
           className="w-full sm:w-44"
           placeholder="Industry"

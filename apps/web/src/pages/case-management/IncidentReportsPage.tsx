@@ -16,7 +16,7 @@ import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, Spinner } from '@/components/ui/spinner';
 import { ListToolbar, ToolbarDateField } from '@/components/ui/toolbar';
@@ -188,12 +188,12 @@ export function IncidentReportsPage() {
             }}
           />
         </div>
-        <Select
+        <FilterSelect
           aria-label="Severity"
           className="w-full sm:w-44"
           value={severity}
-          onChange={(e) => {
-            setSeverity(e.target.value);
+          onChange={(value) => {
+            setSeverity(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -203,13 +203,13 @@ export function IncidentReportsPage() {
               {INCIDENT_SEVERITY_LABELS[s]}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -219,7 +219,7 @@ export function IncidentReportsPage() {
               {INCIDENT_STATUS_LABELS[s]}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter scoping (§7.2): reports derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect

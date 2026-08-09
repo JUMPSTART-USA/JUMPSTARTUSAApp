@@ -11,7 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, Select, Textarea } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
@@ -255,14 +256,14 @@ function AttendanceGrid({
                       {fullName(enrollment.participantProfile.person)}
                     </TableCell>
                     <TableCell>
-                      <Select
+                      <FilterSelect
                         aria-label="Attendance"
                         className={cn('h-8', row.status === '' && 'text-muted-foreground')}
                         value={row.status}
                         disabled={!canUpdate}
-                        onChange={(e) =>
+                        onChange={(value) =>
                           setRow(enrollment.id, {
-                            status: e.target.value as AttendanceStatus | '',
+                            status: value as AttendanceStatus | '',
                           })
                         }
                       >
@@ -272,7 +273,7 @@ function AttendanceGrid({
                             {s.charAt(0).toUpperCase() + s.slice(1)}
                           </option>
                         ))}
-                      </Select>
+                      </FilterSelect>
                     </TableCell>
                     <TableCell>
                       <Input

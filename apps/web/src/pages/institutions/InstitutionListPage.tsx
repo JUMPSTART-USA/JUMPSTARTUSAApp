@@ -6,7 +6,7 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -121,19 +121,19 @@ export function InstitutionListPage() {
             resetPage();
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={activeFilter}
-          onChange={(e) => {
-            setActiveFilter(e.target.value);
+          onChange={(value) => {
+            setActiveFilter(value);
             resetPage();
           }}
         >
           <option value="">All statuses</option>
           <option value="true">Active</option>
           <option value="false">Inactive</option>
-        </Select>
+        </FilterSelect>
       </ListToolbar>
 
       {query.isError ? (

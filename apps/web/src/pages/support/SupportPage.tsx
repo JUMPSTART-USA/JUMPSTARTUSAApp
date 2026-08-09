@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
@@ -85,11 +86,11 @@ export function SupportPage() {
             </TabsList>
           </Tabs>
           {tab === 'all' ? (
-            <Select
+            <FilterSelect
               aria-label="Status"
               className="w-full sm:w-44"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={setStatusFilter}
             >
               <option value="">All statuses</option>
               {TICKET_STATUSES.map((s) => (
@@ -97,7 +98,7 @@ export function SupportPage() {
                   {humanize(s)}
                 </option>
               ))}
-            </Select>
+            </FilterSelect>
           ) : null}
         </div>
       ) : null}

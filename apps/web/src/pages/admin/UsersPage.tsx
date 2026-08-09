@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Checkbox, Input, Label, Select } from '@/components/ui/input';
 import { FormError, Notice } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
@@ -153,12 +154,12 @@ export function UsersPage() {
           </span>
         ) : (
           <div onClick={(e) => e.stopPropagation()}>
-            <Select
+            <FilterSelect
               aria-label="Chapter"
               className="w-40"
               value={row.chapter ?? ''}
               disabled={setChapter.isPending}
-              onChange={(e) => setChapter.mutate({ id: row.id, chapter: e.target.value })}
+              onChange={(value) => setChapter.mutate({ id: row.id, chapter: value })}
             >
               <option value="">All chapters</option>
               {CHAPTER_STATES.map((s) => (
@@ -166,7 +167,7 @@ export function UsersPage() {
                   {CHAPTER_NAMES[s]}
                 </option>
               ))}
-            </Select>
+            </FilterSelect>
           </div>
         ),
     },
@@ -239,12 +240,12 @@ export function UsersPage() {
             setListState((s) => ({ ...s, page: 1 }));
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -254,7 +255,7 @@ export function UsersPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
       </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}

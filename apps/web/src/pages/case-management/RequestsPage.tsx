@@ -14,7 +14,7 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { SectionHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -164,12 +164,12 @@ function MessagesTab() {
             }}
           />
         </div>
-        <Select
+        <FilterSelect
           aria-label="Message status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -179,7 +179,7 @@ function MessagesTab() {
               {PORTAL_MESSAGE_STATUS_LABELS[s]}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter scoping (§7.2): portal queues derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
@@ -307,12 +307,12 @@ function MeetingsTab() {
             }}
           />
         </div>
-        <Select
+        <FilterSelect
           aria-label="Meeting status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -322,7 +322,7 @@ function MeetingsTab() {
               {MEETING_REQUEST_STATUS_LABELS[s]}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter scoping (§7.2): portal queues derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
@@ -469,12 +469,12 @@ function TransportTab() {
             }}
           />
         </div>
-        <Select
+        <FilterSelect
           aria-label="Transportation status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -484,7 +484,7 @@ function TransportTab() {
               {TRANSPORT_REQUEST_STATUS_LABELS[s]}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter scoping (§7.2): portal queues derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect

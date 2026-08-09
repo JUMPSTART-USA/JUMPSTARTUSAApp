@@ -7,7 +7,7 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -122,12 +122,12 @@ export function InsideClassListPage() {
             resetPage();
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Institution"
           className="w-full sm:w-56"
           value={institutionFilter}
-          onChange={(e) => {
-            setInstitutionFilter(e.target.value);
+          onChange={(value) => {
+            setInstitutionFilter(value);
             resetPage();
           }}
         >
@@ -137,7 +137,7 @@ export function InsideClassListPage() {
               {inst.name} ({inst.state})
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter scoping (§7.2): classes derive chapter via institution.state;
             hidden for scoped users — the API force-filters their chapter. */}
         <ChapterFilterSelect
@@ -147,12 +147,12 @@ export function InsideClassListPage() {
             resetPage();
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value);
+          onChange={(value) => {
+            setStatusFilter(value);
             resetPage();
           }}
         >
@@ -162,7 +162,7 @@ export function InsideClassListPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
       </ListToolbar>
 
       {query.isError ? (

@@ -4,7 +4,7 @@ import { Pencil, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -166,12 +166,12 @@ export function EmploymentsListPage() {
             resetPage();
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Employer"
           className="w-full sm:w-56"
           value={employerId}
-          onChange={(e) => {
-            setEmployerId(e.target.value);
+          onChange={(value) => {
+            setEmployerId(value);
             resetPage();
           }}
         >
@@ -181,13 +181,13 @@ export function EmploymentsListPage() {
               {emp.name}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             resetPage();
           }}
         >
@@ -197,7 +197,7 @@ export function EmploymentsListPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
       </ListToolbar>
 
       {query.isError ? (
