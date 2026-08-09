@@ -35,10 +35,18 @@ export function Label({
   );
 }
 
-/** Native select styled to match — reliable in forms, no portal complexity. */
+/**
+ * Native select styled to match — reliable in forms, no portal complexity.
+ *
+ * `block` deliberately overrides controlClasses' `flex` (twMerge keeps the
+ * last display): Safari/WebKit mis-hit-tests a `display: flex` <select>, so
+ * the popup only opened from the arrow at the right edge instead of anywhere
+ * on the control. It shows up worst on narrow selects whose option text is
+ * wider than the box (e.g. "South Carolina" in a 144px chapter field).
+ */
 export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className, children, ...props }, ref) => (
-    <select ref={ref} className={cn(controlClasses, 'h-9 px-3 py-1', className)} {...props}>
+    <select ref={ref} className={cn(controlClasses, 'block h-9 px-3 py-1', className)} {...props}>
       {children}
     </select>
   ),

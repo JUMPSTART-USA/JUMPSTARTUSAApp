@@ -122,7 +122,9 @@ export function InstitutionFormDialog({
             <FormField label="City" error={errors.city}>
               <Input {...register('city')} />
             </FormField>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Chapter names are long ("South Carolina") — give the select the
+                wider slot so it is not truncated next to the short ZIP. */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[3fr_2fr]">
               {/* Facility state IS the chapter (§7.2) — hidden for scoped
                   users, whose chapter is preset in the defaults. */}
               <ChapterSelect label="State (chapter)" error={errors.state} {...register('state')} />
