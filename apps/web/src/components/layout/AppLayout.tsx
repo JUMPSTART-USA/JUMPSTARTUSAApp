@@ -36,6 +36,7 @@ import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
 import { useRecordScreenHistory } from '@/components/BackLink';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
+import { ApiError } from '@/lib/api';
 import { useAuth, type Me, type ViewAsChange } from '@/lib/auth';
 import { usePortalRequestsPending } from '@/lib/portal-requests';
 import { cn } from '@/lib/utils';
@@ -115,7 +116,8 @@ function RoleSwitcher({
   dark,
 }: {
   user: Me;
-  viewAs: (change: ViewAsChange) => Promise<void>;
+  /** Fire-and-forget: AppLayout's applyViewAs owns error handling. */
+  viewAs: (change: ViewAsChange) => void;
   className?: string;
   dark?: boolean;
 }) {
@@ -123,7 +125,7 @@ function RoleSwitcher({
     <Select
       aria-label="View as role"
       value={user.viewAsRole ?? ''}
-      onChange={(e) => void viewAs({ role: (e.target.value || null) as RoleKey | null })}
+      onChange={(e) => viewAs({ role: (e.target.value || null) as RoleKey | null })}
       className={cn(dark && DARK_SELECT, className)}
     >
       <option value="">My access (Administrator)</option>
@@ -144,7 +146,8 @@ function ChapterSwitcher({
   dark,
 }: {
   user: Me;
-  viewAs: (change: ViewAsChange) => Promise<void>;
+  /** Fire-and-forget: AppLayout's applyViewAs owns error handling. */
+  viewAs: (change: ViewAsChange) => void;
   className?: string;
   dark?: boolean;
 }) {
@@ -152,7 +155,7 @@ function ChapterSwitcher({
     <Select
       aria-label="Viewing chapter"
       value={user.viewChapter ?? ''}
-      onChange={(e) => void viewAs({ chapter: (e.target.value || null) as ChapterState | null })}
+      onChange={(e) => viewAs({ chapter: (e.target.value || null) as ChapterState | null })}
       className={cn(dark && DARK_SELECT, className)}
     >
       <option value="">
@@ -175,9 +178,30 @@ export function AppLayout() {
   const { user, can, logout, viewAs } = useAuth();
   const navigate = useNavigate();
   const [navOpen, setNavOpen] = useState(false);
+  const [viewAsError, setViewAsError] = useState<string | null>(null);
   useRecordScreenHistory();
   // Fetches only for users holding case_management.read (hook is self-gating).
   const portalPending = usePortalRequestsPending();
+
+  /**
+   * A failed view-as call used to be swallowed (`void viewAs(...)`), so the
+   * switcher silently snapped back and the user looked stuck in the preview
+   * with no way out and no explanation. Surface the failure instead, and send
+   * an expired session to the login screen — /auth/* is exempt from the API
+   * client's global 401 redirect, so it has to be handled here.
+   */
+  const applyViewAs = (change: ViewAsChange) => {
+    setViewAsError(null);
+    void viewAs(change).catch((err: unknown) => {
+      if (err instanceof ApiError && err.status === 401) {
+        window.location.assign('/login');
+        return;
+      }
+      setViewAsError(
+        err instanceof ApiError ? err.message : 'Could not switch view — please try again.',
+      );
+    });
+  };
 
   if (!user) {
     navigate('/login');
@@ -276,7 +300,7 @@ export function AppLayout() {
               <div className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
                 View as role
               </div>
-              <RoleSwitcher user={user} viewAs={viewAs} dark className="mt-1 h-8 w-full" />
+              <RoleSwitcher user={user} viewAs={applyViewAs} dark className="mt-1 h-8 w-full" />
             </div>
           ) : null}
           <div className="mb-2 px-2 leading-tight">
@@ -286,7 +310,7 @@ export function AppLayout() {
             <div className="truncate text-xs text-white/50">{user.email}</div>
             {chapterSwitchable ? (
               <>
-                <ChapterSwitcher user={user} viewAs={viewAs} dark className="mt-1.5 h-8 w-full md:hidden" />
+                <ChapterSwitcher user={user} viewAs={applyViewAs} dark className="mt-1.5 h-8 w-full md:hidden" />
                 <div className="mt-0.5 hidden text-[11px] font-medium text-gold md:block">
                   {chapterLabel}
                 </div>
@@ -327,7 +351,7 @@ export function AppLayout() {
               </span>
               <button
                 type="button"
-                onClick={() => void viewAs({ role: null, chapter: null })}
+                onClick={() => applyViewAs({ role: null, chapter: null })}
                 className="ml-auto shrink-0 rounded-md border border-navy-ink/30 px-2.5 py-1 text-xs font-semibold hover:bg-navy-ink/10"
               >
                 Exit preview
@@ -347,13 +371,28 @@ export function AppLayout() {
             {/* View-as switchers: top right on every page (drawer carries them below md). */}
             {isRealAdmin || chapterSwitchable ? (
               <div className="ml-auto hidden shrink-0 items-center gap-2 md:flex">
-                {isRealAdmin ? <RoleSwitcher user={user} viewAs={viewAs} className="w-52" /> : null}
+                {isRealAdmin ? <RoleSwitcher user={user} viewAs={applyViewAs} className="w-52" /> : null}
                 {chapterSwitchable ? (
-                  <ChapterSwitcher user={user} viewAs={viewAs} className="w-44" />
+                  <ChapterSwitcher user={user} viewAs={applyViewAs} className="w-44" />
                 ) : null}
               </div>
             ) : null}
           </header>
+          {viewAsError ? (
+            <div
+              role="alert"
+              className="flex items-center gap-2 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive sm:px-6"
+            >
+              <span className="min-w-0">{viewAsError}</span>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="ml-auto shrink-0 rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-semibold hover:bg-destructive/10"
+              >
+                Reload
+              </button>
+            </div>
+          ) : null}
         </div>
         <main className="flex-1 p-4 sm:p-6">
           <Outlet />
