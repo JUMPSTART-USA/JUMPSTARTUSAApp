@@ -91,12 +91,22 @@ export function SelectMenu({
     const gap = 4;
     const roomBelow = window.innerHeight - trigger.bottom;
     const above = roomBelow < height + gap && trigger.top > roomBelow;
-    const top = above
+    // Viewport-relative placement, then converted to DOCUMENT coordinates: the
+    // menu is positioned `absolute`, not `fixed`. A fixed element forces its own
+    // viewport-sized composited layer, and WebKit stops painting those past a
+    // large window size — which is why an installed web app lost the menu only
+    // when its window grew beyond roughly 3350x2270. Absolute positioning never
+    // takes that path.
+    const viewportTop = above
       ? Math.max(gap, trigger.top - height - gap)
       : Math.min(trigger.bottom + gap, window.innerHeight - height - gap);
     const width = Math.max(trigger.width, listRef.current?.offsetWidth ?? 0);
-    const left = Math.min(Math.max(gap, trigger.left), window.innerWidth - width - gap);
-    setPos({ top, left, minWidth: trigger.width });
+    const viewportLeft = Math.min(Math.max(gap, trigger.left), window.innerWidth - width - gap);
+    setPos({
+      top: viewportTop + window.scrollY,
+      left: viewportLeft + window.scrollX,
+      minWidth: trigger.width,
+    });
   }, []);
 
   useLayoutEffect(() => {
@@ -105,15 +115,20 @@ export function SelectMenu({
     listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [open, activeIndex, place]);
 
-  // Keep it anchored if the page scrolls or the window resizes while open.
+  /**
+   * The trigger can sit in a sticky header, so a document-anchored menu would
+   * drift away from it as the page scrolls: close on scroll (what most menus
+   * do) and re-place on resize.
+   */
   useEffect(() => {
     if (!open) return;
-    const onMove = () => place();
-    window.addEventListener('scroll', onMove, true);
-    window.addEventListener('resize', onMove);
+    const onScroll = () => setOpen(false);
+    const onResize = () => place();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
     return () => {
-      window.removeEventListener('scroll', onMove, true);
-      window.removeEventListener('resize', onMove);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
     };
   }, [open, place]);
 
@@ -199,7 +214,7 @@ export function SelectMenu({
           role="listbox"
           aria-label={ariaLabel}
           style={{
-            position: 'fixed',
+            position: 'absolute',
             top: pos?.top ?? -9999,
             left: pos?.left ?? -9999,
             minWidth: pos?.minWidth,
