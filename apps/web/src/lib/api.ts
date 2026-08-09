@@ -21,6 +21,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const res = await fetch(`/api${path}`, {
     method,
     credentials: 'include',
+    // Belt to the API's `Cache-Control: no-store`: session-scoped responses must
+    // never come from the HTTP cache. Safari otherwise reuses them across the
+    // reloads that follow a "view as" change and re-renders the old view.
+    cache: 'no-store',
     headers: body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : undefined,
     body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   });
