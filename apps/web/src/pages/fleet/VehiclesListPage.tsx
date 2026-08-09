@@ -6,7 +6,8 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -195,19 +196,19 @@ export function VehiclesListPage() {
             resetPage();
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={active}
-          onChange={(e) => {
-            setActive(e.target.value);
+          onChange={(value) => {
+            setActive(value);
             resetPage();
           }}
         >
           <option value="">All vehicles</option>
           <option value="true">Active</option>
           <option value="false">Inactive</option>
-        </Select>
+        </FilterSelect>
         {/* Chapter filter (§7.2) — sent as the `state` query param; hidden for
             scoped users (the API forces their chapter). */}
         <ChapterFilterSelect

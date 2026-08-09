@@ -12,7 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, Label, Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input, Label } from '@/components/ui/input';
 import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState } from '@/components/ui/spinner';
 import { ListToolbar } from '@/components/ui/toolbar';
@@ -148,12 +149,12 @@ export function AuditLogPage() {
         {canListUsers ? (
           <div className="w-full space-y-1 sm:w-56">
             <Label className="text-xs text-muted-foreground">User</Label>
-            <Select
+            <FilterSelect
               aria-label="User"
               className="w-full"
               value={userId}
-              onChange={(e) => {
-                setUserId(e.target.value);
+              onChange={(value) => {
+                setUserId(value);
                 resetPage();
               }}
             >
@@ -163,7 +164,7 @@ export function AuditLogPage() {
                   {u.firstName} {u.lastName}
                 </option>
               ))}
-            </Select>
+            </FilterSelect>
           </div>
         ) : null}
         <div className="w-full space-y-1 sm:w-44">
@@ -192,12 +193,12 @@ export function AuditLogPage() {
         </div>
         <div className="w-full space-y-1 sm:w-44">
           <Label className="text-xs text-muted-foreground">Action</Label>
-          <Select
+          <FilterSelect
             aria-label="Action"
             className="w-full"
             value={action}
-            onChange={(e) => {
-              setAction(e.target.value);
+            onChange={(value) => {
+              setAction(value);
               resetPage();
             }}
           >
@@ -207,7 +208,7 @@ export function AuditLogPage() {
                 {humanize(a)}
               </option>
             ))}
-          </Select>
+          </FilterSelect>
         </div>
         <div className="w-full space-y-1 sm:w-40">
           <Label className="text-xs text-muted-foreground">From</Label>

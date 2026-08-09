@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
@@ -293,12 +294,12 @@ export function ReferralsPage() {
           }}
         />
         {canListVendors ? (
-          <Select
+          <FilterSelect
             aria-label="Partner"
             className="w-full sm:w-44"
             value={vendorId}
-            onChange={(e) => {
-              setVendorId(e.target.value);
+            onChange={(value) => {
+              setVendorId(value);
               setListState((s) => ({ ...s, page: 1 }));
             }}
           >
@@ -308,7 +309,7 @@ export function ReferralsPage() {
                 {v.name}
               </option>
             ))}
-          </Select>
+          </FilterSelect>
         ) : null}
       </ListToolbar>
 

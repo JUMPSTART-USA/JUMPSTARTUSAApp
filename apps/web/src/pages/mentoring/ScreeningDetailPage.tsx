@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError, Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
@@ -156,18 +157,18 @@ function StageAdvanceCard({ screening }: { screening: ScreeningDetail }) {
       <CardContent className="space-y-3">
         <FormError message={error} />
         <div className="flex items-center gap-2">
-          <Select
+          <FilterSelect
             aria-label="Stage"
             className="w-52"
             value={stage}
-            onChange={(e) => setStage(e.target.value)}
+            onChange={setStage}
           >
             {MENTOR_SCREENING_STAGES.map((s) => (
               <option key={s} value={s}>
                 {humanize(s)}
               </option>
             ))}
-          </Select>
+          </FilterSelect>
           <Button
             disabled={stage === screening.stage || mutation.isPending}
             onClick={() =>
@@ -232,19 +233,19 @@ function CriterionRow({
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>
       {canUpdate ? (
-        <Select
+        <FilterSelect
           aria-label={`${criterion.label} status`}
           className="w-40 shrink-0"
           value={criterion.status}
           disabled={mutation.isPending}
-          onChange={(e) => mutation.mutate(e.target.value)}
+          onChange={(value) => mutation.mutate(value)}
         >
           {CHECKLIST_ITEM_STATUSES.map((s) => (
             <option key={s} value={s}>
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
       ) : (
         <StatusBadge status={criterion.status} />
       )}

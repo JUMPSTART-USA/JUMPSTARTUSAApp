@@ -8,8 +8,8 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
-import { Select } from '@/components/ui/input';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
@@ -131,12 +131,12 @@ export function OpportunitiesListPage() {
             setListState((s) => ({ ...s, page: 1 }));
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -146,7 +146,7 @@ export function OpportunitiesListPage() {
               {OPPORTUNITY_STATUS_LABELS[s]}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         <ChapterFilterSelect
           value={chapter}
           onChange={(value) => {

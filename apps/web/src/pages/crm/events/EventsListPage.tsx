@@ -6,7 +6,8 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -144,11 +145,11 @@ export function EventsListPage() {
           placeholder="Type…"
           className="w-full sm:w-36"
         />
-        <Select
+        <FilterSelect
           aria-label="Campaign"
           value={campaignId}
-          onChange={(e) => {
-            setCampaignId(e.target.value);
+          onChange={(value) => {
+            setCampaignId(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
           className="w-full sm:w-56"
@@ -159,7 +160,7 @@ export function EventsListPage() {
               {c.name}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter filter (§7.2) — hidden for scoped users (the API forces
             their chapter). */}
         <ChapterFilterSelect

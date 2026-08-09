@@ -3,7 +3,7 @@ import { CheckCircle2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Notice } from '@/components/ui/notice';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import { api, qs, type Paged } from '@/lib/api';
@@ -44,11 +44,11 @@ export function EligibilityTab({ volunteerProfileId }: { volunteerProfileId: str
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Select
+        <FilterSelect
           aria-label="Institution"
           className="w-full sm:w-72"
           value={institutionId}
-          onChange={(e) => setInstitutionId(e.target.value)}
+          onChange={setInstitutionId}
         >
           <option value="">Select an institution…</option>
           {institutions.items.map((i) => (
@@ -56,7 +56,7 @@ export function EligibilityTab({ volunteerProfileId }: { volunteerProfileId: str
               {i.name}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {!institutions.allowed ? (
           <span className="text-sm text-muted-foreground">
             No permission to list institutions

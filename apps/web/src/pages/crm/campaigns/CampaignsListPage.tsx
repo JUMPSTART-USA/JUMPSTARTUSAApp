@@ -6,7 +6,7 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -98,11 +98,11 @@ export function CampaignsListPage() {
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search campaigns…"
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
           className="w-full sm:w-44"
@@ -113,7 +113,7 @@ export function CampaignsListPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter filter (§7.2) — hidden for scoped users (the API forces
             their chapter). */}
         <ChapterFilterSelect

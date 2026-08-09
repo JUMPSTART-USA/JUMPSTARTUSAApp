@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
@@ -210,12 +211,12 @@ export function EngagementsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Select
+        <FilterSelect
           aria-label="Engagement type"
           className="w-full sm:w-44"
           value={type}
-          onChange={(e) => {
-            setType(e.target.value);
+          onChange={(value) => {
+            setType(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -225,7 +226,7 @@ export function EngagementsPage() {
               {humanize(t)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         <ChapterFilterSelect
           value={chapter}
           onChange={(value) => {

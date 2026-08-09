@@ -7,7 +7,8 @@ import { DataTable, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input, Label, Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input, Label } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -210,11 +211,11 @@ export function DonationsListPage() {
         />
         {dateFilter('From', from, setFrom)}
         {dateFilter('To', to, setTo)}
-        <Select
+        <FilterSelect
           aria-label="Campaign"
           value={campaignId}
-          onChange={(e) => {
-            setCampaignId(e.target.value);
+          onChange={(value) => {
+            setCampaignId(value);
             resetPage();
           }}
           className="w-full sm:w-56"
@@ -225,12 +226,12 @@ export function DonationsListPage() {
               {c.name}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Fund"
           value={fundId}
-          onChange={(e) => {
-            setFundId(e.target.value);
+          onChange={(value) => {
+            setFundId(value);
             resetPage();
           }}
           className="w-full sm:w-44"
@@ -241,12 +242,12 @@ export function DonationsListPage() {
               {f.name}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Appeal"
           value={appealId}
-          onChange={(e) => {
-            setAppealId(e.target.value);
+          onChange={(value) => {
+            setAppealId(value);
             resetPage();
           }}
           className="w-full sm:w-44"
@@ -257,12 +258,12 @@ export function DonationsListPage() {
               {a.name}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Acknowledgment"
           value={acknowledged}
-          onChange={(e) => {
-            setAcknowledged(e.target.value);
+          onChange={(value) => {
+            setAcknowledged(value);
             resetPage();
           }}
           className="w-full sm:w-44"
@@ -270,12 +271,12 @@ export function DonationsListPage() {
           <option value="">All acknowledgments</option>
           <option value="true">Acknowledged</option>
           <option value="false">Not acknowledged</option>
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Gift type"
           value={recurring}
-          onChange={(e) => {
-            setRecurring(e.target.value);
+          onChange={(value) => {
+            setRecurring(value);
             resetPage();
           }}
           className="w-full sm:w-44"
@@ -283,7 +284,7 @@ export function DonationsListPage() {
           <option value="">All gifts</option>
           <option value="true">Recurring</option>
           <option value="false">One-time</option>
-        </Select>
+        </FilterSelect>
       </ListToolbar>
 
       <Card>

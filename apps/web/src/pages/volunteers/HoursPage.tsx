@@ -9,7 +9,7 @@ import { VolunteerPicker, type PickerOption } from '@/components/pickers';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, ToolbarDateField } from '@/components/ui/toolbar';
@@ -291,12 +291,12 @@ export function HoursPage() {
                 }}
               />
             </div>
-            <Select
+            <FilterSelect
               aria-label="Status"
               className="w-full sm:w-44"
               value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
+              onChange={(value) => {
+                setStatus(value);
                 setListState((s) => ({ ...s, page: 1 }));
               }}
             >
@@ -306,7 +306,7 @@ export function HoursPage() {
                   {HOURS_STATUS_LABELS[s]}
                 </option>
               ))}
-            </Select>
+            </FilterSelect>
             <ToolbarDateField
               label="From"
               value={from}

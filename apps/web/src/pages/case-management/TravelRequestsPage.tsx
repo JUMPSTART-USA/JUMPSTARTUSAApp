@@ -10,7 +10,7 @@ import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { SectionHeader } from '@/components/ui/page-header';
 import { ErrorState, Spinner } from '@/components/ui/spinner';
 import {
@@ -219,12 +219,12 @@ export function TravelRequestsPage() {
             }}
           />
         </div>
-        <Select
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -234,7 +234,7 @@ export function TravelRequestsPage() {
               {TRAVEL_REQUEST_STATUS_LABELS[s]}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter scoping (§7.2): requests derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect

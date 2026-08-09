@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { SectionHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -133,12 +133,12 @@ export function HistoryPage() {
             placeholder="Filter by person…"
           />
         </div>
-        <Select
+        <FilterSelect
           aria-label="Channel"
           className="w-full sm:w-44"
           value={channel}
-          onChange={(e) => {
-            setChannel(e.target.value);
+          onChange={(value) => {
+            setChannel(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -148,13 +148,13 @@ export function HistoryPage() {
               {CHANNEL_LABELS[c]}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -164,7 +164,7 @@ export function HistoryPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         <ChapterFilterSelect
           value={chapter}
           onChange={(value) => {

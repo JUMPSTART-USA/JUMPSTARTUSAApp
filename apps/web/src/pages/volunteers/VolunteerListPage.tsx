@@ -27,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError, Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
@@ -175,12 +176,12 @@ export function VolunteerListPage() {
             setListState((s) => ({ ...s, page: 1 }));
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -190,20 +191,20 @@ export function VolunteerListPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Mentor"
           className="w-full sm:w-44"
           value={mentor}
-          onChange={(e) => {
-            setMentor(e.target.value);
+          onChange={(value) => {
+            setMentor(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
           <option value="">Mentors & non-mentors</option>
           <option value="true">Mentors only</option>
           <option value="false">Non-mentors only</option>
-        </Select>
+        </FilterSelect>
         <ChapterFilterSelect
           value={chapter}
           onChange={(value) => {

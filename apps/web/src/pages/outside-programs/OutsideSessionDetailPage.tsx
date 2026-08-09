@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
-import { Input, Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
@@ -223,11 +224,11 @@ export function OutsideSessionDetailPage() {
                       <StatusBadge status={e.status} />
                     </TableCell>
                     <TableCell>
-                      <Select
+                      <FilterSelect
                         aria-label="Attendance"
                         value={rows[e.id]?.status ?? ''}
-                        onChange={(ev) =>
-                          setRow(e.id, { status: ev.target.value as '' | AttendanceStatus })
+                        onChange={(value) =>
+                          setRow(e.id, { status: value as '' | AttendanceStatus })
                         }
                         disabled={!canUpdate}
                       >
@@ -237,7 +238,7 @@ export function OutsideSessionDetailPage() {
                             {humanize(s)}
                           </option>
                         ))}
-                      </Select>
+                      </FilterSelect>
                     </TableCell>
                     <TableCell>
                       <Input

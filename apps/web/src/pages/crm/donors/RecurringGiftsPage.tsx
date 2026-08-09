@@ -12,7 +12,7 @@ import { DataTable, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { type PickerOption } from '@/components/ui/entity-picker';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar } from '@/components/ui/toolbar';
@@ -127,11 +127,11 @@ export function RecurringGiftsPage() {
             setState((s) => ({ ...s, page: 1 }));
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
           className="w-full sm:w-44"
@@ -142,7 +142,7 @@ export function RecurringGiftsPage() {
               {RECURRING_GIFT_STATUS_LABELS[s]}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
       </ListToolbar>
 
       {query.isError ? <ErrorState error={query.error} /> : null}

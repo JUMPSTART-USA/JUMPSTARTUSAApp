@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
@@ -293,12 +294,12 @@ export function TasksPage() {
             setListState((s) => ({ ...s, page: 1 }));
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -308,7 +309,7 @@ export function TasksPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter scoping (§7.2): tasks derive their chapter from the linked
             participant (unlinked staff to-dos are chapter-neutral and always
             listed) — hidden for scoped users, whom the API force-filters. */}

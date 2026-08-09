@@ -6,7 +6,8 @@ import { FormField } from '@/components/FormField';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input, Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import {
   Table,
@@ -185,14 +186,18 @@ function RunnerInner({ report }: { report: ReportSummary }) {
     }
     if (param.type === 'enum' && param.values) {
       return (
-        <Select value={value} onChange={(e) => setValue(param.name, e.target.value)}>
+        <FilterSelect
+          aria-label={param.label}
+          value={value}
+          onChange={(v) => setValue(param.name, v)}
+        >
           <option value="">All</option>
           {param.values.map((v) => (
             <option key={v} value={v}>
               {v.length <= 2 ? v : humanize(v)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
       );
     }
     if (param.type === 'uuid') {
@@ -202,14 +207,18 @@ function RunnerInner({ report }: { report: ReportSummary }) {
       const source = uuidOptions[param.name];
       if (source) {
         return (
-          <Select value={value} onChange={(e) => setValue(param.name, e.target.value)}>
+          <FilterSelect
+            aria-label={param.label}
+            value={value}
+            onChange={(v) => setValue(param.name, v)}
+          >
             <option value="">{source.isLoading ? 'Loading…' : `All`}</option>
             {source.options.map((o) => (
               <option key={o.id} value={o.id}>
                 {o.label}
               </option>
             ))}
-          </Select>
+          </FilterSelect>
         );
       }
     }
@@ -359,14 +368,14 @@ function ParticipantPicker({
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <Select aria-label="Participant" value={value} onChange={(e) => onChange(e.target.value)}>
+      <FilterSelect aria-label="Participant" value={value} onChange={onChange}>
         <option value="">{isLoading ? 'Searching…' : 'All participants'}</option>
         {options.map((o) => (
           <option key={o.id} value={o.id}>
             {o.label}
           </option>
         ))}
-      </Select>
+      </FilterSelect>
     </div>
   );
 }

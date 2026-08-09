@@ -14,7 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, Select, Textarea } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
@@ -289,11 +290,11 @@ function PortalNotificationsCard({ current }: { current: unknown }) {
               return (
                 <div key={key} className="w-full sm:w-64">
                   <div className="mb-1 text-sm font-medium">{label}</div>
-                  <Select
+                  <FilterSelect
                     aria-label={`${label} recipient`}
                     value={selected}
                     disabled={save.isPending}
-                    onChange={(e) => save.mutate({ ...targets, [key]: e.target.value || null })}
+                    onChange={(value) => save.mutate({ ...targets, [key]: value || null })}
                   >
                     <option value="">No one — queue only</option>
                     {selected && !known ? (
@@ -304,7 +305,7 @@ function PortalNotificationsCard({ current }: { current: unknown }) {
                         {u.firstName} {u.lastName} — {u.email}
                       </option>
                     ))}
-                  </Select>
+                  </FilterSelect>
                 </div>
               );
             })}

@@ -6,7 +6,8 @@ import { BackLink } from '@/components/BackLink';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Select, Textarea } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
@@ -84,19 +85,19 @@ export function TicketDetailPage() {
           <>
             <StatusBadge status={ticket.status} />
             {isAdmin ? (
-              <Select
+              <FilterSelect
                 aria-label="Ticket status"
                 className="w-36"
                 value={ticket.status}
                 disabled={setStatus.isPending}
-                onChange={(e) => setStatus.mutate(e.target.value)}
+                onChange={(value) => setStatus.mutate(value)}
               >
                 {TICKET_STATUSES.map((s) => (
                   <option key={s} value={s}>
                     {humanize(s)}
                   </option>
                 ))}
-              </Select>
+              </FilterSelect>
             ) : null}
           </>
         }

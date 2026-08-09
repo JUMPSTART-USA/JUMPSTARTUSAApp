@@ -7,7 +7,7 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -130,10 +130,10 @@ export function OutsideProgramListPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Select
+        <FilterSelect
           aria-label="Program type"
           value={programType}
-          onChange={(e) => setProgramType(e.target.value)}
+          onChange={setProgramType}
           className="w-full sm:w-44"
         >
           <option value="">All types</option>
@@ -142,11 +142,11 @@ export function OutsideProgramListPage() {
               {humanize(t)}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Status"
           value={status}
-          onChange={(e) => setStatus(e.target.value)}
+          onChange={setStatus}
           className="w-full sm:w-44"
         >
           <option value="">All statuses</option>
@@ -155,7 +155,7 @@ export function OutsideProgramListPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter scoping (§7.2): hidden for scoped users — the API force-filters their chapter. */}
         <ChapterFilterSelect value={state} onChange={setState} />
       </ListToolbar>

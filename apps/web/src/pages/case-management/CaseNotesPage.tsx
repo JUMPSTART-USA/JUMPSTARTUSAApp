@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
@@ -427,12 +428,12 @@ export function CaseNotesPage() {
             }}
           />
         </div>
-        <Select
+        <FilterSelect
           aria-label="Category"
           className="w-full sm:w-44"
           value={category}
-          onChange={(e) => {
-            setCategory(e.target.value);
+          onChange={(value) => {
+            setCategory(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -442,7 +443,7 @@ export function CaseNotesPage() {
               {humanize(c)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter scoping (§7.2): notes derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect

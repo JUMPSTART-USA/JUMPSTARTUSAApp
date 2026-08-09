@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
@@ -145,12 +146,12 @@ export function FacilityRequirementsPage() {
             setListState((s) => ({ ...s, page: 1 }));
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Institution"
           className="w-full sm:w-56"
           value={institutionId}
-          onChange={(e) => {
-            setInstitutionId(e.target.value);
+          onChange={(value) => {
+            setInstitutionId(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -160,20 +161,20 @@ export function FacilityRequirementsPage() {
               {i.name}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Active status"
           className="w-full sm:w-44"
           value={active}
-          onChange={(e) => {
-            setActive(e.target.value);
+          onChange={(value) => {
+            setActive(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
           <option value="">Active & retired</option>
           <option value="true">Active only</option>
           <option value="false">Retired only</option>
-        </Select>
+        </FilterSelect>
       </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}

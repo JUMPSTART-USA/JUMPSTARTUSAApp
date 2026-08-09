@@ -6,7 +6,8 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input, Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
@@ -63,13 +64,11 @@ function ChecklistItem({
               if (notes !== (item.notes ?? '')) update.mutate({ status: item.status, notes });
             }}
           />
-          <Select
+          <FilterSelect
             className="h-8 sm:w-40"
             value={item.status}
             disabled={update.isPending}
-            onChange={(e) =>
-              update.mutate({ status: e.target.value as ChecklistItemStatus, notes })
-            }
+            onChange={(value) => update.mutate({ status: value as ChecklistItemStatus, notes })}
             aria-label={`Status for ${item.label}`}
           >
             {CHECKLIST_ITEM_STATUSES.map((s) => (
@@ -77,7 +76,7 @@ function ChecklistItem({
                 {humanize(s)}
               </option>
             ))}
-          </Select>
+          </FilterSelect>
         </>
       ) : (
         <>

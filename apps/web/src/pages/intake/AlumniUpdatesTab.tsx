@@ -17,7 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, Label, Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Input, Label } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, ToolbarSpacer } from '@/components/ui/toolbar';
@@ -292,12 +293,12 @@ export function AlumniUpdatesTab() {
   return (
     <div className="space-y-3">
       <ListToolbar>
-        <Select
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -307,7 +308,7 @@ export function AlumniUpdatesTab() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter filter (§7.2) — maps to the alum's chapter server-side;
             hidden for scoped users (the API forces their chapter). */}
         <ChapterFilterSelect

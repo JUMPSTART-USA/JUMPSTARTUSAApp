@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
@@ -221,12 +221,12 @@ export function VolunteerApplicationsTab() {
             setState((s) => ({ ...s, page: 1 }));
           }}
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -236,7 +236,7 @@ export function VolunteerApplicationsTab() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter filter (§7.2) — the queue's own `state` column; hidden for
             scoped users (the API forces their chapter). */}
         <ChapterFilterSelect

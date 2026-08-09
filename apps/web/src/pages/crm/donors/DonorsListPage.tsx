@@ -7,7 +7,7 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -102,11 +102,11 @@ export function DonorsListPage() {
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name or email…"
         />
-        <Select
+        <FilterSelect
           aria-label="Donor type"
           value={donorType}
-          onChange={(e) => {
-            setDonorType(e.target.value);
+          onChange={(value) => {
+            setDonorType(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
           className="w-full sm:w-44"
@@ -117,12 +117,12 @@ export function DonorsListPage() {
               {humanize(t)}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Status"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
           className="w-full sm:w-44"
@@ -133,7 +133,7 @@ export function DonorsListPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         <ChapterFilterSelect
           value={chapter}
           onChange={(value) => {

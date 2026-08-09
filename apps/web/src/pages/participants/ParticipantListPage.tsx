@@ -7,7 +7,8 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/badge';
-import { Checkbox, Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { Checkbox } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -164,10 +165,10 @@ export function ParticipantListPage() {
           value={search}
           onChange={(e) => filter(() => setSearch(e.target.value))}
         />
-        <Select
+        <FilterSelect
           aria-label="Inside status"
           value={insideStatus}
-          onChange={(e) => filter(() => setInsideStatus(e.target.value))}
+          onChange={(value) => filter(() => setInsideStatus(value))}
           className="w-full sm:w-44"
         >
           <option value="">Inside: all</option>
@@ -176,11 +177,11 @@ export function ParticipantListPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Outside status"
           value={outsideStatus}
-          onChange={(e) => filter(() => setOutsideStatus(e.target.value))}
+          onChange={(value) => filter(() => setOutsideStatus(value))}
           className="w-full sm:w-44"
         >
           <option value="">Outside: all</option>
@@ -189,11 +190,11 @@ export function ParticipantListPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Alumni status"
           value={alumniStatus}
-          onChange={(e) => filter(() => setAlumniStatus(e.target.value))}
+          onChange={(value) => filter(() => setAlumniStatus(value))}
           className="w-full sm:w-44"
         >
           <option value="">Alumni: all</option>
@@ -202,15 +203,15 @@ export function ParticipantListPage() {
               {humanize(s)}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter scoping (§7.2): the `state` param filters by chapter now —
             hidden for scoped users, whom the API force-filters anyway. */}
         <ChapterFilterSelect value={state} onChange={(v) => filter(() => setState(v))} />
         {can('institutions.read') ? (
-          <Select
+          <FilterSelect
             aria-label="Location"
             value={institutionId}
-            onChange={(e) => filter(() => setInstitutionId(e.target.value))}
+            onChange={(value) => filter(() => setInstitutionId(value))}
             className="w-full sm:w-56"
           >
             <option value="">Location: all</option>
@@ -219,7 +220,7 @@ export function ParticipantListPage() {
                 {i.name} ({i.state})
               </option>
             ))}
-          </Select>
+          </FilterSelect>
         ) : null}
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <Checkbox

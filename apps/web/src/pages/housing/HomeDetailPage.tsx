@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
@@ -322,10 +322,10 @@ export function HomeDetailPage() {
               value={historySearch}
               onChange={(e) => setHistorySearch(e.target.value)}
             />
-            <Select
+            <FilterSelect
               aria-label="Enrollment status"
               value={historyStatus}
-              onChange={(e) => setHistoryStatus(e.target.value)}
+              onChange={setHistoryStatus}
               className="w-full sm:w-44"
             >
               <option value="">All statuses</option>
@@ -334,7 +334,7 @@ export function HomeDetailPage() {
                   {humanize(s)}
                 </option>
               ))}
-            </Select>
+            </FilterSelect>
           </ListToolbar>
           {historyQuery.error ? <ErrorState error={historyQuery.error} /> : null}
           <DataTable

@@ -8,7 +8,7 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { SectionHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, ToolbarDateField } from '@/components/ui/toolbar';
@@ -154,12 +154,12 @@ export function DrugTestsPage() {
             }}
           />
         </div>
-        <Select
+        <FilterSelect
           aria-label="Result"
           className="w-full sm:w-44"
           value={result}
-          onChange={(e) => {
-            setResult(e.target.value);
+          onChange={(value) => {
+            setResult(value);
             setListState((s) => ({ ...s, page: 1 }));
           }}
         >
@@ -169,7 +169,7 @@ export function DrugTestsPage() {
               {DRUG_TEST_RESULT_LABELS[r]}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
         {/* Chapter scoping (§7.2): tests derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect

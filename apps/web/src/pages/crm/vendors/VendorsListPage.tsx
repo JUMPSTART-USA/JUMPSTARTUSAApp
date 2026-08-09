@@ -5,7 +5,7 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
@@ -111,11 +111,11 @@ export function VendorsListPage() {
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name, contact, or services…"
         />
-        <Select
+        <FilterSelect
           aria-label="Status"
           value={active}
-          onChange={(e) => {
-            setActive(e.target.value);
+          onChange={(value) => {
+            setActive(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
           className="w-full sm:w-44"
@@ -123,12 +123,12 @@ export function VendorsListPage() {
           <option value="">All vendors</option>
           <option value="true">Active</option>
           <option value="false">Inactive</option>
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           aria-label="Partner type"
           value={referralPartner}
-          onChange={(e) => {
-            setReferralPartner(e.target.value);
+          onChange={(value) => {
+            setReferralPartner(value);
             setState((s) => ({ ...s, page: 1 }));
           }}
           className="w-full sm:w-44"
@@ -136,7 +136,7 @@ export function VendorsListPage() {
           <option value="">All partner types</option>
           <option value="true">Referral partners</option>
           <option value="false">Non-referral</option>
-        </Select>
+        </FilterSelect>
         {/* Chapter filter (§7.2) — hidden for scoped users (the API forces
             their chapter). */}
         <ChapterFilterSelect
