@@ -128,6 +128,7 @@ export function RecurringGiftsPage() {
           }}
         />
         <Select
+          aria-label="Status"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);

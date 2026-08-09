@@ -294,6 +294,7 @@ export function ReferralsPage() {
         />
         {canListVendors ? (
           <Select
+            aria-label="Partner"
             className="w-full sm:w-44"
             value={vendorId}
             onChange={(e) => {

@@ -176,6 +176,7 @@ export function VolunteerListPage() {
           }}
         />
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {
@@ -191,6 +192,7 @@ export function VolunteerListPage() {
           ))}
         </Select>
         <Select
+          aria-label="Mentor"
           className="w-full sm:w-44"
           value={mentor}
           onChange={(e) => {

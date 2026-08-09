@@ -165,6 +165,7 @@ function MessagesTab() {
           />
         </div>
         <Select
+          aria-label="Message status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {
@@ -307,6 +308,7 @@ function MeetingsTab() {
           />
         </div>
         <Select
+          aria-label="Meeting status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {
@@ -468,6 +470,7 @@ function TransportTab() {
           />
         </div>
         <Select
+          aria-label="Transportation status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {

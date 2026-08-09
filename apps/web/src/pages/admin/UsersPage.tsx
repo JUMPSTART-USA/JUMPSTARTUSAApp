@@ -154,6 +154,7 @@ export function UsersPage() {
         ) : (
           <div onClick={(e) => e.stopPropagation()}>
             <Select
+              aria-label="Chapter"
               className="w-40"
               value={row.chapter ?? ''}
               disabled={setChapter.isPending}
@@ -239,6 +240,7 @@ export function UsersPage() {
           }}
         />
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {

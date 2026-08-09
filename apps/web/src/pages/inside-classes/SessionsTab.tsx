@@ -256,6 +256,7 @@ function AttendanceGrid({
                     </TableCell>
                     <TableCell>
                       <Select
+                        aria-label="Attendance"
                         className={cn('h-8', row.status === '' && 'text-muted-foreground')}
                         value={row.status}
                         disabled={!canUpdate}

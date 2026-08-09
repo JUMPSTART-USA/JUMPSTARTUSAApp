@@ -121,6 +121,7 @@ export function EmployersListPage() {
           }}
         />
         <Select
+          aria-label="Hiring status"
           className="w-full sm:w-44"
           value={hiringStatus}
           onChange={(e) => {

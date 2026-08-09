@@ -99,6 +99,7 @@ export function CampaignsListPage() {
           placeholder="Search campaigns…"
         />
         <Select
+          aria-label="Status"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);

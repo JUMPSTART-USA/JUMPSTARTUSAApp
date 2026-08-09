@@ -156,7 +156,12 @@ function StageAdvanceCard({ screening }: { screening: ScreeningDetail }) {
       <CardContent className="space-y-3">
         <FormError message={error} />
         <div className="flex items-center gap-2">
-          <Select className="w-52" value={stage} onChange={(e) => setStage(e.target.value)}>
+          <Select
+            aria-label="Stage"
+            className="w-52"
+            value={stage}
+            onChange={(e) => setStage(e.target.value)}
+          >
             {MENTOR_SCREENING_STAGES.map((s) => (
               <option key={s} value={s}>
                 {humanize(s)}
@@ -228,6 +233,7 @@ function CriterionRow({
       </div>
       {canUpdate ? (
         <Select
+          aria-label={`${criterion.label} status`}
           className="w-40 shrink-0"
           value={criterion.status}
           disabled={mutation.isPending}

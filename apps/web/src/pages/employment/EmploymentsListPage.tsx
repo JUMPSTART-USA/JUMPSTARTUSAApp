@@ -167,6 +167,7 @@ export function EmploymentsListPage() {
           }}
         />
         <Select
+          aria-label="Employer"
           className="w-full sm:w-56"
           value={employerId}
           onChange={(e) => {
@@ -182,6 +183,7 @@ export function EmploymentsListPage() {
           ))}
         </Select>
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {

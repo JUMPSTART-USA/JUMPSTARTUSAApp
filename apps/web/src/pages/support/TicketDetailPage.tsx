@@ -85,6 +85,7 @@ export function TicketDetailPage() {
             <StatusBadge status={ticket.status} />
             {isAdmin ? (
               <Select
+                aria-label="Ticket status"
                 className="w-36"
                 value={ticket.status}
                 disabled={setStatus.isPending}

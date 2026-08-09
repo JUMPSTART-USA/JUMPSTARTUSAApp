@@ -145,6 +145,7 @@ export function EventsListPage() {
           className="w-full sm:w-36"
         />
         <Select
+          aria-label="Campaign"
           value={campaignId}
           onChange={(e) => {
             setCampaignId(e.target.value);

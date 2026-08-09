@@ -16,10 +16,13 @@ export function ServiceTypeSelect({
   value,
   onChange,
   otherInputProps,
+  label = 'Service type',
 }: {
   value: string;
   onChange: (value: string) => void;
   otherInputProps?: InputHTMLAttributes<HTMLInputElement> & { ref?: Ref<HTMLInputElement> };
+  /** Accessible name for the menu — override when the surrounding copy differs. */
+  label?: string;
 }) {
   const typesQuery = useQuery({
     queryKey: ['case-management', 'service-types'],
@@ -33,6 +36,7 @@ export function ServiceTypeSelect({
   return (
     <div className="space-y-2">
       <Select
+        aria-label={label}
         value={otherMode ? '__other__' : value}
         onChange={(e) => {
           if (e.target.value === '__other__') {

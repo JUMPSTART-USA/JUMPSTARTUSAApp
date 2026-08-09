@@ -290,6 +290,7 @@ function PortalNotificationsCard({ current }: { current: unknown }) {
                 <div key={key} className="w-full sm:w-64">
                   <div className="mb-1 text-sm font-medium">{label}</div>
                   <Select
+                    aria-label={`${label} recipient`}
                     value={selected}
                     disabled={save.isPending}
                     onChange={(e) => save.mutate({ ...targets, [key]: e.target.value || null })}

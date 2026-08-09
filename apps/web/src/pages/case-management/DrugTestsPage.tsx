@@ -155,6 +155,7 @@ export function DrugTestsPage() {
           />
         </div>
         <Select
+          aria-label="Result"
           className="w-full sm:w-44"
           value={result}
           onChange={(e) => {

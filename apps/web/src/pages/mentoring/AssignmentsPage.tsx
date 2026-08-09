@@ -200,6 +200,7 @@ export function AssignmentsPage() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {

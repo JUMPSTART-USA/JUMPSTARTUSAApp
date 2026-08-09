@@ -359,7 +359,7 @@ function ParticipantPicker({
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <Select value={value} onChange={(e) => onChange(e.target.value)}>
+      <Select aria-label="Participant" value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">{isLoading ? 'Searching…' : 'All participants'}</option>
         {options.map((o) => (
           <option key={o.id} value={o.id}>

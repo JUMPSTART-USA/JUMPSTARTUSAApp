@@ -123,6 +123,7 @@ export function InsideClassListPage() {
           }}
         />
         <Select
+          aria-label="Institution"
           className="w-full sm:w-56"
           value={institutionFilter}
           onChange={(e) => {
@@ -147,6 +148,7 @@ export function InsideClassListPage() {
           }}
         />
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={statusFilter}
           onChange={(e) => {
