@@ -14,7 +14,7 @@ import type {
   VolunteerShiftInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
-import { assertChapterAccess } from '../../common/chapter.util';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
@@ -197,17 +197,15 @@ export class OpportunitiesService {
 
   async create(input: VolunteerOpportunityInput, user: AuthenticatedUser) {
     const userId = user.id;
-    // Chapter scoping (§7.2): a scoped user cannot create for another chapter.
-    assertChapterAccess(user.chapter, input.state);
-    await this.assertOpportunityRefs(input);
+    // Chapter scoping (§7.2): stamp the creator's chapter — all-chapters users
+    // must pick one explicitly, so no opportunity is ever stateless.
+    const state = resolveCreateChapter(user.chapter, input.state);
+    await this.assertOpportunityRefs(input, user);
 
     const opportunity = await this.prisma.volunteerOpportunity.create({
       data: {
         ...input,
-        // Chapter default (§7.2): a scoped user's new opportunity is tagged to
-        // their chapter unless set explicitly — a stateless record would
-        // vanish from their own chapter-forced list.
-        state: input.state ?? user.chapter,
+        state,
         createdById: userId,
         updatedById: userId,
       },
@@ -226,11 +224,14 @@ export class OpportunitiesService {
     // scoped user cannot move it to another chapter either.
     assertChapterAccess(user.chapter, existing.state);
     assertChapterAccess(user.chapter, input.state);
-    await this.assertOpportunityRefs(input);
+    await this.assertOpportunityRefs(input, user);
 
+    // state is a REQUIRED chapter column — a null from the client means "no
+    // change", never a clear (the schema still allows null for legacy payloads).
+    const { state: inputState, ...rest } = input;
     const updated = await this.prisma.volunteerOpportunity.update({
       where: { id },
-      data: { ...input, updatedById: userId },
+      data: { ...rest, ...(inputState ? { state: inputState } : {}), updatedById: userId },
     });
     await this.audit.logUpdate(userId, 'volunteer_opportunity', id, existing, updated);
     return updated;
@@ -389,6 +390,9 @@ export class OpportunitiesService {
       where: { id: input.volunteerProfileId, deletedAt: null },
     });
     if (!profile) throw new NotFoundException('Volunteer not found');
+    // Chapter scoping (§7.2): the signed-up volunteer must be in the user's
+    // chapter too — not just the shift's opportunity.
+    assertChapterAccess(user.chapter, profile.chapterState);
 
     // Seat count + write run in one SERIALIZABLE transaction — two concurrent
     // signups must not both observe the last open seat. A concurrent duplicate
@@ -667,28 +671,39 @@ export class OpportunitiesService {
     return promotions;
   }
 
-  private async assertOpportunityRefs(input: {
-    institutionId?: string | null;
-    outsideProgramId?: string | null;
-    eventId?: string | null;
-  }) {
+  private async assertOpportunityRefs(
+    input: {
+      institutionId?: string | null;
+      outsideProgramId?: string | null;
+      eventId?: string | null;
+    },
+    user: AuthenticatedUser,
+  ) {
+    // Chapter scoping (§7.2): a linked institution/program/event must be in the
+    // user's chapter — otherwise its name leaks on the opportunity's GET.
     if (input.institutionId) {
       const institution = await this.prisma.institution.findFirst({
         where: { id: input.institutionId, deletedAt: null },
+        select: { state: true },
       });
       if (!institution) throw new NotFoundException('Institution not found');
+      assertChapterAccess(user.chapter, institution.state);
     }
     if (input.outsideProgramId) {
       const program = await this.prisma.outsideProgram.findFirst({
         where: { id: input.outsideProgramId, deletedAt: null },
+        select: { state: true },
       });
       if (!program) throw new NotFoundException('Outside program not found');
+      assertChapterAccess(user.chapter, program.state);
     }
     if (input.eventId) {
       const event = await this.prisma.event.findFirst({
         where: { id: input.eventId, deletedAt: null },
+        select: { chapterState: true },
       });
       if (!event) throw new NotFoundException('Event not found');
+      assertChapterAccess(user.chapter, event.chapterState);
     }
   }
 }

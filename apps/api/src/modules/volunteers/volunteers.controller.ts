@@ -10,8 +10,8 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   listQuerySchema,
-  US_STATES,
   uuid,
   VOLUNTEER_STATUSES,
   volunteerCreateSchema,
@@ -33,7 +33,7 @@ const listFiltersSchema = listQuerySchema.extend({
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
     .optional(),
-  state: z.enum(US_STATES).optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -76,7 +76,8 @@ export class VolunteersController {
     @Query(zodQuery(expirationsQuerySchema)) query: { days: number },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screening.expirations(query.days, canReadChecks(user));
+    // Chapter scoping (§7.2): scoped users only see their chapter's expirations.
+    return this.screening.expirations(query.days, canReadChecks(user), user.chapter);
   }
 
   @Get(':id')

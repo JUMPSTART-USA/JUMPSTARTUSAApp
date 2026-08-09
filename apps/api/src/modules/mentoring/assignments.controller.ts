@@ -9,6 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   listQuerySchema,
   MENTOR_ASSIGNMENT_STATUSES,
   mentorAssignmentEndSchema,
@@ -32,6 +33,7 @@ const listFiltersSchema = listQuerySchema.extend({
   status: z.enum(MENTOR_ASSIGNMENT_STATUSES).optional(),
   mentorProfileId: uuid.optional(),
   participantProfileId: uuid.optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -57,24 +59,29 @@ export class MentorAssignmentsController {
     @Body(zodBody(mentorAssignmentSchema)) body: MentorAssignmentInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.assignments.create(body, user.id);
+    return this.assignments.create(body, user);
   }
 
   @Get('assignments')
   @RequirePermission('mentoring.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { status, mentorProfileId, participantProfileId, ...listQuery } = query;
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { status, mentorProfileId, participantProfileId, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.assignments.list(listQuery as ListQuery, {
       status,
       mentorProfileId,
       participantProfileId,
+      state: user.chapter ?? state,
     });
   }
 
   @Get('assignments/:id')
   @RequirePermission('mentoring.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.assignments.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.assignments.get(id, user);
   }
 
   @Patch('assignments/:id')
@@ -84,7 +91,7 @@ export class MentorAssignmentsController {
     @Body(zodBody(updateSchema)) body: UpdateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.assignments.update(id, body, user.id);
+    return this.assignments.update(id, body, user);
   }
 
   // mentoring.read, not update: case managers approve matches but hold only
@@ -103,7 +110,7 @@ export class MentorAssignmentsController {
     @Body(zodBody(mentorAssignmentPauseSchema)) body: MentorAssignmentPauseInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.assignments.pause(id, body, user.id);
+    return this.assignments.pause(id, body, user);
   }
 
   @Post('assignments/:id/end')
@@ -113,7 +120,7 @@ export class MentorAssignmentsController {
     @Body(zodBody(mentorAssignmentEndSchema)) body: MentorAssignmentEndInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.assignments.end(id, body, user.id);
+    return this.assignments.end(id, body, user);
   }
 
   @Post('session-logs')
@@ -122,19 +129,22 @@ export class MentorAssignmentsController {
     @Body(zodBody(mentorSessionLogSchema)) body: MentorSessionLogInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.assignments.logSession(body, user.id);
+    return this.assignments.logSession(body, user);
   }
 
   @Get('session-logs')
   @RequirePermission('mentoring.read')
-  listSessions(@Query(zodQuery(sessionListFiltersSchema)) query: SessionListFilters) {
+  listSessions(
+    @Query(zodQuery(sessionListFiltersSchema)) query: SessionListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const { mentorAssignmentId, ...listQuery } = query;
-    return this.assignments.listSessions(listQuery as ListQuery, { mentorAssignmentId });
+    return this.assignments.listSessions(listQuery as ListQuery, { mentorAssignmentId }, user);
   }
 
   @Get('oversight')
   @RequirePermission('mentoring.read')
-  oversight() {
-    return this.assignments.oversight();
+  oversight(@CurrentUser() user: AuthenticatedUser) {
+    return this.assignments.oversight(user);
   }
 }

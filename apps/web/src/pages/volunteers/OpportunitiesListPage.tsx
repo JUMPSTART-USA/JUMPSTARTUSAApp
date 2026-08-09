@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BackLink } from '@/components/BackLink';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ export function OpportunitiesListPage() {
   const [listState, setListState] = useState<ListState>({ ...initialListState, sortBy: 'name' });
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [chapter, setChapter] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const debouncedSearch = useDebounced(search);
 
@@ -42,6 +44,7 @@ export function OpportunitiesListPage() {
     sortDir: listState.sortDir,
     search: debouncedSearch,
     status,
+    state: chapter,
   };
 
   const { data, isLoading, error } = useQuery({
@@ -143,6 +146,13 @@ export function OpportunitiesListPage() {
             </option>
           ))}
         </Select>
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
+        />
       </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}

@@ -7,7 +7,9 @@ import {
 import type { Prisma } from '@jumpstart/database';
 import type { ChecklistItemUpdateInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { assertParticipant } from './participant.util';
 
 export interface CreateChecklistInput {
@@ -21,7 +23,7 @@ const CHECKLIST_INCLUDE = {
   items: { orderBy: { sortOrder: 'asc' as const } },
   template: { select: { name: true } },
   participantProfile: {
-    select: { person: { select: { firstName: true, lastName: true } } },
+    select: { chapterState: true, person: { select: { firstName: true, lastName: true } } },
   },
 } as const;
 
@@ -38,8 +40,9 @@ export class OnboardingService {
    * admin-editable (§6.5) and later edits must not rewrite in-flight
    * checklists; templateItemId is provenance only.
    */
-  async createChecklist(input: CreateChecklistInput, userId: string) {
-    await assertParticipant(this.prisma, input.participantProfileId);
+  async createChecklist(input: CreateChecklistInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
 
     const open = await this.prisma.onboardingChecklist.findFirst({
       where: { participantProfileId: input.participantProfileId, completedAt: null },
@@ -86,11 +89,16 @@ export class OnboardingService {
     return checklist;
   }
 
-  async listChecklists(query: ListQuery, filters: { participantProfileId?: string }) {
+  async listChecklists(
+    query: ListQuery,
+    filters: { participantProfileId?: string; state?: string },
+  ) {
     const where: Prisma.OnboardingChecklistWhereInput = {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): derived through the participant profile.
+      ...(filters.state ? { participantProfile: { chapterState: filters.state } } : {}),
     };
 
     const orderBy: Prisma.OnboardingChecklistOrderByWithRelationInput =
@@ -112,21 +120,30 @@ export class OnboardingService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async getChecklist(id: string) {
+  async getChecklist(id: string, user: AuthenticatedUser) {
     const checklist = await this.prisma.onboardingChecklist.findFirst({
       where: { id },
       include: CHECKLIST_INCLUDE,
     });
     if (!checklist) throw new NotFoundException('Onboarding checklist not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (participant).
+    assertChapterAccess(user.chapter, checklist.participantProfile.chapterState);
     return checklist;
   }
 
-  async updateItem(itemId: string, input: ChecklistItemUpdateInput, userId: string) {
+  async updateItem(itemId: string, input: ChecklistItemUpdateInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.prisma.onboardingChecklistItem.findFirst({
       where: { id: itemId },
-      include: { checklist: true },
+      include: {
+        checklist: {
+          include: { participantProfile: { select: { chapterState: true } } },
+        },
+      },
     });
     if (!existing) throw new NotFoundException('Checklist item not found');
+    // Chapter scoping (§7.2): derived through the checklist's participant.
+    assertChapterAccess(user.chapter, existing.checklist.participantProfile.chapterState);
 
     const becameCompleted = input.status === 'completed';
     const item = await this.prisma.onboardingChecklistItem.update({

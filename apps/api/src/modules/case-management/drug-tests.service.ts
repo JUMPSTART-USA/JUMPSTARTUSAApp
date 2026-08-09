@@ -2,7 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@jumpstart/database';
 import type { DrugTestInput, DrugTestResult, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { assertParticipant } from './participant.util';
 
 /**
@@ -25,6 +27,7 @@ export interface DrugTestListFilters {
   result?: DrugTestResult;
   from?: Date;
   to?: Date;
+  state?: string;
 }
 
 const SORTABLE = new Set(['testDate', 'testType', 'result', 'createdAt']);
@@ -83,6 +86,11 @@ export class DrugTestsService {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): derived through the participant profile. Wrapped
+      // in AND so the search's own participantProfile clause cannot replace it.
+      ...(filters.state
+        ? { AND: [{ participantProfile: { chapterState: filters.state } }] }
+        : {}),
       ...(filters.result ? { result: filters.result } : {}),
       ...(filters.from || filters.to
         ? {
@@ -124,8 +132,13 @@ export class DrugTestsService {
     return { items: rows.map(toListItem), total, page: query.page, pageSize: query.pageSize };
   }
 
-  async create(input: DrugTestCreateInput, photo: UploadedPhotoFile | undefined, userId: string) {
-    await assertParticipant(this.prisma, input.participantProfileId);
+  async create(
+    input: DrugTestCreateInput,
+    photo: UploadedPhotoFile | undefined,
+    user: AuthenticatedUser,
+  ) {
+    const userId = user.id;
+    await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
     const created = await this.prisma.drugTest.create({
       data: {
         ...input,
@@ -144,10 +157,13 @@ export class DrugTestsService {
     id: string,
     input: DrugTestUpdateInput,
     photo: UploadedPhotoFile | undefined,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const existing = await this.findTest(id);
-    if (input.participantProfileId) await assertParticipant(this.prisma, input.participantProfileId);
+    const userId = user.id;
+    const existing = await this.findTest(id, user.chapter);
+    if (input.participantProfileId) {
+      await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
+    }
 
     const updated = await this.prisma.drugTest.update({
       where: { id },
@@ -161,20 +177,31 @@ export class DrugTestsService {
     return view;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.findTest(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const existing = await this.findTest(id, user.chapter);
     await this.prisma.drugTest.update({ where: { id }, data: { deletedAt: new Date() } });
-    await this.audit.logDelete(userId, 'drug_test', id, toView(existing));
+    await this.audit.logDelete(user.id, 'drug_test', id, toView(existing));
     return { ok: true };
   }
 
   /** The one query allowed to read photoData — streams bytes to the caller. */
-  async getPhoto(id: string): Promise<{ data: Buffer; mimeType: string; fileName: string }> {
+  async getPhoto(
+    id: string,
+    userChapter: string | null,
+  ): Promise<{ data: Buffer; mimeType: string; fileName: string }> {
     const row = await this.prisma.drugTest.findFirst({
       where: { id, deletedAt: null },
-      select: { photoData: true, photoMimeType: true, photoFileName: true },
+      select: {
+        photoData: true,
+        photoMimeType: true,
+        photoFileName: true,
+        participantProfile: { select: { chapterState: true } },
+      },
     });
     if (!row) throw new NotFoundException('Drug test not found');
+    // Chapter scoping (§7.2): the photo is the most sensitive read here —
+    // guard it exactly like the record itself (participant chapter).
+    assertChapterAccess(userChapter, row.participantProfile.chapterState);
     if (!row.photoData || !row.photoMimeType) {
       throw new NotFoundException('This drug test has no photo');
     }
@@ -197,12 +224,15 @@ export class DrugTestsService {
     };
   }
 
-  private async findTest(id: string): Promise<DrugTestViewRow> {
+  /** Fetch-for-mutation with the chapter guard (§7.2) applied once. */
+  private async findTest(id: string, userChapter: string | null): Promise<DrugTestViewRow> {
     const test = await this.prisma.drugTest.findFirst({
       where: { id, deletedAt: null },
-      select: VIEW_SELECT,
+      select: { ...VIEW_SELECT, participantProfile: { select: { chapterState: true } } },
     });
     if (!test) throw new NotFoundException('Drug test not found');
-    return test;
+    assertChapterAccess(userChapter, test.participantProfile.chapterState);
+    const { participantProfile: _participantProfile, ...testOnly } = test;
+    return testOnly;
   }
 }

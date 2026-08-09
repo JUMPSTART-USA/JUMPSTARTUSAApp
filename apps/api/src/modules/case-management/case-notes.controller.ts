@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   caseNoteSchema,
   listQuerySchema,
   NOTE_CATEGORIES,
@@ -29,6 +30,7 @@ const listFiltersSchema = listQuerySchema.extend({
   category: z.enum(NOTE_CATEGORIES).optional(),
   from: optionalDate,
   to: optionalDate,
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -43,8 +45,13 @@ export class CaseNotesController {
   @Get()
   @RequirePermission('case_management.read')
   list(@Query(zodQuery(listFiltersSchema)) query: ListFilters, @CurrentUser() user: AuthenticatedUser) {
-    const { participantProfileId, category, from, to, ...listQuery } = query;
-    return this.notes.list(listQuery as ListQuery, { participantProfileId, category, from, to }, user);
+    const { participantProfileId, category, from, to, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.notes.list(
+      listQuery as ListQuery,
+      { participantProfileId, category, from, to, state: user.chapter ?? state },
+      user,
+    );
   }
 
   @Get(':id')
@@ -59,13 +66,13 @@ export class CaseNotesController {
     @Body(zodBody(caseNoteSchema)) body: CaseNoteInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.notes.create(body, user.id);
+    return this.notes.create(body, user);
   }
 
   @Post(':id/complete-follow-up')
   @RequirePermission('case_management.update')
   completeFollowUp(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.notes.completeFollowUp(id, user.id);
+    return this.notes.completeFollowUp(id, user);
   }
 
   @Patch(':id')

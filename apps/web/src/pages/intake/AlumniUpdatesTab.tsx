@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { Badge, StatusBadge } from '@/components/ui/badge';
@@ -219,11 +220,12 @@ export function AlumniUpdatesTab() {
   const { can } = useAuth();
   const [state, setState] = useState<ListState>({ ...initialListState, sortBy: 'submittedAt' });
   const [status, setStatus] = useState('pending');
+  const [stateFilter, setStateFilter] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
   const query = useQuery({
-    queryKey: ['intake', 'alumni-updates', state, status],
+    queryKey: ['intake', 'alumni-updates', state, status, stateFilter],
     queryFn: () =>
       api.get<Paged<AlumniUpdateItem>>(
         `/intake/alumni-updates${qs({
@@ -232,6 +234,7 @@ export function AlumniUpdatesTab() {
           sortBy: state.sortBy,
           sortDir: state.sortDir,
           status: status || undefined,
+          state: stateFilter,
         })}`,
       ),
   });
@@ -252,6 +255,12 @@ export function AlumniUpdatesTab() {
           </span>
         </span>
       ),
+    },
+    // The alum's CHAPTER (§7.2) — this update derives its chapter from it.
+    {
+      key: 'chapter',
+      header: 'Chapter',
+      render: (u) => u.participantProfile.chapterState,
     },
     {
       key: 'changes',
@@ -298,6 +307,15 @@ export function AlumniUpdatesTab() {
             </option>
           ))}
         </Select>
+        {/* Chapter filter (§7.2) — maps to the alum's chapter server-side;
+            hidden for scoped users (the API forces their chapter). */}
+        <ChapterFilterSelect
+          value={stateFilter}
+          onChange={(value) => {
+            setStateFilter(value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        />
         <ToolbarSpacer />
         {can('alumni.update') ? (
           <Button variant="outline" onClick={() => setGenerating(true)}>

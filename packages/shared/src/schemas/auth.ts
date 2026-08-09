@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHAPTER_STATES } from '../chapters';
 import { ROLE_KEYS } from '../permissions';
 import { requiredTrimmed, uuid } from './common';
 
@@ -28,6 +29,9 @@ export const createUserSchema = z.object({
   lastName: requiredTrimmed.pipe(z.string().max(100)),
   roles: z.array(z.enum(ROLE_KEYS)).min(1, 'Assign at least one role'),
   personId: uuid.optional(),
+  // Chapter scope (§7.2): null/omitted = all chapters. Rejected for admins —
+  // administrators are always all-chapters (docs/chapter-scoping.md).
+  chapter: z.enum(CHAPTER_STATES).nullable().optional(),
 });
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 

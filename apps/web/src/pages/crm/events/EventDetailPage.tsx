@@ -113,6 +113,9 @@ export function EventDetailPage() {
           </CardHeader>
           <CardContent>
             <DescriptionList className="gap-y-3">
+              <InfoItem label="Chapter">
+                <Badge variant="outline">{event.chapterState}</Badge>
+              </InfoItem>
               <InfoItem label="Campaign">
                 {event.campaign ? (
                   <Link to={`/campaigns/${event.campaign.id}`} className="text-primary hover:underline">

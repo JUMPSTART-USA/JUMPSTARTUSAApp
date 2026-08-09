@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHAPTER_STATES } from '../chapters';
 import {
   ALUMNI_STATUSES,
   INSIDE_LOCATION_STATUSES,
@@ -35,6 +36,13 @@ export const participantProfileFieldsSchema = z.object({
 export const participantCreateSchema = z.object({
   person: personCoreSchema,
   profile: participantProfileFieldsSchema,
+  /**
+   * Chapter assignment (§7.2, docs/chapter-scoping.md): optional at the pipe —
+   * the service stamps a chapter-scoped creator's own chapter and rejects
+   * creates from all-chapters users that omit it (resolveCreateChapter).
+   * person.state stays the optional mailing-address field.
+   */
+  chapterState: z.enum(CHAPTER_STATES).optional(),
   /** Set true to skip the duplicate-candidate check after reviewing matches. */
   confirmNotDuplicate: z.boolean().default(false),
 });
@@ -49,6 +57,12 @@ export type ParticipantCreateInput = z.infer<typeof participantCreateSchema>;
  * (plan assumption #10).
  */
 export const participantProfileUpdateFieldsSchema = z.object({
+  /**
+   * Chapter reassignment (§7.2): only all-chapters users can effectively move
+   * a record — the service asserts both the existing and the incoming chapter
+   * against the caller's scope.
+   */
+  chapterState: z.enum(CHAPTER_STATES).optional(),
   insideStatus: z.enum(INSIDE_STATUSES).optional(),
   outsideStatus: z.enum(OUTSIDE_STATUSES).optional(),
   phase: optionalTrimmed,

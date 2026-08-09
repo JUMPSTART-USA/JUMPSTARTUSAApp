@@ -1,8 +1,9 @@
-import { HOME_GENDER_LABELS, HOUSING_STATUSES, US_STATES } from '@jumpstart/shared';
+import { HOME_GENDER_LABELS, HOUSING_STATUSES } from '@jumpstart/shared';
 import { useQuery } from '@tanstack/react-query';
 import { BedDouble, Plus, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -229,14 +230,8 @@ function HomesTab() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Select value={state} onChange={(e) => setState(e.target.value)} className="w-full sm:w-44">
-          <option value="">All states</option>
-          {US_STATES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </Select>
+        {/* Home state IS the chapter (§7.2) — hidden for scoped users. */}
+        <ChapterFilterSelect value={state} onChange={setState} />
         <Select
           value={active}
           onChange={(e) => setActive(e.target.value)}

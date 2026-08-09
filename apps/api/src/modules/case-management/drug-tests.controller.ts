@@ -16,6 +16,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import {
+  CHAPTER_STATES,
   DRUG_TEST_RESULTS,
   drugTestSchema,
   listQuerySchema,
@@ -65,6 +66,7 @@ const listFiltersSchema = listQuerySchema.extend({
   result: z.enum(DRUG_TEST_RESULTS).optional(),
   from: optionalDate,
   to: optionalDate,
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -96,9 +98,19 @@ export class DrugTestsController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, result, from, to, ...listQuery } = query;
-    return this.drugTests.list(listQuery as ListQuery, { participantProfileId, result, from, to });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, result, from, to, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.drugTests.list(listQuery as ListQuery, {
+      participantProfileId,
+      result,
+      from,
+      to,
+      state: user.chapter ?? state,
+    });
   }
 
   @Post()
@@ -109,7 +121,7 @@ export class DrugTestsController {
     @UploadedFile() photo: UploadedPhotoFile | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.drugTests.create(body, photo, user.id);
+    return this.drugTests.create(body, photo, user);
   }
 
   @Patch(':id')
@@ -121,19 +133,23 @@ export class DrugTestsController {
     @UploadedFile() photo: UploadedPhotoFile | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.drugTests.update(id, body, photo, user.id);
+    return this.drugTests.update(id, body, photo, user);
   }
 
   @Delete(':id')
   @RequirePermission('case_management.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.drugTests.softDelete(id, user.id);
+    return this.drugTests.softDelete(id, user);
   }
 
   @Get(':id/photo')
   @RequirePermission('case_management.read')
-  async photo(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
-    const photo = await this.drugTests.getPhoto(id);
+  async photo(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const photo = await this.drugTests.getPhoto(id, user.chapter);
     // Stored filenames come from the browser — keep the header quote-safe.
     const safeName = photo.fileName.replace(/[^\w.\- ]+/g, '_') || 'photo';
     res.setHeader('Content-Type', photo.mimeType);

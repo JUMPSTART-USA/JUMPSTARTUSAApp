@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Send } from 'lucide-react';
 import { useState } from 'react';
 import { COMM_CHANNELS, COMM_STATUSES } from '@jumpstart/shared';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
@@ -32,6 +33,7 @@ export function HistoryPage() {
   const [person, setPerson] = useState<PersonHit | null>(null);
   const [channel, setChannel] = useState('');
   const [status, setStatus] = useState('');
+  const [chapter, setChapter] = useState('');
   const [search, setSearch] = useState('');
   const [detail, setDetail] = useState<CommunicationRow | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
@@ -45,6 +47,7 @@ export function HistoryPage() {
     personId: person?.personId,
     channel,
     status,
+    state: chapter,
     search: debouncedSearch,
   });
 
@@ -160,6 +163,13 @@ export function HistoryPage() {
             </option>
           ))}
         </Select>
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
+        />
       </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}

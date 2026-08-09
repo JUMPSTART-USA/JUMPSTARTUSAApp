@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHAPTER_STATES } from '../chapters';
 import {
   ASSIGNMENT_STATUSES,
   ASSIGNMENT_TYPES,
@@ -9,7 +10,6 @@ import {
   HOURS_STATUSES,
   OPPORTUNITY_STATUSES,
   SHIFT_SIGNUP_STATUSES,
-  US_STATES,
   VOLUNTEER_STATUSES,
 } from '../enums';
 import {
@@ -35,6 +35,10 @@ export const volunteerProfileFieldsSchema = z.object({
 export const volunteerCreateSchema = z.object({
   person: personCoreSchema,
   profile: volunteerProfileFieldsSchema,
+  // Chapter (§7.2): optional at the pipe — the service stamps a scoped
+  // creator's chapter and requires a pick from all-chapters users.
+  // person.state stays a mailing address, never the chapter.
+  chapterState: z.enum(CHAPTER_STATES).optional(),
   confirmNotDuplicate: z.boolean().default(false),
 });
 export type VolunteerCreateInput = z.infer<typeof volunteerCreateSchema>;
@@ -132,7 +136,9 @@ export const volunteerOpportunitySchema = z.object({
   name: requiredTrimmed.pipe(z.string().max(200)),
   // Clearable on update: null = clear, undefined = no change.
   description: clearableTrimmed,
-  state: z.enum(US_STATES).nullable().optional(),
+  // Chapter (§7.2): optional at the pipe — the service stamps a scoped
+  // creator's chapter and requires a pick from all-chapters users.
+  state: z.enum(CHAPTER_STATES).nullable().optional(),
   institutionId: uuid.nullable().optional(),
   outsideProgramId: uuid.nullable().optional(),
   eventId: uuid.nullable().optional(),

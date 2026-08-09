@@ -15,8 +15,18 @@ export interface DuplicateProbe {
  * Duplicated from the participants module (cross-module services are not
  * imported; PrismaService is the shared surface). Queue items are decorated
  * with these candidates so reviewers LINK instead of CREATE (§6.11).
+ *
+ * Chapter scoping (§7.2, docs/chapter-scoping.md "Cross-chapter dedupe"):
+ * `userChapter` restricts a scoped reviewer to candidates they could actually
+ * act on — their chapter's profiles or profile-less persons — so the queue's
+ * dedupe decoration cannot become a cross-chapter people-lookup oracle.
+ * All-chapters reviewers (null) keep the global match set for org-wide dedupe.
  */
-export async function findDuplicateCandidates(prisma: PrismaService, probe: DuplicateProbe) {
+export async function findDuplicateCandidates(
+  prisma: PrismaService,
+  probe: DuplicateProbe,
+  userChapter: string | null,
+) {
   const or: Prisma.PersonWhereInput[] = [
     {
       firstName: { equals: probe.firstName, mode: 'insensitive' },
@@ -33,7 +43,25 @@ export async function findDuplicateCandidates(prisma: PrismaService, probe: Dupl
   }
 
   const matches = await prisma.person.findMany({
-    where: { deletedAt: null, OR: or },
+    where: {
+      deletedAt: null,
+      OR: or,
+      // Scoped reviewers only see candidates in their own chapter (or with no
+      // profile yet); mirrors participants.duplicateCheck and donors matching.
+      ...(userChapter
+        ? {
+            AND: [
+              {
+                OR: [
+                  { participantProfile: { chapterState: userChapter } },
+                  { volunteerProfile: { chapterState: userChapter } },
+                  { participantProfile: { is: null }, volunteerProfile: { is: null } },
+                ],
+              },
+            ],
+          }
+        : {}),
+    },
     select: {
       id: true,
       firstName: true,

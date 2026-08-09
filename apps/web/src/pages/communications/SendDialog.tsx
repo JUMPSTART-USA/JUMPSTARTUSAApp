@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { COMM_CHANNELS, sendCommunicationSchema, type CommChannel } from '@jumpstart/shared';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,6 +34,7 @@ interface SendFormValues {
   templateId: string;
   subject: string;
   body: string;
+  chapterState: string;
 }
 
 export function SendDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -53,7 +55,14 @@ export function SendDialog({ open, onClose }: { open: boolean; onClose: () => vo
     if (open) {
       setTopError('');
       setPerson(null);
-      reset({ personId: '', channel: 'email', templateId: '', subject: '', body: '' });
+      reset({
+        personId: '',
+        channel: 'email',
+        templateId: '',
+        subject: '',
+        body: '',
+        chapterState: '',
+      });
     }
   }, [open, reset]);
 
@@ -69,6 +78,9 @@ export function SendDialog({ open, onClose }: { open: boolean; onClose: () => vo
         subject:
           raw.templateId || raw.channel !== 'email' ? undefined : raw.subject.trim() || undefined,
         body: raw.templateId ? undefined : raw.body.trim() || undefined,
+        // Chapter (§7.2): only all-chapters users see the picker; the server
+        // prefers the recipient's own chapter and uses this as the fallback.
+        chapterState: raw.chapterState || undefined,
       });
     },
     onSuccess: () => {
@@ -105,6 +117,14 @@ export function SendDialog({ open, onClose }: { open: boolean; onClose: () => vo
               }}
             />
           </FormField>
+          {/* Chapter (§7.2) — all-chapters users only; the message is stamped
+              with the recipient's own chapter when they have one, and this
+              pick covers recipients with no derivable chapter. */}
+          <ChapterSelect
+            error={formState.errors.chapterState}
+            hint="Used when the recipient has no chapter of their own."
+            {...register('chapterState', { setValueAs: (v) => (v === '' ? undefined : v) })}
+          />
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Channel" required error={formState.errors.channel}>
               <Select

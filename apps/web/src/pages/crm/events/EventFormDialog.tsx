@@ -3,6 +3,7 @@ import { eventSchema } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,6 +16,7 @@ import {
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { applyApiError } from '@/lib/form';
 import { useCampaignOptions } from '../shared';
 import type { EventRecord } from '../types';
@@ -24,6 +26,8 @@ interface EventFormValues {
   eventType?: string;
   eventDate: string;
   location?: string;
+  /** Chapter (§7.2) — the API stamps scoped users' own chapter. */
+  chapterState?: string;
   campaignId?: string;
   description?: string;
   attendanceCount?: number | string;
@@ -42,6 +46,8 @@ export function EventFormDialog({
   event?: EventRecord | null;
 }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const chapter = user?.chapter ?? null;
   const [formError, setFormError] = useState<string | null>(null);
   const campaignOptions = useCampaignOptions();
 
@@ -58,6 +64,7 @@ export function EventFormDialog({
               eventType: event.eventType ?? '',
               eventDate: event.eventDate.slice(0, 10),
               location: event.location ?? '',
+              chapterState: event.chapterState,
               campaignId: event.campaignId ?? '',
               description: event.description ?? '',
               attendanceCount: event.attendanceCount ?? '',
@@ -65,11 +72,12 @@ export function EventFormDialog({
               expenses: event.expenses ?? '',
               notes: event.notes ?? '',
             }
-          : { name: '', eventDate: '' },
+          : // Chapter (§7.2): scoped users never see the picker — theirs is preset.
+            { name: '', eventDate: '', chapterState: chapter ?? '' },
       );
       setFormError(null);
     }
-  }, [open, event]);
+  }, [open, event, chapter]);
 
   const mutation = useMutation({
     mutationFn: (values: EventFormValues) =>
@@ -118,6 +126,12 @@ export function EventFormDialog({
             </FormField>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Chapter (§7.2) — hidden for scoped users, whose chapter is
+                stamped server-side. A linked campaign must be in this chapter. */}
+            <ChapterSelect
+              error={form.formState.errors.chapterState}
+              {...form.register('chapterState', optional)}
+            />
             <FormField label="Location" error={form.formState.errors.location}>
               <Input {...form.register('location', optional)} />
             </FormField>

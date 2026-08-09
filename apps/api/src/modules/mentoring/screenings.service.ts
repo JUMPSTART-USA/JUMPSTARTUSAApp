@@ -13,7 +13,9 @@ import type {
   MentorScreeningStepInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 const SORTABLE = new Set(['stage', 'createdAt', 'updatedAt', 'approvedAt']);
 
@@ -23,6 +25,7 @@ const SORTABLE = new Set(['stage', 'createdAt', 'updatedAt', 'approvedAt']);
 const VOLUNTEER_SUMMARY = {
   select: {
     id: true,
+    chapterState: true,
     person: {
       select: {
         firstName: true,
@@ -58,11 +61,14 @@ export class MentorScreeningsService {
    * (label/sortOrder/required) so later template edits never rewrite an
    * in-flight or historical screening (§6.7, mirrors §6.5 checklists).
    */
-  async create(input: MentorScreeningInput, userId: string) {
+  async create(input: MentorScreeningInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const volunteer = await this.prisma.volunteerProfile.findFirst({
       where: { id: input.volunteerProfileId, deletedAt: null },
     });
     if (!volunteer) throw new BadRequestException('Volunteer profile not found');
+    // Chapter scoping (§7.2): the screening inherits the volunteer's chapter.
+    assertChapterAccess(user.chapter, volunteer.chapterState);
 
     // Approval has side effects (mentor flag) — it must go through PATCH, the
     // single approval path, never through create.
@@ -110,22 +116,28 @@ export class MentorScreeningsService {
     });
 
     await this.audit.logCreate(userId, 'mentor_screening', screening.id, screening);
-    return this.get(screening.id);
+    return this.get(screening.id, user);
   }
 
   /** Pipeline/kanban feed (§6.7 workflow 3). */
-  async list(query: ListQuery, filters: { stage?: MentorScreeningStage }) {
+  async list(query: ListQuery, filters: { stage?: MentorScreeningStage; state?: string }) {
     const where: Prisma.MentorScreeningWhereInput = {
       ...(filters.stage ? { stage: filters.stage } : {}),
-      ...(query.search
+      ...(filters.state || query.search
         ? {
             volunteerProfile: {
-              person: {
-                OR: [
-                  { firstName: { contains: query.search, mode: 'insensitive' } },
-                  { lastName: { contains: query.search, mode: 'insensitive' } },
-                ],
-              },
+              // Chapter scoping (§7.2): derived through the volunteer profile.
+              ...(filters.state ? { chapterState: filters.state } : {}),
+              ...(query.search
+                ? {
+                    person: {
+                      OR: [
+                        { firstName: { contains: query.search, mode: 'insensitive' } },
+                        { lastName: { contains: query.search, mode: 'insensitive' } },
+                      ],
+                    },
+                  }
+                : {}),
             },
           }
         : {}),
@@ -162,7 +174,7 @@ export class MentorScreeningsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const screening = await this.prisma.mentorScreening.findUnique({
       where: { id },
       include: {
@@ -172,6 +184,8 @@ export class MentorScreeningsService {
       },
     });
     if (!screening) throw new NotFoundException('Mentor screening not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (volunteer).
+    assertChapterAccess(user.chapter, screening.volunteerProfile.chapterState);
     return toView(screening);
   }
 
@@ -183,10 +197,18 @@ export class MentorScreeningsService {
   async update(
     id: string,
     input: Partial<Omit<MentorScreeningInput, 'volunteerProfileId'>>,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const existing = await this.prisma.mentorScreening.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Mentor screening not found');
+    const userId = user.id;
+    const withVolunteer = await this.prisma.mentorScreening.findUnique({
+      where: { id },
+      include: { volunteerProfile: { select: { chapterState: true } } },
+    });
+    if (!withVolunteer) throw new NotFoundException('Mentor screening not found');
+    // Chapter scoping (§7.2): derived through the volunteer profile — checked
+    // before the approve transaction flips volunteerProfile.isMentor.
+    assertChapterAccess(user.chapter, withVolunteer.volunteerProfile.chapterState);
+    const { volunteerProfile: _volunteer, ...existing } = withVolunteer;
 
     const becomingApproved = input.stage === 'approved' && existing.stage !== 'approved';
     const volunteerBefore = becomingApproved
@@ -228,15 +250,19 @@ export class MentorScreeningsService {
         { isMentor: true, mentorStatus: updated.conditions },
       );
     }
-    return this.get(id);
+    return this.get(id, user);
   }
 
   /** Record a stage outcome (interview passed, references waived, …). */
-  async addStep(screeningId: string, input: MentorScreeningStepInput, userId: string) {
+  async addStep(screeningId: string, input: MentorScreeningStepInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const screening = await this.prisma.mentorScreening.findUnique({
       where: { id: screeningId },
+      include: { volunteerProfile: { select: { chapterState: true } } },
     });
     if (!screening) throw new NotFoundException('Mentor screening not found');
+    // Chapter scoping (§7.2): derived through the screening's volunteer.
+    assertChapterAccess(user.chapter, screening.volunteerProfile.chapterState);
 
     const step = await this.prisma.mentorScreeningStep.create({
       data: { ...input, screeningId },
@@ -245,9 +271,22 @@ export class MentorScreeningsService {
     return step;
   }
 
-  async updateCriterion(id: string, input: MentorScreeningCriterionUpdateInput, userId: string) {
-    const existing = await this.prisma.mentorScreeningCriterion.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Screening criterion not found');
+  async updateCriterion(
+    id: string,
+    input: MentorScreeningCriterionUpdateInput,
+    user: AuthenticatedUser,
+  ) {
+    const userId = user.id;
+    const withScreening = await this.prisma.mentorScreeningCriterion.findUnique({
+      where: { id },
+      include: {
+        screening: { select: { volunteerProfile: { select: { chapterState: true } } } },
+      },
+    });
+    if (!withScreening) throw new NotFoundException('Screening criterion not found');
+    // Chapter scoping (§7.2): derived through the screening's volunteer.
+    assertChapterAccess(user.chapter, withScreening.screening.volunteerProfile.chapterState);
+    const { screening: _screening, ...existing } = withScreening;
 
     // Completion stamps are set on the transition, not on every save.
     const completing = input.status === 'completed' && existing.status !== 'completed';

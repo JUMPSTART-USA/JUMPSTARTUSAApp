@@ -8,6 +8,7 @@ import type {
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import type { AuthenticatedUser } from '../../common/types';
 
 /**
@@ -44,49 +45,78 @@ interface EntityRule {
   read: PermissionKey;
   /** Gates upload + delete. */
   write: PermissionKey;
-  /** Existence check (respecting the parent's soft delete where it has one). */
-  exists: (prisma: PrismaService, id: string) => Promise<{ id: string } | null>;
+  /**
+   * Locate the parent (respecting its soft delete where it has one) and derive
+   * its chapter (§7.2) so attachment access is chapter-scoped like the parent.
+   * Returns null when the parent does not exist; chapterState is the parent's
+   * chapter or null for chapter-neutral parents.
+   */
+  locate: (
+    prisma: PrismaService,
+    id: string,
+  ) => Promise<{ id: string; chapterState: string | null } | null>;
 }
 
 /**
  * THE authorization table (one place): entityType → permission pair + parent
- * lookup. Attachment access always derives from the entity the file hangs on.
- * VolunteerTraining / VolunteerClearance have no deletedAt column, so their
- * checks are plain existence.
+ * lookup. Attachment access always derives from the entity the file hangs on,
+ * including its chapter (§7.2) — a scoped user reaches only their chapter's
+ * files. VolunteerTraining / VolunteerClearance have no deletedAt column, so
+ * their checks are plain existence.
  */
 const ENTITY_RULES: Record<AttachmentEntityType, EntityRule> = {
   participant_profile: {
     read: 'participants.read',
     write: 'participants.update',
-    exists: (prisma, id) =>
-      prisma.participantProfile.findFirst({ where: { id, deletedAt: null }, select: { id: true } }),
+    locate: async (prisma, id) =>
+      prisma.participantProfile.findFirst({
+        where: { id, deletedAt: null },
+        select: { id: true, chapterState: true },
+      }),
   },
   case_note: {
     read: 'case_management.read',
     write: 'case_management.update',
-    exists: (prisma, id) =>
-      prisma.caseNote.findFirst({ where: { id, deletedAt: null }, select: { id: true } }),
+    locate: async (prisma, id) => {
+      const row = await prisma.caseNote.findFirst({
+        where: { id, deletedAt: null },
+        select: { id: true, participantProfile: { select: { chapterState: true } } },
+      });
+      return row ? { id: row.id, chapterState: row.participantProfile.chapterState } : null;
+    },
   },
   vehicle_maintenance_record: {
     read: 'vehicles.read',
     write: 'vehicles.update',
-    exists: (prisma, id) =>
-      prisma.vehicleMaintenanceRecord.findFirst({
+    locate: async (prisma, id) => {
+      const row = await prisma.vehicleMaintenanceRecord.findFirst({
         where: { id, deletedAt: null },
-        select: { id: true },
-      }),
+        select: { id: true, vehicle: { select: { chapterState: true } } },
+      });
+      return row ? { id: row.id, chapterState: row.vehicle.chapterState } : null;
+    },
   },
   volunteer_training: {
     read: 'volunteers.read',
     write: 'volunteers.update',
-    exists: (prisma, id) =>
-      prisma.volunteerTraining.findFirst({ where: { id }, select: { id: true } }),
+    locate: async (prisma, id) => {
+      const row = await prisma.volunteerTraining.findFirst({
+        where: { id },
+        select: { id: true, volunteerProfile: { select: { chapterState: true } } },
+      });
+      return row ? { id: row.id, chapterState: row.volunteerProfile.chapterState } : null;
+    },
   },
   volunteer_clearance: {
     read: 'volunteers.read',
     write: 'volunteers.update',
-    exists: (prisma, id) =>
-      prisma.volunteerClearance.findFirst({ where: { id }, select: { id: true } }),
+    locate: async (prisma, id) => {
+      const row = await prisma.volunteerClearance.findFirst({
+        where: { id },
+        select: { id: true, volunteerProfile: { select: { chapterState: true } } },
+      });
+      return row ? { id: row.id, chapterState: row.volunteerProfile.chapterState } : null;
+    },
   },
 };
 
@@ -105,6 +135,12 @@ export class AttachmentsService {
   async list(query: AttachmentListQuery, viewer: AuthenticatedUser): Promise<AttachmentView[]> {
     const rules = this.rulesFor(query.entityType);
     this.requirePermission(viewer, rules.read);
+
+    // Chapter scoping (§7.2): resolve the parent and reject if it is another
+    // chapter's — a scoped user cannot list a foreign entity's attachments.
+    const parent = await rules.locate(this.prisma, query.entityId);
+    if (!parent) throw new NotFoundException(`${query.entityType} not found`);
+    assertChapterAccess(viewer.chapter, parent.chapterState);
 
     return this.prisma.attachment.findMany({
       where: {
@@ -128,8 +164,10 @@ export class AttachmentsService {
     const rules = this.rulesFor(input.entityType);
     this.requirePermission(user, rules.write);
 
-    const entity = await rules.exists(this.prisma, input.entityId);
+    const entity = await rules.locate(this.prisma, input.entityId);
     if (!entity) throw new NotFoundException(`${input.entityType} not found`);
+    // Chapter scoping (§7.2): no uploading into another chapter's entity.
+    assertChapterAccess(user.chapter, entity.chapterState);
 
     const created = await this.prisma.attachment.create({
       data: {
@@ -165,6 +203,9 @@ export class AttachmentsService {
 
     const rules = this.rulesFor(row.entityType);
     this.requirePermission(viewer, rules.read);
+    // Chapter scoping (§7.2): the file inherits its parent entity's chapter.
+    const parent = await rules.locate(this.prisma, row.entityId);
+    assertChapterAccess(viewer.chapter, parent?.chapterState ?? null);
     if (row.sensitivity === 'confidential') {
       this.requirePermission(viewer, CONFIDENTIAL_READ);
       // §7.3 — reads of confidential content are themselves audit-logged.
@@ -191,6 +232,9 @@ export class AttachmentsService {
 
     const rules = this.rulesFor(row.entityType);
     this.requirePermission(user, rules.write);
+    // Chapter scoping (§7.2): no deleting another chapter's file.
+    const parent = await rules.locate(this.prisma, row.entityId);
+    assertChapterAccess(user.chapter, parent?.chapterState ?? null);
     // You cannot delete what you cannot see: confidential attachments require
     // the same special permission that gates listing/downloading them.
     if (row.sensitivity === 'confidential') this.requirePermission(user, CONFIDENTIAL_READ);

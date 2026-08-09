@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   checklistItemUpdateSchema,
   listQuerySchema,
   uuid,
@@ -21,6 +22,7 @@ const createChecklistSchema = z.object({
 
 const listFiltersSchema = listQuerySchema.extend({
   participantProfileId: uuid.optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -34,20 +36,27 @@ export class OnboardingController {
     @Body(zodBody(createChecklistSchema)) body: CreateChecklistInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.onboarding.createChecklist(body, user.id);
+    return this.onboarding.createChecklist(body, user);
   }
 
   @Get('checklists')
   @RequirePermission('case_management.read')
-  listChecklists(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, ...listQuery } = query;
-    return this.onboarding.listChecklists(listQuery as ListQuery, { participantProfileId });
+  listChecklists(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.onboarding.listChecklists(listQuery as ListQuery, {
+      participantProfileId,
+      state: user.chapter ?? state,
+    });
   }
 
   @Get('checklists/:id')
   @RequirePermission('case_management.read')
-  getChecklist(@Param('id', ParseUUIDPipe) id: string) {
-    return this.onboarding.getChecklist(id);
+  getChecklist(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.onboarding.getChecklist(id, user);
   }
 
   @Patch('items/:itemId')
@@ -57,6 +66,6 @@ export class OnboardingController {
     @Body(zodBody(checklistItemUpdateSchema)) body: ChecklistItemUpdateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.onboarding.updateItem(itemId, body, user.id);
+    return this.onboarding.updateItem(itemId, body, user);
   }
 }

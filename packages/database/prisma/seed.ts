@@ -66,10 +66,18 @@ const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 const min = (a: Date, b: Date) => (a < b ? a : b);
 
 const pad5 = (n: number) => String(n).padStart(5, '0');
-const AREA: Record<string, string> = { TN: '615', SC: '803', GA: '404', TX: '512' };
-const CITY: Record<string, string> = { TN: 'Nashville', SC: 'Columbia', GA: 'Atlanta', TX: 'Houston' };
+// Demo geography is keyed to the six JUMPSTART chapters (CHAPTER_STATES) —
+// SC is the dominant chapter, with GA and TX present so chapter scoping
+// (§7.2) is visible in the data. No non-chapter state appears as a chapter.
+const AREA: Record<string, string> = { FL: '813', GA: '404', NC: '704', OH: '614', SC: '803', TX: '512' };
+const CITY: Record<string, string> = { FL: 'Tampa', GA: 'Atlanta', NC: 'Charlotte', OH: 'Columbus', SC: 'Columbia', TX: 'Houston' };
+const ZIP_BASE: Record<string, number> = { FL: 33600, GA: 30300, NC: 28200, OH: 43200, SC: 29200, TX: 77000 };
 function phone(state: string, n: number): string {
-  return `${AREA[state] ?? '615'}-555-0${100 + (n % 100)}`;
+  return `${AREA[state] ?? '803'}-555-0${100 + (n % 100)}`;
+}
+/** Deterministic in-state ZIP so demo addresses agree with their state. */
+function zip(state: string, n: number): string {
+  return String((ZIP_BASE[state] ?? 29200) + (n % 90));
 }
 
 // Audit columns (plain string columns, no FK) — set after the admin user exists.
@@ -180,6 +188,17 @@ async function seedUsers(roleIdByKey: Map<RoleKey, string>): Promise<SeedUsers> 
   if (!cmRoleId) throw new Error('case_manager role missing');
   await prisma.userRole.create({ data: { userId: cm2.id, roleId: cmRoleId } });
 
+  // Chapter scoping (§7.2): two demo accounts are scoped to a single chapter
+  // so the enforcement is exercisable out of the box. Everyone else — admin,
+  // executive, the second case manager — has no scope row and therefore sees
+  // all chapters (admins are all-chapters regardless, docs/chapter-scoping.md).
+  await prisma.userRegionScope.createMany({
+    data: [
+      { userId: byRole.case_manager, state: 'SC' }, // Rachel Whitfield — SC only
+      { userId: byRole.volunteer_coordinator, state: 'GA' }, // Grace Linden — GA only
+    ],
+  });
+
   const adminId = byRole.admin;
   // Backfill audit columns on the users/roles themselves.
   await prisma.user.updateMany({ data: { createdById: adminId, updatedById: adminId } });
@@ -269,8 +288,8 @@ interface InstitutionInfo {
 }
 
 const INSTITUTIONS = [
-  { name: 'Cumberland Ridge Correctional Facility', type: 'state prison', state: 'TN', city: 'Cookeville', chaplain: 'Rev. Harold Bright', contact: 'Lt. Dana Pruitt', contactRole: 'Volunteer Coordinator' },
-  { name: 'Hartsville Transition Center', type: 'transition center', state: 'TN', city: 'Hartsville', chaplain: 'Chaplain Ada Osei', contact: 'Ms. Karen Lowe', contactRole: 'Program Director' },
+  { name: 'Cumberland Ridge Correctional Facility', type: 'state prison', state: 'SC', city: 'Bishopville', chaplain: 'Rev. Harold Bright', contact: 'Lt. Dana Pruitt', contactRole: 'Volunteer Coordinator' },
+  { name: 'Hartsville Transition Center', type: 'transition center', state: 'SC', city: 'Hartsville', chaplain: 'Chaplain Ada Osei', contact: 'Ms. Karen Lowe', contactRole: 'Program Director' },
   { name: 'Palmetto Pines Correctional Institution', type: 'state prison', state: 'SC', city: 'Ridgeville', chaplain: 'Rev. Curtis Mabry', contact: 'Capt. Joel Sanders', contactRole: 'Programs Captain' },
   { name: 'Blue Granite Reentry Center', type: 'transition center', state: 'SC', city: 'Rock Hill', chaplain: 'Chaplain Lena Ford', contact: 'Mr. Andre Gibbs', contactRole: 'Reentry Coordinator' },
   { name: 'Chattahoochee Valley State Prison', type: 'state prison', state: 'GA', city: 'Columbus', chaplain: 'Rev. Tom Ellison', contact: 'Ms. Faye Dupree', contactRole: 'Volunteer Services' },
@@ -288,7 +307,7 @@ async function seedInstitutions(): Promise<InstitutionInfo[]> {
         addressLine1: `${1000 + i * 350} State Route ${12 + i}`,
         city: spec.city,
         state: spec.state,
-        zip: `${37000 + i * 111}`,
+        zip: zip(spec.state, i * 11),
         mainPhone: phone(spec.state, i + 1),
         active: true,
         ...AUDIT,
@@ -411,7 +430,7 @@ interface PRec {
 const P_MALE = ['James', 'Marcus', 'Darnell', 'Tyrone', 'Kevin', 'Ronnie', 'Alvin', 'Chris', 'Terrence', 'Billy', 'Jerome', 'Dustin', 'Hector', 'Willie', 'Nathan', 'Freddie', 'Cedric', 'Lamar'];
 const P_FEMALE = ['Tanya', 'Denise', 'Angela', 'Latoya', 'Carmen', 'Brittany', 'Sheila', 'Yvonne'];
 const P_LAST = ['Hollis', 'Draper', 'McCray', 'Tibbs', 'Vann', 'Ledbetter', 'Okafor', 'Pruett', 'Ganaway', 'Sizemore', 'Delacruz', 'Winbush', 'Farrow', 'Kimbrough', 'Statler', 'Oglesby', 'Renfro', 'Casteel', 'Mabern', 'Trudeau', 'Hixson', 'Palmore', 'Estrada', 'Whitlock'];
-const P_STATES = ['TN', 'TN', 'SC', 'GA', 'TX', 'TN', 'SC', 'GA'];
+const P_STATES = ['SC', 'SC', 'SC', 'GA', 'TX', 'SC', 'SC', 'GA'];
 const ALUMNI_GRADS = ['2024-02-16', '2024-05-24', '2024-08-30', '2024-11-15', '2025-02-21', '2025-05-16', '2025-08-22', '2025-11-21', '2026-02-20', '2026-05-15'];
 
 function participantIdentity(i: number): { firstName: string; lastName: string; gender: 'male' | 'female' } {
@@ -500,8 +519,8 @@ async function seedParticipants(caseManagerIds: string[]): Promise<PRec[]> {
         primaryEmail: hasEmail ? `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.org` : null,
         addressLine1: group === 'inside' ? null : `${100 + i * 13} ${at(['Oak', 'Maple', 'Cedar', 'Elm', 'Walnut'], i)} Street`,
         city: group === 'inside' ? null : CITY[state],
-        state,
-        zip: group === 'inside' ? null : `${37200 + i}`,
+        state, // mailing address (NOT the chapter — see participantProfile.chapterState)
+        zip: group === 'inside' ? null : zip(state, i),
         emailOk: hasEmail,
         smsOk,
         smsConsentAt: smsOk ? intakeDate : null,
@@ -515,6 +534,7 @@ async function seedParticipants(caseManagerIds: string[]): Promise<PRec[]> {
       data: {
         personId: person.id,
         participantNumber: `P-${year}-${pad5(counters[year] ?? 1)}`,
+        chapterState: state, // chapter assignment — person.state stays a mailing address
         insideStatus,
         outsideStatus,
         alumniStatus,
@@ -699,12 +719,12 @@ interface ProgramInfo { id: string; name: string }
 
 async function seedOutsidePrograms(users: SeedUsers, participants: PRec[]): Promise<ProgramInfo[]> {
   const specs: { name: string; type: 'life_skills' | 'bible_study' | 'employment_assistance' | 'treatment' | 'mentoring' | 'transportation'; state: string; schedule: string; lead: string; volunteerLead?: string }[] = [
-    { name: 'New Beginnings Life Skills', type: 'life_skills', state: 'TN', schedule: 'Tuesdays 6:30pm', lead: users.byRole.outside_program_staff },
-    { name: 'Foundations Bible Study', type: 'bible_study', state: 'TN', schedule: 'Thursdays 7:00pm', lead: users.byRole.outside_program_staff, volunteerLead: 'Walt Pemberton' },
-    { name: 'Career Pathways Workshop', type: 'employment_assistance', state: 'TN', schedule: 'Mondays 10:00am', lead: users.byRole.employment_coordinator },
-    { name: 'Hope Recovery Referral Program', type: 'treatment', state: 'TN', schedule: 'By referral', lead: at(users.caseManagerIds, 0), volunteerLead: 'Riverside Recovery Center (partner)' },
-    { name: 'One-to-One Mentoring', type: 'mentoring', state: 'TN', schedule: 'Set by each match', lead: users.byRole.volunteer_coordinator },
-    { name: 'Wheels to Work Transportation', type: 'transportation', state: 'TN', schedule: 'Weekdays 6:00am-6:00pm', lead: users.byRole.fleet_manager },
+    { name: 'New Beginnings Life Skills', type: 'life_skills', state: 'SC', schedule: 'Tuesdays 6:30pm', lead: users.byRole.outside_program_staff },
+    { name: 'Foundations Bible Study', type: 'bible_study', state: 'SC', schedule: 'Thursdays 7:00pm', lead: users.byRole.outside_program_staff, volunteerLead: 'Walt Pemberton' },
+    { name: 'Career Pathways Workshop', type: 'employment_assistance', state: 'SC', schedule: 'Mondays 10:00am', lead: users.byRole.employment_coordinator },
+    { name: 'Hope Recovery Referral Program', type: 'treatment', state: 'SC', schedule: 'By referral', lead: at(users.caseManagerIds, 0), volunteerLead: 'Riverside Recovery Center (partner)' },
+    { name: 'One-to-One Mentoring', type: 'mentoring', state: 'SC', schedule: 'Set by each match', lead: users.byRole.volunteer_coordinator },
+    { name: 'Wheels to Work Transportation', type: 'transportation', state: 'SC', schedule: 'Weekdays 6:00am-6:00pm', lead: users.byRole.fleet_manager },
     { name: 'Columbia Life Skills Cohort', type: 'life_skills', state: 'SC', schedule: 'Wednesdays 6:00pm', lead: users.byRole.outside_program_staff },
     { name: 'Grace Notes Bible Study', type: 'bible_study', state: 'GA', schedule: 'Sundays 4:00pm', lead: users.byRole.outside_program_staff, volunteerLead: 'Deb Calloway' },
   ];
@@ -775,8 +795,8 @@ async function seedOutsidePrograms(users: SeedUsers, participants: PRec[]): Prom
 
 async function seedHousing(participants: PRec[]): Promise<void> {
   const specs = [
-    { name: 'Isaiah House', state: 'TN', city: 'Nashville', capacity: 6, mgr: 'Frank Teller' },
-    { name: 'Damascus House', state: 'TN', city: 'Memphis', capacity: 8, mgr: 'Louise Handley' },
+    { name: 'Isaiah House', state: 'SC', city: 'Charleston', capacity: 6, mgr: 'Frank Teller' },
+    { name: 'Damascus House', state: 'SC', city: 'Spartanburg', capacity: 8, mgr: 'Louise Handley' },
     { name: 'New Hope Home', state: 'SC', city: 'Columbia', capacity: 6, mgr: 'Gil Robey' },
     { name: 'Restoration House', state: 'SC', city: 'Greenville', capacity: 6, mgr: 'Tessa Marsh' },
     { name: 'Ebenezer House', state: 'GA', city: 'Atlanta', capacity: 6, mgr: 'Amos Whitaker' },
@@ -790,7 +810,7 @@ async function seedHousing(participants: PRec[]): Promise<void> {
         addressLine1: `${400 + i * 27} ${at(['Chestnut', 'Poplar', 'Sycamore', 'Magnolia', 'Dogwood'], i)} Avenue`,
         city: s.city,
         state: s.state,
-        zip: `${38000 + i * 55}`,
+        zip: zip(s.state, i * 7),
         phone: phone(s.state, i + 30),
         houseManagerName: s.mgr,
         houseManagerPhone: phone(s.state, i + 80),
@@ -889,14 +909,16 @@ interface CrmInfo {
   vendors: { id: string; name: string }[];
   referralPartnerIds: string[];
   autoShopIds: string[];
-  events: { id: string; name: string }[];
+  events: { id: string; name: string; state: string }[];
 }
 
 async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo> {
-  // Campaigns
+  // Campaigns — each belongs to one chapter (§7.2); the two funded campaigns
+  // are SC, the planned fleet campaign is GA.
   const campaignA = await prisma.campaign.create({
     data: {
       name: '2025 Second Chance Campaign', status: 'completed',
+      chapterState: 'SC',
       description: 'Year-end giving campaign funding re-entry services.',
       startDate: d('2025-09-01'), endDate: d('2025-12-31'), goalAmount: 25000, ...AUDIT,
     },
@@ -904,6 +926,7 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
   const campaignB = await prisma.campaign.create({
     data: {
       name: 'Homes of Hope 2026', status: 'active',
+      chapterState: 'SC',
       description: 'Capital campaign to open a sixth transitional home.',
       startDate: d('2026-02-01'), endDate: d('2026-12-31'), goalAmount: 40000, ...AUDIT,
     },
@@ -911,28 +934,31 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
   await prisma.campaign.create({
     data: {
       name: 'Vehicles for Victory 2027', status: 'planned',
+      chapterState: 'GA',
       description: 'Replace two aging ministry vans.',
       startDate: d('2027-01-15'), goalAmount: 60000, ...AUDIT,
     },
   });
 
-  // Events (one past event linked to campaign A)
+  // Events (one past event linked to campaign A). Each event's chapter matches
+  // its linked campaign's chapter (§7.2).
   const eventSpecs = [
-    { name: '2025 Second Chance Banquet', type: 'fundraiser', date: d('2025-10-17'), loc: 'Nashville, TN', campaignId: campaignA.id, attendance: 220, revenue: 48500, expenses: 12300 },
-    { name: 'Spring Volunteer Appreciation Dinner', type: 'volunteer appreciation', date: d('2026-04-11'), loc: 'Nashville, TN', campaignId: null, attendance: 60, revenue: 0, expenses: 1800 },
-    { name: 'Summer Graduation Celebration', type: 'graduation', date: daysFromNow(18), loc: 'Nashville, TN', campaignId: null, attendance: null, revenue: null, expenses: null },
-    { name: '2026 Second Chance Banquet', type: 'fundraiser', date: daysFromNow(115), loc: 'Franklin, TN', campaignId: campaignB.id, attendance: null, revenue: null, expenses: null },
+    { name: '2025 Second Chance Banquet', type: 'fundraiser', date: d('2025-10-17'), state: 'SC', loc: 'Columbia, SC', campaignId: campaignA.id, attendance: 220, revenue: 48500, expenses: 12300 },
+    { name: 'Spring Volunteer Appreciation Dinner', type: 'volunteer appreciation', date: d('2026-04-11'), state: 'SC', loc: 'Columbia, SC', campaignId: null, attendance: 60, revenue: 0, expenses: 1800 },
+    { name: 'Summer Graduation Celebration', type: 'graduation', date: daysFromNow(18), state: 'SC', loc: 'Columbia, SC', campaignId: null, attendance: null, revenue: null, expenses: null },
+    { name: '2026 Second Chance Banquet', type: 'fundraiser', date: daysFromNow(115), state: 'SC', loc: 'Charleston, SC', campaignId: campaignB.id, attendance: null, revenue: null, expenses: null },
   ];
   const events: CrmInfo['events'] = [];
   for (const e of eventSpecs) {
     const ev = await prisma.event.create({
       data: {
         name: e.name, eventType: e.type, eventDate: e.date, location: e.loc,
+        chapterState: e.state,
         campaignId: e.campaignId, attendanceCount: e.attendance,
         revenue: e.revenue, expenses: e.expenses, ...AUDIT,
       },
     });
-    events.push({ id: ev.id, name: e.name });
+    events.push({ id: ev.id, name: e.name, state: e.state });
   }
   // Registrations — alumni persons attended the banquet; upcoming graduation RSVPs
   const alum = participants.filter((p) => p.group === 'alumni');
@@ -1003,23 +1029,27 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
 
   // Donors (14) — one linked to an alumnus person; the two spouses at the end
   // exist so households and soft credits have individual members to point at.
-  const donorSpecs: { name: string; type: 'individual' | 'organization' | 'church' | 'business' | 'foundation'; contact?: string; state: string; personIdx?: number }[] = [
-    { name: 'Harold & June Wetherby', type: 'individual', state: 'TN' },
-    { name: 'First Covenant Church of Nashville', type: 'church', contact: 'Pastor Neil Ogden', state: 'TN' },
-    { name: 'Stanton Freight Lines LLC', type: 'business', contact: 'Rhonda Stanton', state: 'TN' },
-    { name: 'The Kettering Family Foundation', type: 'foundation', contact: 'Grants Office', state: 'GA' },
-    { name: 'Miriam Doss', type: 'individual', state: 'SC' },
-    { name: 'Calvary Ridge Fellowship', type: 'church', contact: 'Deacon Ed Pratt', state: 'SC' },
-    { name: 'Aldon Perry', type: 'individual', state: 'TN' },
-    { name: 'Grace Point Community Church', type: 'church', state: 'GA' },
-    { name: 'Trumbull & Vance CPAs', type: 'business', contact: 'Kay Trumbull', state: 'TN' },
-    { name: 'Evelyn Roundtree', type: 'individual', state: 'TX' },
-    { name: 'Doyle Hutchins', type: 'individual', state: 'TN' },
-    { name: 'Marguerite Sablan', type: 'individual', state: 'TN', personIdx: 30 }, // an alumnus who now gives
-    { name: 'Charlene Perry', type: 'individual', state: 'TN' }, // spouse of Aldon (household + soft credit)
-    { name: 'Bernice Hutchins', type: 'individual', state: 'TN' }, // spouse of Doyle (household)
+  // `state` is the postal address; `chapter` is the stewarding chapter (§7.2).
+  // They usually agree — the Kettering foundation (GA address) and Doyle
+  // Hutchins (NC address) are stewarded by the SC chapter that they fund,
+  // which is exactly why the two columns are separate.
+  const donorSpecs: { name: string; type: 'individual' | 'organization' | 'church' | 'business' | 'foundation'; contact?: string; state: string; chapter: string; personIdx?: number }[] = [
+    { name: 'Harold & June Wetherby', type: 'individual', state: 'SC', chapter: 'SC' },
+    { name: 'First Covenant Church of Columbia', type: 'church', contact: 'Pastor Neil Ogden', state: 'SC', chapter: 'SC' },
+    { name: 'Stanton Freight Lines LLC', type: 'business', contact: 'Rhonda Stanton', state: 'SC', chapter: 'SC' },
+    { name: 'The Kettering Family Foundation', type: 'foundation', contact: 'Grants Office', state: 'GA', chapter: 'SC' }, // GA office, funds the SC campaigns
+    { name: 'Miriam Doss', type: 'individual', state: 'SC', chapter: 'SC' },
+    { name: 'Calvary Ridge Fellowship', type: 'church', contact: 'Deacon Ed Pratt', state: 'SC', chapter: 'SC' },
+    { name: 'Aldon Perry', type: 'individual', state: 'SC', chapter: 'SC' },
+    { name: 'Grace Point Community Church', type: 'church', state: 'GA', chapter: 'GA' },
+    { name: 'Trumbull & Vance CPAs', type: 'business', contact: 'Kay Trumbull', state: 'SC', chapter: 'SC' },
+    { name: 'Evelyn Roundtree', type: 'individual', state: 'TX', chapter: 'TX' },
+    { name: 'Doyle Hutchins', type: 'individual', state: 'NC', chapter: 'SC' }, // out-of-chapter mailing address
+    { name: 'Marguerite Sablan', type: 'individual', state: 'SC', chapter: 'SC', personIdx: 30 }, // an alumnus who now gives
+    { name: 'Charlene Perry', type: 'individual', state: 'SC', chapter: 'SC' }, // spouse of Aldon (household + soft credit)
+    { name: 'Bernice Hutchins', type: 'individual', state: 'SC', chapter: 'SC' }, // spouse of Doyle (household)
   ];
-  const donors: { id: string }[] = [];
+  const donors: { id: string; chapter: string }[] = [];
   for (let i = 0; i < donorSpecs.length; i++) {
     const s = at(donorSpecs, i);
     const linkedPerson = s.personIdx !== undefined ? participants.find((p) => p.i === s.personIdx) : undefined;
@@ -1030,25 +1060,27 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
         contactPerson: s.contact ?? null,
         phone: phone(s.state, i + 10),
         email: `donor${i + 1}@example.org`,
-        addressLine1: `${200 + i * 31} ${at(['Belmont', 'Granny White', 'Harding', 'Woodmont'], i)} Pike`,
-        city: CITY[s.state], state: s.state, zip: `${37100 + i}`,
+        addressLine1: `${200 + i * 31} ${at(['Belmont', 'Sunset', 'Harding', 'Woodmont'], i)} Pike`,
+        city: CITY[s.state], state: s.state, zip: zip(s.state, i),
+        chapterState: s.chapter,
         status: i === 10 ? 'lapsed' : 'active',
         personId: linkedPerson?.personId ?? null,
         ...AUDIT,
       },
     });
-    donors.push({ id: donor.id });
+    donors.push({ id: donor.id, chapter: s.chapter });
   }
   const donorAt = (n: number) => at(donors, n);
 
   // Households — combined giving rollups; the head drives envelope addressing.
+  // Every member shares the household's chapter (§7.2).
   const householdSpecs: { name: string; envelopeName: string; head: number; members: number[] }[] = [
     { name: 'The Perry Household', envelopeName: 'Mr. & Mrs. Aldon Perry', head: 6, members: [6, 12] },
     { name: 'The Hutchins Household', envelopeName: 'Mr. & Mrs. Doyle Hutchins', head: 10, members: [10, 13] },
   ];
   for (const h of householdSpecs) {
     const household = await prisma.household.create({
-      data: { name: h.name, envelopeName: h.envelopeName, ...AUDIT },
+      data: { name: h.name, envelopeName: h.envelopeName, chapterState: donorAt(h.head).chapter, ...AUDIT },
     });
     for (const m of h.members) {
       await prisma.donor.update({
@@ -1171,7 +1203,7 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
     // Tribute, in-kind, anonymous, and employer-match gifts
     { donor: 0, date: d('2026-05-10'), amount: 250, fund: 'General', appeal: 'spring_mailer', method: 'check', tributeType: 'in_memory_of', tributeName: 'Pastor Gene Wetherby', tributeNotify: 'June Wetherby — mail a memorial card to the home address' },
     { donor: 4, date: d('2026-06-22'), amount: 100, fund: 'Scholarship Fund', method: 'credit_card', tributeType: 'in_honor_of', tributeName: 'Rev. Curtis Mabry', tributeNotify: 'Notify Rev. Mabry by email via the Palmetto Pines chaplain office', unacknowledged: true },
-    { donor: 8, date: d('2026-04-28'), amount: 1200, fund: 'General', method: 'in_kind', inKindDescription: 'Four refurbished office workstations for the Nashville office', inKindFmv: 1200 },
+    { donor: 8, date: d('2026-04-28'), amount: 1200, fund: 'General', method: 'in_kind', inKindDescription: 'Four refurbished office workstations for the Columbia office', inKindFmv: 1200 },
     { donor: 9, date: d('2026-03-14'), amount: 500, fund: 'Reentry Services', appeal: 'spring_mailer', method: 'cash', isAnonymous: true, notes: 'Donor asked to remain anonymous in all public recognition.' },
     { donor: 2, date: d('2026-04-20'), amount: 125, fund: 'General', appeal: 'spring_mailer', method: 'check', key: 'employer_match', notes: 'Corporate match of Aldon Perry’s April gift.' },
   ];
@@ -1300,13 +1332,15 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
   }
 
   // Vendors (8): 3 referral partners, 2 auto shops, 3 general
+  // `state` is the vendor's postal address; the chapter that contracts with
+  // them is `chapterState` (§7.2) — the two agree for every demo vendor.
   const vendorSpecs: { name: string; services: string; referral?: boolean; state: string; contact: string }[] = [
-    { name: 'Riverside Recovery Center', services: 'Residential and outpatient substance abuse treatment', referral: true, state: 'TN', contact: 'Intake Desk' },
-    { name: 'Drive Forward DMV Assistance', services: 'Driver license reinstatement and state ID help', referral: true, state: 'TN', contact: 'Lucia Marsh' },
-    { name: 'Harvest Hands Food Bank', services: 'Emergency food boxes and grocery assistance', referral: true, state: 'TN', contact: 'Warehouse Office' },
-    { name: 'Precision Auto Care', services: 'Fleet maintenance and repair', state: 'TN', contact: 'Gus Little' },
-    { name: 'Hilltop Tire & Service', services: 'Tires, brakes, oil changes', state: 'TN', contact: 'Front Desk' },
-    { name: 'Cornerstone Office Supplies', services: 'Office and program supplies', state: 'TN', contact: 'Orders Team' },
+    { name: 'Riverside Recovery Center', services: 'Residential and outpatient substance abuse treatment', referral: true, state: 'SC', contact: 'Intake Desk' },
+    { name: 'Drive Forward DMV Assistance', services: 'Driver license reinstatement and state ID help', referral: true, state: 'SC', contact: 'Lucia Marsh' },
+    { name: 'Harvest Hands Food Bank', services: 'Emergency food boxes and grocery assistance', referral: true, state: 'SC', contact: 'Warehouse Office' },
+    { name: 'Precision Auto Care', services: 'Fleet maintenance and repair', state: 'SC', contact: 'Gus Little' },
+    { name: 'Hilltop Tire & Service', services: 'Tires, brakes, oil changes', state: 'SC', contact: 'Front Desk' },
+    { name: 'Cornerstone Office Supplies', services: 'Office and program supplies', state: 'SC', contact: 'Orders Team' },
     { name: 'Palmetto Print Shop', services: 'Printing and mailing services', state: 'SC', contact: 'Roy Deese' },
     { name: 'BrightWeb Hosting', services: 'Website hosting and email', state: 'GA', contact: 'Support' },
   ];
@@ -1317,7 +1351,8 @@ async function seedCrm(participants: PRec[], users: SeedUsers): Promise<CrmInfo>
       data: {
         name: s.name, contactPerson: s.contact, phone: phone(s.state, i + 25),
         email: `vendor${i + 1}@example.org`,
-        addressLine1: `${500 + i * 41} Commerce Way`, city: CITY[s.state], state: s.state, zip: `${37300 + i}`,
+        addressLine1: `${500 + i * 41} Commerce Way`, city: CITY[s.state], state: s.state, zip: zip(s.state, i),
+        chapterState: s.state,
         servicesProvided: s.services, isReferralPartner: s.referral ?? false, active: true, ...AUDIT,
       },
     });
@@ -1540,7 +1575,7 @@ async function seedCaseManagement(
 
 interface VolunteersInfo {
   /** Non-alumni volunteer profiles, in seed order (v0..v14). */
-  profiles: { profileId: string; personId: string; firstName: string; lastName: string }[];
+  profiles: { profileId: string; personId: string; firstName: string; lastName: string; state: string }[];
   /** The two alumni-mentor volunteer profiles (same Person as their participant record). */
   mentorProfiles: { profileId: string; personId: string; participant: PRec }[];
 }
@@ -1565,7 +1600,9 @@ async function seedVolunteers(
 
   for (let v = 0; v < VOL_NAMES.length; v++) {
     const [firstName, lastName] = at(VOL_NAMES, v);
-    const state = at(['TN', 'TN', 'SC', 'GA'], v);
+    // Chapter mix: v3/v7/v11 are GA (v3 serves the GA facility's class below),
+    // everyone else SC.
+    const state = at(['SC', 'SC', 'SC', 'GA'], v);
     const person = await prisma.person.create({
       data: {
         firstName, lastName,
@@ -1574,7 +1611,7 @@ async function seedVolunteers(
         primaryPhone: phone(state, v + 5),
         primaryEmail: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.org`,
         addressLine1: `${900 + v * 17} ${at(['Hillsboro', 'Granada', 'Fairfax', 'Linden'], v)} Drive`,
-        city: CITY[state], state, zip: `${37400 + v}`,
+        city: CITY[state], state, zip: zip(state, v),
         emailOk: true,
         smsOk: v % 4 !== 3,
         smsConsentAt: v % 4 !== 3 ? d('2025-01-15') : null,
@@ -1586,13 +1623,14 @@ async function seedVolunteers(
       data: {
         personId: person.id,
         status,
+        chapterState: state, // chapter assignment — person.state stays a mailing address
         volunteerRoles: v < 5 ? ['inside_class'] : v < 8 ? ['outside_class', 'bible_study'] : ['transportation', 'event'],
         availability: at(['Weeknights', 'Weekends', 'Tuesday and Thursday evenings', 'Flexible'], v),
         churchAffiliation: at(CHURCHES, v),
         ...AUDIT,
       },
     });
-    profiles.push({ profileId: profile.id, personId: person.id, firstName, lastName });
+    profiles.push({ profileId: profile.id, personId: person.id, firstName, lastName, state });
   }
   const volAt = (n: number) => at(profiles, n);
 
@@ -1608,6 +1646,7 @@ async function seedVolunteers(
       data: {
         personId: p.personId,
         status: 'active',
+        chapterState: p.state, // same chapter as their participant record
         isMentor: true,
         mentorStatus: 'Approved — outside programs only',
         volunteerRoles: ['mentoring'],
@@ -1815,9 +1854,9 @@ async function seedVolunteerEngagement(
     data: {
       name: 'Summer Graduation Celebration Support',
       description: 'Setup, greeting, and teardown crews for the graduation celebration.',
-      state: 'TN',
+      state: graduation.state, // same chapter as the event it supports
       eventId: graduation.id,
-      location: 'Nashville, TN',
+      location: `${CITY[graduation.state] ?? 'Columbia'}, ${graduation.state}`,
       status: 'open',
       ...AUDIT,
     },
@@ -1826,8 +1865,8 @@ async function seedVolunteerEngagement(
     data: {
       name: 'Office & Admin Support',
       description: 'Standing weekday help with mailings, filing, and donation receipting.',
-      state: 'TN',
-      location: 'JUMPSTART USA office — Nashville',
+      state: 'SC',
+      location: 'JUMPSTART USA office — Columbia',
       status: 'open',
       ...AUDIT,
     },
@@ -2146,15 +2185,17 @@ async function seedMentoring(
 // ═══ 15. EMPLOYERS + EMPLOYMENT HISTORY ═════════════════════════════════════
 
 async function seedEmployment(participants: PRec[], users: SeedUsers): Promise<void> {
+  // `state` is the employer's postal address; the chapter that works the
+  // employer relationship is `chapterState` (§7.2).
   const employerSpecs: { name: string; industry: string; hiring: 'prospect' | 'partner' | 'actively_hiring' | 'paused' | 'inactive'; state: string; contact: string }[] = [
-    { name: 'Volunteer State Concrete', industry: 'Construction', hiring: 'actively_hiring', state: 'TN', contact: 'Dale Whitmore' },
-    { name: 'Cumberland Pallet Works', industry: 'Manufacturing', hiring: 'actively_hiring', state: 'TN', contact: 'Renee Vickers' },
-    { name: 'Smoky Mountain Logistics', industry: 'Warehousing & Logistics', hiring: 'actively_hiring', state: 'TN', contact: 'Terry Oakes' },
-    { name: 'Magnolia Diner Group', industry: 'Food Service', hiring: 'partner', state: 'TN', contact: 'Bess Harmon' },
+    { name: 'Congaree Concrete', industry: 'Construction', hiring: 'actively_hiring', state: 'SC', contact: 'Dale Whitmore' },
+    { name: 'Sandhills Pallet Works', industry: 'Manufacturing', hiring: 'actively_hiring', state: 'SC', contact: 'Renee Vickers' },
+    { name: 'Midlands Logistics', industry: 'Warehousing & Logistics', hiring: 'actively_hiring', state: 'SC', contact: 'Terry Oakes' },
+    { name: 'Magnolia Diner Group', industry: 'Food Service', hiring: 'partner', state: 'SC', contact: 'Bess Harmon' },
     { name: 'Palmetto Grounds Landscaping', industry: 'Landscaping', hiring: 'partner', state: 'SC', contact: 'Jorge Cepeda' },
     { name: 'Peach State Powder Coating', industry: 'Manufacturing', hiring: 'paused', state: 'GA', contact: 'Al Brantley' },
-    { name: 'RiverTown Moving Co.', industry: 'Moving & Storage', hiring: 'prospect', state: 'TN', contact: 'Casey Drummond' },
-    { name: 'Hickory Ridge Cabinetry', industry: 'Woodworking', hiring: 'partner', state: 'TN', contact: 'Sam Petit' },
+    { name: 'RiverTown Moving Co.', industry: 'Moving & Storage', hiring: 'prospect', state: 'SC', contact: 'Casey Drummond' },
+    { name: 'Hickory Ridge Cabinetry', industry: 'Woodworking', hiring: 'partner', state: 'SC', contact: 'Sam Petit' },
   ];
   const employers: { id: string }[] = [];
   for (let i = 0; i < employerSpecs.length; i++) {
@@ -2163,7 +2204,8 @@ async function seedEmployment(participants: PRec[], users: SeedUsers): Promise<v
       data: {
         name: s.name, contactPerson: s.contact, phone: phone(s.state, i + 15),
         email: `employer${i + 1}@example.org`,
-        addressLine1: `${700 + i * 23} Industrial Parkway`, city: CITY[s.state], state: s.state, zip: `${37500 + i}`,
+        addressLine1: `${700 + i * 23} Industrial Parkway`, city: CITY[s.state], state: s.state, zip: zip(s.state, i),
+        chapterState: s.state,
         industry: s.industry, hiringStatus: s.hiring, ...AUDIT,
       },
     });
@@ -2192,7 +2234,7 @@ async function seedEmployment(participants: PRec[], users: SeedUsers): Promise<v
     { pi: 23, employer: 3, title: 'Dishwasher', status: 'applied', startOffset: 8 },
     // Alumni — including one with a completed earlier job plus a current one
     { pi: 31, employer: 2, title: 'Shift Lead', status: 'active', startOffset: 60, pay: 21.0, hours: 40 },
-    { pi: 33, employer: 5, title: 'Powder Coat Technician', status: 'completed', startOffset: 30, endOffset: 260, pay: 17.0, hours: 40 },
+    { pi: 33, employer: 1, title: 'Machine Operator', status: 'completed', startOffset: 30, endOffset: 260, pay: 17.0, hours: 40 },
     { pi: 33, employer: 7, title: 'Finish Carpenter Apprentice', status: 'active', startOffset: 280, pay: 20.0, hours: 40 },
   ];
 
@@ -2247,14 +2289,16 @@ async function seedEmployment(participants: PRec[], users: SeedUsers): Promise<v
 // ═══ 16. FLEET — vehicles + maintenance ═════════════════════════════════════
 
 async function seedFleet(crm: CrmInfo): Promise<void> {
+  // `state` is the chapter the van is stationed in (§7.2); assignedLocation
+  // stays the free-text city it actually parks in.
   const vehicleSpecs = [
     // registration expiring within 30 days → dashboard alert
-    { make: 'Ford', model: 'Transit 350', year: 2019, color: 'White', plate: '4JS-821', vin: '1FTBW3XM5KKA10234', mileage: 91200, loc: 'Nashville, TN', active: true, reg: daysFromNow(20), ins: d('2026-12-15') },
+    { make: 'Ford', model: 'Transit 350', year: 2019, color: 'White', plate: '4JS-821', vin: '1FTBW3XM5KKA10234', mileage: 91200, loc: 'Columbia, SC', state: 'SC', active: true, reg: daysFromNow(20), ins: d('2026-12-15') },
     // insurance already expired → dashboard alert
-    { make: 'Ram', model: 'ProMaster 2500', year: 2021, color: 'Silver', plate: '7KD-114', vin: '3C6TRVDG8ME510442', mileage: 58400, loc: 'Nashville, TN', active: true, reg: d('2027-01-31'), ins: daysAgo(15) },
-    { make: 'Chevrolet', model: 'Express 3500', year: 2015, color: 'Blue', plate: '2QN-905', vin: '1GAZGPFG1F1210087', mileage: 168000, loc: 'Columbia, SC', active: false, reg: d('2025-11-30'), ins: d('2025-11-30') },
-    { make: 'Ford', model: 'F-150', year: 2017, color: 'Gray', plate: '9RC-233', vin: '1FTEW1EG3HFA55219', mileage: 122500, loc: 'Atlanta, GA', active: true, reg: d('2026-10-31'), ins: d('2026-09-30') },
-    { make: 'Toyota', model: 'Sienna', year: 2024, color: 'White', plate: '5TW-078', vin: '5TDKRKEC2RS114630', mileage: 18900, loc: 'Nashville, TN', active: true, reg: d('2027-03-31'), ins: d('2027-02-28') },
+    { make: 'Ram', model: 'ProMaster 2500', year: 2021, color: 'Silver', plate: '7KD-114', vin: '3C6TRVDG8ME510442', mileage: 58400, loc: 'Charleston, SC', state: 'SC', active: true, reg: d('2027-01-31'), ins: daysAgo(15) },
+    { make: 'Chevrolet', model: 'Express 3500', year: 2015, color: 'Blue', plate: '2QN-905', vin: '1GAZGPFG1F1210087', mileage: 168000, loc: 'Columbia, SC', state: 'SC', active: false, reg: d('2025-11-30'), ins: d('2025-11-30') },
+    { make: 'Ford', model: 'F-150', year: 2017, color: 'Gray', plate: '9RC-233', vin: '1FTEW1EG3HFA55219', mileage: 122500, loc: 'Atlanta, GA', state: 'GA', active: true, reg: d('2026-10-31'), ins: d('2026-09-30') },
+    { make: 'Toyota', model: 'Sienna', year: 2024, color: 'White', plate: '5TW-078', vin: '5TDKRKEC2RS114630', mileage: 18900, loc: 'Greenville, SC', state: 'SC', active: true, reg: d('2027-03-31'), ins: d('2027-02-28') },
   ];
   const vehicles: { id: string; mileage: number }[] = [];
   for (const s of vehicleSpecs) {
@@ -2262,7 +2306,7 @@ async function seedFleet(crm: CrmInfo): Promise<void> {
       data: {
         make: s.make, model: s.model, year: s.year, color: s.color,
         licensePlate: s.plate, vin: s.vin, mileage: s.mileage,
-        assignedLocation: s.loc, active: s.active,
+        assignedLocation: s.loc, chapterState: s.state, active: s.active,
         registrationExpiration: s.reg, insuranceExpiration: s.ins,
         notes: s.active ? null : 'Retired from service — awaiting sale.',
         ...AUDIT,
@@ -2333,12 +2377,14 @@ async function seedCommunications(
   const outside = participants.filter((p) => p.group === 'outside');
   const inside = participants.filter((p) => p.group === 'inside');
 
-  // 4 alumni welcome emails (delivered/sent) + 1 failed email
+  // 4 alumni welcome emails (delivered/sent) + 1 failed email.
+  // Every message carries the recipient's chapter (§7.2).
   for (let m = 0; m < 4; m++) {
     const p = at(alumni, m);
     await prisma.communication.create({
       data: {
         personId: p.personId,
+        chapterState: p.state,
         channel: 'email',
         templateId: emailTemplate.id,
         subject: `Welcome to the JUMPSTART Alumni Family, ${p.firstName}!`,
@@ -2352,6 +2398,7 @@ async function seedCommunications(
   await prisma.communication.create({
     data: {
       personId: at(alumni, 5).personId,
+      chapterState: at(alumni, 5).state,
       channel: 'email',
       templateId: emailTemplate.id,
       subject: 'Welcome to the JUMPSTART Alumni Family!',
@@ -2368,6 +2415,7 @@ async function seedCommunications(
     await prisma.communication.create({
       data: {
         personId: p.personId,
+        chapterState: p.state,
         channel: 'sms',
         templateId: smsTemplate.id,
         body: `${p.firstName}, this is Rachel with JUMPSTART. Just checking in — how are work and housing going this week? Reply STOP to opt out.`,
@@ -2384,6 +2432,7 @@ async function seedCommunications(
     await prisma.communication.create({
       data: {
         personId: p.personId,
+        chapterState: p.state,
         channel: 'letter',
         templateId: letterTemplate.id,
         body: `Dear ${p.firstName}, all of us at JUMPSTART are proud of the work you are doing...`,
@@ -2398,6 +2447,7 @@ async function seedCommunications(
   await prisma.communication.create({
     data: {
       personId: at(volunteers.profiles, 0).personId,
+      chapterState: at(volunteers.profiles, 0).state,
       channel: 'email',
       subject: 'Thank you for serving this quarter',
       body: 'Walt, thank you for faithfully facilitating at Cumberland Ridge this quarter...',
@@ -2415,13 +2465,15 @@ async function seedIntakeQueues(
   volunteers: VolunteersInfo,
   users: SeedUsers,
 ): Promise<void> {
-  // 4 volunteer applications: 2 pending, 1 approved (linked person), 1 spam
+  // 4 volunteer applications: 2 pending, 1 approved (linked person), 1 spam.
+  // `state` is the chapter the public form asked for (§7.2); the spam row has
+  // none, which is the legacy null case staff must resolve at review.
   await prisma.volunteerApplication.create({
     data: {
       submittedAt: daysAgo(3),
       firstName: 'Corinne', lastName: 'Vestal',
-      email: 'corinne.vestal@example.org', phone: phone('TN', 91),
-      city: 'Nashville', state: 'TN',
+      email: 'corinne.vestal@example.org', phone: phone('GA', 91),
+      city: 'Atlanta', state: 'GA',
       interestAreas: ['mentoring', 'bible_study'],
       availability: 'Weeknights',
       churchAffiliation: 'New Song Chapel',
@@ -2448,7 +2500,7 @@ async function seedIntakeQueues(
       submittedAt: daysAgo(60),
       firstName: approvedVol.firstName, lastName: approvedVol.lastName,
       email: `${approvedVol.firstName.toLowerCase()}.${approvedVol.lastName.toLowerCase()}@example.org`,
-      city: 'Nashville', state: 'TN',
+      city: CITY[approvedVol.state] ?? 'Columbia', state: approvedVol.state,
       interestAreas: ['event'],
       consentAt: daysAgo(60),
       status: 'approved',
@@ -2475,9 +2527,9 @@ async function seedIntakeQueues(
     data: {
       submittedAt: daysAgo(6), // SLA breach test — pending more than 5 days
       referrerType: 'chaplain',
-      referrerName: 'Rev. Harold Bright', referrerEmail: 'chaplain.tn0@example.org',
+      referrerName: 'Rev. Harold Bright', referrerEmail: 'chaplain.sc0@example.org',
       subjectFirstName: 'Dewayne', subjectLastName: 'Marsh',
-      facilityName: 'Cumberland Ridge Correctional Facility', state: 'TN',
+      facilityName: 'Cumberland Ridge Correctional Facility', state: 'SC',
       expectedReleaseDate: daysFromNow(90),
       needs: 'Releasing in about 90 days. Needs housing and treatment referral on release.',
       status: 'pending',
@@ -2487,9 +2539,9 @@ async function seedIntakeQueues(
     data: {
       submittedAt: daysAgo(2),
       referrerType: 'family',
-      referrerName: 'Alma Statler', referrerPhone: phone('TN', 93),
+      referrerName: 'Alma Statler', referrerPhone: phone('SC', 93),
       subjectFirstName: 'Reggie', subjectLastName: 'Statler',
-      state: 'TN',
+      state: 'SC',
       needs: 'My son comes home next month and needs a program and a place to stay.',
       status: 'pending',
     },
@@ -2505,14 +2557,16 @@ async function seedIntakeQueues(
     },
   });
   const linkedParticipant = participants.find((p) => p.i === 43);
+  // The approved item's chapter matches the participant it was linked to.
+  const linkedState = linkedParticipant?.state ?? 'SC';
   await prisma.referralInboxItem.create({
     data: {
       submittedAt: daysAgo(25),
       referrerType: 'agency',
-      referrerName: 'TN Probation & Parole — District 5',
+      referrerName: `${linkedState} Probation & Parole — District 5`,
       subjectFirstName: linkedParticipant?.firstName ?? 'Nathan',
       subjectLastName: linkedParticipant?.lastName ?? 'Trudeau',
-      state: 'TN',
+      state: linkedState,
       expectedReleaseDate: daysAgo(12),
       needs: 'Referral for transitional housing and case management on release.',
       status: 'approved',
@@ -2574,13 +2628,13 @@ async function seedIntakeQueues(
 // ═══ 19. COMPLIANCE & SETTINGS ══════════════════════════════════════════════
 
 async function seedCompliance(participants: PRec[], users: SeedUsers): Promise<void> {
-  const tnDsa = await prisma.dataSharingAgreement.create({
+  const gaDsa = await prisma.dataSharingAgreement.create({
     data: {
-      stateOrAgency: 'Tennessee Department of Correction',
+      stateOrAgency: 'Georgia Department of Corrections',
       effectiveDate: d('2024-07-01'),
       expiryDate: d('2027-06-30'),
       permittedUses: 'Program eligibility verification and outcome reporting.',
-      reDisclosureRestrictions: 'No re-disclosure without written TDOC approval.',
+      reDisclosureRestrictions: 'No re-disclosure without written GDC approval.',
       requiredSafeguards: 'Role-based access; DOC fields limited to fields.justice.read holders.',
       active: true,
       ...AUDIT,
@@ -2600,11 +2654,11 @@ async function seedCompliance(participants: PRec[], users: SeedUsers): Promise<v
     },
   });
   // Link a couple of DOC ids to the agreements they arrived under
-  const tnDoc = await prisma.participantDocId.findFirst({ where: { state: 'TN' } });
-  if (tnDoc) {
+  const gaDoc = await prisma.participantDocId.findFirst({ where: { state: 'GA' } });
+  if (gaDoc) {
     await prisma.participantDocId.update({
-      where: { id: tnDoc.id },
-      data: { dataSharingAgreementId: tnDsa.id, source: 'doc', updatedById: AUDIT.updatedById },
+      where: { id: gaDoc.id },
+      data: { dataSharingAgreementId: gaDsa.id, source: 'doc', updatedById: AUDIT.updatedById },
     });
   }
   const scDoc = await prisma.participantDocId.findFirst({ where: { state: 'SC' } });
@@ -2621,9 +2675,9 @@ async function seedCompliance(participants: PRec[], users: SeedUsers): Promise<v
         key: 'org.info',
         value: {
           name: 'JUMPSTART USA',
-          address: '1000 Ministry Way, Nashville, TN 37200',
+          address: '1000 Ministry Way, Columbia, SC 29201',
           ein: '00-0000000',
-          phone: '615-555-0100',
+          phone: '803-555-0100',
         },
         updatedById: users.adminId,
       },
@@ -2753,6 +2807,8 @@ async function main(): Promise<void> {
   for (const [label, n] of counts) console.log(`  ${label.padEnd(22)} ${n}`);
   console.log(`\nAdmin login: admin@jumpstartusa.org / ${DEMO_PASSWORD}`);
   console.log('Demo users:  <role_key>@jumpstartusa.org with the same password.');
+  console.log('Chapters:    case_manager → SC only, volunteer_coordinator → GA only,');
+  console.log('             everyone else (incl. admin) → all chapters.');
 }
 
 main()

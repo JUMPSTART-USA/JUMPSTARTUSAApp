@@ -47,19 +47,22 @@ export class HousingEnrollmentsController {
 
   @Get()
   @RequirePermission('housing.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const { homeId, participantProfileId, status, ...listQuery } = query;
-    return this.housing.listEnrollments(listQuery as ListQuery, {
-      homeId,
-      participantProfileId,
-      status,
-    });
+    return this.housing.listEnrollments(
+      listQuery as ListQuery,
+      { homeId, participantProfileId, status },
+      user,
+    );
   }
 
   @Get(':id')
   @RequirePermission('housing.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.housing.getEnrollment(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.housing.getEnrollment(id, user);
   }
 
   @Post()
@@ -68,7 +71,7 @@ export class HousingEnrollmentsController {
     @Body(zodBody(housingEnrollmentSchema)) body: HousingEnrollmentInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.housing.moveIn(body, user.id);
+    return this.housing.moveIn(body, user);
   }
 
   @Patch(':id')
@@ -78,7 +81,7 @@ export class HousingEnrollmentsController {
     @Body(zodBody(enrollmentUpdateSchema)) body: HousingEnrollmentUpdate,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.housing.updateEnrollment(id, body, user.id);
+    return this.housing.updateEnrollment(id, body, user);
   }
 
   @Post(':id/transfer')
@@ -88,12 +91,12 @@ export class HousingEnrollmentsController {
     @Body(zodBody(housingTransferSchema)) body: HousingTransferInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.housing.transfer(id, body, user.id);
+    return this.housing.transfer(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('housing.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.housing.softDeleteEnrollment(id, user.id);
+    return this.housing.softDeleteEnrollment(id, user);
   }
 }

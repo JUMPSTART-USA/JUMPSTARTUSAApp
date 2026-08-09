@@ -2,7 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { Prisma } from '@jumpstart/database';
 import type { HouseholdInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { roundMoney } from './giving.util';
 
 export interface HouseholdMemberInput {
@@ -10,9 +12,14 @@ export interface HouseholdMemberInput {
   isHeadOfHousehold?: boolean;
 }
 
+export interface HouseholdListFilters {
+  /** Chapter filter — the controller forces `user.chapter ?? requested`. */
+  state?: string;
+}
+
 // Whitelist of sortable columns — sortBy comes from the query string and must
 // never reach Prisma unchecked.
-const SORTABLE = new Set(['name', 'createdAt']);
+const SORTABLE = new Set(['name', 'chapterState', 'createdAt']);
 
 @Injectable()
 export class HouseholdsService {
@@ -21,9 +28,11 @@ export class HouseholdsService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(query: ListQuery) {
+  async list(query: ListQuery, filters: HouseholdListFilters) {
     const where: Prisma.HouseholdWhereInput = {
       deletedAt: null,
+      // Chapter scoping (§7.2): own chapterState column.
+      ...(filters.state ? { chapterState: filters.state } : {}),
       ...(query.search
         ? {
             OR: [
@@ -85,18 +94,23 @@ export class HouseholdsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const household = await this.prisma.household.findFirst({ where: { id, deletedAt: null } });
     if (!household) throw new NotFoundException('Household not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own chapterState).
+    assertChapterAccess(user.chapter, household.chapterState);
     return household;
   }
 
   /** Household detail: members with per-member lifetime giving + totals. */
-  async detail(id: string) {
-    const household = await this.get(id);
+  async detail(id: string, user: AuthenticatedUser) {
+    const household = await this.get(id, user);
 
     const members = await this.prisma.donor.findMany({
-      where: { householdId: id, deletedAt: null },
+      // A household never spans chapters (addMember enforces it); pinning the
+      // query to the household's chapter also closes any donor-chapter drift
+      // so detail can never surface a foreign-chapter member (§7.2).
+      where: { householdId: id, deletedAt: null, chapterState: household.chapterState },
       orderBy: [{ isHeadOfHousehold: 'desc' }, { name: 'asc' }],
       select: {
         id: true,
@@ -144,16 +158,23 @@ export class HouseholdsService {
     };
   }
 
-  async create(input: HouseholdInput, userId: string) {
+  async create(input: HouseholdInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    // Chapter scoping (§7.2): scoped creators are stamped, all-chapters
+    // creators must pick the chapter explicitly.
+    const chapterState = resolveCreateChapter(user.chapter, input.chapterState);
     const household = await this.prisma.household.create({
-      data: { ...input, createdById: userId, updatedById: userId },
+      data: { ...input, chapterState, createdById: userId, updatedById: userId },
     });
     await this.audit.logCreate(userId, 'household', household.id, household);
     return household;
   }
 
-  async update(id: string, input: Partial<HouseholdInput>, userId: string) {
-    const existing = await this.get(id);
+  async update(id: string, input: Partial<HouseholdInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // 404 + chapter check
+    // ...and a scoped user cannot move the household to another chapter either.
+    assertChapterAccess(user.chapter, input.chapterState);
     const updated = await this.prisma.household.update({
       where: { id },
       data: { ...input, updatedById: userId },
@@ -163,8 +184,9 @@ export class HouseholdsService {
   }
 
   /** Soft delete — members are released, their donor records untouched otherwise. */
-  async softDelete(id: string, userId: string) {
-    const existing = await this.get(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // 404 + chapter check
     // Snapshot the membership first so each released donor gets its own audit row.
     const members = await this.prisma.donor.findMany({
       where: { householdId: id },
@@ -194,12 +216,19 @@ export class HouseholdsService {
   // ── Members ───────────────────────────────────────────────────────────────
 
   /** Moves a donor into the household; only one member may be head. */
-  async addMember(id: string, input: HouseholdMemberInput, userId: string) {
-    await this.get(id);
+  async addMember(id: string, input: HouseholdMemberInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const household = await this.get(id, user); // 404 + chapter check
     const donor = await this.prisma.donor.findFirst({
       where: { id: input.donorId, deletedAt: null },
     });
     if (!donor) throw new BadRequestException('Donor not found');
+    // Chapter scoping (§7.2): the donor must be reachable by the user AND live
+    // in the household's chapter — households never span chapters.
+    assertChapterAccess(user.chapter, donor.chapterState);
+    if (donor.chapterState !== household.chapterState) {
+      throw new BadRequestException('Donor belongs to a different chapter than the household');
+    }
 
     const isHead = input.isHeadOfHousehold ?? false;
     if (isHead) {
@@ -230,12 +259,16 @@ export class HouseholdsService {
     return updated;
   }
 
-  async removeMember(id: string, donorId: string, userId: string) {
-    await this.get(id);
+  async removeMember(id: string, donorId: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.get(id, user); // 404 + chapter check
     const donor = await this.prisma.donor.findFirst({
       where: { id: donorId, deletedAt: null },
     });
     if (!donor) throw new BadRequestException('Donor not found');
+    // Chapter scoping (§7.2): never mutate a donor outside the user's chapter,
+    // even one that drifted into this household's roster.
+    assertChapterAccess(user.chapter, donor.chapterState);
     if (donor.householdId !== id) {
       throw new BadRequestException('Donor is not a member of this household');
     }

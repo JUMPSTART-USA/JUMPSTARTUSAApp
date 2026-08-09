@@ -9,6 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   listQuerySchema,
   MENTOR_SCREENING_STAGES,
   mentorScreeningCriterionUpdateSchema,
@@ -27,6 +28,7 @@ import { MentorScreeningsService } from './screenings.service';
 
 const listFiltersSchema = listQuerySchema.extend({
   stage: z.enum(MENTOR_SCREENING_STAGES).optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -44,20 +46,27 @@ export class MentorScreeningsController {
     @Body(zodBody(mentorScreeningSchema)) body: MentorScreeningInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screenings.create(body, user.id);
+    return this.screenings.create(body, user);
   }
 
   @Get('screenings')
   @RequirePermission('mentoring.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { stage, ...listQuery } = query;
-    return this.screenings.list(listQuery as ListQuery, { stage });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { stage, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.screenings.list(listQuery as ListQuery, {
+      stage,
+      state: user.chapter ?? state,
+    });
   }
 
   @Get('screenings/:id')
   @RequirePermission('mentoring.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.screenings.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.screenings.get(id, user);
   }
 
   @Patch('screenings/:id')
@@ -67,7 +76,7 @@ export class MentorScreeningsController {
     @Body(zodBody(updateSchema)) body: UpdateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screenings.update(id, body, user.id);
+    return this.screenings.update(id, body, user);
   }
 
   @Post('screenings/:id/steps')
@@ -77,7 +86,7 @@ export class MentorScreeningsController {
     @Body(zodBody(mentorScreeningStepSchema)) body: MentorScreeningStepInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screenings.addStep(id, body, user.id);
+    return this.screenings.addStep(id, body, user);
   }
 
   @Patch('criteria/:id')
@@ -87,6 +96,6 @@ export class MentorScreeningsController {
     @Body(zodBody(mentorScreeningCriterionUpdateSchema)) body: MentorScreeningCriterionUpdateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screenings.updateCriterion(id, body, user.id);
+    return this.screenings.updateCriterion(id, body, user);
   }
 }

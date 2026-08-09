@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -177,7 +178,14 @@ export function ParticipantCreatePage() {
           <CardHeader>
             <CardTitle>Program profile</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Chapter scoping (§7.2): rendered only for all-chapters users —
+                scoped users' records are stamped with their chapter. */}
+            <ChapterSelect
+              {...form.register('chapterState')}
+              error={form.formState.errors.chapterState}
+              hint="The chapter this participant record belongs to."
+            />
             <ProfileFields form={form} cmOptions={cmOptions} mode="create" />
           </CardContent>
         </Card>

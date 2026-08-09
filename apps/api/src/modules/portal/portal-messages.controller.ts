@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Query } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   PORTAL_MESSAGE_STATUSES,
   listQuerySchema,
   optionalTrimmed,
@@ -25,6 +26,7 @@ const portalMessageReviewSchema = z.object({
 const listFiltersSchema = listQuerySchema.extend({
   participantProfileId: uuid.optional(),
   status: z.enum(PORTAL_MESSAGE_STATUSES).optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -34,9 +36,17 @@ export class PortalMessagesController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, status, ...listQuery } = query;
-    return this.messages.list(listQuery as ListQuery, { participantProfileId, status });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, status, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.messages.list(listQuery as ListQuery, {
+      participantProfileId,
+      status,
+      state: user.chapter ?? state,
+    });
   }
 
   @Patch(':id')
@@ -46,6 +56,6 @@ export class PortalMessagesController {
     @Body(zodBody(portalMessageReviewSchema)) body: PortalMessageReviewInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.messages.review(id, body, user.id);
+    return this.messages.review(id, body, user);
   }
 }

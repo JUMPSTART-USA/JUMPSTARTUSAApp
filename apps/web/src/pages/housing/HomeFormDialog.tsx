@@ -2,12 +2,12 @@ import {
   HOME_GENDER_LABELS,
   HOME_GENDERS,
   transitionalHomeSchema,
-  US_STATES,
   type HomeGender,
 } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +21,7 @@ import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input'
 import { FormError } from '@/components/ui/notice';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { applyApiError, formResolver } from '@/lib/form';
 import type { TransitionalHome } from './types';
 
@@ -41,12 +42,14 @@ interface HomeFormValues {
   notes?: string;
 }
 
-function toDefaults(home: TransitionalHome | null): HomeFormValues {
+function toDefaults(home: TransitionalHome | null, chapter: string | null): HomeFormValues {
   return {
     name: home?.name ?? '',
     addressLine1: home?.addressLine1 ?? '',
     city: home?.city ?? '',
-    state: home?.state ?? 'SC',
+    // Home state IS the chapter (§7.2): a scoped user's chapter is preset
+    // (the picker is hidden for them); all-chapters users must choose.
+    state: home?.state ?? chapter ?? '',
     zip: home?.zip ?? '',
     phone: home?.phone ?? '',
     houseManagerName: home?.houseManagerName ?? '',
@@ -71,6 +74,8 @@ export function HomeFormDialog({
   home: TransitionalHome | null;
 }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const chapter = user?.chapter ?? null;
   const [topError, setTopError] = useState<string | null>(null);
 
   const {
@@ -81,15 +86,15 @@ export function HomeFormDialog({
     formState: { errors },
   } = useForm<HomeFormValues>({
     resolver: formResolver<HomeFormValues>(transitionalHomeSchema),
-    defaultValues: toDefaults(home),
+    defaultValues: toDefaults(home, chapter),
   });
 
   useEffect(() => {
     if (open) {
-      reset(toDefaults(home));
+      reset(toDefaults(home, chapter));
       setTopError(null);
     }
-  }, [open, home, reset]);
+  }, [open, home, chapter, reset]);
 
   const mutation = useMutation({
     mutationFn: (values: HomeFormValues) =>
@@ -121,15 +126,9 @@ export function HomeFormDialog({
             <FormField label="City" error={errors.city}>
               <Input {...register('city')} />
             </FormField>
-            <FormField label="State" required error={errors.state}>
-              <Select {...register('state')}>
-                {US_STATES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
+            {/* Home state IS the chapter (§7.2) — hidden for scoped users,
+                whose chapter is preset in the defaults. */}
+            <ChapterSelect label="State (chapter)" error={errors.state} {...register('state')} />
             <FormField label="Zip" error={errors.zip}>
               <Input {...register('zip')} />
             </FormField>

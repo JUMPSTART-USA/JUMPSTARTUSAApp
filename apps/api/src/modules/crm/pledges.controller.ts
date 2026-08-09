@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   listQuerySchema,
   PLEDGE_STATUSES,
   pledgeSchema,
@@ -26,6 +27,7 @@ import type { AuthenticatedUser } from '../../common/types';
 import { PledgesService } from './pledges.service';
 
 const listFiltersSchema = listQuerySchema.extend({
+  state: z.enum(CHAPTER_STATES).optional(),
   donorId: uuid.optional(),
   status: z.enum(PLEDGE_STATUSES).optional(),
   campaignId: uuid.optional(),
@@ -44,15 +46,25 @@ export class PledgesController {
 
   @Get()
   @RequirePermission('donors.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { donorId, status, campaignId, fundId, ...listQuery } = query;
-    return this.pledges.list(listQuery as ListQuery, { donorId, status, campaignId, fundId });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { state, donorId, status, campaignId, fundId, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.pledges.list(listQuery as ListQuery, {
+      state: user.chapter ?? state,
+      donorId,
+      status,
+      campaignId,
+      fundId,
+    });
   }
 
   @Get(':id')
   @RequirePermission('donors.read')
-  detail(@Param('id', ParseUUIDPipe) id: string) {
-    return this.pledges.detail(id);
+  detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.pledges.detail(id, user);
   }
 
   @Post()
@@ -61,7 +73,7 @@ export class PledgesController {
     @Body(zodBody(pledgeSchema)) body: PledgeInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.pledges.create(body, user.id);
+    return this.pledges.create(body, user);
   }
 
   @Patch(':id')
@@ -71,13 +83,13 @@ export class PledgesController {
     @Body(zodBody(pledgeUpdateSchema)) body: Partial<PledgeInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.pledges.update(id, body, user.id);
+    return this.pledges.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('donors.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.pledges.softDelete(id, user.id);
+    return this.pledges.softDelete(id, user);
   }
 
   @Post(':id/payments')
@@ -87,6 +99,6 @@ export class PledgesController {
     @Body(zodBody(schedulePaymentSchema)) body: SchedulePaymentInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.pledges.recordPayment(id, body, user.id);
+    return this.pledges.recordPayment(id, body, user);
   }
 }

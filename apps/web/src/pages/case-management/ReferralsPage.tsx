@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { outboundReferralSchema } from '@jumpstart/shared';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
@@ -194,6 +195,7 @@ export function ReferralsPage() {
   const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [vendorId, setVendorId] = useState('');
   const [search, setSearch] = useState('');
+  const [state, setState] = useState('');
   const [editing, setEditing] = useState<ReferralRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const debouncedSearch = useDebounced(search);
@@ -210,6 +212,7 @@ export function ReferralsPage() {
     search: debouncedSearch,
     participantProfileId: participant?.id,
     vendorId,
+    state,
   });
 
   const { data, isLoading, error } = useQuery({
@@ -280,6 +283,15 @@ export function ReferralsPage() {
             }}
           />
         </div>
+        {/* Chapter scoping (§7.2): referrals derive their chapter from the
+            participant — hidden for scoped users, whom the API force-filters. */}
+        <ChapterFilterSelect
+          value={state}
+          onChange={(v) => {
+            setState(v);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
+        />
         {canListVendors ? (
           <Select
             className="w-full sm:w-44"

@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import {
+  CHAPTER_STATES,
   COMM_CHANNELS,
   COMM_STATUSES,
   communicationBatchSchema,
@@ -47,8 +48,14 @@ const communicationListSchema = listQuerySchema.extend({
   channel: z.enum(COMM_CHANNELS).optional(),
   status: z.enum(COMM_STATUSES).optional(),
   batchId: z.string().uuid().optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type CommunicationListQuery = z.infer<typeof communicationListSchema>;
+
+const batchListSchema = listQuerySchema.extend({
+  state: z.enum(CHAPTER_STATES).optional(),
+});
+type BatchListQuery = z.infer<typeof batchListSchema>;
 
 @Controller('communications')
 export class CommunicationsController {
@@ -126,14 +133,19 @@ export class CommunicationsController {
 
   @Get('batches')
   @RequirePermission('communications.read')
-  listBatches(@Query(zodQuery(listQuerySchema)) query: ListQuery) {
-    return this.batches.list(query);
+  listBatches(
+    @Query(zodQuery(batchListSchema)) query: BatchListQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.batches.list(listQuery as ListQuery, { state: user.chapter ?? state });
   }
 
   @Get('batches/:id')
   @RequirePermission('communications.read')
-  getBatch(@Param('id', ParseUUIDPipe) id: string) {
-    return this.batches.get(id);
+  getBatch(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.batches.get(id, user);
   }
 
   /** Push the batch's queued email/SMS rows through the real providers. */
@@ -188,13 +200,18 @@ export class CommunicationsController {
 
   @Get()
   @RequirePermission('communications.read')
-  list(@Query(zodQuery(communicationListSchema)) query: CommunicationListQuery) {
-    const { personId, channel, status, batchId, ...listQuery } = query;
+  list(
+    @Query(zodQuery(communicationListSchema)) query: CommunicationListQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { personId, channel, status, batchId, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.communications.list(listQuery as ListQuery, {
       personId,
       channel,
       status,
       batchId,
+      state: user.chapter ?? state,
     });
   }
 }

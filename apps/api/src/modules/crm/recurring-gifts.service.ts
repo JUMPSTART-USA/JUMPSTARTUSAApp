@@ -12,11 +12,15 @@ import type {
   SchedulePaymentInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
+import type { AuthenticatedUser } from '../../common/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DonationsService } from './donations.service';
 import { roundMoney, startOfUtcDay } from './giving.util';
 
 export interface RecurringGiftListFilters {
+  /** Chapter (§7.2) — forced to the user's chapter in the controller. */
+  state?: string;
   donorId?: string;
   status?: RecurringGiftStatus;
 }
@@ -38,8 +42,17 @@ export class RecurringGiftsService {
       deletedAt: null,
       ...(filters.donorId ? { donorId: filters.donorId } : {}),
       ...(filters.status ? { status: filters.status } : {}),
-      ...(query.search
-        ? { donor: { name: { contains: query.search, mode: 'insensitive' } } }
+      // Chapter scoping (§7.2): schedules derive chapter through their
+      // required donor — the donor-name search rides the same join.
+      ...(filters.state || query.search
+        ? {
+            donor: {
+              ...(filters.state ? { chapterState: filters.state } : {}),
+              ...(query.search
+                ? { name: { contains: query.search, mode: 'insensitive' as const } }
+                : {}),
+            },
+          }
         : {}),
     };
 
@@ -92,24 +105,32 @@ export class RecurringGiftsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
-    const gift = await this.prisma.recurringGift.findFirst({ where: { id, deletedAt: null } });
-    if (!gift) throw new NotFoundException('Recurring gift not found');
+  async get(id: string, user: AuthenticatedUser) {
+    const found = await this.prisma.recurringGift.findFirst({
+      where: { id, deletedAt: null },
+      include: { donor: { select: { chapterState: true } } },
+    });
+    if (!found) throw new NotFoundException('Recurring gift not found');
+    // Chapter scoping (§7.2): derived through the required donor.
+    assertChapterAccess(user.chapter, found.donor.chapterState);
+    const { donor: _donor, ...gift } = found;
     return gift;
   }
 
   /** Recurring-gift detail: the schedule plus its collected payments. */
-  async detail(id: string) {
+  async detail(id: string, user: AuthenticatedUser) {
     const gift = await this.prisma.recurringGift.findFirst({
       where: { id, deletedAt: null },
       include: {
-        donor: { select: { id: true, name: true } },
+        donor: { select: { id: true, name: true, chapterState: true } },
         campaign: { select: { id: true, name: true } },
         fund: { select: { id: true, name: true } },
         appeal: { select: { id: true, name: true } },
       },
     });
     if (!gift) throw new NotFoundException('Recurring gift not found');
+    // Chapter scoping (§7.2): derived through the required donor.
+    assertChapterAccess(user.chapter, gift.donor.chapterState);
 
     const payments = await this.prisma.donation.findMany({
       where: { recurringGiftId: id, deletedAt: null },
@@ -129,8 +150,9 @@ export class RecurringGiftsService {
     };
   }
 
-  async create(input: RecurringGiftInput, userId: string) {
-    await this.assertLinksExist(input);
+  async create(input: RecurringGiftInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.assertLinksExist(input, user);
     const gift = await this.prisma.recurringGift.create({
       data: {
         ...input,
@@ -144,9 +166,10 @@ export class RecurringGiftsService {
     return gift;
   }
 
-  async update(id: string, input: Partial<RecurringGiftInput>, userId: string) {
-    const existing = await this.get(id);
-    await this.assertLinksExist(input);
+  async update(id: string, input: Partial<RecurringGiftInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user);
+    await this.assertLinksExist(input, user, existing.donorId);
 
     // Recorded payments carry the schedule's donor — repointing it would
     // split the two sides across donors (mirrors the softDelete guard).
@@ -185,8 +208,9 @@ export class RecurringGiftsService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.get(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user);
     const payments = await this.prisma.donation.count({
       where: { recurringGiftId: id, deletedAt: null },
     });
@@ -206,8 +230,9 @@ export class RecurringGiftsService {
    * inheriting the schedule's designations unless overridden. The donation
    * create path advances nextGiftDate.
    */
-  async recordPayment(id: string, input: SchedulePaymentInput, userId: string) {
-    const gift = await this.get(id);
+  async recordPayment(id: string, input: SchedulePaymentInput, user: AuthenticatedUser) {
+    // Chapter scoping (§7.2): get() asserts the schedule's donor chapter.
+    const gift = await this.get(id, user);
     return this.donations.create(
       {
         donorId: gift.donorId,
@@ -223,22 +248,41 @@ export class RecurringGiftsService {
         appealId: input.appealId !== undefined ? input.appealId : gift.appealId,
         notes: input.notes,
       },
-      userId,
+      user,
     );
   }
 
-  private async assertLinksExist(input: Partial<RecurringGiftInput>) {
+  private async assertLinksExist(
+    input: Partial<RecurringGiftInput>,
+    user: AuthenticatedUser,
+    existingDonorId?: string,
+  ) {
+    // Resolve the MERGED donor's chapter first — the schedule's chapter
+    // follows its donor, and every linked designation must stay in it.
+    let donorChapter: string | null = null;
     if (input.donorId) {
       const donor = await this.prisma.donor.findFirst({
         where: { id: input.donorId, deletedAt: null },
       });
       if (!donor) throw new BadRequestException('Donor not found');
+      // Chapter scoping (§7.2): a scoped user cannot start a schedule for
+      // another chapter's donor.
+      assertChapterAccess(user.chapter, donor.chapterState);
+      donorChapter = donor.chapterState;
+    } else if (existingDonorId && (input.campaignId || input.appealId)) {
+      const donor = await this.prisma.donor.findFirst({ where: { id: existingDonorId } });
+      donorChapter = donor?.chapterState ?? null;
     }
     if (input.campaignId) {
       const campaign = await this.prisma.campaign.findFirst({
         where: { id: input.campaignId, deletedAt: null },
       });
       if (!campaign) throw new BadRequestException('Campaign not found');
+      if (donorChapter && campaign.chapterState !== donorChapter) {
+        throw new BadRequestException(
+          "Campaign belongs to a different chapter than the schedule's donor",
+        );
+      }
     }
     if (input.fundId) {
       const fund = await this.prisma.fund.findFirst({ where: { id: input.fundId } });
@@ -247,8 +291,15 @@ export class RecurringGiftsService {
     if (input.appealId) {
       const appeal = await this.prisma.appeal.findFirst({
         where: { id: input.appealId, deletedAt: null },
+        include: { campaign: { select: { chapterState: true } } },
       });
       if (!appeal) throw new BadRequestException('Appeal not found');
+      // A standalone appeal (no campaign) is org-global and matches any donor.
+      if (donorChapter && appeal.campaign && appeal.campaign.chapterState !== donorChapter) {
+        throw new BadRequestException(
+          "Appeal belongs to a different chapter than the schedule's donor",
+        );
+      }
     }
   }
 }

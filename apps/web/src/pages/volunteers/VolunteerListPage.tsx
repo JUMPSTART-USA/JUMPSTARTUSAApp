@@ -4,6 +4,7 @@ import {
   US_STATES,
   VOLUNTEER_STATUSES,
   volunteerCreateSchema,
+  type ChapterState,
   type Gender,
   type UsState,
   type VolunteerStatus,
@@ -13,6 +14,7 @@ import { CalendarClock, CalendarDays, ClipboardList, Clock, Plus } from 'lucide-
 import { useRef, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect, ChapterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
@@ -65,6 +67,7 @@ export function VolunteerListPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [mentor, setMentor] = useState('');
+  const [chapter, setChapter] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const debouncedSearch = useDebounced(search);
 
@@ -76,6 +79,7 @@ export function VolunteerListPage() {
     search: debouncedSearch,
     status,
     isMentor: mentor,
+    state: chapter,
   };
 
   const { data, isLoading, error } = useQuery({
@@ -198,6 +202,13 @@ export function VolunteerListPage() {
           <option value="true">Mentors only</option>
           <option value="false">Non-mentors only</option>
         </Select>
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
+        />
       </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
@@ -239,6 +250,9 @@ interface VolunteerFormValues {
     churchAffiliation?: string;
     notes?: string;
   };
+  // Chapter (§7.2): required pick for all-chapters users; stamped server-side
+  // for chapter-scoped users. person.state above is a mailing address.
+  chapterState?: ChapterState;
   confirmNotDuplicate: boolean;
 }
 
@@ -310,6 +324,7 @@ function CreateVolunteerDialog({
           .map((r) => r.trim())
           .filter(Boolean),
       },
+      chapterState: data.chapterState,
       confirmNotDuplicate: false,
     };
     lastPayload.current = payload;
@@ -421,6 +436,12 @@ function CreateVolunteerDialog({
                   ))}
                 </Select>
               </FormField>
+              <ChapterSelect
+                error={formState.errors.chapterState}
+                {...register('chapterState', {
+                  setValueAs: (v) => (v === '' ? undefined : v),
+                })}
+              />
               <FormField label="Email" error={personErrors.primaryEmail}>
                 <Input type="email" {...register('person.primaryEmail')} />
               </FormField>

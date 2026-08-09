@@ -29,12 +29,12 @@ export class AssignmentsController {
     @Body(zodBody(assignmentUpdateSchema)) body: Partial<VolunteerAssignmentInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.assignments.update(id, body, user.id);
+    return this.assignments.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('volunteers.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.assignments.softDelete(id, user.id);
+    return this.assignments.softDelete(id, user);
   }
 }

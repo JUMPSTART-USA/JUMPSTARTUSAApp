@@ -1,11 +1,11 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   endNotBeforeStart,
   INSIDE_STATUSES,
   optionalDate,
   OUTSIDE_STATUSES,
   PROGRAM_TYPES,
-  US_STATES,
   uuid,
 } from '@jumpstart/shared';
 import { z } from 'zod';
@@ -25,7 +25,7 @@ const dashboardQuerySchema = z
   .object({
     from: optionalDate,
     to: optionalDate,
-    state: z.enum(US_STATES).optional(),
+    state: z.enum(CHAPTER_STATES).optional(),
     institutionId: uuid.optional(),
     programType: z.enum(PROGRAM_TYPES).optional(),
     participantStatus: z.enum(PARTICIPANT_STATUS_FILTERS).optional(),

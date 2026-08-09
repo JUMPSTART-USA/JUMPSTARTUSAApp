@@ -65,11 +65,16 @@ function HouseholdDialog({
   onOpenChange,
   donorId,
   donorName,
+  donorChapterState,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   donorId: string;
   donorName: string;
+  /** Chapter (§7.2): a household must live in its members' chapter, so a new
+   * household is stamped with this donor's chapter and the picker only offers
+   * same-chapter households. */
+  donorChapterState: string;
 }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<'existing' | 'new'>('existing');
@@ -97,6 +102,7 @@ function HouseholdDialog({
         const created = await api.post<{ id: string }>('/households', {
           name,
           envelopeName: envelopeName || undefined,
+          chapterState: donorChapterState,
         });
         householdId = created.id;
       }
@@ -156,7 +162,7 @@ function HouseholdDialog({
                 placeholder="Search households…"
                 search={async (term) => {
                   const page = await api.get<Paged<HouseholdListItem>>(
-                    `/households${qs({ search: term, pageSize: 8 })}`,
+                    `/households${qs({ search: term, pageSize: 8, state: donorChapterState })}`,
                   );
                   return page.items.map((h) => ({
                     id: h.id,
@@ -610,6 +616,9 @@ export function DonorProfilePage() {
                 {[donor.addressLine1, [donor.city, donor.state].filter(Boolean).join(', '), donor.zip]
                   .filter(Boolean)
                   .join(' · ') || '—'}
+              </InfoItem>
+              <InfoItem label="Chapter">
+                <Badge variant="outline">{donor.chapterState}</Badge>
               </InfoItem>
               <InfoItem label="Linked person">
                 {donor.person ? fullName(donor.person) : 'Not linked'}
@@ -1233,6 +1242,7 @@ export function DonorProfilePage() {
         onOpenChange={setHouseholdOpen}
         donorId={donor.id}
         donorName={donor.name}
+        donorChapterState={donor.chapterState}
       />
       <RelationshipDialog
         open={relationshipOpen}

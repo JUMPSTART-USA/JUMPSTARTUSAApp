@@ -2,19 +2,28 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { EmploymentStatus, HiringStatus, Prisma } from '@jumpstart/database';
 import type { EmployerInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
-import { assertChapterAccess } from '../../common/chapter.util';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
 export interface EmployerListFilters {
   hiringStatus?: HiringStatus;
   industry?: string;
-  state?: string;
+  /** Chapter filter — matches the `chapterState` column, NOT the postal state. */
+  chapterState?: string;
 }
 
 // Whitelist of sortable columns — sortBy comes from the query string and must
 // never reach Prisma unchecked.
-const SORTABLE = new Set(['name', 'hiringStatus', 'industry', 'state', 'city', 'createdAt']);
+const SORTABLE = new Set([
+  'name',
+  'hiringStatus',
+  'industry',
+  'state',
+  'chapterState',
+  'city',
+  'createdAt',
+]);
 
 /** Statuses meaning the participant actually reached hire (a placement, §6.9). */
 const PLACED: ReadonlySet<EmploymentStatus> = new Set([
@@ -41,7 +50,7 @@ export class EmployersService {
       ...(filters.industry
         ? { industry: { contains: filters.industry, mode: 'insensitive' } }
         : {}),
-      ...(filters.state ? { state: filters.state } : {}),
+      ...(filters.chapterState ? { chapterState: filters.chapterState } : {}),
       ...(query.search
         ? {
             OR: [
@@ -77,8 +86,9 @@ export class EmployersService {
       where: { id, deletedAt: null },
     });
     if (!employer) throw new NotFoundException('Employer not found');
-    // Chapter scoping (§7.2): same derivation as the list filter (own state).
-    assertChapterAccess(user.chapter, employer.state);
+    // Chapter scoping (§7.2): same derivation as the list filter
+    // (own chapterState — the postal `state` is just address data).
+    assertChapterAccess(user.chapter, employer.chapterState);
     return employer;
   }
 
@@ -128,10 +138,11 @@ export class EmployersService {
 
   async create(input: EmployerInput, user: AuthenticatedUser) {
     const userId = user.id;
-    // Chapter scoping (§7.2): a scoped user cannot create for another chapter.
-    assertChapterAccess(user.chapter, input.state);
+    // Chapter scoping (§7.2): the creator decides the chapter — scoped users
+    // get theirs stamped, all-chapters users must pick one.
+    const chapterState = resolveCreateChapter(user.chapter, input.chapterState);
     const employer = await this.prisma.employer.create({
-      data: { ...input, createdById: userId, updatedById: userId },
+      data: { ...input, chapterState, createdById: userId, updatedById: userId },
     });
     await this.audit.logCreate(userId, 'employer', employer.id, employer);
     return employer;
@@ -141,7 +152,7 @@ export class EmployersService {
     const userId = user.id;
     const existing = await this.get(id, user); // chapter check inside
     // ...and a scoped user cannot move the record to another chapter either.
-    assertChapterAccess(user.chapter, input.state);
+    assertChapterAccess(user.chapter, input.chapterState);
     const updated = await this.prisma.employer.update({
       where: { id },
       data: { ...input, updatedById: userId },

@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   listQuerySchema,
   needsAssessmentSchema,
   optionalDate,
@@ -27,6 +28,7 @@ const listFiltersSchema = listQuerySchema.extend({
   participantProfileId: uuid.optional(),
   from: optionalDate,
   to: optionalDate,
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -36,15 +38,24 @@ export class NeedsAssessmentsController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, from, to, ...listQuery } = query;
-    return this.assessments.list(listQuery as ListQuery, { participantProfileId, from, to });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, from, to, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.assessments.list(listQuery as ListQuery, {
+      participantProfileId,
+      from,
+      to,
+      state: user.chapter ?? state,
+    });
   }
 
   @Get(':id')
   @RequirePermission('case_management.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.assessments.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.assessments.get(id, user);
   }
 
   @Post()
@@ -53,7 +64,7 @@ export class NeedsAssessmentsController {
     @Body(zodBody(needsAssessmentSchema)) body: NeedsAssessmentInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.assessments.create(body, user.id);
+    return this.assessments.create(body, user);
   }
 
   @Patch(':id')
@@ -63,12 +74,12 @@ export class NeedsAssessmentsController {
     @Body(zodBody(needsAssessmentSchema.partial())) body: Partial<NeedsAssessmentInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.assessments.update(id, body, user.id);
+    return this.assessments.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('case_management.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.assessments.softDelete(id, user.id);
+    return this.assessments.softDelete(id, user);
   }
 }

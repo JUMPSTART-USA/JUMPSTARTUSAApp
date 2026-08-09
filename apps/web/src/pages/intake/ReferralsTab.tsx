@@ -1,6 +1,7 @@
 import { INTAKE_STATUSES } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ChapterFilterSelect, ChapterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
@@ -19,13 +20,17 @@ import { useAuth } from '@/lib/auth';
 import { useDebounced } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
 import { DuplicateCandidatePicker, ReviewControls, SubmittedAge } from './review';
-import { apiErrorMessage, type ReferralItem, type ReviewPayload } from './types';
+import { apiErrorMessage, isReviewable, type ReferralItem, type ReviewPayload } from './types';
 
 function ReferralDialog({ item, onClose }: { item: ReferralItem; onClose: () => void }) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [existingPersonId, setExistingPersonId] = useState<string | null>(null);
+  const [chapter, setChapter] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Legacy rows predate the public form's required chapter field (§7.2) — the
+  // reviewer decides which chapter takes the referral.
+  const needsChapter = !item.state;
 
   const mutation = useMutation({
     mutationFn: (payload: ReviewPayload) =>
@@ -60,7 +65,8 @@ function ReferralDialog({ item, onClose }: { item: ReferralItem; onClose: () => 
           </InfoItem>
           <InfoItem label="Subject phone">{item.subjectPhone ?? '—'}</InfoItem>
           <InfoItem label="Facility">{item.facilityName ?? '—'}</InfoItem>
-          <InfoItem label="State">{item.state ?? '—'}</InfoItem>
+          {/* The chapter the referrer picked on the public form (§7.2). */}
+          <InfoItem label="Chapter">{item.state ?? 'Not specified'}</InfoItem>
           <InfoItem label="Expected release">{formatDate(item.expectedReleaseDate)}</InfoItem>
           <InfoItem label="Needs" className="sm:col-span-2">
             <span className="whitespace-pre-wrap">{item.needs}</span>
@@ -73,6 +79,17 @@ function ReferralDialog({ item, onClose }: { item: ReferralItem; onClose: () => 
           onChange={setExistingPersonId}
         />
 
+        {/* Chapter pick for legacy referrals (§7.2) — required before any
+            review action, since the row cannot be routed without one. */}
+        {needsChapter && isReviewable(item.status) ? (
+          <ChapterSelect
+            alwaysVisible
+            hint="This referral arrived without a chapter — choose the one that takes it."
+            value={chapter}
+            onChange={(e) => setChapter(e.target.value)}
+          />
+        ) : null}
+
         <ReviewControls
           status={item.status}
           reviewedAt={item.reviewedAt}
@@ -82,9 +99,14 @@ function ReferralDialog({ item, onClose }: { item: ReferralItem; onClose: () => 
           error={error}
           approveHint="Approving creates (or links) the person, opens a participant profile at intake status, and instantiates the onboarding checklist."
           onAction={(payload) => {
+            if (needsChapter && !chapter) {
+              setError('Select the chapter for this submission');
+              return;
+            }
             setError(null);
             mutation.mutate({
               ...payload,
+              ...(needsChapter ? { state: chapter } : {}),
               ...(payload.action === 'approve' && existingPersonId
                 ? { existingPersonId }
                 : {}),
@@ -100,11 +122,12 @@ export function ReferralsTab() {
   const [state, setState] = useState<ListState>({ ...initialListState, sortBy: 'submittedAt' });
   const [status, setStatus] = useState('pending');
   const [search, setSearch] = useState('');
+  const [stateFilter, setStateFilter] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const debounced = useDebounced(search);
 
   const query = useQuery({
-    queryKey: ['intake', 'referrals', state, status, debounced],
+    queryKey: ['intake', 'referrals', state, status, debounced, stateFilter],
     queryFn: () =>
       api.get<Paged<ReferralItem>>(
         `/intake/referrals${qs({
@@ -114,6 +137,7 @@ export function ReferralsTab() {
           sortDir: state.sortDir,
           status: status || undefined,
           search: debounced,
+          state: stateFilter,
         })}`,
       ),
   });
@@ -144,8 +168,14 @@ export function ReferralsTab() {
     },
     {
       key: 'facility',
-      header: 'Facility / State',
-      render: (r) => [r.facilityName, r.state].filter(Boolean).join(' · ') || '—',
+      header: 'Facility',
+      render: (r) => r.facilityName ?? '—',
+    },
+    // The referral's CHAPTER (§7.2) — legacy rows show a dash until reviewed.
+    {
+      key: 'chapter',
+      header: 'Chapter',
+      render: (r) => r.state ?? '—',
     },
     {
       key: 'release',
@@ -197,6 +227,15 @@ export function ReferralsTab() {
             </option>
           ))}
         </Select>
+        {/* Chapter filter (§7.2) — the queue's own `state` column; hidden for
+            scoped users (the API forces their chapter). */}
+        <ChapterFilterSelect
+          value={stateFilter}
+          onChange={(value) => {
+            setStateFilter(value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        />
       </ListToolbar>
 
       {query.isError ? (

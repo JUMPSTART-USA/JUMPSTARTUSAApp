@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { needsAssessmentSchema } from '@jumpstart/shared';
 import { backTo } from '@/components/BackLink';
 import { EditAssessmentDialog } from './edit-dialogs';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
@@ -208,6 +209,7 @@ export function NeedsAssessmentsPage() {
   const { can } = useAuth();
   const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
   const [participant, setParticipant] = useState<PickerOption | null>(null);
+  const [state, setState] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewing, setViewing] = useState<NeedsAssessmentRow | null>(null);
   const [editing, setEditing] = useState<NeedsAssessmentRow | null>(null);
@@ -220,6 +222,7 @@ export function NeedsAssessmentsPage() {
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
     participantProfileId: participant?.id,
+    state,
   });
 
   const { data, isLoading, error } = useQuery({
@@ -324,6 +327,15 @@ export function NeedsAssessmentsPage() {
             }}
           />
         </div>
+        {/* Chapter scoping (§7.2): assessments derive their chapter from the
+            participant — hidden for scoped users, whom the API force-filters. */}
+        <ChapterFilterSelect
+          value={state}
+          onChange={(v) => {
+            setState(v);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
+        />
       </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}

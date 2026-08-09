@@ -32,8 +32,8 @@ export class HoursService {
     const where: Prisma.VolunteerHoursEntryWhereInput = {
       deletedAt: null,
       // Chapter scoping (§7.2): same derivation as the volunteers list
-      // (person.state) — a scoped user only sees their chapter's entries.
-      ...(user.chapter ? { volunteerProfile: { person: { state: user.chapter } } } : {}),
+      // (chapterState) — a scoped user only sees their chapter's entries.
+      ...(user.chapter ? { volunteerProfile: { chapterState: user.chapter } } : {}),
       ...(filters.volunteerProfileId ? { volunteerProfileId: filters.volunteerProfileId } : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.opportunityId ? { opportunityId: filters.opportunityId } : {}),
@@ -133,11 +133,11 @@ export class HoursService {
     const userId = user.id;
     const existing = await this.prisma.volunteerHoursEntry.findFirst({
       where: { id, deletedAt: null },
-      include: { volunteerProfile: { select: { person: { select: { state: true } } } } },
+      include: { volunteerProfile: { select: { chapterState: true } } },
     });
     if (!existing) throw new NotFoundException('Hours entry not found');
-    // Chapter scoping (§7.2): same derivation as the volunteers list (person.state).
-    assertChapterAccess(user.chapter, existing.volunteerProfile.person.state);
+    // Chapter scoping (§7.2): same derivation as the volunteers list (chapterState).
+    assertChapterAccess(user.chapter, existing.volunteerProfile.chapterState);
     await this.assertRefs(input, user.chapter);
     // The volunteerProfile include was for the chapter check only — keep the
     // audit payload the entry row, as before.
@@ -186,11 +186,11 @@ export class HoursService {
     const userId = user.id;
     const existing = await this.prisma.volunteerHoursEntry.findFirst({
       where: { id, deletedAt: null },
-      include: { volunteerProfile: { select: { person: { select: { state: true } } } } },
+      include: { volunteerProfile: { select: { chapterState: true } } },
     });
     if (!existing) throw new NotFoundException('Hours entry not found');
-    // Chapter scoping (§7.2): same derivation as the volunteers list (person.state).
-    assertChapterAccess(user.chapter, existing.volunteerProfile.person.state);
+    // Chapter scoping (§7.2): same derivation as the volunteers list (chapterState).
+    assertChapterAccess(user.chapter, existing.volunteerProfile.chapterState);
     const { volunteerProfile: _volunteerProfile, ...existingEntry } = existing;
 
     await this.prisma.volunteerHoursEntry.update({
@@ -214,36 +214,47 @@ export class HoursService {
     if (input.volunteerProfileId) {
       const profile = await this.prisma.volunteerProfile.findFirst({
         where: { id: input.volunteerProfileId, deletedAt: null },
-        include: { person: { select: { state: true } } },
       });
       if (!profile) throw new NotFoundException('Volunteer not found');
       // Chapter scoping (§7.2): the entry's volunteer must be in the user's
       // chapter — on create and on any repoint.
-      assertChapterAccess(chapter, profile.person.state);
+      assertChapterAccess(chapter, profile.chapterState);
     }
     if (input.opportunityId) {
       const opportunity = await this.prisma.volunteerOpportunity.findFirst({
         where: { id: input.opportunityId, deletedAt: null },
       });
       if (!opportunity) throw new NotFoundException('Opportunity not found');
+      // Chapter scoping (§7.2): an entry cannot point at another chapter's
+      // opportunity.
+      assertChapterAccess(chapter, opportunity.state);
     }
     if (input.shiftId) {
       const shift = await this.prisma.volunteerShift.findFirst({
         where: { id: input.shiftId, deletedAt: null },
+        select: { opportunity: { select: { state: true } } },
       });
       if (!shift) throw new NotFoundException('Shift not found');
+      // Chapter scoping (§7.2): derived through the shift's opportunity.
+      assertChapterAccess(chapter, shift.opportunity.state);
     }
     if (input.institutionId) {
       const institution = await this.prisma.institution.findFirst({
         where: { id: input.institutionId, deletedAt: null },
       });
       if (!institution) throw new NotFoundException('Institution not found');
+      // Chapter scoping (§7.2): an entry cannot point at another chapter's
+      // facility.
+      assertChapterAccess(chapter, institution.state);
     }
     if (input.assignmentId) {
       const assignment = await this.prisma.volunteerAssignment.findFirst({
         where: { id: input.assignmentId, deletedAt: null },
+        select: { volunteerProfile: { select: { chapterState: true } } },
       });
       if (!assignment) throw new NotFoundException('Assignment not found');
+      // Chapter scoping (§7.2): derived through the assignment's volunteer.
+      assertChapterAccess(chapter, assignment.volunteerProfile.chapterState);
     }
   }
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TRAVEL_REQUEST_STATUSES, TRAVEL_REQUEST_STATUS_LABELS } from '@jumpstart/shared';
 import { backTo } from '@/components/BackLink';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ export function TravelRequestsPage() {
   const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
   const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [status, setStatus] = useState('');
+  const [state, setState] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [formTarget, setFormTarget] = useState<TravelRequestRow | 'new' | null>(null);
@@ -58,6 +60,7 @@ export function TravelRequestsPage() {
     sortDir: listState.sortDir,
     participantProfileId: participant?.id,
     status,
+    state,
     from,
     to,
   });
@@ -231,6 +234,15 @@ export function TravelRequestsPage() {
             </option>
           ))}
         </Select>
+        {/* Chapter scoping (§7.2): requests derive their chapter from the
+            participant — hidden for scoped users, whom the API force-filters. */}
+        <ChapterFilterSelect
+          value={state}
+          onChange={(v) => {
+            setState(v);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
+        />
         <ToolbarDateField
           label="From"
           value={from}

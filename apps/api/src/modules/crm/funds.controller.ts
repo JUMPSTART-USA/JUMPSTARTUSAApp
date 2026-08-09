@@ -30,9 +30,13 @@ export class FundsController {
 
   @Get()
   @RequirePermission('donors.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const { active, ...listQuery } = query;
-    return this.funds.list(listQuery as ListQuery, { active });
+    // Funds are org-global (§7.2) — user only scopes the giving rollups.
+    return this.funds.list(listQuery as ListQuery, { active }, user);
   }
 
   @Post()

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   alumniEngagementSchema,
+  CHAPTER_STATES,
   ENGAGEMENT_TYPES,
   listQuerySchema,
   optionalDate,
@@ -29,6 +30,7 @@ const listFiltersSchema = listQuerySchema.extend({
   engagementType: z.enum(ENGAGEMENT_TYPES).optional(),
   from: optionalDate,
   to: optionalDate,
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -42,20 +44,25 @@ export class AlumniEngagementsController {
 
   @Get()
   @RequirePermission('alumni.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, engagementType, from, to, ...listQuery } = query;
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, engagementType, from, to, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.engagements.list(listQuery as ListQuery, {
       participantProfileId,
       engagementType,
       from,
       to,
+      state: user.chapter ?? state,
     });
   }
 
   @Get(':id')
   @RequirePermission('alumni.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.engagements.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.engagements.get(id, user);
   }
 
   @Post()
@@ -64,7 +71,7 @@ export class AlumniEngagementsController {
     @Body(zodBody(alumniEngagementSchema)) body: AlumniEngagementInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.engagements.create(body, user.id);
+    return this.engagements.create(body, user);
   }
 
   @Patch(':id')
@@ -74,12 +81,12 @@ export class AlumniEngagementsController {
     @Body(zodBody(updateSchema)) body: UpdateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.engagements.update(id, body, user.id);
+    return this.engagements.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('alumni.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.engagements.remove(id, user.id);
+    return this.engagements.remove(id, user);
   }
 }

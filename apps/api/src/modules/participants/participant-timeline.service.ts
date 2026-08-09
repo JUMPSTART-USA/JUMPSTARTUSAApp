@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
@@ -40,9 +41,11 @@ export class ParticipantTimelineService {
   ) {
     const profile = await this.prisma.participantProfile.findFirst({
       where: { id, deletedAt: null },
-      select: { id: true, personId: true, assignedCaseManagerId: true },
+      select: { id: true, personId: true, assignedCaseManagerId: true, chapterState: true },
     });
     if (!profile) throw new NotFoundException('Participant not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own chapterState).
+    assertChapterAccess(viewer.chapter, profile.chapterState);
 
     const [
       inside,

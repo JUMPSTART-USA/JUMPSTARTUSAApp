@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   CHECKIN_WAVES,
   listQuerySchema,
   outcomeCheckinCompleteSchema,
@@ -19,6 +20,7 @@ const listFiltersSchema = listQuerySchema.extend({
   due: z.enum(['overdue', 'upcoming']).optional(),
   wave: z.enum(CHECKIN_WAVES).optional(),
   participantProfileId: uuid.optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -28,15 +30,24 @@ export class OutcomeCheckinsController {
 
   @Get()
   @RequirePermission('alumni.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { due, wave, participantProfileId, ...listQuery } = query;
-    return this.checkins.list(listQuery as ListQuery, { due, wave, participantProfileId });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { due, wave, participantProfileId, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.checkins.list(listQuery as ListQuery, {
+      due,
+      wave,
+      participantProfileId,
+      state: user.chapter ?? state,
+    });
   }
 
   @Get(':id')
   @RequirePermission('alumni.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.checkins.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.checkins.get(id, user);
   }
 
   @Post()
@@ -45,7 +56,7 @@ export class OutcomeCheckinsController {
     @Body(zodBody(outcomeCheckinScheduleSchema)) body: OutcomeCheckinScheduleInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.checkins.schedule(body, user.id);
+    return this.checkins.schedule(body, user);
   }
 
   @Put(':id/complete')
@@ -55,6 +66,6 @@ export class OutcomeCheckinsController {
     @Body(zodBody(outcomeCheckinCompleteSchema)) body: OutcomeCheckinCompleteInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.checkins.complete(id, body, user.id);
+    return this.checkins.complete(id, body, user);
   }
 }

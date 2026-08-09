@@ -3,6 +3,7 @@ import { CheckCircle2, Circle, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { goalSchema, GOAL_STATUSES, NOTE_CATEGORIES, servicePlanSchema } from '@jumpstart/shared';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -442,12 +443,18 @@ function CreatePlanCard({ participant }: { participant: PickerOption }) {
 }
 
 /** All plans across participants — shown until a participant is chosen. */
-function PlansOverview({ onOpen }: { onOpen: (participant: PickerOption) => void }) {
+function PlansOverview({
+  state,
+  onOpen,
+}: {
+  state: string;
+  onOpen: (participant: PickerOption) => void;
+}) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['case-management', 'service-plans', 'overview'],
+    queryKey: ['case-management', 'service-plans', 'overview', state],
     queryFn: () =>
       api.get<Paged<ServicePlanRow>>(
-        `/service-plans${qs({ pageSize: 200, sortBy: 'createdAt', sortDir: 'desc' })}`,
+        `/service-plans${qs({ pageSize: 200, sortBy: 'createdAt', sortDir: 'desc', state })}`,
       ),
   });
 
@@ -510,6 +517,7 @@ function PlansOverview({ onOpen }: { onOpen: (participant: PickerOption) => void
 export function ServicePlansPage() {
   const { can } = useAuth();
   const [participant, setParticipant] = useState<PickerOption | null>(null);
+  const [state, setState] = useState('');
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   const { data: plans, isLoading, error } = useQuery({
@@ -533,20 +541,27 @@ export function ServicePlansPage() {
       <SectionHeader
         title="Service Plans"
         actions={
-          <div className="w-full sm:w-72">
-            <ParticipantPicker
-              value={participant}
-              onChange={(p) => {
-                setParticipant(p);
-                setSelectedPlanId(null);
-              }}
-            />
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            {/* Chapter scoping (§7.2): filters the all-participants overview;
+                plans derive their chapter from the participant, so picking one
+                below scopes it anyway. Hidden for chapter-scoped users. */}
+            <ChapterFilterSelect value={state} onChange={setState} />
+            <div className="w-full sm:w-72">
+              <ParticipantPicker
+                value={participant}
+                onChange={(p) => {
+                  setParticipant(p);
+                  setSelectedPlanId(null);
+                }}
+              />
+            </div>
           </div>
         }
       />
 
       {!participant ? (
         <PlansOverview
+          state={state}
           onOpen={(p) => {
             setParticipant(p);
             setSelectedPlanId(null);

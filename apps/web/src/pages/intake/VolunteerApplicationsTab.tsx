@@ -1,6 +1,7 @@
 import { INTAKE_STATUSES } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ChapterFilterSelect, ChapterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
@@ -21,6 +22,7 @@ import { formatDate, humanize } from '@/lib/utils';
 import { DuplicateCandidatePicker, ReviewControls, SubmittedAge } from './review';
 import {
   apiErrorMessage,
+  isReviewable,
   type ReviewPayload,
   type VolunteerApplicationItem,
 } from './types';
@@ -35,7 +37,11 @@ function ApplicationDialog({
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [existingPersonId, setExistingPersonId] = useState<string | null>(null);
+  const [chapter, setChapter] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Legacy rows predate the public form's required chapter field (§7.2) — the
+  // reviewer decides which chapter takes the application.
+  const needsChapter = !item.state;
 
   const mutation = useMutation({
     mutationFn: (payload: ReviewPayload) =>
@@ -62,9 +68,9 @@ function ApplicationDialog({
         <DescriptionList>
           <InfoItem label="Email">{item.email ?? '—'}</InfoItem>
           <InfoItem label="Phone">{item.phone ?? '—'}</InfoItem>
-          <InfoItem label="Location">
-            {[item.city, item.state].filter(Boolean).join(', ') || '—'}
-          </InfoItem>
+          <InfoItem label="City">{item.city ?? '—'}</InfoItem>
+          {/* The chapter the applicant picked on the public form (§7.2). */}
+          <InfoItem label="Chapter">{item.state ?? 'Not specified'}</InfoItem>
           <InfoItem label="Interest areas">
             {item.interestAreas.length > 0
               ? item.interestAreas.map((a) => (
@@ -88,6 +94,17 @@ function ApplicationDialog({
           onChange={setExistingPersonId}
         />
 
+        {/* Chapter pick for legacy submissions (§7.2) — required before any
+            review action, since the row cannot be routed without one. */}
+        {needsChapter && isReviewable(item.status) ? (
+          <ChapterSelect
+            alwaysVisible
+            hint="This submission arrived without a chapter — choose the one that takes it."
+            value={chapter}
+            onChange={(e) => setChapter(e.target.value)}
+          />
+        ) : null}
+
         <ReviewControls
           status={item.status}
           reviewedAt={item.reviewedAt}
@@ -97,9 +114,14 @@ function ApplicationDialog({
           error={error}
           approveHint="Approving creates (or links) the person and opens a volunteer profile in the screening pipeline."
           onAction={(payload) => {
+            if (needsChapter && !chapter) {
+              setError('Select the chapter for this submission');
+              return;
+            }
             setError(null);
             mutation.mutate({
               ...payload,
+              ...(needsChapter ? { state: chapter } : {}),
               ...(payload.action === 'approve' && existingPersonId
                 ? { existingPersonId }
                 : {}),
@@ -115,11 +137,12 @@ export function VolunteerApplicationsTab() {
   const [state, setState] = useState<ListState>({ ...initialListState, sortBy: 'submittedAt' });
   const [status, setStatus] = useState('pending');
   const [search, setSearch] = useState('');
+  const [stateFilter, setStateFilter] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const debounced = useDebounced(search);
 
   const query = useQuery({
-    queryKey: ['intake', 'volunteer-applications', state, status, debounced],
+    queryKey: ['intake', 'volunteer-applications', state, status, debounced, stateFilter],
     queryFn: () =>
       api.get<Paged<VolunteerApplicationItem>>(
         `/intake/volunteer-applications${qs({
@@ -129,6 +152,7 @@ export function VolunteerApplicationsTab() {
           sortDir: state.sortDir,
           status: status || undefined,
           search: debounced,
+          state: stateFilter,
         })}`,
       ),
   });
@@ -151,9 +175,15 @@ export function VolunteerApplicationsTab() {
       render: (a) => a.email ?? a.phone ?? '—',
     },
     {
-      key: 'location',
-      header: 'Location',
-      render: (a) => [a.city, a.state].filter(Boolean).join(', ') || '—',
+      key: 'city',
+      header: 'City',
+      render: (a) => a.city ?? '—',
+    },
+    // The submission's CHAPTER (§7.2) — legacy rows show a dash until reviewed.
+    {
+      key: 'chapter',
+      header: 'Chapter',
+      render: (a) => a.state ?? '—',
     },
     {
       key: 'interests',
@@ -206,6 +236,15 @@ export function VolunteerApplicationsTab() {
             </option>
           ))}
         </Select>
+        {/* Chapter filter (§7.2) — the queue's own `state` column; hidden for
+            scoped users (the API forces their chapter). */}
+        <ChapterFilterSelect
+          value={stateFilter}
+          onChange={(value) => {
+            setStateFilter(value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        />
       </ListToolbar>
 
       {query.isError ? (

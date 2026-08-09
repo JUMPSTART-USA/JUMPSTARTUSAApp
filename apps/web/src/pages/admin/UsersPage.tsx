@@ -11,7 +11,7 @@ import {
 } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, type Resolver, type UseFormRegister } from 'react-hook-form';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
@@ -141,23 +141,33 @@ export function UsersPage() {
     {
       key: 'chapter',
       header: 'Chapter',
-      render: (row) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <Select
-            className="w-40"
-            value={row.chapter ?? ''}
-            disabled={setChapter.isPending}
-            onChange={(e) => setChapter.mutate({ id: row.id, chapter: e.target.value })}
+      // Chapter scoping (§7.2): admins are always all-chapters — the API rejects
+      // scope rows for them, so show static text instead of the select.
+      render: (row) =>
+        row.roles.includes('admin') ? (
+          <span
+            className="text-muted-foreground"
+            title="Administrators always see all chapters"
           >
-            <option value="">All chapters</option>
-            {CHAPTER_STATES.map((s) => (
-              <option key={s} value={s}>
-                {CHAPTER_NAMES[s]}
-              </option>
-            ))}
-          </Select>
-        </div>
-      ),
+            All chapters
+          </span>
+        ) : (
+          <div onClick={(e) => e.stopPropagation()}>
+            <Select
+              className="w-40"
+              value={row.chapter ?? ''}
+              disabled={setChapter.isPending}
+              onChange={(e) => setChapter.mutate({ id: row.id, chapter: e.target.value })}
+            >
+              <option value="">All chapters</option>
+              {CHAPTER_STATES.map((s) => (
+                <option key={s} value={s}>
+                  {CHAPTER_NAMES[s]}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ),
     },
     {
       key: 'lastLoginAt',
@@ -248,6 +258,7 @@ export function UsersPage() {
       {error ? <ErrorState error={error} /> : null}
       {reactivate.error ? <ErrorState error={reactivate.error} /> : null}
       {resendInvite.error ? <ErrorState error={resendInvite.error} /> : null}
+      {setChapter.error ? <ErrorState error={setChapter.error} /> : null}
 
       {resendResult ? (
         <Dialog open onOpenChange={(next) => (!next ? setResendResult(null) : undefined)}>
@@ -304,6 +315,8 @@ interface InviteFormValues {
   firstName: string;
   lastName: string;
   roles: RoleKey[];
+  /** Chapter scope: a state code, or null for all chapters. */
+  chapter: string | null;
 }
 
 const inviteResolver = zodResolver(createUserSchema) as unknown as Resolver<InviteFormValues>;
@@ -335,7 +348,7 @@ function InviteUserDialog({
 
   const form = useForm<InviteFormValues>({
     resolver: inviteResolver,
-    defaultValues: { email: '', firstName: '', lastName: '', roles: [] },
+    defaultValues: { email: '', firstName: '', lastName: '', roles: [], chapter: null },
   });
 
   const close = (next: boolean) => {
@@ -365,7 +378,14 @@ function InviteUserDialog({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const { register, formState } = form;
+  const { register, formState, watch, setValue } = form;
+  const isAdmin = (watch('roles') ?? []).includes('admin');
+  const chapter = watch('chapter');
+
+  // Chapter scoping (§7.2): administrators are always all-chapters.
+  useEffect(() => {
+    if (isAdmin) setValue('chapter', null);
+  }, [isAdmin, setValue]);
 
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -412,7 +432,11 @@ function InviteUserDialog({
           <form
             onSubmit={form.handleSubmit((values) => {
               setTopError(null);
-              create.mutate(values);
+              // Chapter scoping (§7.2): admins are always all-chapters.
+              create.mutate({
+                ...values,
+                chapter: values.roles.includes('admin') ? null : values.chapter,
+              });
             })}
             className="space-y-4"
           >
@@ -439,6 +463,28 @@ function InviteUserDialog({
               hint="Roles are additive — the user gets the union of all selected roles."
             >
               <RoleCheckboxes register={register} />
+            </FormField>
+            <FormField
+              label="Chapter"
+              error={formState.errors.chapter}
+              hint={
+                isAdmin
+                  ? 'Administrators always see all chapters.'
+                  : 'Scopes the user to one chapter; leave on All chapters for org-wide access.'
+              }
+            >
+              <Select
+                value={isAdmin ? '' : (chapter ?? '')}
+                disabled={isAdmin}
+                onChange={(e) => setValue('chapter', e.target.value || null)}
+              >
+                <option value="">All chapters</option>
+                {CHAPTER_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {CHAPTER_NAMES[s]}
+                  </option>
+                ))}
+              </Select>
             </FormField>
 
             <FormError message={topError} />

@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -64,6 +65,7 @@ export function InsideClassListPage() {
   const [listState, setListState] = useState<ListState>(initialListState);
   const [search, setSearch] = useState('');
   const [institutionFilter, setInstitutionFilter] = useState('');
+  const [stateFilter, setStateFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const debouncedSearch = useDebounced(search);
@@ -76,6 +78,7 @@ export function InsideClassListPage() {
       listState,
       debouncedSearch,
       institutionFilter,
+      stateFilter,
       statusFilter,
     ],
     queryFn: () =>
@@ -87,6 +90,7 @@ export function InsideClassListPage() {
           sortDir: listState.sortDir,
           search: debouncedSearch,
           institutionId: institutionFilter,
+          state: stateFilter,
           status: statusFilter,
         })}`,
       ),
@@ -133,6 +137,15 @@ export function InsideClassListPage() {
             </option>
           ))}
         </Select>
+        {/* Chapter scoping (§7.2): classes derive chapter via institution.state;
+            hidden for scoped users — the API force-filters their chapter. */}
+        <ChapterFilterSelect
+          value={stateFilter}
+          onChange={(v) => {
+            setStateFilter(v);
+            resetPage();
+          }}
+        />
         <Select
           className="w-full sm:w-44"
           value={statusFilter}

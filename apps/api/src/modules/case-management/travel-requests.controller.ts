@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   TRAVEL_REQUEST_STATUSES,
   endNotBeforeStart,
   listQuerySchema,
@@ -46,6 +47,7 @@ const listFiltersSchema = listQuerySchema.extend({
   status: z.enum(TRAVEL_REQUEST_STATUSES).optional(),
   from: optionalDate,
   to: optionalDate,
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -55,13 +57,18 @@ export class TravelRequestsController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, status, from, to, ...listQuery } = query;
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, status, from, to, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.travelRequests.list(listQuery as ListQuery, {
       participantProfileId,
       status,
       from,
       to,
+      state: user.chapter ?? state,
     });
   }
 
@@ -71,7 +78,7 @@ export class TravelRequestsController {
     @Body(zodBody(travelRequestSchema)) body: TravelRequestInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.travelRequests.create(body, user.id);
+    return this.travelRequests.create(body, user);
   }
 
   @Patch(':id')
@@ -81,7 +88,7 @@ export class TravelRequestsController {
     @Body(zodBody(travelRequestUpdateSchema)) body: TravelRequestUpdateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.travelRequests.update(id, body, user.id);
+    return this.travelRequests.update(id, body, user);
   }
 
   @Post(':id/decision')
@@ -91,12 +98,12 @@ export class TravelRequestsController {
     @Body(zodBody(travelDecisionSchema)) body: TravelDecisionInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.travelRequests.decide(id, body, user.id);
+    return this.travelRequests.decide(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('case_management.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.travelRequests.softDelete(id, user.id);
+    return this.travelRequests.softDelete(id, user);
   }
 }

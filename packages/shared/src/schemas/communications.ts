@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHAPTER_STATES } from '../chapters';
 import { COMM_CHANNELS } from '../enums';
 import { optionalTrimmed, requiredTrimmed, uuid } from './common';
 
@@ -39,6 +40,10 @@ export const sendCommunicationSchema = z
     body: optionalTrimmed,
     relatedEntityType: optionalTrimmed,
     relatedEntityId: uuid.optional(),
+    // Chapter (§7.2): optional at the pipe — the service stamps the sender's
+    // chapter or the recipient's derived chapter, and only needs an explicit
+    // pick from an all-chapters sender when the recipient has neither.
+    chapterState: z.enum(CHAPTER_STATES).optional(),
   })
   .superRefine((val, ctx) => {
     if (!val.templateId && !val.body) {

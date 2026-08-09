@@ -41,7 +41,10 @@ function toSafeUser(user: UserWithRoles) {
     updatedAt: user.updatedAt,
     roles: user.userRoles.map((ur) => ur.role.key),
     // One scope row = that chapter; no rows = all chapters (§7.2).
-    chapter: user.regionScopes[0]?.state ?? null,
+    // Admins are always all-chapters — the guard ignores their scope rows.
+    chapter: user.userRoles.some((ur) => ur.role.key === 'admin')
+      ? null
+      : (user.regionScopes[0]?.state ?? null),
   };
 }
 
@@ -113,6 +116,13 @@ export class AdminUsersService {
 
     const roles = await this.resolveRoles(input.roles);
 
+    // Chapter at invite time (§7.2): admins are always all-chapters.
+    if (input.chapter && input.roles.includes('admin')) {
+      throw new BadRequestException(
+        'Administrators always see all chapters and cannot be chapter-scoped',
+      );
+    }
+
     // 12 random bytes → exactly 16 base64url chars, no padding.
     const temporaryPassword = randomBytes(12).toString('base64url');
     const passwordHash = await argon2.hash(temporaryPassword, { type: argon2.argon2id });
@@ -128,6 +138,7 @@ export class AdminUsersService {
         createdById: userId,
         updatedById: userId,
         userRoles: { create: roles.map((r) => ({ roleId: r.id })) },
+        ...(input.chapter ? { regionScopes: { create: { state: input.chapter } } } : {}),
       },
       include: USER_ROLES_INCLUDE,
     });
@@ -182,14 +193,34 @@ export class AdminUsersService {
       if (emailTaken) throw new ConflictException('A user with this email already exists');
     }
 
-    const { roles: newRoleKeys, ...fields } = input;
+    // `chapter` is a scope, not a user column — pull it out of the row update.
+    const { roles: newRoleKeys, chapter, ...userFields } = input;
     const roles = newRoleKeys ? await this.resolveRoles(newRoleKeys) : undefined;
 
+    // Effective admin status after this edit (new roles if changing, else the
+    // account's current roles). Admins are always all-chapters (§7.2).
+    const willHoldAdmin = roles
+      ? roles.some((r) => r.key === 'admin')
+      : existing.userRoles.some((ur) => ur.role.key === 'admin');
+    if (chapter && willHoldAdmin) {
+      throw new BadRequestException(
+        'Administrators always see all chapters and cannot be chapter-scoped',
+      );
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({ where: { id }, data: { ...fields, updatedById: userId } });
+      await tx.user.update({ where: { id }, data: { ...userFields, updatedById: userId } });
       if (roles) {
         await tx.userRole.deleteMany({ where: { userId: id } });
         await tx.userRole.createMany({ data: roles.map((r) => ({ userId: id, roleId: r.id })) });
+      }
+      // Apply an explicit chapter change; `undefined` leaves scopes untouched.
+      // Granting admin always clears scopes (all-chapters) regardless.
+      if (chapter !== undefined || willHoldAdmin) {
+        await tx.userRegionScope.deleteMany({ where: { userId: id } });
+        if (chapter && !willHoldAdmin) {
+          await tx.userRegionScope.create({ data: { userId: id, state: chapter } });
+        }
       }
       return tx.user.findUniqueOrThrow({ where: { id }, include: USER_ROLES_INCLUDE });
     });
@@ -348,8 +379,17 @@ export class AdminUsersService {
   }
 
   async setRegionScopes(id: string, states: string[], userId: string) {
-    await this.getRaw(id);
+    const target = await this.getRaw(id);
     const unique = [...new Set(states)].sort();
+
+    // Administrators are always all-chapters (§7.2, docs/chapter-scoping.md):
+    // the guard ignores scope rows for admins, so refuse to create the
+    // contradiction rather than store dead data.
+    if (unique.length && target.userRoles.some((ur) => ur.role.key === 'admin')) {
+      throw new BadRequestException(
+        'Administrators always see all chapters and cannot be chapter-scoped',
+      );
+    }
 
     const old = await this.prisma.userRegionScope.findMany({ where: { userId: id } });
     await this.prisma.$transaction(async (tx) => {

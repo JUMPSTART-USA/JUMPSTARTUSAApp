@@ -10,6 +10,7 @@ import { CheckCircle2, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
@@ -267,6 +268,7 @@ export function DonorTasksPage() {
     sortBy: 'dueDate',
     sortDir: 'asc',
   });
+  const [chapter, setChapter] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [completing, setCompleting] = useState<DonorTask | null>(null);
   const canUpdate = can('donors.update');
@@ -279,6 +281,7 @@ export function DonorTasksPage() {
     sortDir: state.sortDir,
     status: tab === 'completed' ? 'completed' : 'open',
     assignedToId: tab === 'mine' ? 'me' : undefined,
+    state: chapter,
   });
   const query = useQuery({
     queryKey: ['crm', 'donor-tasks', 'list', params],
@@ -373,19 +376,29 @@ export function DonorTasksPage() {
 
       <DonorsNav />
 
-      <Tabs
-        value={tab}
-        onValueChange={(next) => {
-          setTab(next as TaskTab);
-          setState((s) => ({ ...s, page: 1 }));
-        }}
-      >
-        <TabsList>
-          <TabsTrigger value="mine">My tasks</TabsTrigger>
-          <TabsTrigger value="open">All open</TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs
+          value={tab}
+          onValueChange={(next) => {
+            setTab(next as TaskTab);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        >
+          <TabsList>
+            <TabsTrigger value="mine">My tasks</TabsTrigger>
+            <TabsTrigger value="open">All open</TabsTrigger>
+            <TabsTrigger value="completed">Completed</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {/* Chapter filter (§7.2) — hidden for scoped users; the API force-filters theirs. */}
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        />
+      </div>
 
       {query.isError ? <ErrorState error={query.error} /> : null}
       <DataTable

@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   INCIDENT_CATEGORIES,
   INCIDENT_SEVERITIES,
   INCIDENT_STATUSES,
@@ -53,6 +54,7 @@ const listFiltersSchema = listQuerySchema.extend({
   category: z.enum(INCIDENT_CATEGORIES).optional(),
   from: optionalDate,
   to: optionalDate,
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -62,8 +64,13 @@ export class IncidentReportsController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, status, severity, category, from, to, ...listQuery } = query;
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, status, severity, category, from, to, state, ...listQuery } =
+      query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.incidents.list(listQuery as ListQuery, {
       participantProfileId,
       status,
@@ -71,6 +78,7 @@ export class IncidentReportsController {
       category,
       from,
       to,
+      state: user.chapter ?? state,
     });
   }
 
@@ -80,7 +88,7 @@ export class IncidentReportsController {
     @Body(zodBody(incidentReportSchema)) body: IncidentReportInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.incidents.create(body, user.id);
+    return this.incidents.create(body, user);
   }
 
   @Patch(':id')
@@ -90,12 +98,12 @@ export class IncidentReportsController {
     @Body(zodBody(incidentReportUpdateSchema)) body: IncidentReportUpdateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.incidents.update(id, body, user.id);
+    return this.incidents.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('case_management.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.incidents.softDelete(id, user.id);
+    return this.incidents.softDelete(id, user);
   }
 }

@@ -13,7 +13,9 @@ import type {
   ListQuery,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import {
   donorLifecycle,
   pledgeComputed,
@@ -26,6 +28,8 @@ export interface DonorListFilters {
   donorType?: DonorType;
   status?: 'active' | 'lapsed' | 'inactive';
   householdId?: string;
+  /** Chapter filter — the controller forces `user.chapter ?? requested`. */
+  state?: string;
   hasEmail?: boolean;
 }
 
@@ -40,7 +44,7 @@ export interface TimelineRow {
 
 // Whitelist of sortable columns — sortBy comes from the query string and must
 // never reach Prisma unchecked.
-const SORTABLE = new Set(['name', 'donorType', 'status', 'city', 'state', 'createdAt']);
+const SORTABLE = new Set(['name', 'donorType', 'status', 'city', 'state', 'chapterState', 'createdAt']);
 
 /** Distinct, order-preserving named refs (drops nulls from optional relations). */
 function dedupeRefs(refs: Array<{ id: string; name: string } | null>) {
@@ -64,6 +68,9 @@ export class DonorsService {
       ...(filters.donorType ? { donorType: filters.donorType } : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.householdId ? { householdId: filters.householdId } : {}),
+      // Chapter scoping (§7.2): donor chapter is the own chapterState column —
+      // postal `state` is a mailing address, never a chapter.
+      ...(filters.state ? { chapterState: filters.state } : {}),
       ...(filters.hasEmail !== undefined
         ? { email: filters.hasEmail ? { not: null } : null }
         : {}),
@@ -120,17 +127,19 @@ export class DonorsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const donor = await this.prisma.donor.findFirst({
       where: { id, deletedAt: null },
       include: { person: { select: { id: true, firstName: true, lastName: true } } },
     });
     if (!donor) throw new NotFoundException('Donor not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own chapterState).
+    assertChapterAccess(user.chapter, donor.chapterState);
     return donor;
   }
 
   /** Donor detail: profile + household + relationships + full giving picture (§6.8). */
-  async detail(id: string) {
+  async detail(id: string, user: AuthenticatedUser) {
     const donor = await this.prisma.donor.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -147,6 +156,8 @@ export class DonorsService {
       },
     });
     if (!donor) throw new NotFoundException('Donor not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own chapterState).
+    assertChapterAccess(user.chapter, donor.chapterState);
 
     const [donations, outgoing, incoming, softCreditsReceived, pledges, recurringGifts, interactions, openTasks] =
       await Promise.all([
@@ -160,18 +171,36 @@ export class DonorsService {
             appeal: { select: { id: true, name: true } },
           },
         }),
+        // Related/soft-crediting donors are separate records that may live in
+        // other chapters; a scoped viewer only sees the same-chapter ones so
+        // no foreign donor name/id leaks through the subject's detail (§7.2).
         this.prisma.donorRelationship.findMany({
-          where: { donorId: id, relatedDonor: { deletedAt: null } },
+          where: {
+            donorId: id,
+            relatedDonor: {
+              deletedAt: null,
+              ...(user.chapter ? { chapterState: user.chapter } : {}),
+            },
+          },
           include: { relatedDonor: { select: { id: true, name: true } } },
           orderBy: { createdAt: 'asc' },
         }),
         this.prisma.donorRelationship.findMany({
-          where: { relatedDonorId: id, donor: { deletedAt: null } },
+          where: {
+            relatedDonorId: id,
+            donor: { deletedAt: null, ...(user.chapter ? { chapterState: user.chapter } : {}) },
+          },
           include: { donor: { select: { id: true, name: true } } },
           orderBy: { createdAt: 'asc' },
         }),
         this.prisma.softCredit.findMany({
-          where: { donorId: id, donation: { deletedAt: null } },
+          where: {
+            donorId: id,
+            donation: {
+              deletedAt: null,
+              ...(user.chapter ? { donor: { chapterState: user.chapter } } : {}),
+            },
+          },
           include: {
             donation: {
               select: {
@@ -312,8 +341,8 @@ export class DonorsService {
   }
 
   /** Merged activity feed — gifts, interactions and tasks, newest first. */
-  async timeline(id: string, query: ListQuery) {
-    await this.get(id);
+  async timeline(id: string, query: ListQuery, user: AuthenticatedUser) {
+    await this.get(id, user); // 404 + chapter check
 
     const [donations, interactions, tasks] = await Promise.all([
       this.prisma.donation.findMany({
@@ -388,16 +417,20 @@ export class DonorsService {
     };
   }
 
-  async create(input: DonorCreateInput, userId: string) {
+  async create(input: DonorCreateInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const { confirmNotDuplicate, ...data } = input;
+    // Chapter scoping (§7.2): scoped creators are stamped, all-chapters
+    // creators must pick the chapter explicitly.
+    const chapterState = resolveCreateChapter(user.chapter, data.chapterState);
     await this.assertPersonExists(data.personId);
-    await this.assertHouseholdExists(data.householdId);
+    await this.assertHouseholdInChapter(data.householdId, chapterState);
 
     // §5: individual donors are often existing participants or volunteers.
     // Surface matching people so staff link the donor to them (or open the
     // donor that already exists) instead of creating a disconnected record.
     if (data.donorType === 'individual' && !data.personId && !confirmNotDuplicate) {
-      const candidates = await this.findPersonCandidates(data);
+      const candidates = await this.findPersonCandidates(data, user.chapter);
       if (candidates.length > 0) {
         throw new ConflictException({
           message:
@@ -408,7 +441,7 @@ export class DonorsService {
     }
 
     const donor = await this.prisma.donor.create({
-      data: { ...data, createdById: userId, updatedById: userId },
+      data: { ...data, chapterState, createdById: userId, updatedById: userId },
     });
     if (donor.isHeadOfHousehold && donor.householdId) {
       await this.clearOtherHeads(donor.householdId, donor.id, userId);
@@ -417,10 +450,18 @@ export class DonorsService {
     return donor;
   }
 
-  async update(id: string, input: Partial<DonorInput>, userId: string) {
-    const existing = await this.get(id);
+  async update(id: string, input: Partial<DonorInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // 404 + chapter check
+    // Chapter scoping (§7.2): a scoped user cannot move the donor to another
+    // chapter either (the existing-record check above covers the other direction).
+    assertChapterAccess(user.chapter, input.chapterState);
     await this.assertPersonExists(input.personId);
-    await this.assertHouseholdExists(input.householdId);
+    // The donor's household must live in the donor's (possibly new) chapter.
+    const nextChapter = input.chapterState ?? existing.chapterState;
+    const nextHouseholdId =
+      input.householdId === undefined ? existing.householdId : input.householdId;
+    await this.assertHouseholdInChapter(nextHouseholdId, nextChapter);
 
     // Moving between households must not carry headship into the destination —
     // the incumbent head stays unless the request claims headship explicitly.
@@ -447,8 +488,9 @@ export class DonorsService {
   }
 
   // Donations keep their donorId — the donor simply disappears from lists.
-  async softDelete(id: string, userId: string) {
-    const existing = await this.get(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // 404 + chapter check
     await this.prisma.donor.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
@@ -460,8 +502,9 @@ export class DonorsService {
   // ── Relationships ─────────────────────────────────────────────────────────
   // One row per pair; the reciprocal label covers the reverse direction.
 
-  async addRelationship(donorId: string, input: DonorRelationshipInput, userId: string) {
-    await this.get(donorId);
+  async addRelationship(donorId: string, input: DonorRelationshipInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.get(donorId, user); // 404 + chapter check
     if (input.relatedDonorId === donorId) {
       throw new BadRequestException('A donor cannot be related to themselves');
     }
@@ -469,6 +512,9 @@ export class DonorsService {
       where: { id: input.relatedDonorId, deletedAt: null },
     });
     if (!related) throw new BadRequestException('Related donor not found');
+    // Chapter scoping (§7.2): both ends checked BEFORE the duplicate lookup so
+    // a scoped user cannot probe foreign-chapter relationships.
+    assertChapterAccess(user.chapter, related.chapterState);
 
     const duplicate = await this.prisma.donorRelationship.findFirst({
       where: {
@@ -488,11 +534,18 @@ export class DonorsService {
   }
 
   // No deletedAt column — delete exists for corrections; the audit row keeps history.
-  async removeRelationship(id: string, userId: string) {
-    const existing = await this.prisma.donorRelationship.findUnique({ where: { id } });
+  async removeRelationship(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.prisma.donorRelationship.findUnique({
+      where: { id },
+      include: { donor: { select: { chapterState: true } } },
+    });
     if (!existing) throw new NotFoundException('Relationship not found');
+    // Chapter scoping (§7.2): derived through the owning donor.
+    assertChapterAccess(user.chapter, existing.donor.chapterState);
+    const { donor: _donor, ...relationshipOnly } = existing;
     await this.prisma.donorRelationship.delete({ where: { id } });
-    await this.audit.logDelete(userId, 'donor_relationship', id, existing);
+    await this.audit.logDelete(userId, 'donor_relationship', id, relationshipOnly);
     return { ok: true };
   }
 
@@ -525,12 +578,22 @@ export class DonorsService {
     if (!person) throw new BadRequestException('Linked person not found');
   }
 
-  private async assertHouseholdExists(householdId?: string | null) {
+  /**
+   * The linked household must exist AND live in the donor's chapter — a donor
+   * joining a household is the same invariant households.addMember enforces.
+   */
+  private async assertHouseholdInChapter(
+    householdId: string | null | undefined,
+    donorChapter: string,
+  ) {
     if (!householdId) return;
     const household = await this.prisma.household.findFirst({
       where: { id: householdId, deletedAt: null },
     });
     if (!household) throw new BadRequestException('Household not found');
+    if (household.chapterState !== donorChapter) {
+      throw new BadRequestException('Household belongs to a different chapter than the donor');
+    }
   }
 
   /**
@@ -538,12 +601,21 @@ export class DonorsService {
    * volunteer duplicate matcher: name (first+last, case-insensitive), email,
    * or normalized phone. Donor names are a single string, so the name clause
    * only applies when it splits into at least two tokens.
+   *
+   * Chapter scoping (§7.2, cross-chapter dedupe): scoped users only see
+   * candidates from their own chapter — a person is in-chapter through their
+   * participant/volunteer profile, or (with neither profile) when none of
+   * their linked donors sit in another chapter. All-chapters users keep
+   * global matching and do the cross-chapter merging.
    */
-  private async findPersonCandidates(input: {
-    name: string;
-    email?: string | null;
-    phone?: string | null;
-  }) {
+  private async findPersonCandidates(
+    input: {
+      name: string;
+      email?: string | null;
+      phone?: string | null;
+    },
+    userChapter: string | null,
+  ) {
     const or: Prisma.PersonWhereInput[] = [];
     const tokens = input.name.trim().split(/\s+/);
     if (tokens.length >= 2) {
@@ -558,8 +630,24 @@ export class DonorsService {
     if (input.phone) or.push({ primaryPhone: input.phone });
     if (or.length === 0) return [];
 
+    const chapterClause: Prisma.PersonWhereInput[] = userChapter
+      ? [
+          {
+            OR: [
+              { participantProfile: { chapterState: userChapter } },
+              { volunteerProfile: { chapterState: userChapter } },
+              {
+                participantProfile: null,
+                volunteerProfile: null,
+                donors: { none: { deletedAt: null, chapterState: { not: userChapter } } },
+              },
+            ],
+          },
+        ]
+      : [];
+
     const people = await this.prisma.person.findMany({
-      where: { deletedAt: null, OR: or },
+      where: { deletedAt: null, AND: [{ OR: or }, ...chapterClause] },
       select: {
         id: true,
         firstName: true,

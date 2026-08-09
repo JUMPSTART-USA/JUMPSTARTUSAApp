@@ -10,10 +10,10 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   employerSchema,
   HIRING_STATUSES,
   listQuerySchema,
-  US_STATES,
   type EmployerInput,
   type ListQuery,
 } from '@jumpstart/shared';
@@ -26,7 +26,8 @@ import { EmployersService } from './employers.service';
 const listFiltersSchema = listQuerySchema.extend({
   hiringStatus: z.enum(HIRING_STATUSES).optional(),
   industry: z.string().trim().max(200).optional(),
-  state: z.enum(US_STATES).optional(),
+  // External param stays `state`, but it filters the CHAPTER column (§7.2).
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -45,7 +46,7 @@ export class EmployersController {
     return this.employers.list(listQuery as ListQuery, {
       hiringStatus,
       industry,
-      state: (user.chapter ?? state) as ListFilters['state'],
+      chapterState: (user.chapter ?? state) as ListFilters['state'],
     });
   }
 

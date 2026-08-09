@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   DONOR_TASK_STATUSES,
   donorTaskSchema,
   INTERACTION_CHANNELS,
@@ -30,6 +31,7 @@ const listFiltersSchema = listQuerySchema.extend({
   // 'me' resolves to the calling user — the SPA's "My tasks" tab.
   assignedToId: z.union([z.literal('me'), uuid]).optional(),
   status: z.enum(DONOR_TASK_STATUSES).optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
   overdue: z
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
@@ -56,11 +58,13 @@ export class DonorTasksController {
     @Query(zodQuery(listFiltersSchema)) query: ListFilters,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const { donorId, assignedToId, status, overdue, ...listQuery } = query;
+    const { donorId, assignedToId, status, state, overdue, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.tasks.list(listQuery as ListQuery, {
       donorId,
       assignedToId: assignedToId === 'me' ? user.id : assignedToId,
       status,
+      state: (user.chapter ?? state) as ListFilters['state'],
       overdue,
     });
   }
@@ -71,7 +75,7 @@ export class DonorTasksController {
     @Body(zodBody(donorTaskSchema)) body: DonorTaskInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.tasks.create(body, user.id);
+    return this.tasks.create(body, user);
   }
 
   @Patch(':id')
@@ -81,12 +85,12 @@ export class DonorTasksController {
     @Body(zodBody(taskUpdateSchema)) body: DonorTaskUpdate,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.tasks.update(id, body, user.id);
+    return this.tasks.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('donors.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.tasks.remove(id, user.id);
+    return this.tasks.remove(id, user);
   }
 }

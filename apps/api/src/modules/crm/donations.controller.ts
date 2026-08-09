@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   acknowledgeDonationSchema,
+  CHAPTER_STATES,
   donationSchema,
   listQuerySchema,
   optionalDate,
@@ -33,6 +34,7 @@ const boolParam = z
   .optional();
 
 const filterShape = {
+  state: z.enum(CHAPTER_STATES).optional(),
   donorId: uuid.optional(),
   campaignId: uuid.optional(),
   eventId: uuid.optional(),
@@ -66,15 +68,23 @@ export class DonationsController {
   // Static route declared before any parameterized siblings.
   @Get('summary')
   @RequirePermission('donors.read')
-  summary(@Query(zodQuery(summaryFiltersSchema)) query: SummaryFilters) {
-    const { search, ...filters } = query;
-    return this.donations.summary(filters, search);
+  summary(
+    @Query(zodQuery(summaryFiltersSchema)) query: SummaryFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { search, state, ...filters } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.donations.summary({ ...filters, state: user.chapter ?? state }, search);
   }
 
   @Get()
   @RequirePermission('donors.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const {
+      state,
       donorId,
       campaignId,
       eventId,
@@ -89,6 +99,8 @@ export class DonationsController {
       ...listQuery
     } = query;
     return this.donations.list(listQuery as ListQuery, {
+      // Chapter scoping (§7.2): scoped users always see their own chapter.
+      state: user.chapter ?? state,
       donorId,
       campaignId,
       eventId,
@@ -105,8 +117,8 @@ export class DonationsController {
 
   @Get(':id')
   @RequirePermission('donors.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.donations.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.donations.get(id, user);
   }
 
   @Post()
@@ -115,7 +127,7 @@ export class DonationsController {
     @Body(zodBody(donationSchema)) body: DonationInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.donations.create(body, user.id);
+    return this.donations.create(body, user);
   }
 
   @Patch(':id')
@@ -125,7 +137,7 @@ export class DonationsController {
     @Body(zodBody(donationUpdateSchema)) body: Partial<DonationInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.donations.update(id, body, user.id);
+    return this.donations.update(id, body, user);
   }
 
   @Delete('soft-credits/:id')
@@ -134,13 +146,13 @@ export class DonationsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.donations.removeSoftCredit(id, user.id);
+    return this.donations.removeSoftCredit(id, user);
   }
 
   @Delete(':id')
   @RequirePermission('donors.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.donations.softDelete(id, user.id);
+    return this.donations.softDelete(id, user);
   }
 
   @Post(':id/acknowledge')
@@ -150,7 +162,7 @@ export class DonationsController {
     @Body(zodBody(acknowledgeDonationSchema)) body: AcknowledgeDonationInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.donations.acknowledge(id, body, user.id);
+    return this.donations.acknowledge(id, body, user);
   }
 
   @Post(':id/soft-credits')
@@ -160,6 +172,6 @@ export class DonationsController {
     @Body(zodBody(softCreditSchema)) body: SoftCreditInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.donations.addSoftCredit(id, body, user.id);
+    return this.donations.addSoftCredit(id, body, user);
   }
 }

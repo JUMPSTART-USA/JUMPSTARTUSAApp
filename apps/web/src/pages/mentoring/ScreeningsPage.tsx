@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
@@ -128,6 +129,7 @@ export function ScreeningsPage() {
   const { can } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [chapter, setChapter] = useState('');
   const [creating, setCreating] = useState(false);
   const [decidedStage, setDecidedStage] = useState<string>('approved');
   const [decidedState, setDecidedState] = useState<ListState>({
@@ -140,15 +142,27 @@ export function ScreeningsPage() {
   // The pipeline never holds more than a handful of screenings at once, so
   // one page (max 200) is fetched and grouped into stage columns client-side.
   const pipeline = useQuery({
-    queryKey: ['mentoring', 'screenings', 'pipeline', debounced],
+    queryKey: ['mentoring', 'screenings', 'pipeline', chapter, debounced],
     queryFn: () =>
       api.get<Paged<ScreeningListItem>>(
-        `/mentoring/screenings${qs({ pageSize: 200, search: debounced })}`,
+        `/mentoring/screenings${qs({
+          pageSize: 200,
+          state: chapter || undefined,
+          search: debounced,
+        })}`,
       ),
   });
 
   const decided = useQuery({
-    queryKey: ['mentoring', 'screenings', 'decided', decidedStage, decidedState, debounced],
+    queryKey: [
+      'mentoring',
+      'screenings',
+      'decided',
+      decidedStage,
+      decidedState,
+      chapter,
+      debounced,
+    ],
     queryFn: () =>
       api.get<Paged<ScreeningListItem>>(
         `/mentoring/screenings${qs({
@@ -157,6 +171,7 @@ export function ScreeningsPage() {
           sortBy: decidedState.sortBy,
           sortDir: decidedState.sortDir,
           stage: decidedStage,
+          state: chapter || undefined,
           search: debounced,
         })}`,
       ),
@@ -213,6 +228,13 @@ export function ScreeningsPage() {
           placeholder="Search volunteer name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+        />
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setDecidedState((s) => ({ ...s, page: 1 }));
+          }}
         />
       </ListToolbar>
 

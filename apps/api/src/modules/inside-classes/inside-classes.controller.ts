@@ -109,7 +109,7 @@ export class InsideClassesController {
     @Body(zodBody(insideEnrollmentSchema)) body: InsideEnrollmentInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.insideClasses.enroll(body, user.id);
+    return this.insideClasses.enroll(body, user);
   }
 
   @Patch('enrollments/:enrollmentId')
@@ -119,7 +119,7 @@ export class InsideClassesController {
     @Body(zodBody(insideEnrollmentPatchSchema)) body: Partial<InsideEnrollmentInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.insideClasses.updateEnrollment(enrollmentId, body, user.id);
+    return this.insideClasses.updateEnrollment(enrollmentId, body, user);
   }
 
   @Put('sessions/:sessionId/attendance')
@@ -129,7 +129,7 @@ export class InsideClassesController {
     @Body(zodBody(attendanceSchema)) body: AttendanceBody,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.insideClasses.recordAttendance(sessionId, body.rows, user.id);
+    return this.insideClasses.recordAttendance(sessionId, body.rows, user);
   }
 
   @Get(':id')
@@ -161,7 +161,7 @@ export class InsideClassesController {
     @Body(zodBody(batchEnrollSchema)) body: BatchEnrollInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.insideClasses.batchEnroll(id, body, user.id);
+    return this.insideClasses.batchEnroll(id, body, user);
   }
 
   @Post(':id/close-out')
@@ -171,7 +171,7 @@ export class InsideClassesController {
     @Body(zodBody(classCloseOutSchema)) body: ClassCloseOutInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.insideClasses.closeOut(id, body, user.id);
+    return this.insideClasses.closeOut(id, body, user);
   }
 
   @Post(':id/sessions')
@@ -181,13 +181,16 @@ export class InsideClassesController {
     @Body(zodBody(insideSessionSchema)) body: InsideSessionBody,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.insideClasses.createSession(id, body, user.id);
+    return this.insideClasses.createSession(id, body, user);
   }
 
   @Get(':id/sessions')
   @RequirePermission('inside_classes.read')
-  listSessions(@Param('id', ParseUUIDPipe) id: string) {
-    return this.insideClasses.listSessions(id);
+  listSessions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.insideClasses.listSessions(id, user);
   }
 
   @Patch('sessions/:sessionId')
@@ -197,7 +200,7 @@ export class InsideClassesController {
     @Body(zodBody(insideSessionSchema.partial())) body: Partial<InsideSessionBody>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.insideClasses.updateSession(sessionId, body, user.id);
+    return this.insideClasses.updateSession(sessionId, body, user);
   }
 
   @Delete('sessions/:sessionId')
@@ -206,6 +209,6 @@ export class InsideClassesController {
     @Param('sessionId', ParseUUIDPipe) sessionId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.insideClasses.deleteSession(sessionId, user.id);
+    return this.insideClasses.deleteSession(sessionId, user);
   }
 }

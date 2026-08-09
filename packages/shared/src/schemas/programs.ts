@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHAPTER_STATES } from '../chapters';
 import {
   CLASS_STATUSES,
   DRUG_TEST_RESULTS,
@@ -7,7 +8,6 @@ import {
   FINAL_ASSESSMENTS,
   INSIDE_CLASS_TYPES,
   PROGRAM_TYPES,
-  US_STATES,
 } from '../enums';
 import {
   endNotBeforeStart,
@@ -27,7 +27,9 @@ export const institutionSchema = z.object({
   institutionType: optionalTrimmed,
   addressLine1: optionalTrimmed,
   city: optionalTrimmed,
-  state: z.enum(US_STATES),
+  // Facility state IS the chapter (§7.2) — institutions exist only in
+  // chapter states.
+  state: z.enum(CHAPTER_STATES),
   zip: optionalTrimmed,
   mainPhone: optionalPhone,
   notes: optionalTrimmed,
@@ -207,7 +209,9 @@ export const outsideProgramSchema = z
     name: requiredTrimmed.pipe(z.string().max(200)),
     programType: z.enum(PROGRAM_TYPES),
     location: optionalTrimmed,
-    state: z.enum(US_STATES).optional(),
+    // Chapter (§7.2): optional at the pipe — the service stamps a scoped
+    // creator's chapter and requires a pick from all-chapters users.
+    state: z.enum(CHAPTER_STATES).optional(),
     startDate: optionalDate,
     endDate: optionalDate,
     recurringSchedule: optionalTrimmed,

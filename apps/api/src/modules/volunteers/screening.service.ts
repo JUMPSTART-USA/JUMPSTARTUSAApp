@@ -66,14 +66,15 @@ export class ScreeningService {
     const [profile, institution] = await this.prisma.$transaction([
       this.prisma.volunteerProfile.findFirst({
         where: { id: volunteerProfileId, deletedAt: null },
-        include: { person: { select: { state: true } } },
       }),
       this.prisma.institution.findFirst({ where: { id: institutionId, deletedAt: null } }),
     ]);
     if (!profile) throw new NotFoundException('Volunteer not found');
     if (!institution) throw new NotFoundException('Institution not found');
-    // Chapter scoping (§7.2): same derivation as the volunteer get-by-id guard.
-    assertChapterAccess(user.chapter, profile.person.state);
+    // Chapter scoping (§7.2): both the volunteer and the probed facility must
+    // be in the user's chapter.
+    assertChapterAccess(user.chapter, profile.chapterState);
+    assertChapterAccess(user.chapter, institution.state);
 
     const requirements = await this.prisma.facilityClearanceRequirement.findMany({
       where: { institutionId, active: true },
@@ -117,13 +118,20 @@ export class ScreeningService {
    * Everything lapsing within `days`. Already-lapsed items are included — they
    * still need coordinator action and must not silently disappear.
    */
-  async expirations(days: number, canReadCheckResults: boolean) {
+  async expirations(days: number, canReadCheckResults: boolean, chapter: string | null) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + days);
 
+    // Chapter scoping (§7.2): every section derives through the volunteer's
+    // chapterState — a scoped user only sees their chapter's expirations.
+    const chapterScopedProfile = {
+      deletedAt: null,
+      ...(chapter ? { chapterState: chapter } : {}),
+    };
+
     const [trainings, clearances] = await this.prisma.$transaction([
       this.prisma.volunteerTraining.findMany({
-        where: { expiresAt: { not: null, lte: cutoff }, volunteerProfile: { deletedAt: null } },
+        where: { expiresAt: { not: null, lte: cutoff }, volunteerProfile: chapterScopedProfile },
         include: {
           volunteerProfile: { select: { id: true, person: { select: PERSON_NAME_SELECT } } },
         },
@@ -133,7 +141,7 @@ export class ScreeningService {
         where: {
           expiresAt: { not: null, lte: cutoff },
           status: 'satisfied',
-          volunteerProfile: { deletedAt: null },
+          volunteerProfile: chapterScopedProfile,
         },
         include: {
           volunteerProfile: { select: { id: true, person: { select: PERSON_NAME_SELECT } } },
@@ -158,7 +166,7 @@ export class ScreeningService {
       ? await this.prisma.backgroundCheck.findMany({
           where: {
             expiresAt: { not: null, lte: cutoff },
-            person: { deletedAt: null, volunteerProfile: { deletedAt: null } },
+            person: { deletedAt: null, volunteerProfile: chapterScopedProfile },
           },
           include: {
             person: {
@@ -181,8 +189,9 @@ export class ScreeningService {
     chapter: string | null,
   ) {
     const where: Prisma.BackgroundCheckWhereInput = {
-      // Chapter scoping (§7.2): same derivation as the volunteers list (person.state).
-      ...(chapter ? { person: { state: chapter } } : {}),
+      // Chapter scoping (§7.2): person-rooted — derive through the person's
+      // volunteer profile (chapter-neutral when there is none).
+      ...(chapter ? { person: { volunteerProfile: { chapterState: chapter } } } : {}),
       ...(personId ? { personId } : {}),
       ...(query.search
         ? {
@@ -218,11 +227,16 @@ export class ScreeningService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async createCheck(input: BackgroundCheckInput, userId: string) {
+  async createCheck(input: BackgroundCheckInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const person = await this.prisma.person.findFirst({
       where: { id: input.personId, deletedAt: null },
+      include: { volunteerProfile: { select: { chapterState: true } } },
     });
     if (!person) throw new NotFoundException('Person not found');
+    // Chapter scoping (§7.2): same derivation as the list filter
+    // (person.volunteerProfile.chapterState).
+    assertChapterAccess(user.chapter, person.volunteerProfile?.chapterState);
 
     const check = await this.prisma.backgroundCheck.create({
       data: { ...input, createdById: userId, updatedById: userId },
@@ -236,16 +250,23 @@ export class ScreeningService {
   async updateCheck(
     id: string,
     input: Partial<Omit<BackgroundCheckInput, 'personId'>>,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const existing = await this.prisma.backgroundCheck.findUnique({ where: { id } });
+    const userId = user.id;
+    const existing = await this.prisma.backgroundCheck.findUnique({
+      where: { id },
+      include: { person: { select: { volunteerProfile: { select: { chapterState: true } } } } },
+    });
     if (!existing) throw new NotFoundException('Background check not found');
+    // Chapter scoping (§7.2): same derivation as the list filter.
+    assertChapterAccess(user.chapter, existing.person.volunteerProfile?.chapterState);
+    const { person: _person, ...checkOnly } = existing;
 
     const updated = await this.prisma.backgroundCheck.update({
       where: { id },
       data: { ...input, updatedById: userId },
     });
-    await this.audit.logUpdate(userId, 'background_check', id, existing, updated);
+    await this.audit.logUpdate(userId, 'background_check', id, checkOnly, updated);
     return updated;
   }
 
@@ -257,8 +278,8 @@ export class ScreeningService {
     chapter: string | null,
   ) {
     const where: Prisma.VolunteerTrainingWhereInput = {
-      // Chapter scoping (§7.2): same derivation as the volunteers list (person.state).
-      ...(chapter ? { volunteerProfile: { person: { state: chapter } } } : {}),
+      // Chapter scoping (§7.2): same derivation as the volunteers list (chapterState).
+      ...(chapter ? { volunteerProfile: { chapterState: chapter } } : {}),
       ...(volunteerProfileId ? { volunteerProfileId } : {}),
       ...(query.search
         ? { trainingType: { contains: query.search, mode: 'insensitive' } }
@@ -285,11 +306,14 @@ export class ScreeningService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async createTraining(input: VolunteerTrainingInput, userId: string) {
+  async createTraining(input: VolunteerTrainingInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const profile = await this.prisma.volunteerProfile.findFirst({
       where: { id: input.volunteerProfileId, deletedAt: null },
     });
     if (!profile) throw new NotFoundException('Volunteer not found');
+    // Chapter scoping (§7.2): derived through the volunteer's chapterState.
+    assertChapterAccess(user.chapter, profile.chapterState);
 
     const training = await this.prisma.volunteerTraining.create({
       data: { ...input, createdById: userId, updatedById: userId },
@@ -302,27 +326,41 @@ export class ScreeningService {
   async updateTraining(
     id: string,
     input: Partial<Omit<VolunteerTrainingInput, 'volunteerProfileId'>>,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const existing = await this.prisma.volunteerTraining.findUnique({ where: { id } });
+    const userId = user.id;
+    const existing = await this.prisma.volunteerTraining.findUnique({
+      where: { id },
+      include: { volunteerProfile: { select: { chapterState: true } } },
+    });
     if (!existing) throw new NotFoundException('Training record not found');
+    // Chapter scoping (§7.2): derived through the volunteer's chapterState.
+    assertChapterAccess(user.chapter, existing.volunteerProfile.chapterState);
+    const { volunteerProfile: _volunteerProfile, ...trainingOnly } = existing;
 
     const updated = await this.prisma.volunteerTraining.update({
       where: { id },
       data: { ...input, updatedById: userId },
     });
-    await this.audit.logUpdate(userId, 'volunteer_training', id, existing, updated);
+    await this.audit.logUpdate(userId, 'volunteer_training', id, trainingOnly, updated);
     return updated;
   }
 
   // No deletedAt column — delete exists for corrections only; the audit row
   // preserves the removed record.
-  async deleteTraining(id: string, userId: string) {
-    const existing = await this.prisma.volunteerTraining.findUnique({ where: { id } });
+  async deleteTraining(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.prisma.volunteerTraining.findUnique({
+      where: { id },
+      include: { volunteerProfile: { select: { chapterState: true } } },
+    });
     if (!existing) throw new NotFoundException('Training record not found');
+    // Chapter scoping (§7.2): derived through the volunteer's chapterState.
+    assertChapterAccess(user.chapter, existing.volunteerProfile.chapterState);
+    const { volunteerProfile: _volunteerProfile, ...trainingOnly } = existing;
 
     await this.prisma.volunteerTraining.delete({ where: { id } });
-    await this.audit.logDelete(userId, 'volunteer_training', id, existing);
+    await this.audit.logDelete(userId, 'volunteer_training', id, trainingOnly);
     return { ok: true };
   }
 
@@ -331,8 +369,11 @@ export class ScreeningService {
   async listRequirements(
     query: ListQuery,
     filters: { institutionId?: string; active?: boolean },
+    chapter: string | null,
   ) {
     const where: Prisma.FacilityClearanceRequirementWhereInput = {
+      // Chapter scoping (§7.2): requirements derive through institution.state.
+      ...(chapter ? { institution: { state: chapter } } : {}),
       ...(filters.institutionId ? { institutionId: filters.institutionId } : {}),
       ...(filters.active !== undefined ? { active: filters.active } : {}),
       ...(query.search ? { name: { contains: query.search, mode: 'insensitive' } } : {}),
@@ -356,11 +397,14 @@ export class ScreeningService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async createRequirement(input: ClearanceRequirementInput, userId: string) {
+  async createRequirement(input: ClearanceRequirementInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const institution = await this.prisma.institution.findFirst({
       where: { id: input.institutionId, deletedAt: null },
     });
     if (!institution) throw new NotFoundException('Institution not found');
+    // Chapter scoping (§7.2): requirements derive through institution.state.
+    assertChapterAccess(user.chapter, institution.state);
 
     const requirement = await this.prisma.facilityClearanceRequirement.create({
       data: { ...input, createdById: userId, updatedById: userId },
@@ -369,34 +413,52 @@ export class ScreeningService {
     return requirement;
   }
 
-  async updateRequirement(id: string, input: Partial<ClearanceRequirementInput>, userId: string) {
-    const existing = await this.prisma.facilityClearanceRequirement.findUnique({ where: { id } });
+  async updateRequirement(
+    id: string,
+    input: Partial<ClearanceRequirementInput>,
+    user: AuthenticatedUser,
+  ) {
+    const userId = user.id;
+    const existing = await this.prisma.facilityClearanceRequirement.findUnique({
+      where: { id },
+      include: { institution: { select: { state: true } } },
+    });
     if (!existing) throw new NotFoundException('Clearance requirement not found');
+    // Chapter scoping (§7.2): requirements derive through institution.state.
+    assertChapterAccess(user.chapter, existing.institution.state);
+    const { institution: _institution, ...requirementOnly } = existing;
 
     const updated = await this.prisma.facilityClearanceRequirement.update({
       where: { id },
       data: { ...input, updatedById: userId },
     });
-    await this.audit.logUpdate(userId, 'facility_clearance_requirement', id, existing, updated);
+    await this.audit.logUpdate(userId, 'facility_clearance_requirement', id, requirementOnly, updated);
     return updated;
   }
 
   // Requirements that clearances already reference are history — retire them
   // with active=false instead of deleting (assumption #11).
-  async deleteRequirement(id: string, userId: string) {
+  async deleteRequirement(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.prisma.facilityClearanceRequirement.findUnique({
       where: { id },
-      include: { _count: { select: { clearances: true } } },
+      include: {
+        _count: { select: { clearances: true } },
+        institution: { select: { state: true } },
+      },
     });
     if (!existing) throw new NotFoundException('Clearance requirement not found');
+    // Chapter scoping (§7.2): requirements derive through institution.state.
+    assertChapterAccess(user.chapter, existing.institution.state);
     if (existing._count.clearances > 0) {
       throw new ConflictException(
         'Requirement has recorded clearances — set active=false to retire it instead of deleting',
       );
     }
+    const { institution: _institution, ...requirementOnly } = existing;
 
     await this.prisma.facilityClearanceRequirement.delete({ where: { id } });
-    await this.audit.logDelete(userId, 'facility_clearance_requirement', id, existing);
+    await this.audit.logDelete(userId, 'facility_clearance_requirement', id, requirementOnly);
     return { ok: true };
   }
 
@@ -413,8 +475,8 @@ export class ScreeningService {
     chapter: string | null,
   ) {
     const where: Prisma.VolunteerClearanceWhereInput = {
-      // Chapter scoping (§7.2): same derivation as the volunteers list (person.state).
-      ...(chapter ? { volunteerProfile: { person: { state: chapter } } } : {}),
+      // Chapter scoping (§7.2): same derivation as the volunteers list (chapterState).
+      ...(chapter ? { volunteerProfile: { chapterState: chapter } } : {}),
       ...(filters.volunteerProfileId ? { volunteerProfileId: filters.volunteerProfileId } : {}),
       ...(filters.requirementId ? { requirementId: filters.requirementId } : {}),
       ...(filters.institutionId ? { requirement: { institutionId: filters.institutionId } } : {}),
@@ -466,17 +528,24 @@ export class ScreeningService {
    * volunteerProfileId+requirementId is unique — POST updates the existing row
    * instead of failing, so re-recording a renewal is one call.
    */
-  async upsertClearance(input: VolunteerClearanceInput, userId: string) {
+  async upsertClearance(input: VolunteerClearanceInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const [profile, requirement] = await this.prisma.$transaction([
       this.prisma.volunteerProfile.findFirst({
         where: { id: input.volunteerProfileId, deletedAt: null },
       }),
       this.prisma.facilityClearanceRequirement.findUnique({
         where: { id: input.requirementId },
+        include: { institution: { select: { state: true } } },
       }),
     ]);
     if (!profile) throw new NotFoundException('Volunteer not found');
     if (!requirement) throw new NotFoundException('Clearance requirement not found');
+    // Chapter scoping (§7.2): both the volunteer AND the requirement's facility
+    // must be in the user's chapter — no clearing a volunteer against another
+    // chapter's facility requirement.
+    assertChapterAccess(user.chapter, profile.chapterState);
+    assertChapterAccess(user.chapter, requirement.institution.state);
 
     const existing = await this.prisma.volunteerClearance.findUnique({
       where: {
@@ -508,26 +577,40 @@ export class ScreeningService {
   async updateClearance(
     id: string,
     input: Partial<Omit<VolunteerClearanceInput, 'volunteerProfileId' | 'requirementId'>>,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const existing = await this.prisma.volunteerClearance.findUnique({ where: { id } });
+    const userId = user.id;
+    const existing = await this.prisma.volunteerClearance.findUnique({
+      where: { id },
+      include: { volunteerProfile: { select: { chapterState: true } } },
+    });
     if (!existing) throw new NotFoundException('Clearance not found');
+    // Chapter scoping (§7.2): derived through the volunteer's chapterState.
+    assertChapterAccess(user.chapter, existing.volunteerProfile.chapterState);
+    const { volunteerProfile: _volunteerProfile, ...clearanceOnly } = existing;
 
     const updated = await this.prisma.volunteerClearance.update({
       where: { id },
       data: { ...input, updatedById: userId },
     });
-    await this.audit.logUpdate(userId, 'volunteer_clearance', id, existing, updated);
+    await this.audit.logUpdate(userId, 'volunteer_clearance', id, clearanceOnly, updated);
     return updated;
   }
 
   // No deletedAt column — delete exists for corrections only (audit keeps the row).
-  async deleteClearance(id: string, userId: string) {
-    const existing = await this.prisma.volunteerClearance.findUnique({ where: { id } });
+  async deleteClearance(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.prisma.volunteerClearance.findUnique({
+      where: { id },
+      include: { volunteerProfile: { select: { chapterState: true } } },
+    });
     if (!existing) throw new NotFoundException('Clearance not found');
+    // Chapter scoping (§7.2): derived through the volunteer's chapterState.
+    assertChapterAccess(user.chapter, existing.volunteerProfile.chapterState);
+    const { volunteerProfile: _volunteerProfile, ...clearanceOnly } = existing;
 
     await this.prisma.volunteerClearance.delete({ where: { id } });
-    await this.audit.logDelete(userId, 'volunteer_clearance', id, existing);
+    await this.audit.logDelete(userId, 'volunteer_clearance', id, clearanceOnly);
     return { ok: true };
   }
 }

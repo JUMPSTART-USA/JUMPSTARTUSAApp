@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   donorInteractionSchema,
   INTERACTION_CHANNELS,
   INTERACTION_PURPOSES,
@@ -29,6 +30,7 @@ const listFiltersSchema = listQuerySchema.extend({
   donorId: uuid.optional(),
   channel: z.enum(INTERACTION_CHANNELS).optional(),
   purpose: z.enum(INTERACTION_PURPOSES).optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
   from: optionalDate,
   to: optionalDate,
 });
@@ -40,9 +42,20 @@ export class InteractionsController {
 
   @Get()
   @RequirePermission('donors.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { donorId, channel, purpose, from, to, ...listQuery } = query;
-    return this.interactions.list(listQuery as ListQuery, { donorId, channel, purpose, from, to });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { donorId, channel, purpose, state, from, to, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.interactions.list(listQuery as ListQuery, {
+      donorId,
+      channel,
+      purpose,
+      state: (user.chapter ?? state) as ListFilters['state'],
+      from,
+      to,
+    });
   }
 
   @Post()
@@ -51,7 +64,7 @@ export class InteractionsController {
     @Body(zodBody(donorInteractionSchema)) body: DonorInteractionInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.interactions.create(body, user.id);
+    return this.interactions.create(body, user);
   }
 
   @Patch(':id')
@@ -61,12 +74,12 @@ export class InteractionsController {
     @Body(zodBody(donorInteractionSchema.partial())) body: Partial<DonorInteractionInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.interactions.update(id, body, user.id);
+    return this.interactions.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('donors.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.interactions.remove(id, user.id);
+    return this.interactions.remove(id, user);
   }
 }

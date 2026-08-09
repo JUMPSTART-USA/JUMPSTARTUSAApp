@@ -11,9 +11,9 @@ import {
 } from '@nestjs/common';
 import {
   ALUMNI_STATUSES,
+  CHAPTER_STATES,
   INSIDE_STATUSES,
   OUTSIDE_STATUSES,
-  US_STATES,
   graduationSchema,
   listQuerySchema,
   optionalDate,
@@ -53,7 +53,8 @@ const listFiltersSchema = listQuerySchema.extend({
   insideStatus: z.enum(INSIDE_STATUSES).optional(),
   outsideStatus: z.enum(OUTSIDE_STATUSES).optional(),
   alumniStatus: z.enum(ALUMNI_STATUSES).optional(),
-  state: z.enum(US_STATES).optional(),
+  /** External param stays `state`; it filters the profile's chapterState. */
+  state: z.enum(CHAPTER_STATES).optional(),
   assignedCaseManagerId: z.string().uuid().optional(),
   /** Filter to participants whose ACTIVE inside location is this institution. */
   institutionId: z.string().uuid().optional(),
@@ -107,8 +108,11 @@ export class ParticipantsController {
   /** §5: run before any person-creating flow to surface candidate matches. */
   @Post('duplicate-check')
   @RequirePermission('participants.create')
-  duplicateCheck(@Body(zodBody(duplicateCheckSchema)) body: DuplicateCheckBody) {
-    return this.participants.duplicateCheck(body);
+  duplicateCheck(
+    @Body(zodBody(duplicateCheckSchema)) body: DuplicateCheckBody,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.participants.duplicateCheck(body, user);
   }
 
   @Post()
@@ -154,8 +158,8 @@ export class ParticipantsController {
 
   @Get(':id/status-history')
   @RequirePermission('participants.read')
-  statusHistory(@Param('id', ParseUUIDPipe) id: string) {
-    return this.participants.statusHistory(id);
+  statusHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.participants.statusHistory(id, user);
   }
 
   @Post(':id/graduate')
@@ -172,8 +176,8 @@ export class ParticipantsController {
 
   @Get(':id/contacts')
   @RequirePermission('participants.read')
-  listContacts(@Param('id', ParseUUIDPipe) id: string) {
-    return this.subresources.listContacts(id);
+  listContacts(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.subresources.listContacts(id, user);
   }
 
   @Post(':id/contacts')
@@ -183,7 +187,7 @@ export class ParticipantsController {
     @Body(zodBody(personContactSchema)) body: PersonContactInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.createContact(id, body, user.id);
+    return this.subresources.createContact(id, body, user);
   }
 
   @Patch(':id/contacts/:contactId')
@@ -194,7 +198,7 @@ export class ParticipantsController {
     @Body(zodBody(personContactSchema)) body: PersonContactInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.updateContact(id, contactId, body, user.id);
+    return this.subresources.updateContact(id, contactId, body, user);
   }
 
   @Delete(':id/contacts/:contactId')
@@ -204,15 +208,15 @@ export class ParticipantsController {
     @Param('contactId', ParseUUIDPipe) contactId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.deleteContact(id, contactId, user.id);
+    return this.subresources.deleteContact(id, contactId, user);
   }
 
   // ── Addresses ─────────────────────────────────────────────────────────────
 
   @Get(':id/addresses')
   @RequirePermission('participants.read')
-  listAddresses(@Param('id', ParseUUIDPipe) id: string) {
-    return this.subresources.listAddresses(id);
+  listAddresses(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.subresources.listAddresses(id, user);
   }
 
   @Post(':id/addresses')
@@ -222,7 +226,7 @@ export class ParticipantsController {
     @Body(zodBody(personAddressSchema)) body: PersonAddressInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.createAddress(id, body, user.id);
+    return this.subresources.createAddress(id, body, user);
   }
 
   @Patch(':id/addresses/:addressId')
@@ -233,15 +237,15 @@ export class ParticipantsController {
     @Body(zodBody(personAddressSchema)) body: PersonAddressInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.updateAddress(id, addressId, body, user.id);
+    return this.subresources.updateAddress(id, addressId, body, user);
   }
 
   // ── DOC IDs (§7.2: justice field class gates READ; writes are staff edits) ─
 
   @Get(':id/doc-ids')
   @RequirePermission('participants.read', 'fields.justice.read')
-  listDocIds(@Param('id', ParseUUIDPipe) id: string) {
-    return this.subresources.listDocIds(id);
+  listDocIds(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.subresources.listDocIds(id, user);
   }
 
   @Post(':id/doc-ids')
@@ -251,7 +255,7 @@ export class ParticipantsController {
     @Body(zodBody(participantDocIdSchema)) body: ParticipantDocIdInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.createDocId(id, body, user.id);
+    return this.subresources.createDocId(id, body, user);
   }
 
   @Patch(':id/doc-ids/:docIdId')
@@ -262,15 +266,18 @@ export class ParticipantsController {
     @Body(zodBody(participantDocIdSchema.partial())) body: Partial<ParticipantDocIdInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.updateDocId(id, docIdId, body, user.id);
+    return this.subresources.updateDocId(id, docIdId, body, user);
   }
 
   // ── Inside locations (current + past institutions — §6.1) ─────────────────
 
   @Get(':id/inside-locations')
   @RequirePermission('participants.read')
-  listInsideLocations(@Param('id', ParseUUIDPipe) id: string) {
-    return this.subresources.listInsideLocations(id);
+  listInsideLocations(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subresources.listInsideLocations(id, user);
   }
 
   @Post(':id/inside-locations')
@@ -280,7 +287,7 @@ export class ParticipantsController {
     @Body(zodBody(participantInsideLocationSchema)) body: ParticipantInsideLocationInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.createInsideLocation(id, body, user.id);
+    return this.subresources.createInsideLocation(id, body, user);
   }
 
   @Patch(':id/inside-locations/:locationId')
@@ -291,7 +298,7 @@ export class ParticipantsController {
     @Body(zodBody(participantInsideLocationSchema)) body: ParticipantInsideLocationInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.updateInsideLocation(id, locationId, body, user.id);
+    return this.subresources.updateInsideLocation(id, locationId, body, user);
   }
 
   @Delete(':id/inside-locations/:locationId')
@@ -301,7 +308,7 @@ export class ParticipantsController {
     @Param('locationId', ParseUUIDPipe) locationId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.deleteInsideLocation(id, locationId, user.id);
+    return this.subresources.deleteInsideLocation(id, locationId, user);
   }
 
   /** Records release from custody (§6.1) — see ParticipantsService.release. */
@@ -319,8 +326,8 @@ export class ParticipantsController {
 
   @Get(':id/offenses')
   @RequirePermission('participants.read', 'fields.justice.read')
-  listOffenses(@Param('id', ParseUUIDPipe) id: string) {
-    return this.subresources.listOffenses(id);
+  listOffenses(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.subresources.listOffenses(id, user);
   }
 
   @Post(':id/offenses')
@@ -330,7 +337,7 @@ export class ParticipantsController {
     @Body(zodBody(participantOffenseSchema)) body: ParticipantOffenseInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.createOffense(id, body, user.id);
+    return this.subresources.createOffense(id, body, user);
   }
 
   @Patch(':id/offenses/:offenseId')
@@ -341,7 +348,7 @@ export class ParticipantsController {
     @Body(zodBody(participantOffenseSchema)) body: ParticipantOffenseInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.updateOffense(id, offenseId, body, user.id);
+    return this.subresources.updateOffense(id, offenseId, body, user);
   }
 
   @Delete(':id/offenses/:offenseId')
@@ -351,15 +358,18 @@ export class ParticipantsController {
     @Param('offenseId', ParseUUIDPipe) offenseId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.deleteOffense(id, offenseId, user.id);
+    return this.subresources.deleteOffense(id, offenseId, user);
   }
 
   // ── Testimony consents ────────────────────────────────────────────────────
 
   @Get(':id/testimony-consents')
   @RequirePermission('participants.read')
-  listTestimonyConsents(@Param('id', ParseUUIDPipe) id: string) {
-    return this.subresources.listTestimonyConsents(id);
+  listTestimonyConsents(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subresources.listTestimonyConsents(id, user);
   }
 
   @Post(':id/testimony-consents')
@@ -369,7 +379,7 @@ export class ParticipantsController {
     @Body(zodBody(testimonyConsentSchema)) body: TestimonyConsentInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.createTestimonyConsent(id, body, user.id);
+    return this.subresources.createTestimonyConsent(id, body, user);
   }
 
   @Patch(':id/testimony-consents/:consentId')
@@ -380,6 +390,6 @@ export class ParticipantsController {
     @Body(zodBody(testimonyConsentSchema)) body: TestimonyConsentInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subresources.updateTestimonyConsent(id, consentId, body, user.id);
+    return this.subresources.updateTestimonyConsent(id, consentId, body, user);
   }
 }

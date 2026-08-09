@@ -2,7 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, type Column, type ListState } from '@/components/DataTable';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
@@ -23,6 +25,12 @@ const columns: Column<EventRecord>[] = [
   { key: 'eventDate', header: 'Date', sortKey: 'eventDate', render: (e) => formatDate(e.eventDate) },
   { key: 'eventType', header: 'Type', sortKey: 'eventType', render: (e) => e.eventType ?? '—' },
   { key: 'location', header: 'Location', render: (e) => e.location ?? '—' },
+  {
+    key: 'chapterState',
+    header: 'Chapter',
+    sortKey: 'chapterState',
+    render: (e) => <Badge variant="outline">{e.chapterState}</Badge>,
+  },
   {
     key: 'campaign',
     header: 'Campaign',
@@ -62,6 +70,7 @@ export function EventsListPage() {
   const [search, setSearch] = useState('');
   const [eventType, setEventType] = useState('');
   const [campaignId, setCampaignId] = useState('');
+  const [chapter, setChapter] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const debouncedSearch = useDebounced(search);
   const debouncedType = useDebounced(eventType);
@@ -80,6 +89,8 @@ export function EventsListPage() {
     search: debouncedSearch,
     eventType: debouncedType,
     campaignId,
+    // Chapter filter (§7.2) — still sent as the `state` query param.
+    state: chapter,
     from: tab === 'upcoming' ? today : undefined,
     to: tab === 'past' ? today : undefined,
   });
@@ -148,6 +159,15 @@ export function EventsListPage() {
             </option>
           ))}
         </Select>
+        {/* Chapter filter (§7.2) — hidden for scoped users (the API forces
+            their chapter). */}
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        />
       </ListToolbar>
 
       {query.isError ? <ErrorState error={query.error} /> : null}

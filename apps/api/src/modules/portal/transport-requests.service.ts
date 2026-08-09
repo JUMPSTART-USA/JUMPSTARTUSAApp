@@ -2,7 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { Prisma } from '@jumpstart/database';
 import type { ListQuery, TransportDecisionInput, TransportRequestStatus } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { PARTICIPANT_SUMMARY_SELECT, participantSearch } from './portal.util';
 
 export interface TransportRequestListFilters {
@@ -10,6 +12,7 @@ export interface TransportRequestListFilters {
   status?: TransportRequestStatus;
   from?: Date;
   to?: Date;
+  state?: string;
 }
 
 const SORTABLE = new Set(['tripDate', 'destination', 'status', 'decidedAt', 'createdAt']);
@@ -72,6 +75,12 @@ export class TransportRequestsService {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): derived through the participant profile. Wrapped
+      // in AND so participantSearch's own participantProfile clause (spread
+      // below) cannot replace it.
+      ...(filters.state
+        ? { AND: [{ participantProfile: { chapterState: filters.state } }] }
+        : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.from || filters.to
         ? {
@@ -109,11 +118,12 @@ export class TransportRequestsService {
    * A vehicle may be assigned only when approving, and must be a live
    * vehicle row. Anything else is a 400; decisions are never edited in place.
    */
-  async decide(id: string, input: TransportDecisionInput, userId: string) {
+  async decide(id: string, input: TransportDecisionInput, user: AuthenticatedUser) {
+    const userId = user.id;
     if (input.status === 'pending') {
       throw new BadRequestException('Pending is not a decision');
     }
-    const existing = await this.findRequest(id);
+    const existing = await this.findRequest(id, user.chapter);
     const allowed =
       existing.status === 'pending'
         ? input.status === 'approved' || input.status === 'denied' || input.status === 'canceled'
@@ -131,8 +141,12 @@ export class TransportRequestsService {
       }
       const vehicle = await this.prisma.vehicle.findFirst({
         where: { id: input.assignedVehicleId, deletedAt: null },
+        select: { id: true, chapterState: true },
       });
       if (!vehicle) throw new BadRequestException('Unknown vehicle');
+      // Chapter scoping (§7.2): a scoped user can only assign a vehicle from
+      // their own chapter (assigning also reads the plate back on the request).
+      assertChapterAccess(user.chapter, vehicle.chapterState);
     }
 
     const updated = await this.prisma.transportRequest.update({
@@ -154,12 +168,18 @@ export class TransportRequestsService {
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
-  private async findRequest(id: string): Promise<TransportRequestViewRow> {
+  /** Fetch-for-mutation with the chapter guard (§7.2) applied once. */
+  private async findRequest(
+    id: string,
+    userChapter: string | null,
+  ): Promise<TransportRequestViewRow> {
     const request = await this.prisma.transportRequest.findFirst({
       where: { id, deletedAt: null },
-      select: VIEW_SELECT,
+      select: { ...VIEW_SELECT, participantProfile: { select: { chapterState: true } } },
     });
     if (!request) throw new NotFoundException('Transport request not found');
-    return request;
+    assertChapterAccess(userChapter, request.participantProfile.chapterState);
+    const { participantProfile: _participantProfile, ...requestOnly } = request;
+    return requestOnly;
   }
 }

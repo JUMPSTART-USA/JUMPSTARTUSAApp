@@ -7,12 +7,15 @@ import type {
   OutcomeCheckinScheduleInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 export interface OutcomeCheckinListFilters {
   due?: 'overdue' | 'upcoming';
   wave?: CheckinWave;
   participantProfileId?: string;
+  state?: string;
 }
 
 const SORTABLE = new Set(['dueDate', 'completedDate', 'wave', 'createdAt']);
@@ -23,6 +26,7 @@ const PARTICIPANT_SUMMARY = {
     id: true,
     participantNumber: true,
     graduationDate: true,
+    chapterState: true,
     person: { select: { firstName: true, lastName: true } },
   },
 } as const;
@@ -50,20 +54,26 @@ export class OutcomeCheckinsService {
       // due=overdue|upcoming both mean "not yet completed" (§9.3 work queue).
       ...(filters.due === 'overdue' ? { completedDate: null, dueDate: { lt: today } } : {}),
       ...(filters.due === 'upcoming' ? { completedDate: null, dueDate: { gte: today } } : {}),
-      ...(query.search
+      ...(filters.state || query.search
         ? {
             participantProfile: {
-              OR: [
-                { participantNumber: { contains: query.search, mode: 'insensitive' } },
-                {
-                  person: {
+              // Chapter scoping (§7.2): derived through the participant profile.
+              ...(filters.state ? { chapterState: filters.state } : {}),
+              ...(query.search
+                ? {
                     OR: [
-                      { firstName: { contains: query.search, mode: 'insensitive' } },
-                      { lastName: { contains: query.search, mode: 'insensitive' } },
+                      { participantNumber: { contains: query.search, mode: 'insensitive' } },
+                      {
+                        person: {
+                          OR: [
+                            { firstName: { contains: query.search, mode: 'insensitive' } },
+                            { lastName: { contains: query.search, mode: 'insensitive' } },
+                          ],
+                        },
+                      },
                     ],
-                  },
-                },
-              ],
+                  }
+                : {}),
             },
           }
         : {}),
@@ -88,12 +98,14 @@ export class OutcomeCheckinsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const checkin = await this.prisma.outcomeCheckin.findUnique({
       where: { id },
       include: { participantProfile: PARTICIPANT_SUMMARY },
     });
     if (!checkin) throw new NotFoundException('Outcome check-in not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (participant).
+    assertChapterAccess(user.chapter, checkin.participantProfile.chapterState);
     return checkin;
   }
 
@@ -102,11 +114,14 @@ export class OutcomeCheckinsService {
    * graduation auto-scheduling and manual scheduling can race — an existing
    * wave row is returned untouched, never an error and never a second row.
    */
-  async schedule(input: OutcomeCheckinScheduleInput, userId: string) {
+  async schedule(input: OutcomeCheckinScheduleInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const participant = await this.prisma.participantProfile.findFirst({
       where: { id: input.participantProfileId, deletedAt: null },
     });
     if (!participant) throw new BadRequestException('Participant not found');
+    // Chapter scoping (§7.2): the check-in inherits the participant's chapter.
+    assertChapterAccess(user.chapter, participant.chapterState);
 
     const existing = await this.prisma.outcomeCheckin.findUnique({
       where: {
@@ -130,8 +145,9 @@ export class OutcomeCheckinsService {
    * shared schema (§9.3). Re-completing an already-completed check-in is
    * allowed as a correction path — the audit diff records what changed.
    */
-  async complete(id: string, input: OutcomeCheckinCompleteInput, userId: string) {
-    const existing = await this.get(id);
+  async complete(id: string, input: OutcomeCheckinCompleteInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user);
 
     const { wellbeingFields, ...rest } = input;
     const updated = await this.prisma.outcomeCheckin.update({

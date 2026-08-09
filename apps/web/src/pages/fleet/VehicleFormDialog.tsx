@@ -3,6 +3,7 @@ import { vehicleSchema } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,6 +16,7 @@ import {
 import { Checkbox, Input, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { applyApiError, toDateInput } from '@/lib/form';
 import type { Vehicle } from './types';
 
@@ -27,13 +29,14 @@ interface VehicleFormValues {
   vin: string;
   mileage?: string | number;
   assignedLocation: string;
+  chapterState: string;
   active: boolean;
   registrationExpiration: string;
   insuranceExpiration: string;
   notes: string;
 }
 
-function buildDefaults(vehicle?: Vehicle): VehicleFormValues {
+function buildDefaults(vehicle: Vehicle | undefined, chapter: string | null): VehicleFormValues {
   return {
     make: vehicle?.make ?? '',
     model: vehicle?.model ?? '',
@@ -43,6 +46,9 @@ function buildDefaults(vehicle?: Vehicle): VehicleFormValues {
     vin: vehicle?.vin ?? '',
     mileage: vehicle?.mileage ?? '',
     assignedLocation: vehicle?.assignedLocation ?? '',
+    // Chapter (§7.2): scoped users never see the picker — their chapter is
+    // preset here and stamped server-side regardless.
+    chapterState: vehicle?.chapterState ?? chapter ?? '',
     active: vehicle?.active ?? true,
     registrationExpiration: toDateInput(vehicle?.registrationExpiration),
     insuranceExpiration: toDateInput(vehicle?.insuranceExpiration),
@@ -63,6 +69,8 @@ export function VehicleFormDialog({
   vehicle?: Vehicle;
 }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const chapter = user?.chapter ?? null;
   const [topError, setTopError] = useState<string | null>(null);
   const {
     register,
@@ -72,15 +80,15 @@ export function VehicleFormDialog({
     formState: { errors, isSubmitting },
   } = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema) as unknown as Resolver<VehicleFormValues>,
-    defaultValues: buildDefaults(vehicle),
+    defaultValues: buildDefaults(vehicle, chapter),
   });
 
   useEffect(() => {
     if (open) {
-      reset(buildDefaults(vehicle));
+      reset(buildDefaults(vehicle, chapter));
       setTopError(null);
     }
-  }, [open, vehicle, reset]);
+  }, [open, vehicle, chapter, reset]);
 
   const mutation = useMutation({
     mutationFn: (values: VehicleFormValues) =>
@@ -133,6 +141,12 @@ export function VehicleFormDialog({
             <FormField label="Assigned location" error={errors.assignedLocation}>
               <Input {...register('assignedLocation')} placeholder="e.g. Columbia house" />
             </FormField>
+            {/* Chapter (§7.2) — which chapter's fleet this vehicle belongs to;
+                hidden for scoped users, whose chapter is stamped server-side. */}
+            <ChapterSelect
+              error={errors.chapterState}
+              {...register('chapterState', { setValueAs: (v) => (v === '' ? undefined : v) })}
+            />
             <FormField label="Registration expires" error={errors.registrationExpiration}>
               <Input type="date" {...register('registrationExpiration')} />
             </FormField>

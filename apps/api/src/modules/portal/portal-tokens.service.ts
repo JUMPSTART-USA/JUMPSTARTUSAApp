@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { assertParticipant } from './portal.util';
 
 /**
@@ -31,7 +33,11 @@ export class PortalTokensService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(participantProfileId: string) {
+  async list(participantProfileId: string, user: AuthenticatedUser) {
+    // Chapter scoping (§7.2): the list is participant-keyed — assert that
+    // participant's chapter instead of filtering. Tokens are bearer
+    // credentials, so a cross-chapter read is a link handover.
+    await assertParticipant(this.prisma, participantProfileId, user.chapter);
     const items = await this.prisma.participantPortalToken.findMany({
       where: { participantProfileId },
       orderBy: { createdAt: 'desc' },
@@ -41,8 +47,9 @@ export class PortalTokensService {
   }
 
   /** Revoke-then-create in one transaction; returns the fresh row incl. token. */
-  async issue(participantProfileId: string, userId: string) {
-    await assertParticipant(this.prisma, participantProfileId);
+  async issue(participantProfileId: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    await assertParticipant(this.prisma, participantProfileId, user.chapter);
     const token = randomBytes(24).toString('hex');
     const now = new Date();
 
@@ -69,12 +76,18 @@ export class PortalTokensService {
   }
 
   /** Idempotent: revoking an already-revoked token is a no-op {ok:true}. */
-  async revoke(id: string, userId: string) {
+  async revoke(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.prisma.participantPortalToken.findUnique({
       where: { id },
-      select: TOKEN_SELECT,
+      select: {
+        ...TOKEN_SELECT,
+        participantProfile: { select: { chapterState: true } },
+      },
     });
     if (!existing) throw new NotFoundException('Portal token not found');
+    // Chapter scoping (§7.2): derived through the participant profile.
+    assertChapterAccess(user.chapter, existing.participantProfile.chapterState);
 
     if (existing.active) {
       await this.prisma.participantPortalToken.update({

@@ -2,13 +2,16 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { Prisma } from '@jumpstart/database';
 import type { AlumniEngagementInput, EngagementType, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 export interface AlumniEngagementListFilters {
   participantProfileId?: string;
   engagementType?: EngagementType;
   from?: Date;
   to?: Date;
+  state?: string;
 }
 
 // Whitelist of sortable columns — sortBy comes from the query string and must
@@ -19,6 +22,7 @@ const PARTICIPANT_SUMMARY = {
   select: {
     id: true,
     participantNumber: true,
+    chapterState: true,
     person: { select: { firstName: true, lastName: true } },
   },
 } as const;
@@ -36,6 +40,8 @@ export class AlumniEngagementsService {
         ? { participantProfileId: filters.participantProfileId }
         : {}),
       ...(filters.engagementType ? { engagementType: filters.engagementType } : {}),
+      // Chapter scoping (§7.2): derived through the participant profile.
+      ...(filters.state ? { participantProfile: { chapterState: filters.state } } : {}),
       ...(filters.from || filters.to
         ? {
             engagementDate: {
@@ -82,20 +88,25 @@ export class AlumniEngagementsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const engagement = await this.prisma.alumniEngagement.findUnique({
       where: { id },
       include: { participantProfile: PARTICIPANT_SUMMARY },
     });
     if (!engagement) throw new NotFoundException('Alumni engagement not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (participant).
+    assertChapterAccess(user.chapter, engagement.participantProfile.chapterState);
     return engagement;
   }
 
-  async create(input: AlumniEngagementInput, userId: string) {
+  async create(input: AlumniEngagementInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const participant = await this.prisma.participantProfile.findFirst({
       where: { id: input.participantProfileId, deletedAt: null },
     });
     if (!participant) throw new BadRequestException('Participant not found');
+    // Chapter scoping (§7.2): the engagement inherits the participant's chapter.
+    assertChapterAccess(user.chapter, participant.chapterState);
 
     const engagement = await this.prisma.alumniEngagement.create({
       data: { ...input, createdById: userId, updatedById: userId },
@@ -107,9 +118,10 @@ export class AlumniEngagementsService {
   async update(
     id: string,
     input: Partial<Omit<AlumniEngagementInput, 'participantProfileId'>>,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const existing = await this.get(id);
+    const userId = user.id;
+    const existing = await this.get(id, user);
     const updated = await this.prisma.alumniEngagement.update({
       where: { id },
       data: { ...input, updatedById: userId },
@@ -120,8 +132,9 @@ export class AlumniEngagementsService {
 
   // No deletedAt on this model: a mislogged engagement is removed outright;
   // the audit row preserves what was deleted.
-  async remove(id: string, userId: string) {
-    const existing = await this.get(id);
+  async remove(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user);
     await this.prisma.alumniEngagement.delete({ where: { id } });
     await this.audit.logDelete(userId, 'alumni_engagement', id, existing);
     return { ok: true };

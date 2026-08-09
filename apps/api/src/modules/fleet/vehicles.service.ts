@@ -2,9 +2,12 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { Prisma, Vehicle, VehicleMaintenanceRecord } from '@jumpstart/database';
 import type { ListQuery, MaintenanceRecordInput, VehicleInput } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 export interface VehicleListFilters {
+  state?: string;
   active?: boolean;
   assignedLocation?: string;
 }
@@ -13,6 +16,7 @@ export interface MaintenanceSummaryFilters {
   vehicleId?: string;
   from?: Date;
   to?: Date;
+  state?: string;
 }
 
 export type AlertSeverity = 'overdue' | 'due_soon' | 'upcoming';
@@ -26,6 +30,7 @@ export interface VehicleAlert {
     model: string;
     year: number;
     licensePlate: string | null;
+    chapterState: string;
   };
   type: 'maintenance_due' | 'registration_expiring' | 'insurance_expiring';
   severity: AlertSeverity;
@@ -36,7 +41,15 @@ export interface VehicleAlert {
 
 // Whitelist of sortable columns — sortBy comes from the query string and must
 // never reach Prisma unchecked.
-const SORTABLE = new Set(['make', 'model', 'year', 'mileage', 'assignedLocation', 'createdAt']);
+const SORTABLE = new Set([
+  'make',
+  'model',
+  'year',
+  'mileage',
+  'assignedLocation',
+  'chapterState',
+  'createdAt',
+]);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SEVERITY_ORDER: Record<AlertSeverity, number> = { overdue: 0, due_soon: 1, upcoming: 2 };
@@ -53,6 +66,7 @@ export class VehiclesService {
   async list(query: ListQuery, filters: VehicleListFilters) {
     const where: Prisma.VehicleWhereInput = {
       deletedAt: null,
+      ...(filters.state ? { chapterState: filters.state } : {}),
       ...(filters.active !== undefined ? { active: filters.active } : {}),
       ...(filters.assignedLocation
         ? { assignedLocation: { contains: filters.assignedLocation, mode: 'insensitive' } }
@@ -89,17 +103,19 @@ export class VehiclesService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const vehicle = await this.prisma.vehicle.findFirst({
       where: { id, deletedAt: null },
     });
     if (!vehicle) throw new NotFoundException('Vehicle not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own column).
+    assertChapterAccess(user.chapter, vehicle.chapterState);
     return vehicle;
   }
 
   /** Vehicle profile: record + full maintenance history + its open alerts (§6.10). */
-  async profile(id: string) {
-    const vehicle = await this.get(id);
+  async profile(id: string, user: AuthenticatedUser) {
+    const vehicle = await this.get(id, user); // chapter check inside
     const maintenanceRecords = await this.prisma.vehicleMaintenanceRecord.findMany({
       where: { vehicleId: id, deletedAt: null },
       orderBy: { maintenanceDate: 'desc' },
@@ -112,16 +128,23 @@ export class VehiclesService {
     };
   }
 
-  async create(input: VehicleInput, userId: string) {
+  async create(input: VehicleInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    // Chapter scoping (§7.2): stamp the creator's chapter — all-chapters users
+    // must pick one explicitly, so no vehicle is ever chapterless.
+    const chapterState = resolveCreateChapter(user.chapter, input.chapterState);
     const vehicle = await this.prisma.vehicle.create({
-      data: { ...input, createdById: userId, updatedById: userId },
+      data: { ...input, chapterState, createdById: userId, updatedById: userId },
     });
     await this.audit.logCreate(userId, 'vehicle', vehicle.id, vehicle);
     return vehicle;
   }
 
-  async update(id: string, input: Partial<VehicleInput>, userId: string) {
-    const existing = await this.get(id);
+  async update(id: string, input: Partial<VehicleInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // chapter check inside
+    // ...and a scoped user cannot move the vehicle to another chapter either.
+    assertChapterAccess(user.chapter, input.chapterState);
     const updated = await this.prisma.vehicle.update({
       where: { id },
       data: { ...input, updatedById: userId },
@@ -130,8 +153,9 @@ export class VehiclesService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.get(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // chapter check inside
     await this.prisma.vehicle.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
@@ -144,10 +168,15 @@ export class VehiclesService {
    * Fleet-wide alert feed (§6.10): maintenance due by date (within 30 days or
    * past) or mileage (within 500 miles of next-due), registration/insurance
    * expiring within 30/60 days or expired. Only active vehicles alert.
+   * Chapter scoping (§7.2): the controller passes `user.chapter ?? requested`.
    */
-  async alerts() {
+  async alerts(state?: string) {
     const vehicles = await this.prisma.vehicle.findMany({
-      where: { deletedAt: null, active: true },
+      where: {
+        deletedAt: null,
+        active: true,
+        ...(state ? { chapterState: state } : {}),
+      },
       include: {
         maintenanceRecords: {
           where: { deletedAt: null },
@@ -181,6 +210,7 @@ export class VehiclesService {
       model: vehicle.model,
       year: vehicle.year,
       licensePlate: vehicle.licensePlate,
+      chapterState: vehicle.chapterState,
     };
     const alerts: VehicleAlert[] = [];
     const now = Date.now();
@@ -238,30 +268,40 @@ export class VehiclesService {
 
   // ── Maintenance records ───────────────────────────────────────────────────
 
-  async getMaintenance(id: string) {
+  async getMaintenance(id: string, user: AuthenticatedUser) {
     const record = await this.prisma.vehicleMaintenanceRecord.findFirst({
       where: { id, deletedAt: null },
-      include: { vendor: { select: { id: true, name: true } } },
+      include: {
+        vendor: { select: { id: true, name: true } },
+        vehicle: { select: { chapterState: true } },
+      },
     });
     if (!record) throw new NotFoundException('Maintenance record not found');
-    return record;
+    // Chapter scoping (§7.2): derived through the required parent vehicle.
+    assertChapterAccess(user.chapter, record.vehicle.chapterState);
+    const { vehicle: _vehicle, ...recordOnly } = record;
+    return recordOnly;
   }
 
-  /** Without the vendor include — used for audit diffs. */
+  /** Without the vendor include — used for audit diffs and chapter checks. */
   private async getMaintenanceRaw(id: string) {
     const record = await this.prisma.vehicleMaintenanceRecord.findFirst({
       where: { id, deletedAt: null },
+      include: { vehicle: { select: { chapterState: true } } },
     });
     if (!record) throw new NotFoundException('Maintenance record not found');
     return record;
   }
 
-  async createMaintenance(input: MaintenanceRecordInput, userId: string) {
+  async createMaintenance(input: MaintenanceRecordInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const vehicle = await this.prisma.vehicle.findFirst({
       where: { id: input.vehicleId, deletedAt: null },
     });
     if (!vehicle) throw new BadRequestException('Vehicle not found');
-    if (input.vendorId) await this.assertVendorExists(input.vendorId);
+    // Chapter scoping (§7.2): the record inherits chapter through its vehicle.
+    assertChapterAccess(user.chapter, vehicle.chapterState);
+    if (input.vendorId) await this.assertVendorExists(input.vendorId, user);
 
     const record = await this.prisma.vehicleMaintenanceRecord.create({
       data: { ...input, createdById: userId, updatedById: userId },
@@ -283,17 +323,27 @@ export class VehiclesService {
     return record;
   }
 
-  async updateMaintenance(id: string, input: Partial<MaintenanceRecordInput>, userId: string) {
-    const existing = await this.getMaintenanceRaw(id);
+  async updateMaintenance(
+    id: string,
+    input: Partial<MaintenanceRecordInput>,
+    user: AuthenticatedUser,
+  ) {
+    const userId = user.id;
+    const raw = await this.getMaintenanceRaw(id);
+    // Chapter scoping (§7.2): derived through the required parent vehicle.
+    assertChapterAccess(user.chapter, raw.vehicle.chapterState);
+    const { vehicle: _vehicle, ...existing } = raw;
     if (input.vehicleId && input.vehicleId !== existing.vehicleId) {
       const vehicle = await this.prisma.vehicle.findFirst({
         where: { id: input.vehicleId, deletedAt: null },
-        select: { id: true },
+        select: { id: true, chapterState: true },
       });
       if (!vehicle) throw new BadRequestException('Vehicle not found');
+      // ...and a scoped user cannot reassign it to another chapter's vehicle.
+      assertChapterAccess(user.chapter, vehicle.chapterState);
     }
     if (input.vendorId && input.vendorId !== existing.vendorId) {
-      await this.assertVendorExists(input.vendorId);
+      await this.assertVendorExists(input.vendorId, user);
     }
     const updated = await this.prisma.vehicleMaintenanceRecord.update({
       where: { id },
@@ -303,8 +353,12 @@ export class VehiclesService {
     return updated;
   }
 
-  async deleteMaintenance(id: string, userId: string) {
-    const existing = await this.getMaintenanceRaw(id);
+  async deleteMaintenance(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const raw = await this.getMaintenanceRaw(id);
+    // Chapter scoping (§7.2): derived through the required parent vehicle.
+    assertChapterAccess(user.chapter, raw.vehicle.chapterState);
+    const { vehicle: _vehicle, ...existing } = raw;
     await this.prisma.vehicleMaintenanceRecord.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
@@ -314,10 +368,20 @@ export class VehiclesService {
   }
 
   /** Maintenance cost report feed (§6.10): totals per vehicle/period, by type. */
-  async maintenanceSummary(filters: MaintenanceSummaryFilters) {
+  async maintenanceSummary(filters: MaintenanceSummaryFilters, user: AuthenticatedUser) {
+    if (filters.vehicleId) {
+      const vehicle = await this.prisma.vehicle.findFirst({
+        where: { id: filters.vehicleId, deletedAt: null },
+        select: { chapterState: true },
+      });
+      // Chapter scoping (§7.2): an explicit vehicle filter must be in-chapter.
+      if (vehicle) assertChapterAccess(user.chapter, vehicle.chapterState);
+    }
+
     const where: Prisma.VehicleMaintenanceRecordWhereInput = {
       deletedAt: null,
       ...(filters.vehicleId ? { vehicleId: filters.vehicleId } : {}),
+      ...(filters.state ? { vehicle: { chapterState: filters.state } } : {}),
       ...(filters.from || filters.to
         ? {
             maintenanceDate: {
@@ -352,11 +416,14 @@ export class VehiclesService {
     };
   }
 
-  private async assertVendorExists(vendorId: string) {
+  private async assertVendorExists(vendorId: string, user: AuthenticatedUser) {
     const vendor = await this.prisma.vendor.findFirst({
       where: { id: vendorId, deletedAt: null },
-      select: { id: true },
+      select: { chapterState: true },
     });
     if (!vendor) throw new BadRequestException('Vendor not found');
+    // Chapter scoping (§7.2): no linking a maintenance record to another
+    // chapter's vendor (its name surfaces on the vehicle profile).
+    assertChapterAccess(user.chapter, vendor.chapterState);
   }
 }

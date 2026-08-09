@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHAPTER_STATES } from '../chapters';
 import {
   DONOR_TASK_STATUSES,
   DONOR_TYPES,
@@ -35,6 +36,11 @@ import {
 const clearableEmail = optionalEmail.nullable();
 const clearablePhone = optionalPhone.nullable();
 const clearableState = z.enum(US_STATES).nullable().optional();
+
+// Chapter assignment (§7.2, docs/chapter-scoping.md): optional at the pipe —
+// the service stamps a chapter-scoped creator's own chapter and rejects
+// creates from all-chapters users that omit it (resolveCreateChapter).
+const chapterState = z.enum(CHAPTER_STATES).optional();
 
 // Native Development (donor management) schemas — the platform is the system
 // of record for donors, giving, campaigns and events (§6.8). Aggregates
@@ -77,8 +83,9 @@ export const donorSchema = z.object({
   email: clearableEmail,
   addressLine1: clearableTrimmed,
   city: clearableTrimmed,
-  state: clearableState,
+  state: clearableState, // postal address state — NOT the chapter
   zip: clearableTrimmed,
+  chapterState,
   status: z.enum(['active', 'lapsed', 'inactive']).default('active'),
   personId: clearableUuid, // null = unlink the person
   householdId: uuid.nullable().optional(), // null = remove from household
@@ -100,6 +107,7 @@ export const householdSchema = z.object({
   name: requiredTrimmed.pipe(z.string().max(300)),
   envelopeName: optionalTrimmed,
   notes: optionalTrimmed,
+  chapterState,
 });
 export type HouseholdInput = z.infer<typeof householdSchema>;
 
@@ -303,6 +311,7 @@ export const campaignSchema = z
     goalAmount: positiveMoney.nullable().optional(),
     status: z.enum(['planned', 'active', 'completed', 'canceled']).default('active'),
     notes: clearableTrimmed,
+    chapterState,
   })
   .superRefine(endNotBeforeStart('startDate', 'endDate'));
 export type CampaignInput = z.infer<typeof campaignSchema>;
@@ -312,6 +321,7 @@ export const eventSchema = z.object({
   eventType: clearableTrimmed,
   eventDate: requiredDate,
   location: clearableTrimmed,
+  chapterState,
   campaignId: clearableUuid,
   description: clearableTrimmed,
   attendanceCount: z.coerce.number().int().min(0).nullable().optional(),
@@ -348,8 +358,9 @@ export const vendorSchema = z.object({
   email: clearableEmail,
   addressLine1: clearableTrimmed,
   city: clearableTrimmed,
-  state: clearableState,
+  state: clearableState, // postal address state — NOT the chapter
   zip: clearableTrimmed,
+  chapterState,
   servicesProvided: clearableTrimmed,
   isReferralPartner: z.boolean().default(false),
   active: z.boolean().default(true),

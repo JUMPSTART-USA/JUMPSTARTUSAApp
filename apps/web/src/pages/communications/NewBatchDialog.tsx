@@ -4,11 +4,12 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
   ALUMNI_STATUSES,
+  CHAPTER_STATES,
   COMM_CHANNELS,
-  US_STATES,
   VOLUNTEER_STATUSES,
   type CommunicationBatchInput,
 } from '@jumpstart/shared';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,7 +42,10 @@ const batchFormSchema = z.object({
   templateId: z.string({ required_error: 'Choose a template' }).uuid('Choose a template'),
   alumniStatus: z.enum(ALUMNI_STATUSES).optional(),
   volunteerStatus: z.enum(VOLUNTEER_STATUSES).optional(),
-  state: z.enum(US_STATES).optional(),
+  // Chapter (§7.2): the audience "state" IS the batch's chapter. Optional
+  // here — the server stamps a scoped user's chapter and 400s when an
+  // all-chapters user leaves it blank.
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 
 interface BatchFormValues {
@@ -169,6 +173,14 @@ export function NewBatchDialog({ open, onClose }: { open: boolean; onClose: () =
               </FormField>
             </div>
 
+            {/* Chapter (§7.2) — the batch's chapter; audiences never span
+                chapters. Hidden for scoped users, whose chapter is stamped
+                server-side. */}
+            <ChapterSelect
+              error={formState.errors.state}
+              {...register('state', { setValueAs: (v) => (v === '' ? undefined : v) })}
+            />
+
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Audience</p>
               <p className="text-xs text-muted-foreground">
@@ -193,16 +205,6 @@ export function NewBatchDialog({ open, onClose }: { open: boolean; onClose: () =
                   {VOLUNTEER_STATUSES.map((s) => (
                     <option key={s} value={s}>
                       {humanize(s)}
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
-              <FormField label="State" error={formState.errors.state}>
-                <Select {...register('state')}>
-                  <option value="">Any</option>
-                  {US_STATES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
                     </option>
                   ))}
                 </Select>

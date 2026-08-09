@@ -1,7 +1,8 @@
-import { institutionSchema, US_STATES } from '@jumpstart/shared';
+import { institutionSchema } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,10 +12,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
+import { Checkbox, Input, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { applyApiError, formResolver } from '@/lib/form';
 import type { Institution } from './types';
 
@@ -30,13 +32,18 @@ interface InstitutionFormValues {
   active: boolean;
 }
 
-function buildDefaults(institution?: Institution): InstitutionFormValues {
+function buildDefaults(
+  institution: Institution | undefined,
+  chapter: string | null,
+): InstitutionFormValues {
   return {
     name: institution?.name ?? '',
     institutionType: institution?.institutionType ?? '',
     addressLine1: institution?.addressLine1 ?? '',
     city: institution?.city ?? '',
-    state: institution?.state ?? '',
+    // Facility state IS the chapter (§7.2): a scoped user's chapter is preset
+    // (the picker is hidden for them); all-chapters users choose it.
+    state: institution?.state ?? chapter ?? '',
     zip: institution?.zip ?? '',
     mainPhone: institution?.mainPhone ?? '',
     notes: institution?.notes ?? '',
@@ -55,6 +62,8 @@ export function InstitutionFormDialog({
   institution?: Institution;
 }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const chapter = user?.chapter ?? null;
   const [topError, setTopError] = useState<string | null>(null);
   const {
     register,
@@ -64,15 +73,15 @@ export function InstitutionFormDialog({
     formState: { errors, isSubmitting },
   } = useForm<InstitutionFormValues>({
     resolver: formResolver<InstitutionFormValues>(institutionSchema),
-    defaultValues: buildDefaults(institution),
+    defaultValues: buildDefaults(institution, chapter),
   });
 
   useEffect(() => {
     if (open) {
-      reset(buildDefaults(institution));
+      reset(buildDefaults(institution, chapter));
       setTopError(null);
     }
-  }, [open, institution, reset]);
+  }, [open, institution, chapter, reset]);
 
   const mutation = useMutation({
     mutationFn: (values: InstitutionFormValues) =>
@@ -114,16 +123,9 @@ export function InstitutionFormDialog({
               <Input {...register('city')} />
             </FormField>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField label="State" required error={errors.state}>
-                <Select {...register('state')}>
-                  <option value="">Select…</option>
-                  {US_STATES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
+              {/* Facility state IS the chapter (§7.2) — hidden for scoped
+                  users, whose chapter is preset in the defaults. */}
+              <ChapterSelect label="State (chapter)" error={errors.state} {...register('state')} />
               <FormField label="ZIP" error={errors.zip}>
                 <Input {...register('zip')} />
               </FormField>

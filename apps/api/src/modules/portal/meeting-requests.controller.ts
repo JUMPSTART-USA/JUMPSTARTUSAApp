@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   MEETING_REQUEST_STATUSES,
   listQuerySchema,
   meetingDecisionSchema,
@@ -16,6 +17,7 @@ import { MeetingRequestsService } from './meeting-requests.service';
 const listFiltersSchema = listQuerySchema.extend({
   participantProfileId: uuid.optional(),
   status: z.enum(MEETING_REQUEST_STATUSES).optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -25,9 +27,17 @@ export class MeetingRequestsController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, status, ...listQuery } = query;
-    return this.meetingRequests.list(listQuery as ListQuery, { participantProfileId, status });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, status, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.meetingRequests.list(listQuery as ListQuery, {
+      participantProfileId,
+      status,
+      state: user.chapter ?? state,
+    });
   }
 
   @Post(':id/decision')
@@ -37,6 +47,6 @@ export class MeetingRequestsController {
     @Body(zodBody(meetingDecisionSchema)) body: MeetingDecisionInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.meetingRequests.decide(id, body, user.id);
+    return this.meetingRequests.decide(id, body, user);
   }
 }

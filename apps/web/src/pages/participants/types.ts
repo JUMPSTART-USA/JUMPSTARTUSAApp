@@ -134,6 +134,8 @@ export interface PersonDetail {
 export interface ParticipantDetail {
   id: string;
   participantNumber: string;
+  /** Chapter assignment (§7.2) — person.state is the mailing address. */
+  chapterState: string;
   insideStatus: string;
   outsideStatus: string;
   alumniStatus: string;

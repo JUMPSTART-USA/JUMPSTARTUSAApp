@@ -20,8 +20,11 @@ export class PortalTokensController {
 
   @Get()
   @RequirePermission('participants.read')
-  list(@Query(zodQuery(listTokensQuerySchema)) query: z.infer<typeof listTokensQuerySchema>) {
-    return this.tokens.list(query.participantProfileId);
+  list(
+    @Query(zodQuery(listTokensQuerySchema)) query: z.infer<typeof listTokensQuerySchema>,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tokens.list(query.participantProfileId, user);
   }
 
   @Post()
@@ -30,12 +33,12 @@ export class PortalTokensController {
     @Body(zodBody(issueTokenSchema)) body: z.infer<typeof issueTokenSchema>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.tokens.issue(body.participantProfileId, user.id);
+    return this.tokens.issue(body.participantProfileId, user);
   }
 
   @Post(':id/revoke')
   @RequirePermission('participants.update')
   revoke(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.tokens.revoke(id, user.id);
+    return this.tokens.revoke(id, user);
   }
 }

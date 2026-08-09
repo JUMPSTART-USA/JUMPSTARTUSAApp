@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   appealSchema,
+  CHAPTER_STATES,
   listQuerySchema,
   uuid,
   type AppealInput,
@@ -23,6 +24,7 @@ import type { AuthenticatedUser } from '../../common/types';
 import { AppealsService } from './appeals.service';
 
 const listFiltersSchema = listQuerySchema.extend({
+  state: z.enum(CHAPTER_STATES).optional(),
   campaignId: uuid.optional(),
   active: z
     .enum(['true', 'false'])
@@ -42,9 +44,17 @@ export class AppealsController {
 
   @Get()
   @RequirePermission('campaigns.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { campaignId, active, ...listQuery } = query;
-    return this.appeals.list(listQuery as ListQuery, { campaignId, active });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { state, campaignId, active, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.appeals.list(listQuery as ListQuery, {
+      state: user.chapter ?? state,
+      campaignId,
+      active,
+    });
   }
 
   @Post()
@@ -53,7 +63,7 @@ export class AppealsController {
     @Body(zodBody(appealSchema)) body: AppealInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.appeals.create(body, user.id);
+    return this.appeals.create(body, user);
   }
 
   @Patch(':id')
@@ -63,12 +73,12 @@ export class AppealsController {
     @Body(zodBody(appealUpdateSchema)) body: Partial<AppealInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.appeals.update(id, body, user.id);
+    return this.appeals.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('campaigns.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.appeals.softDelete(id, user.id);
+    return this.appeals.softDelete(id, user);
   }
 }

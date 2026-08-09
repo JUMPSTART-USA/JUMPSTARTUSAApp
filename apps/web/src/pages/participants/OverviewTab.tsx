@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { OFFENSE_TYPE_LABELS, RACE_LABELS } from '@jumpstart/shared';
+import { CHAPTER_NAMES, OFFENSE_TYPE_LABELS, RACE_LABELS } from '@jumpstart/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/utils';
@@ -166,6 +166,10 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
         </CardHeader>
         <CardContent>
           <DescriptionList>
+            <InfoItem label="Chapter">
+              {CHAPTER_NAMES[participant.chapterState as keyof typeof CHAPTER_NAMES] ??
+                participant.chapterState}
+            </InfoItem>
             <InfoItem label="Inside status">
               <StatusBadge status={participant.insideStatus} />
             </InfoItem>

@@ -8,6 +8,7 @@ import {
 import { Prisma } from '@jumpstart/database';
 import type { CaseNoteInput, ListQuery, NoteCategory } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 import { assertParticipant, personName } from './participant.util';
@@ -17,6 +18,8 @@ export interface CaseNoteListFilters {
   category?: NoteCategory;
   from?: Date;
   to?: Date;
+  /** Chapter filter (§7.2) — callers (incl. reports exports) pass the forced viewer chapter. */
+  state?: string;
 }
 
 const SORTABLE = new Set(['noteDate', 'category', 'contactType', 'createdAt']);
@@ -26,6 +29,7 @@ const NOTE_INCLUDE = {
   participantProfile: {
     select: {
       assignedCaseManagerId: true,
+      chapterState: true,
       person: { select: { firstName: true, lastName: true } },
     },
   },
@@ -83,6 +87,8 @@ export class CaseNotesService {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): derived through the participant profile.
+      ...(filters.state ? { participantProfile: { chapterState: filters.state } } : {}),
       ...(filters.category ? { category: filters.category } : {}),
       ...(filters.from || filters.to
         ? {
@@ -144,6 +150,8 @@ export class CaseNotesService {
       include: NOTE_INCLUDE,
     });
     if (!note) throw new NotFoundException('Case note not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (participant).
+    assertChapterAccess(viewer.chapter, note.participantProfile.chapterState);
 
     // §7.3 — reads of confidential content are themselves audit-logged.
     if (note.confidential && canReadConfidential(note, viewer)) {
@@ -152,8 +160,9 @@ export class CaseNotesService {
     return present(note, viewer);
   }
 
-  async create(input: CaseNoteInput, userId: string) {
-    await assertParticipant(this.prisma, input.participantProfileId);
+  async create(input: CaseNoteInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
     // The author is always the current user — a note cannot be written "as"
     // someone else.
     const note = await this.prisma.caseNote.create({
@@ -165,19 +174,27 @@ export class CaseNotesService {
 
   /** PATCH/DELETE are restricted to the author or a confidential.read holder. */
   private async getForModify(id: string, user: AuthenticatedUser) {
-    const note = await this.prisma.caseNote.findFirst({ where: { id, deletedAt: null } });
+    const note = await this.prisma.caseNote.findFirst({
+      where: { id, deletedAt: null },
+      include: { participantProfile: { select: { chapterState: true } } },
+    });
     if (!note) throw new NotFoundException('Case note not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (participant).
+    assertChapterAccess(user.chapter, note.participantProfile.chapterState);
     if (note.caseManagerId !== user.id && !user.permissions.has('case_notes.confidential.read')) {
       throw new ForbiddenException(
         'Only the note author or a case-management supervisor may modify this note',
       );
     }
-    return note;
+    const { participantProfile: _participantProfile, ...noteOnly } = note;
+    return noteOnly;
   }
 
   async update(id: string, input: Partial<CaseNoteInput>, user: AuthenticatedUser) {
     const existing = await this.getForModify(id, user);
-    if (input.participantProfileId) await assertParticipant(this.prisma, input.participantProfileId);
+    if (input.participantProfileId) {
+      await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
+    }
 
     // Cross-field rule from caseNoteSchema, re-checked against the merged
     // record because .partial() drops the superRefine.
@@ -206,20 +223,27 @@ export class CaseNotesService {
     return { ok: true };
   }
 
-  async completeFollowUp(id: string, userId: string) {
-    const existing = await this.prisma.caseNote.findFirst({ where: { id, deletedAt: null } });
+  async completeFollowUp(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.prisma.caseNote.findFirst({
+      where: { id, deletedAt: null },
+      include: { participantProfile: { select: { chapterState: true } } },
+    });
     if (!existing) throw new NotFoundException('Case note not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (participant).
+    assertChapterAccess(user.chapter, existing.participantProfile.chapterState);
     if (!existing.followUpRequired) {
       throw new BadRequestException('This note has no follow-up scheduled');
     }
     if (existing.followUpDoneAt) {
       throw new ConflictException('Follow-up is already completed');
     }
+    const { participantProfile: _participantProfile, ...noteOnly } = existing;
     const updated = await this.prisma.caseNote.update({
       where: { id },
       data: { followUpDoneAt: new Date(), updatedById: userId },
     });
-    await this.audit.logUpdate(userId, 'case_note', id, existing, updated);
+    await this.audit.logUpdate(userId, 'case_note', id, noteOnly, updated);
     return updated;
   }
 }

@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 import { createPdf, pdfFooters, pdfHeader, pdfTable, pdfToBuffer, PDF_MARGIN } from '../../common/pdf.util';
@@ -54,6 +55,8 @@ export class LettersService {
   async batchLettersPdf(batchId: string, user: AuthenticatedUser) {
     const batch = await this.prisma.communicationBatch.findUnique({ where: { id: batchId } });
     if (!batch) throw new NotFoundException('Batch not found');
+    // Chapter scoping (§7.2): the PDF marks letters sent — chapter-guarded.
+    assertChapterAccess(user.chapter, batch.chapterState);
     if (batch.channel !== 'letter') {
       throw new BadRequestException('Not a letter batch — letters.pdf applies to letter batches only');
     }
@@ -100,11 +103,14 @@ export class LettersService {
         body: true,
         status: true,
         channel: true,
+        chapterState: true,
         sentAt: true,
         person: { select: LETTER_PERSON_SELECT },
       },
     });
     if (!letter) throw new NotFoundException('Communication not found');
+    // Chapter scoping (§7.2)
+    assertChapterAccess(user.chapter, letter.chapterState);
     if (letter.channel !== 'letter') {
       throw new BadRequestException('Only letter communications render as letter.pdf');
     }
@@ -140,6 +146,8 @@ export class LettersService {
   async markReturned(communicationId: string, note: string | undefined, user: AuthenticatedUser) {
     const comm = await this.prisma.communication.findUnique({ where: { id: communicationId } });
     if (!comm) throw new NotFoundException('Communication not found');
+    // Chapter scoping (§7.2)
+    assertChapterAccess(user.chapter, comm.chapterState);
     if (comm.channel !== 'letter') {
       throw new BadRequestException('Only letters can be marked returned');
     }

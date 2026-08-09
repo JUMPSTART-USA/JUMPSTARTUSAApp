@@ -2,8 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
-import { StatusBadge } from '@/components/ui/badge';
+import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
@@ -22,6 +23,12 @@ const CAMPAIGN_STATUSES: CampaignStatus[] = ['planned', 'active', 'completed', '
 
 const columns: Column<CampaignListItem>[] = [
   { key: 'name', header: 'Name', sortKey: 'name', render: (c) => <span className="font-medium">{c.name}</span> },
+  {
+    key: 'chapterState',
+    header: 'Chapter',
+    sortKey: 'chapterState',
+    render: (c) => <Badge variant="outline">{c.chapterState}</Badge>,
+  },
   { key: 'status', header: 'Status', sortKey: 'status', render: (c) => <StatusBadge status={c.status} /> },
   { key: 'startDate', header: 'Start', sortKey: 'startDate', render: (c) => formatDate(c.startDate) },
   { key: 'endDate', header: 'End', sortKey: 'endDate', render: (c) => formatDate(c.endDate) },
@@ -47,6 +54,7 @@ export function CampaignsListPage() {
   const [state, setState] = useState<ListState>(initialListState);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [chapter, setChapter] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const debouncedSearch = useDebounced(search);
 
@@ -61,6 +69,8 @@ export function CampaignsListPage() {
     sortDir: state.sortDir,
     search: debouncedSearch,
     status,
+    // Chapter filter (§7.2) — still sent as the `state` query param.
+    state: chapter,
   });
   const query = useQuery({
     queryKey: ['crm', 'campaigns', 'list', params],
@@ -103,6 +113,15 @@ export function CampaignsListPage() {
             </option>
           ))}
         </Select>
+        {/* Chapter filter (§7.2) — hidden for scoped users (the API forces
+            their chapter). */}
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        />
       </ListToolbar>
 
       {query.isError ? <ErrorState error={query.error} /> : null}

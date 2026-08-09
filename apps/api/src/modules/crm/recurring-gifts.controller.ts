@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   listQuerySchema,
   RECURRING_GIFT_STATUSES,
   recurringGiftSchema,
@@ -26,6 +27,7 @@ import type { AuthenticatedUser } from '../../common/types';
 import { RecurringGiftsService } from './recurring-gifts.service';
 
 const listFiltersSchema = listQuerySchema.extend({
+  state: z.enum(CHAPTER_STATES).optional(),
   donorId: uuid.optional(),
   status: z.enum(RECURRING_GIFT_STATUSES).optional(),
 });
@@ -41,15 +43,23 @@ export class RecurringGiftsController {
 
   @Get()
   @RequirePermission('donors.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { donorId, status, ...listQuery } = query;
-    return this.recurringGifts.list(listQuery as ListQuery, { donorId, status });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { state, donorId, status, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.recurringGifts.list(listQuery as ListQuery, {
+      state: user.chapter ?? state,
+      donorId,
+      status,
+    });
   }
 
   @Get(':id')
   @RequirePermission('donors.read')
-  detail(@Param('id', ParseUUIDPipe) id: string) {
-    return this.recurringGifts.detail(id);
+  detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.recurringGifts.detail(id, user);
   }
 
   @Post()
@@ -58,7 +68,7 @@ export class RecurringGiftsController {
     @Body(zodBody(recurringGiftSchema)) body: RecurringGiftInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.recurringGifts.create(body, user.id);
+    return this.recurringGifts.create(body, user);
   }
 
   @Patch(':id')
@@ -68,13 +78,13 @@ export class RecurringGiftsController {
     @Body(zodBody(recurringGiftUpdateSchema)) body: Partial<RecurringGiftInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.recurringGifts.update(id, body, user.id);
+    return this.recurringGifts.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('donors.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.recurringGifts.softDelete(id, user.id);
+    return this.recurringGifts.softDelete(id, user);
   }
 
   @Post(':id/payments')
@@ -84,6 +94,6 @@ export class RecurringGiftsController {
     @Body(zodBody(schedulePaymentSchema)) body: SchedulePaymentInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.recurringGifts.recordPayment(id, body, user.id);
+    return this.recurringGifts.recordPayment(id, body, user);
   }
 }

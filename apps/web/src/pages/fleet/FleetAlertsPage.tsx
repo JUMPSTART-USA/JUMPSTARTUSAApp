@@ -1,5 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
@@ -11,7 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { api } from '@/lib/api';
+import { ListToolbar } from '@/components/ui/toolbar';
+import { api, qs } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/utils';
 import { SeverityBadge, vehicleLabel } from './shared';
 import type { AlertSeverity, VehicleAlert } from './types';
@@ -30,6 +34,7 @@ function AlertsTable({ items, onRowClick }: { items: VehicleAlert[]; onRowClick:
       <TableHeader>
         <TableRow>
           <TableHead>Vehicle</TableHead>
+          <TableHead>Chapter</TableHead>
           <TableHead>Alert</TableHead>
           <TableHead>Detail</TableHead>
           <TableHead>Due</TableHead>
@@ -48,6 +53,8 @@ function AlertsTable({ items, onRowClick }: { items: VehicleAlert[]; onRowClick:
                 <span className="font-normal text-muted-foreground"> · {alert.vehicle.licensePlate}</span>
               ) : null}
             </TableCell>
+            {/* The vehicle's chapter (§7.2). */}
+            <TableCell>{alert.vehicle.chapterState}</TableCell>
             <TableCell>{humanize(alert.type)}</TableCell>
             <TableCell className="text-muted-foreground">{alert.message}</TableCell>
             <TableCell>
@@ -66,9 +73,15 @@ function AlertsTable({ items, onRowClick }: { items: VehicleAlert[]; onRowClick:
 
 export function FleetAlertsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [stateFilter, setStateFilter] = useState('');
   const query = useQuery({
-    queryKey: ['fleet', 'alerts'],
-    queryFn: () => api.get<{ items: VehicleAlert[]; total: number }>('/vehicles/alerts'),
+    queryKey: ['fleet', 'alerts', stateFilter],
+    queryFn: () =>
+      api.get<{ items: VehicleAlert[]; total: number }>(
+        `/vehicles/alerts${qs({ state: stateFilter })}`,
+      ),
+    placeholderData: keepPreviousData,
   });
 
   if (query.isLoading) return <PageLoader />;
@@ -82,6 +95,14 @@ export function FleetAlertsPage() {
           description="Maintenance due, registration and insurance expirations across active vehicles."
         />
       </div>
+
+      {/* Chapter filter (§7.2) — sent as the `state` query param. Scoped users
+          get no toolbar at all: the API already forces their chapter. */}
+      {user?.chapter ? null : (
+        <ListToolbar>
+          <ChapterFilterSelect value={stateFilter} onChange={setStateFilter} />
+        </ListToolbar>
+      )}
 
       {query.isError ? (
         <ErrorState error={query.error} />

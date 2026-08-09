@@ -5,6 +5,12 @@
       "name": "web",
       "url": "http://localhost:5173",
       "port": 5173
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "api", "dev"],
+      "port": 3001
     }
   ]
 }

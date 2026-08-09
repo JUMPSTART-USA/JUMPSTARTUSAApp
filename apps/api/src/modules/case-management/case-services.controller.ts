@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   caseServiceSchema,
   listQuerySchema,
   optionalDate,
@@ -28,6 +29,7 @@ const listFiltersSchema = listQuerySchema.extend({
   serviceType: z.string().trim().max(100).optional(),
   from: optionalDate,
   to: optionalDate,
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -37,9 +39,19 @@ export class CaseServicesController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, serviceType, from, to, ...listQuery } = query;
-    return this.services.list(listQuery as ListQuery, { participantProfileId, serviceType, from, to });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, serviceType, from, to, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.services.list(listQuery as ListQuery, {
+      participantProfileId,
+      serviceType,
+      from,
+      to,
+      state: user.chapter ?? state,
+    });
   }
 
   // Literal route before ':id'. The service menu: admin-overridable via the
@@ -52,8 +64,8 @@ export class CaseServicesController {
 
   @Get(':id')
   @RequirePermission('case_management.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.services.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.services.get(id, user);
   }
 
   @Post()
@@ -62,7 +74,7 @@ export class CaseServicesController {
     @Body(zodBody(caseServiceSchema)) body: CaseServiceInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.services.create(body, user.id);
+    return this.services.create(body, user);
   }
 
   @Patch(':id')
@@ -72,12 +84,12 @@ export class CaseServicesController {
     @Body(zodBody(caseServiceSchema.partial())) body: Partial<CaseServiceInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.services.update(id, body, user.id);
+    return this.services.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('case_management.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.services.softDelete(id, user.id);
+    return this.services.softDelete(id, user);
   }
 }
