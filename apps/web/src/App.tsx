@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageLoader } from '@/components/ui/spinner';
 import { useAuth } from '@/lib/auth';
+import { useBuildVersionWatch } from '@/lib/build-version';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { PortalPage } from '@/pages/portal';
@@ -11,6 +12,9 @@ import { moduleRoutes } from '@/routes';
 
 export default function App() {
   const { user, isLoading } = useAuth();
+  // Pick up a deploy without the user having to know to reload (pinned web
+  // apps otherwise keep an old bundle alive for days).
+  useBuildVersionWatch();
 
   if (isLoading) return <PageLoader />;
 
