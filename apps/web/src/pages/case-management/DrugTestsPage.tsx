@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DRUG_TEST_RESULT_LABELS, DRUG_TEST_RESULTS, DRUG_TEST_TYPE_LABELS } from '@jumpstart/shared';
 import { backTo } from '@/components/BackLink';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ export function DrugTestsPage() {
   const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
   const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [result, setResult] = useState('');
+  const [state, setState] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [dialogTest, setDialogTest] = useState<DrugTestRow | 'new' | null>(null);
@@ -36,6 +38,7 @@ export function DrugTestsPage() {
     sortDir: listState.sortDir,
     participantProfileId: participant?.id,
     result,
+    state,
     from,
     to,
   });
@@ -166,6 +169,15 @@ export function DrugTestsPage() {
             </option>
           ))}
         </Select>
+        {/* Chapter scoping (§7.2): tests derive their chapter from the
+            participant — hidden for scoped users, whom the API force-filters. */}
+        <ChapterFilterSelect
+          value={state}
+          onChange={(v) => {
+            setState(v);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
+        />
         <ToolbarDateField
           label="From"
           value={from}

@@ -7,6 +7,7 @@ import {
 import type { CaseTask, EmploymentStatus, Prisma } from '@jumpstart/database';
 import type { EmploymentInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { hasPerm, type AuthenticatedUser } from '../../common/types';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -29,6 +30,7 @@ const NAME_INCLUDE = {
     select: {
       id: true,
       participantNumber: true,
+      chapterState: true,
       person: { select: { firstName: true, lastName: true } },
     },
   },
@@ -68,6 +70,8 @@ export class EmploymentsService {
   async list(query: ListQuery, filters: EmploymentListFilters, user: AuthenticatedUser) {
     const where: Prisma.ParticipantEmploymentWhereInput = {
       deletedAt: null,
+      // Chapter scoping (§7.2): derived via the participant's chapter.
+      ...(user.chapter ? { participantProfile: { chapterState: user.chapter } } : {}),
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
@@ -126,6 +130,8 @@ export class EmploymentsService {
       },
     });
     if (!employment) throw new NotFoundException('Employment record not found');
+    // Chapter scoping (§7.2): same derivation as the list filter.
+    assertChapterAccess(user.chapter, employment.participantProfile.chapterState);
     return this.stripPay(employment, user);
   }
 
@@ -133,6 +139,8 @@ export class EmploymentsService {
   private async getRaw(id: string) {
     const employment = await this.prisma.participantEmployment.findFirst({
       where: { id, deletedAt: null },
+      // Participant chapter carried along for the §7.2 asserts.
+      include: { participantProfile: { select: { chapterState: true } } },
     });
     if (!employment) throw new NotFoundException('Employment record not found');
     return employment;
@@ -142,15 +150,24 @@ export class EmploymentsService {
     const [participant, employer] = await Promise.all([
       this.prisma.participantProfile.findFirst({
         where: { id: input.participantProfileId, deletedAt: null },
-        select: { id: true },
+        select: { id: true, chapterState: true },
       }),
       this.prisma.employer.findFirst({
         where: { id: input.employerId, deletedAt: null },
-        select: { id: true },
+        select: { id: true, chapterState: true },
       }),
     ]);
     if (!participant) throw new BadRequestException('Participant not found');
     if (!employer) throw new BadRequestException('Employer not found');
+    // Chapter scoping (§7.2): the record inherits the participant's chapter;
+    // the linked employer must belong to that same chapter (for everyone).
+    assertChapterAccess(user.chapter, participant.chapterState);
+    assertChapterAccess(user.chapter, employer.chapterState);
+    if (employer.chapterState !== participant.chapterState) {
+      throw new BadRequestException(
+        'Employer belongs to a different chapter than the participant',
+      );
+    }
 
     // §7.2: without fields.pay.read the pay fields never reach the row.
     const data = this.stripPayWrites(input, user);
@@ -185,6 +202,8 @@ export class EmploymentsService {
 
   async update(id: string, input: Partial<EmploymentInput>, user: AuthenticatedUser) {
     const existing = await this.getRaw(id);
+    // Chapter scoping (§7.2): same derivation as the list filter.
+    assertChapterAccess(user.chapter, existing.participantProfile.chapterState);
 
     // History preservation (§6.9): a record belongs to one participant forever.
     if (
@@ -204,9 +223,16 @@ export class EmploymentsService {
       }
       const employer = await this.prisma.employer.findFirst({
         where: { id: input.employerId, deletedAt: null },
-        select: { id: true },
+        select: { id: true, chapterState: true },
       });
       if (!employer) throw new BadRequestException('Employer not found');
+      // Chapter scoping (§7.2): the replacement employer must stay in the
+      // record's chapter (the participant's).
+      if (employer.chapterState !== existing.participantProfile.chapterState) {
+        throw new BadRequestException(
+          'Employer belongs to a different chapter than the participant',
+        );
+      }
     }
 
     const statusChanged = input.status !== undefined && input.status !== existing.status;
@@ -247,6 +273,8 @@ export class EmploymentsService {
 
   async softDelete(id: string, user: AuthenticatedUser) {
     const existing = await this.getRaw(id);
+    // Chapter scoping (§7.2): same derivation as the list filter.
+    assertChapterAccess(user.chapter, existing.participantProfile.chapterState);
     await this.prisma.participantEmployment.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: user.id },

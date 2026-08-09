@@ -8,7 +8,7 @@ import type {
   VolunteerUpdateInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
-import { assertChapterAccess } from '../../common/chapter.util';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 import { redactBackgroundCheck } from './screening.service';
@@ -47,9 +47,11 @@ export class VolunteersService {
       deletedAt: null,
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.isMentor !== undefined ? { isMentor: filters.isMentor } : {}),
+      // Chapter scoping (§7.2): own chapter column — person.state is a mailing
+      // address, never the chapter.
+      ...(filters.state ? { chapterState: filters.state } : {}),
       person: {
         deletedAt: null,
-        ...(filters.state ? { state: filters.state } : {}),
         ...(query.search
           ? {
               OR: [
@@ -135,8 +137,8 @@ export class VolunteersService {
       },
     });
     if (!profile) throw new NotFoundException('Volunteer not found');
-    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
-    assertChapterAccess(user.chapter, profile.person.state);
+    // Chapter scoping (§7.2): same derivation as the list filter (chapterState).
+    assertChapterAccess(user.chapter, profile.chapterState);
 
     // Hours summary + next shifts are COMPUTED, never stored (§6.6).
     const now = new Date();
@@ -200,9 +202,9 @@ export class VolunteersService {
 
   async create(input: VolunteerCreateInput, user: AuthenticatedUser) {
     const userId = user.id;
-    // Chapter scoping (§7.2): a scoped user cannot create records for another
-    // chapter. The list filter derives state from person.state, so check it.
-    assertChapterAccess(user.chapter, input.person.state);
+    // Chapter scoping (§7.2): stamp the creator's chapter — all-chapters users
+    // must pick one explicitly. person.state is a mailing address, not checked.
+    const chapterState = resolveCreateChapter(user.chapter, input.chapterState);
     // §5 duplicate prevention: person-creating flows surface candidate matches
     // first; the client re-submits with confirmNotDuplicate once staff verify.
     if (!input.confirmNotDuplicate) {
@@ -221,7 +223,13 @@ export class VolunteersService {
         data: { ...input.person, createdById: userId, updatedById: userId },
       });
       const profile = await tx.volunteerProfile.create({
-        data: { ...input.profile, personId: person.id, createdById: userId, updatedById: userId },
+        data: {
+          ...input.profile,
+          chapterState,
+          personId: person.id,
+          createdById: userId,
+          updatedById: userId,
+        },
       });
       return { ...profile, person };
     });
@@ -239,10 +247,9 @@ export class VolunteersService {
       include: { person: true },
     });
     if (!existing) throw new NotFoundException('Volunteer not found');
-    // Chapter scoping (§7.2): the record must be in the user's chapter, and a
-    // scoped user cannot move it to another chapter either.
-    assertChapterAccess(user.chapter, existing.person.state);
-    assertChapterAccess(user.chapter, input.person?.state);
+    // Chapter scoping (§7.2): same derivation as the list filter (chapterState).
+    // person.state is a mailing address — updating it is not a chapter move.
+    assertChapterAccess(user.chapter, existing.chapterState);
     const { person: existingPerson, ...existingProfile } = existing;
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -275,20 +282,16 @@ export class VolunteersService {
     const userId = user.id;
     const existing = await this.prisma.volunteerProfile.findFirst({
       where: { id, deletedAt: null },
-      include: { person: { select: { state: true } } },
     });
     if (!existing) throw new NotFoundException('Volunteer not found');
-    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
-    assertChapterAccess(user.chapter, existing.person.state);
+    // Chapter scoping (§7.2): same derivation as the list filter (chapterState).
+    assertChapterAccess(user.chapter, existing.chapterState);
 
     await this.prisma.volunteerProfile.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
     });
-    // The person include was for the chapter check only — keep the audit
-    // payload the profile row, as before.
-    const { person: _person, ...profileOnly } = existing;
-    await this.audit.logDelete(userId, 'volunteer_profile', id, profileOnly);
+    await this.audit.logDelete(userId, 'volunteer_profile', id, existing);
     return { ok: true };
   }
 
@@ -300,7 +303,7 @@ export class VolunteersService {
     });
     if (!profile) throw new NotFoundException('Volunteer not found');
     // Chapter scoping (§7.2): same derivation as get() and the list filter.
-    assertChapterAccess(user.chapter, profile.person.state);
+    assertChapterAccess(user.chapter, profile.chapterState);
 
     const [assignments, approvedSum] = await this.prisma.$transaction([
       this.prisma.volunteerAssignment.findMany({

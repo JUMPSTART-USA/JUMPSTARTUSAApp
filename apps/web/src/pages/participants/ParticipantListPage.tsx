@@ -1,13 +1,9 @@
-import {
-  ALUMNI_STATUSES,
-  INSIDE_STATUSES,
-  OUTSIDE_STATUSES,
-  US_STATES,
-} from '@jumpstart/shared';
+import { ALUMNI_STATUSES, INSIDE_STATUSES, OUTSIDE_STATUSES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/badge';
@@ -204,18 +200,9 @@ export function ParticipantListPage() {
             </option>
           ))}
         </Select>
-        <Select
-          value={state}
-          onChange={(e) => filter(() => setState(e.target.value))}
-          className="w-full sm:w-44"
-        >
-          <option value="">State: all</option>
-          {US_STATES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </Select>
+        {/* Chapter scoping (§7.2): the `state` param filters by chapter now —
+            hidden for scoped users, whom the API force-filters anyway. */}
+        <ChapterFilterSelect value={state} onChange={(v) => filter(() => setState(v))} />
         {can('institutions.read') ? (
           <Select
             value={institutionId}

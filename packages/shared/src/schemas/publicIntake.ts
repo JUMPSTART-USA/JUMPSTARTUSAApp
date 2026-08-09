@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { REFERRER_TYPES, US_STATES } from '../enums';
+import { CHAPTER_STATES } from '../chapters';
+import { REFERRER_TYPES } from '../enums';
 import { optionalDate, optionalEmail, optionalPhone, optionalTrimmed, requiredTrimmed } from './common';
 
 // Public-form schemas (§6.11). These validate UNTRUSTED input from the
@@ -12,7 +13,9 @@ export const publicVolunteerApplicationSchema = z.object({
   email: optionalEmail,
   phone: optionalPhone,
   city: optionalTrimmed,
-  state: z.enum(US_STATES).optional(),
+  // Which JUMPSTART chapter the applicant is applying to (§7.2) — drives
+  // intake-queue chapter scoping, so it is required.
+  state: z.enum(CHAPTER_STATES, { message: 'Select a chapter state' }),
   interestAreas: z.array(z.string().trim().max(100)).max(20).default([]),
   availability: z.string().trim().max(1000).optional(),
   churchAffiliation: z.string().trim().max(200).optional(),
@@ -45,7 +48,8 @@ export const publicReferralSchema = z.object({
   subjectLastName: requiredTrimmed.pipe(z.string().max(100)),
   subjectPhone: optionalPhone,
   facilityName: z.string().trim().max(200).optional(),
-  state: z.enum(US_STATES).optional(),
+  // Chapter state serving this referral (§7.2) — required, drives queue scoping.
+  state: z.enum(CHAPTER_STATES, { message: 'Select a chapter state' }),
   expectedReleaseDate: optionalDate,
   needs: requiredTrimmed.pipe(z.string().max(4000)),
   turnstileToken: z.string().max(4096).optional(),

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   campaignSchema,
+  CHAPTER_STATES,
   listQuerySchema,
   type CampaignInput,
   type ListQuery,
@@ -23,6 +24,8 @@ import { CampaignsService } from './campaigns.service';
 
 const listFiltersSchema = listQuerySchema.extend({
   status: z.enum(['planned', 'active', 'completed', 'canceled']).optional(),
+  // External param stays `state`, but it filters the CHAPTER column (§7.2).
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -36,15 +39,22 @@ export class CampaignsController {
 
   @Get()
   @RequirePermission('campaigns.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { status, ...listQuery } = query;
-    return this.campaigns.list(listQuery as ListQuery, { status });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { status, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.campaigns.list(listQuery as ListQuery, {
+      status,
+      chapterState: (user.chapter ?? state) as ListFilters['state'],
+    });
   }
 
   @Get(':id')
   @RequirePermission('campaigns.read')
-  detail(@Param('id', ParseUUIDPipe) id: string) {
-    return this.campaigns.detail(id);
+  detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.campaigns.detail(id, user);
   }
 
   @Post()
@@ -53,7 +63,7 @@ export class CampaignsController {
     @Body(zodBody(campaignSchema)) body: CampaignInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.campaigns.create(body, user.id);
+    return this.campaigns.create(body, user);
   }
 
   @Patch(':id')
@@ -63,12 +73,12 @@ export class CampaignsController {
     @Body(zodBody(campaignUpdateSchema)) body: Partial<CampaignInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.campaigns.update(id, body, user.id);
+    return this.campaigns.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('campaigns.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.campaigns.softDelete(id, user.id);
+    return this.campaigns.softDelete(id, user);
   }
 }

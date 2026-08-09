@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   donorCreateSchema,
   donorRelationshipSchema,
   donorSchema,
@@ -31,6 +32,7 @@ const listFiltersSchema = listQuerySchema.extend({
   donorType: z.enum(DONOR_TYPES).optional(),
   status: z.enum(['active', 'lapsed', 'inactive']).optional(),
   householdId: uuid.optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
   hasEmail: z
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
@@ -46,9 +48,19 @@ export class DonorsController {
 
   @Get()
   @RequirePermission('donors.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { donorType, status, householdId, hasEmail, ...listQuery } = query;
-    return this.donors.list(listQuery as ListQuery, { donorType, status, householdId, hasEmail });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { donorType, status, householdId, state, hasEmail, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.donors.list(listQuery as ListQuery, {
+      donorType,
+      status,
+      householdId,
+      state: (user.chapter ?? state) as ListFilters['state'],
+      hasEmail,
+    });
   }
 
   @Get(':id/timeline')
@@ -56,14 +68,15 @@ export class DonorsController {
   timeline(
     @Param('id', ParseUUIDPipe) id: string,
     @Query(zodQuery(listQuerySchema)) query: ListQuery,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.donors.timeline(id, query);
+    return this.donors.timeline(id, query, user);
   }
 
   @Get(':id')
   @RequirePermission('donors.read')
-  detail(@Param('id', ParseUUIDPipe) id: string) {
-    return this.donors.detail(id);
+  detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.donors.detail(id, user);
   }
 
   // §5: 409s with person candidates when an individual donor matches an
@@ -74,7 +87,7 @@ export class DonorsController {
     @Body(zodBody(donorCreateSchema)) body: DonorCreateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.donors.create(body, user.id);
+    return this.donors.create(body, user);
   }
 
   @Patch(':id')
@@ -84,7 +97,7 @@ export class DonorsController {
     @Body(zodBody(donorUpdateSchema)) body: Partial<DonorInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.donors.update(id, body, user.id);
+    return this.donors.update(id, body, user);
   }
 
   // Relationship edits are an edit of the donor record — 'donors.update'.
@@ -95,7 +108,7 @@ export class DonorsController {
     @Body(zodBody(donorRelationshipSchema)) body: DonorRelationshipInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.donors.addRelationship(id, body, user.id);
+    return this.donors.addRelationship(id, body, user);
   }
 
   @Delete('relationships/:rid')
@@ -104,12 +117,12 @@ export class DonorsController {
     @Param('rid', ParseUUIDPipe) rid: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.donors.removeRelationship(rid, user.id);
+    return this.donors.removeRelationship(rid, user);
   }
 
   @Delete(':id')
   @RequirePermission('donors.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.donors.softDelete(id, user.id);
+    return this.donors.softDelete(id, user);
   }
 }

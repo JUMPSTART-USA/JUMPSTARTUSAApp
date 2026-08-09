@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, Plus, Send } from 'lucide-react';
 import { useState } from 'react';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -25,6 +26,7 @@ export function BatchesPage() {
   const queryClient = useQueryClient();
   const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
   const [search, setSearch] = useState('');
+  const [chapter, setChapter] = useState('');
   const [newOpen, setNewOpen] = useState(false);
   const [dispatchTarget, setDispatchTarget] = useState<BatchRow | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
@@ -38,6 +40,7 @@ export function BatchesPage() {
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
     search: debouncedSearch,
+    state: chapter,
   });
 
   const { data, isLoading, error } = useQuery({
@@ -154,6 +157,13 @@ export function BatchesPage() {
             setListState((s) => ({ ...s, page: 1 }));
           }}
           placeholder="Search batches…"
+        />
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
         />
       </ListToolbar>
 

@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   listQuerySchema,
   maintenanceRecordSchema,
   optionalDate,
@@ -26,6 +27,7 @@ import type { AuthenticatedUser } from '../../common/types';
 import { VehiclesService } from './vehicles.service';
 
 const listFiltersSchema = listQuerySchema.extend({
+  state: z.enum(CHAPTER_STATES).optional(),
   active: z
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
@@ -34,10 +36,16 @@ const listFiltersSchema = listQuerySchema.extend({
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
+const alertsQuerySchema = z.object({
+  state: z.enum(CHAPTER_STATES).optional(),
+});
+type AlertsQuery = z.infer<typeof alertsQuerySchema>;
+
 const summaryQuerySchema = z.object({
   vehicleId: uuid.optional(),
   from: optionalDate,
   to: optionalDate,
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type SummaryQuery = z.infer<typeof summaryQuerySchema>;
 
@@ -49,27 +57,44 @@ export class VehiclesController {
 
   @Get()
   @RequirePermission('vehicles.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { active, assignedLocation, ...listQuery } = query;
-    return this.vehicles.list(listQuery as ListQuery, { active, assignedLocation });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { state, active, assignedLocation, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.vehicles.list(listQuery as ListQuery, {
+      state: user.chapter ?? state,
+      active,
+      assignedLocation,
+    });
   }
 
   @Get('alerts')
   @RequirePermission('vehicles.read')
-  alerts() {
-    return this.vehicles.alerts();
+  alerts(
+    @Query(zodQuery(alertsQuerySchema)) query: AlertsQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    // Chapter scoping (§7.2): scoped users only see their chapter's alerts.
+    return this.vehicles.alerts(user.chapter ?? query.state);
   }
 
   @Get('maintenance/summary')
   @RequirePermission('vehicles.read')
-  maintenanceSummary(@Query(zodQuery(summaryQuerySchema)) query: SummaryQuery) {
-    return this.vehicles.maintenanceSummary(query);
+  maintenanceSummary(
+    @Query(zodQuery(summaryQuerySchema)) query: SummaryQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { state, ...filters } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.vehicles.maintenanceSummary({ ...filters, state: user.chapter ?? state }, user);
   }
 
   @Get('maintenance/:id')
   @RequirePermission('vehicles.read')
-  getMaintenance(@Param('id', ParseUUIDPipe) id: string) {
-    return this.vehicles.getMaintenance(id);
+  getMaintenance(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.vehicles.getMaintenance(id, user);
   }
 
   @Post('maintenance')
@@ -78,7 +103,7 @@ export class VehiclesController {
     @Body(zodBody(maintenanceRecordSchema)) body: MaintenanceRecordInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.vehicles.createMaintenance(body, user.id);
+    return this.vehicles.createMaintenance(body, user);
   }
 
   @Patch('maintenance/:id')
@@ -88,25 +113,25 @@ export class VehiclesController {
     @Body(zodBody(maintenanceRecordSchema.partial())) body: Partial<MaintenanceRecordInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.vehicles.updateMaintenance(id, body, user.id);
+    return this.vehicles.updateMaintenance(id, body, user);
   }
 
   @Delete('maintenance/:id')
   @RequirePermission('vehicles.delete')
   removeMaintenance(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.vehicles.deleteMaintenance(id, user.id);
+    return this.vehicles.deleteMaintenance(id, user);
   }
 
   @Get(':id')
   @RequirePermission('vehicles.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.vehicles.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.vehicles.get(id, user);
   }
 
   @Get(':id/profile')
   @RequirePermission('vehicles.read')
-  profile(@Param('id', ParseUUIDPipe) id: string) {
-    return this.vehicles.profile(id);
+  profile(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.vehicles.profile(id, user);
   }
 
   @Post()
@@ -115,7 +140,7 @@ export class VehiclesController {
     @Body(zodBody(vehicleSchema)) body: VehicleInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.vehicles.create(body, user.id);
+    return this.vehicles.create(body, user);
   }
 
   @Patch(':id')
@@ -125,12 +150,12 @@ export class VehiclesController {
     @Body(zodBody(vehicleSchema.partial())) body: Partial<VehicleInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.vehicles.update(id, body, user.id);
+    return this.vehicles.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('vehicles.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.vehicles.softDelete(id, user.id);
+    return this.vehicles.softDelete(id, user);
   }
 }

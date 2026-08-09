@@ -10,12 +10,12 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   listQuerySchema,
   OPPORTUNITY_STATUSES,
   optionalDate,
   shiftSignupSchema,
   shiftSignupUpdateSchema,
-  US_STATES,
   uuid,
   volunteerOpportunitySchema,
   volunteerShiftSchema,
@@ -37,7 +37,7 @@ const shiftUpdateSchema = volunteerShiftSchema.innerType().partial();
 
 const opportunitiesQuerySchema = listQuerySchema.extend({
   status: z.enum(OPPORTUNITY_STATUSES).optional(),
-  state: z.enum(US_STATES).optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
   institutionId: uuid.optional(),
 });
 type OpportunitiesQuery = z.infer<typeof opportunitiesQuerySchema>;

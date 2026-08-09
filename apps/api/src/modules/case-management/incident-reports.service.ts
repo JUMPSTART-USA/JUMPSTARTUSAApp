@@ -8,7 +8,9 @@ import type {
   ListQuery,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { assertParticipant } from './participant.util';
 
 export type IncidentReportCreateInput = IncidentReportInput;
@@ -21,6 +23,7 @@ export interface IncidentReportListFilters {
   category?: IncidentCategory;
   from?: Date;
   to?: Date;
+  state?: string;
 }
 
 const SORTABLE = new Set(['incidentDate', 'category', 'severity', 'status', 'createdAt']);
@@ -74,6 +77,11 @@ export class IncidentReportsService {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): derived through the participant profile. Wrapped
+      // in AND so the search's own participantProfile clause cannot replace it.
+      ...(filters.state
+        ? { AND: [{ participantProfile: { chapterState: filters.state } }] }
+        : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.severity ? { severity: filters.severity } : {}),
       ...(filters.category ? { category: filters.category } : {}),
@@ -117,8 +125,9 @@ export class IncidentReportsService {
     return { items: rows.map(toListItem), total, page: query.page, pageSize: query.pageSize };
   }
 
-  async create(input: IncidentReportCreateInput, userId: string) {
-    await assertParticipant(this.prisma, input.participantProfileId);
+  async create(input: IncidentReportCreateInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
     const created = await this.prisma.incidentReport.create({
       data: {
         ...input,
@@ -132,9 +141,12 @@ export class IncidentReportsService {
     return created;
   }
 
-  async update(id: string, input: IncidentReportUpdateInput, userId: string) {
-    const existing = await this.findReport(id);
-    if (input.participantProfileId) await assertParticipant(this.prisma, input.participantProfileId);
+  async update(id: string, input: IncidentReportUpdateInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.findReport(id, user.chapter);
+    if (input.participantProfileId) {
+      await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
+    }
 
     // resolvedAt tracks status: entering resolved/dismissed stamps it (keeping
     // the original stamp if the report was already closed); moving back to
@@ -154,21 +166,24 @@ export class IncidentReportsService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.findReport(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const existing = await this.findReport(id, user.chapter);
     await this.prisma.incidentReport.update({ where: { id }, data: { deletedAt: new Date() } });
-    await this.audit.logDelete(userId, 'incident_report', id, existing);
+    await this.audit.logDelete(user.id, 'incident_report', id, existing);
     return { ok: true };
   }
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
-  private async findReport(id: string): Promise<IncidentReportViewRow> {
+  /** Fetch-for-mutation with the chapter guard (§7.2) applied once. */
+  private async findReport(id: string, userChapter: string | null): Promise<IncidentReportViewRow> {
     const report = await this.prisma.incidentReport.findFirst({
       where: { id, deletedAt: null },
-      select: VIEW_SELECT,
+      select: { ...VIEW_SELECT, participantProfile: { select: { chapterState: true } } },
     });
     if (!report) throw new NotFoundException('Incident report not found');
-    return report;
+    assertChapterAccess(userChapter, report.participantProfile.chapterState);
+    const { participantProfile: _participantProfile, ...reportOnly } = report;
+    return reportOnly;
   }
 }

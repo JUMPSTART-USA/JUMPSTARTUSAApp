@@ -217,11 +217,14 @@ export class InsideClassesService {
   // ── Enrollments ───────────────────────────────────────────────────────────
 
   /** Batch-enroll a roster (10–30 people at once, §6.2). Already-enrolled participants are skipped and reported. */
-  async batchEnroll(classId: string, input: BatchEnrollInput, userId: string) {
+  async batchEnroll(classId: string, input: BatchEnrollInput, user: AuthenticatedUser) {
+    const userId = user.id;
     if (input.insideClassId !== classId) {
       throw new BadRequestException('insideClassId in the body does not match the URL');
     }
     const insideClass = await this.getClassOrThrow(classId);
+    // Chapter scoping (§7.2): via the owning institution's state.
+    await this.assertClassChapter(insideClass.institutionId, user.chapter);
     if (insideClass.status === 'canceled') {
       throw new ConflictException('Cannot enroll participants into a canceled class');
     }
@@ -229,12 +232,16 @@ export class InsideClassesService {
     const ids = [...new Set(input.participantProfileIds)];
     const participants = await this.prisma.participantProfile.findMany({
       where: { id: { in: ids }, deletedAt: null },
-      select: { id: true },
+      select: { id: true, chapterState: true },
     });
     const found = new Set(participants.map((p) => p.id));
     const missing = ids.filter((id) => !found.has(id));
     if (missing.length > 0) {
       throw new BadRequestException(`Unknown participant profile(s): ${missing.join(', ')}`);
+    }
+    // Chapter scoping (§7.2): no enrolling another chapter's participants.
+    for (const participant of participants) {
+      assertChapterAccess(user.chapter, participant.chapterState);
     }
 
     // Soft-deleted enrollments still occupy the (participant, class) unique
@@ -272,16 +279,21 @@ export class InsideClassesService {
     return { enrolled, skippedParticipantProfileIds: skipped };
   }
 
-  async enroll(input: InsideEnrollmentInput, userId: string) {
+  async enroll(input: InsideEnrollmentInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const insideClass = await this.getClassOrThrow(input.insideClassId);
+    // Chapter scoping (§7.2): via the owning institution's state.
+    await this.assertClassChapter(insideClass.institutionId, user.chapter);
     if (insideClass.status === 'canceled') {
       throw new ConflictException('Cannot enroll participants into a canceled class');
     }
     const participant = await this.prisma.participantProfile.findFirst({
       where: { id: input.participantProfileId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, chapterState: true },
     });
     if (!participant) throw new BadRequestException('Unknown participant profile');
+    // Chapter scoping (§7.2): no enrolling another chapter's participant.
+    assertChapterAccess(user.chapter, participant.chapterState);
 
     const duplicate = await this.prisma.insideClassEnrollment.findFirst({
       where: { insideClassId: input.insideClassId, participantProfileId: input.participantProfileId },
@@ -302,12 +314,17 @@ export class InsideClassesService {
   async updateEnrollment(
     enrollmentId: string,
     input: Partial<InsideEnrollmentInput>,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const existing = await this.prisma.insideClassEnrollment.findFirst({
+    const userId = user.id;
+    const loaded = await this.prisma.insideClassEnrollment.findFirst({
       where: { id: enrollmentId, deletedAt: null },
+      include: { insideClass: { select: { institution: { select: { state: true } } } } },
     });
-    if (!existing) throw new NotFoundException('Enrollment not found');
+    if (!loaded) throw new NotFoundException('Enrollment not found');
+    // Chapter scoping (§7.2): via the class's institution state.
+    assertChapterAccess(user.chapter, loaded.insideClass.institution.state);
+    const { insideClass: _insideClass, ...existing } = loaded;
 
     // History preservation (§4.1.6): an enrollment never moves between people
     // or classes — close it and open a new one instead.
@@ -352,8 +369,11 @@ export class InsideClassesService {
    * only once EVERY enrollment is terminal — assessment_pending rows keep the
    * class open until their Blue/Green/Yellow/Red assessments are in.
    */
-  async closeOut(classId: string, input: ClassCloseOutInput, userId: string) {
+  async closeOut(classId: string, input: ClassCloseOutInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const insideClass = await this.getClassOrThrow(classId);
+    // Chapter scoping (§7.2): via the owning institution's state.
+    await this.assertClassChapter(insideClass.institutionId, user.chapter);
     if (insideClass.status === 'canceled') {
       throw new ConflictException('A canceled class cannot be closed out');
     }
@@ -447,8 +467,11 @@ export class InsideClassesService {
 
   // ── Sessions & attendance (Phase 2 schema, endpoints ship now) ────────────
 
-  async createSession(classId: string, input: InsideSessionInput, userId: string) {
-    await this.getClassOrThrow(classId);
+  async createSession(classId: string, input: InsideSessionInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const insideClass = await this.getClassOrThrow(classId);
+    // Chapter scoping (§7.2): via the owning institution's state.
+    await this.assertClassChapter(insideClass.institutionId, user.chapter);
     const session = await this.prisma.insideClassSession.create({
       data: { ...input, insideClassId: classId, createdById: userId, updatedById: userId },
     });
@@ -456,8 +479,10 @@ export class InsideClassesService {
     return session;
   }
 
-  async listSessions(classId: string) {
-    await this.getClassOrThrow(classId);
+  async listSessions(classId: string, user: AuthenticatedUser) {
+    const insideClass = await this.getClassOrThrow(classId);
+    // Chapter scoping (§7.2): via the owning institution's state.
+    await this.assertClassChapter(insideClass.institutionId, user.chapter);
     return this.prisma.insideClassSession.findMany({
       where: { insideClassId: classId },
       orderBy: { sessionDate: 'asc' },
@@ -465,9 +490,20 @@ export class InsideClassesService {
     });
   }
 
-  async updateSession(sessionId: string, input: Partial<InsideSessionInput>, userId: string) {
-    const existing = await this.prisma.insideClassSession.findUnique({ where: { id: sessionId } });
-    if (!existing) throw new NotFoundException('Session not found');
+  async updateSession(
+    sessionId: string,
+    input: Partial<InsideSessionInput>,
+    user: AuthenticatedUser,
+  ) {
+    const userId = user.id;
+    const loaded = await this.prisma.insideClassSession.findUnique({
+      where: { id: sessionId },
+      include: { insideClass: { select: { institution: { select: { state: true } } } } },
+    });
+    if (!loaded) throw new NotFoundException('Session not found');
+    // Chapter scoping (§7.2): via the class's institution state.
+    assertChapterAccess(user.chapter, loaded.insideClass.institution.state);
+    const { insideClass: _insideClass, ...existing } = loaded;
     const session = await this.prisma.insideClassSession.update({
       where: { id: sessionId },
       data: { ...input, updatedById: userId },
@@ -477,9 +513,16 @@ export class InsideClassesService {
   }
 
   /** Hard delete — sessions have no soft-delete column; attendance goes with them. */
-  async deleteSession(sessionId: string, userId: string) {
-    const existing = await this.prisma.insideClassSession.findUnique({ where: { id: sessionId } });
-    if (!existing) throw new NotFoundException('Session not found');
+  async deleteSession(sessionId: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const loaded = await this.prisma.insideClassSession.findUnique({
+      where: { id: sessionId },
+      include: { insideClass: { select: { institution: { select: { state: true } } } } },
+    });
+    if (!loaded) throw new NotFoundException('Session not found');
+    // Chapter scoping (§7.2): via the class's institution state.
+    assertChapterAccess(user.chapter, loaded.insideClass.institution.state);
+    const { insideClass: _insideClass, ...existing } = loaded;
     await this.prisma.$transaction([
       this.prisma.sessionAttendance.deleteMany({ where: { sessionId } }),
       this.prisma.insideClassSession.delete({ where: { id: sessionId } }),
@@ -489,14 +532,21 @@ export class InsideClassesService {
   }
 
   /** Upserts one SessionAttendance row per (session, enrollment) — re-submitting the grid corrects it. */
-  async recordAttendance(sessionId: string, rows: AttendanceRowInput[], userId: string) {
+  async recordAttendance(sessionId: string, rows: AttendanceRowInput[], user: AuthenticatedUser) {
+    const userId = user.id;
     const session = await this.prisma.insideClassSession.findFirst({
       where: { id: sessionId },
-      include: { insideClass: { select: { deletedAt: true } } },
+      include: {
+        insideClass: {
+          select: { deletedAt: true, institution: { select: { state: true } } },
+        },
+      },
     });
     if (!session || session.insideClass.deletedAt) {
       throw new NotFoundException('Session not found');
     }
+    // Chapter scoping (§7.2): via the class's institution state.
+    assertChapterAccess(user.chapter, session.insideClass.institution.state);
 
     const enrollmentIds = rows.map((r) => r.enrollmentId);
     const valid = await this.prisma.insideClassEnrollment.findMany({

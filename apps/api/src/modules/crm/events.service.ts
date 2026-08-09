@@ -7,13 +7,17 @@ import {
 import type { Event, Prisma } from '@jumpstart/database';
 import type { EventInput, EventRegistrationInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 export interface EventListFilters {
   eventType?: string;
   campaignId?: string;
   from?: Date;
   to?: Date;
+  /** Chapter filter — matches the `chapterState` column (§7.2). */
+  chapterState?: string;
 }
 
 /** Registration payloads take eventId from the route, not the body. */
@@ -22,7 +26,7 @@ export type RegistrationUpdate = Partial<RegistrationCreate>;
 
 // Whitelist of sortable columns — sortBy comes from the query string and must
 // never reach Prisma unchecked.
-const SORTABLE = new Set(['name', 'eventDate', 'eventType', 'createdAt']);
+const SORTABLE = new Set(['name', 'eventDate', 'eventType', 'chapterState', 'createdAt']);
 
 @Injectable()
 export class EventsService {
@@ -38,6 +42,7 @@ export class EventsService {
         ? { eventType: { contains: filters.eventType, mode: 'insensitive' } }
         : {}),
       ...(filters.campaignId ? { campaignId: filters.campaignId } : {}),
+      ...(filters.chapterState ? { chapterState: filters.chapterState } : {}),
       ...(filters.from || filters.to
         ? {
             eventDate: {
@@ -78,18 +83,20 @@ export class EventsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const event = await this.prisma.event.findFirst({
       where: { id, deletedAt: null },
       include: { campaign: { select: { id: true, name: true } } },
     });
     if (!event) throw new NotFoundException('Event not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own chapterState).
+    assertChapterAccess(user.chapter, event.chapterState);
     return event;
   }
 
   /** Event detail: registrations, linked gift revenue, computed net (§6.8). */
-  async detail(id: string) {
-    const event = await this.get(id);
+  async detail(id: string, user: AuthenticatedUser) {
+    const event = await this.get(id, user);
 
     const [registrations, donationAgg] = await this.prisma.$transaction([
       this.prisma.eventRegistration.findMany({
@@ -112,8 +119,8 @@ export class EventsService {
   }
 
   /** Event financial summary report (§6.8 event lifecycle). */
-  async financialSummary(id: string) {
-    const event = await this.get(id);
+  async financialSummary(id: string, user: AuthenticatedUser) {
+    const event = await this.get(id, user); // chapter check inside
     const donationAgg = await this.prisma.donation.aggregate({
       where: { eventId: id, deletedAt: null },
       _count: true,
@@ -133,18 +140,28 @@ export class EventsService {
     };
   }
 
-  async create(input: EventInput, userId: string) {
-    await this.assertCampaignExists(input.campaignId);
+  async create(input: EventInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    // Chapter scoping (§7.2): the creator decides the chapter — scoped users
+    // get theirs stamped, all-chapters users must pick one.
+    const chapterState = resolveCreateChapter(user.chapter, input.chapterState);
+    await this.assertCampaignRef(input.campaignId, chapterState);
     const event = await this.prisma.event.create({
-      data: { ...input, createdById: userId, updatedById: userId },
+      data: { ...input, chapterState, createdById: userId, updatedById: userId },
     });
     await this.audit.logCreate(userId, 'event', event.id, event);
     return event;
   }
 
-  async update(id: string, input: Partial<EventInput>, userId: string) {
-    const existing = await this.get(id);
-    await this.assertCampaignExists(input.campaignId);
+  async update(id: string, input: Partial<EventInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // chapter check inside
+    // ...and a scoped user cannot move the record to another chapter either.
+    assertChapterAccess(user.chapter, input.chapterState);
+    // A linked campaign must live in the event's (merged) chapter.
+    const chapterState = input.chapterState ?? existing.chapterState;
+    const campaignId = input.campaignId !== undefined ? input.campaignId : existing.campaignId;
+    await this.assertCampaignRef(campaignId, chapterState);
     const updated = await this.prisma.event.update({
       where: { id },
       data: { ...input, updatedById: userId },
@@ -153,8 +170,9 @@ export class EventsService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.get(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // chapter check inside
     await this.prisma.event.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
@@ -166,8 +184,9 @@ export class EventsService {
   // ── Registrations ─────────────────────────────────────────────────────────
   // No soft delete: cancellations keep the row with status 'canceled'.
 
-  async addRegistration(eventId: string, input: RegistrationCreate, userId: string) {
-    await this.get(eventId);
+  async addRegistration(eventId: string, input: RegistrationCreate, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.get(eventId, user); // 404 + chapter check
 
     // Re-enforced from the shared schema — the route body omits eventId, so the
     // schema's person-or-guest refinement can't run at the pipe.
@@ -177,7 +196,30 @@ export class EventsService {
 
     if (input.personId) {
       const person = await this.prisma.person.findFirst({
-        where: { id: input.personId, deletedAt: null },
+        where: {
+          id: input.personId,
+          deletedAt: null,
+          // Chapter scoping (§7.2): scoped users only register their chapter's
+          // people (profile chapter); profile-less people are chapter-neutral.
+          ...(user.chapter
+            ? {
+                AND: [
+                  {
+                    OR: [
+                      { participantProfile: null },
+                      { participantProfile: { chapterState: user.chapter } },
+                    ],
+                  },
+                  {
+                    OR: [
+                      { volunteerProfile: null },
+                      { volunteerProfile: { chapterState: user.chapter } },
+                    ],
+                  },
+                ],
+              }
+            : {}),
+        },
       });
       if (!person) throw new BadRequestException('Person not found');
 
@@ -203,9 +245,16 @@ export class EventsService {
     return registration;
   }
 
-  async updateRegistration(id: string, input: RegistrationUpdate, userId: string) {
-    const existing = await this.prisma.eventRegistration.findUnique({ where: { id } });
+  async updateRegistration(id: string, input: RegistrationUpdate, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.prisma.eventRegistration.findUnique({
+      where: { id },
+      include: { event: { select: { chapterState: true } } },
+    });
     if (!existing) throw new NotFoundException('Registration not found');
+    // Chapter scoping (§7.2): derived through the parent event.
+    assertChapterAccess(user.chapter, existing.event.chapterState);
+    const { event: _event, ...registrationOnly } = existing;
 
     const updated = await this.prisma.eventRegistration.update({
       where: { id },
@@ -218,15 +267,19 @@ export class EventsService {
         updatedById: userId,
       },
     });
-    await this.audit.logUpdate(userId, 'event_registration', id, existing, updated);
+    await this.audit.logUpdate(userId, 'event_registration', id, registrationOnly, updated);
     return updated;
   }
 
-  private async assertCampaignExists(campaignId?: string | null) {
+  /** A linked campaign must exist and live in the event's chapter. */
+  private async assertCampaignRef(campaignId: string | null | undefined, chapterState: string) {
     if (!campaignId) return;
     const campaign = await this.prisma.campaign.findFirst({
       where: { id: campaignId, deletedAt: null },
     });
     if (!campaign) throw new BadRequestException('Campaign not found');
+    if (campaign.chapterState !== chapterState) {
+      throw new BadRequestException('Campaign belongs to another chapter');
+    }
   }
 }

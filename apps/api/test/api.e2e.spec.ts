@@ -442,6 +442,8 @@ describe('inside locations & release (§6.1)', () => {
       .send({
         person: { firstName: 'Api', lastName: 'ReleaseTest', state: 'SC' },
         profile: { insideStatus: 'active' },
+        // Admin is all-chapters — §7.2 requires an explicit chapter at create.
+        chapterState: 'SC',
         confirmNotDuplicate: true,
       })
       .expect(201);
@@ -673,10 +675,13 @@ describe('self-service password reset (§3.1)', () => {
     const readOnly = await prisma.role.findUniqueOrThrow({ where: { key: 'read_only' } });
     await prisma.userRole.create({ data: { userId: user.id, roleId: readOnly.id } });
     const rawToken = 'e2e-reset-token-abcdef0123456789';
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    // Fixed token — clear any row a previous run left so reruns stay green.
+    await prisma.passwordResetToken.deleteMany({ where: { tokenHash } });
     await prisma.passwordResetToken.create({
       data: {
         userId: user.id,
-        tokenHash: createHash('sha256').update(rawToken).digest('hex'),
+        tokenHash,
         expiresAt: new Date(Date.now() + 60_000),
       },
     });
@@ -825,7 +830,7 @@ describe('public intake (§6.11: queues, never live records)', () => {
         subjectFirstName: 'Api',
         subjectLastName: 'Test',
         needs: 'Housing on release',
-        state: 'TN',
+        state: 'SC',
       })
       .expect(201);
     expect(res.body).toEqual({ ok: true });

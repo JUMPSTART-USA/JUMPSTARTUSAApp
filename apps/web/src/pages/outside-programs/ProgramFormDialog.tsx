@@ -1,7 +1,8 @@
-import { outsideProgramSchema, PROGRAM_TYPES, US_STATES } from '@jumpstart/shared';
+import { outsideProgramSchema, PROGRAM_TYPES } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -143,16 +144,12 @@ export function ProgramFormDialog({
             <FormField label="Location" error={errors.location}>
               <Input {...register('location')} placeholder="Facility, church, campus…" />
             </FormField>
-            <FormField label="State" error={errors.state}>
-              <Select {...register('state', { setValueAs: emptyToUndef })}>
-                <option value="">—</option>
-                {US_STATES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
+            {/* Chapter scoping (§7.2): programs belong to a chapter — scoped
+                users' programs are stamped server-side. */}
+            <ChapterSelect
+              error={errors.state}
+              {...register('state', { setValueAs: emptyToUndef })}
+            />
             <FormField label="Start date" error={errors.startDate}>
               <Input type="date" {...register('startDate')} />
             </FormField>

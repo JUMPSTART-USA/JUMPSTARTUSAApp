@@ -91,7 +91,7 @@ export class BackgroundChecksController {
     @Body(zodBody(backgroundCheckSchema)) body: BackgroundCheckInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screening.createCheck(body, user.id);
+    return this.screening.createCheck(body, user);
   }
 
   @Patch(':id')
@@ -101,7 +101,7 @@ export class BackgroundChecksController {
     @Body(zodBody(backgroundCheckUpdateSchema)) body: Partial<Omit<BackgroundCheckInput, 'personId'>>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screening.updateCheck(id, body, user.id);
+    return this.screening.updateCheck(id, body, user);
   }
 }
 
@@ -125,7 +125,7 @@ export class TrainingsController {
     @Body(zodBody(volunteerTrainingSchema)) body: VolunteerTrainingInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screening.createTraining(body, user.id);
+    return this.screening.createTraining(body, user);
   }
 
   @Patch(':id')
@@ -136,13 +136,13 @@ export class TrainingsController {
     body: Partial<Omit<VolunteerTrainingInput, 'volunteerProfileId'>>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screening.updateTraining(id, body, user.id);
+    return this.screening.updateTraining(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('volunteers.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.screening.deleteTraining(id, user.id);
+    return this.screening.deleteTraining(id, user);
   }
 }
 
@@ -152,9 +152,17 @@ export class FacilityRequirementsController {
 
   @Get()
   @RequirePermission('volunteers.read')
-  list(@Query(zodQuery(requirementsQuerySchema)) query: RequirementsQuery) {
+  list(
+    @Query(zodQuery(requirementsQuerySchema)) query: RequirementsQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const { institutionId, active, ...listQuery } = query;
-    return this.screening.listRequirements(listQuery as ListQuery, { institutionId, active });
+    // Chapter scoping (§7.2): scoped users only see their chapter's facilities.
+    return this.screening.listRequirements(
+      listQuery as ListQuery,
+      { institutionId, active },
+      user.chapter,
+    );
   }
 
   @Post()
@@ -163,7 +171,7 @@ export class FacilityRequirementsController {
     @Body(zodBody(clearanceRequirementSchema)) body: ClearanceRequirementInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screening.createRequirement(body, user.id);
+    return this.screening.createRequirement(body, user);
   }
 
   @Patch(':id')
@@ -173,13 +181,13 @@ export class FacilityRequirementsController {
     @Body(zodBody(clearanceRequirementSchema.partial())) body: Partial<ClearanceRequirementInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screening.updateRequirement(id, body, user.id);
+    return this.screening.updateRequirement(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('volunteers.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.screening.deleteRequirement(id, user.id);
+    return this.screening.deleteRequirement(id, user);
   }
 }
 
@@ -214,7 +222,7 @@ export class ClearancesController {
     @Body(zodBody(volunteerClearanceSchema)) body: VolunteerClearanceInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screening.upsertClearance(body, user.id);
+    return this.screening.upsertClearance(body, user);
   }
 
   @Patch(':id')
@@ -225,12 +233,12 @@ export class ClearancesController {
     body: Partial<Omit<VolunteerClearanceInput, 'volunteerProfileId' | 'requirementId'>>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.screening.updateClearance(id, body, user.id);
+    return this.screening.updateClearance(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('volunteers.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.screening.deleteClearance(id, user.id);
+    return this.screening.deleteClearance(id, user);
   }
 }

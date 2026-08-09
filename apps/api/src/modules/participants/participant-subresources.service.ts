@@ -14,7 +14,9 @@ import type {
   TestimonyConsentInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 /**
  * Person-level sub-resources reached through the participant record:
@@ -33,27 +35,31 @@ export class ParticipantSubresourcesService {
   ) {}
 
   /** Resolve profile → person; 404 when the participant is missing/deleted. */
-  private async personIdFor(participantId: string): Promise<string> {
+  private async personIdFor(participantId: string, user: AuthenticatedUser): Promise<string> {
     const profile = await this.prisma.participantProfile.findFirst({
       where: { id: participantId, deletedAt: null },
-      select: { personId: true },
+      select: { personId: true, chapterState: true },
     });
     if (!profile) throw new NotFoundException('Participant not found');
+    // Chapter scoping (§7.2): every sub-resource derives its chapter from the
+    // parent profile's chapterState — same derivation as the list filter.
+    assertChapterAccess(user.chapter, profile.chapterState);
     return profile.personId;
   }
 
   // ── Contacts (emergency contacts & family, incl. minors — §7.4) ───────────
 
-  async listContacts(participantId: string) {
-    const personId = await this.personIdFor(participantId);
+  async listContacts(participantId: string, user: AuthenticatedUser) {
+    const personId = await this.personIdFor(participantId, user);
     return this.prisma.personContact.findMany({
       where: { personId, deletedAt: null },
       orderBy: [{ isEmergency: 'desc' }, { name: 'asc' }],
     });
   }
 
-  async createContact(participantId: string, input: PersonContactInput, userId: string) {
-    const personId = await this.personIdFor(participantId);
+  async createContact(participantId: string, input: PersonContactInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const personId = await this.personIdFor(participantId, user);
     const contact = await this.prisma.personContact.create({
       data: { ...input, personId, createdById: userId, updatedById: userId },
     });
@@ -65,9 +71,10 @@ export class ParticipantSubresourcesService {
     participantId: string,
     contactId: string,
     input: PersonContactInput,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const personId = await this.personIdFor(participantId);
+    const userId = user.id;
+    const personId = await this.personIdFor(participantId, user);
     const existing = await this.prisma.personContact.findFirst({
       where: { id: contactId, personId, deletedAt: null },
     });
@@ -90,8 +97,9 @@ export class ParticipantSubresourcesService {
     return updated;
   }
 
-  async deleteContact(participantId: string, contactId: string, userId: string) {
-    const personId = await this.personIdFor(participantId);
+  async deleteContact(participantId: string, contactId: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const personId = await this.personIdFor(participantId, user);
     const existing = await this.prisma.personContact.findFirst({
       where: { id: contactId, personId, deletedAt: null },
     });
@@ -106,16 +114,17 @@ export class ParticipantSubresourcesService {
 
   // ── Addresses (history table; no delete — §4.1.6) ─────────────────────────
 
-  async listAddresses(participantId: string) {
-    const personId = await this.personIdFor(participantId);
+  async listAddresses(participantId: string, user: AuthenticatedUser) {
+    const personId = await this.personIdFor(participantId, user);
     return this.prisma.personAddress.findMany({
       where: { personId },
       orderBy: [{ isCurrent: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
-  async createAddress(participantId: string, input: PersonAddressInput, userId: string) {
-    const personId = await this.personIdFor(participantId);
+  async createAddress(participantId: string, input: PersonAddressInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const personId = await this.personIdFor(participantId, user);
     const address = await this.prisma.$transaction(async (tx) => {
       if (input.isCurrent) await this.makeCurrent(tx, personId, null, input, userId);
       return tx.personAddress.create({
@@ -130,9 +139,10 @@ export class ParticipantSubresourcesService {
     participantId: string,
     addressId: string,
     input: PersonAddressInput,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const personId = await this.personIdFor(participantId);
+    const userId = user.id;
+    const personId = await this.personIdFor(participantId, user);
     const existing = await this.prisma.personAddress.findFirst({
       where: { id: addressId, personId },
     });
@@ -195,16 +205,17 @@ export class ParticipantSubresourcesService {
 
   // ── DOC IDs (justice-history field class — §7.2, §7.5) ────────────────────
 
-  async listDocIds(participantId: string) {
-    await this.personIdFor(participantId);
+  async listDocIds(participantId: string, user: AuthenticatedUser) {
+    await this.personIdFor(participantId, user);
     return this.prisma.participantDocId.findMany({
       where: { participantProfileId: participantId },
       orderBy: [{ state: 'asc' }, { createdAt: 'asc' }],
     });
   }
 
-  async createDocId(participantId: string, input: ParticipantDocIdInput, userId: string) {
-    await this.personIdFor(participantId);
+  async createDocId(participantId: string, input: ParticipantDocIdInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.personIdFor(participantId, user);
     await this.assertAgreementExists(input.dataSharingAgreementId);
     try {
       const docId = await this.prisma.participantDocId.create({
@@ -226,9 +237,10 @@ export class ParticipantSubresourcesService {
     participantId: string,
     docIdId: string,
     input: Partial<ParticipantDocIdInput>,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    await this.personIdFor(participantId);
+    const userId = user.id;
+    await this.personIdFor(participantId, user);
     const existing = await this.prisma.participantDocId.findFirst({
       where: { id: docIdId, participantProfileId: participantId },
     });
@@ -268,8 +280,8 @@ export class ParticipantSubresourcesService {
     institution: { select: { id: true, name: true, state: true } },
   } as const;
 
-  async listInsideLocations(participantId: string) {
-    await this.personIdFor(participantId);
+  async listInsideLocations(participantId: string, user: AuthenticatedUser) {
+    await this.personIdFor(participantId, user);
     return this.prisma.participantInsideLocation.findMany({
       where: { participantProfileId: participantId, deletedAt: null },
       include: ParticipantSubresourcesService.LOCATION_INCLUDE,
@@ -280,9 +292,10 @@ export class ParticipantSubresourcesService {
   async createInsideLocation(
     participantId: string,
     input: ParticipantInsideLocationInput,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    await this.personIdFor(participantId);
+    const userId = user.id;
+    await this.personIdFor(participantId, user);
     await this.assertInstitutionExists(input.institutionId);
     const location = await this.prisma.$transaction(async (tx) => {
       if (input.status === 'active') {
@@ -306,9 +319,10 @@ export class ParticipantSubresourcesService {
     participantId: string,
     locationId: string,
     input: ParticipantInsideLocationInput,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    await this.personIdFor(participantId);
+    const userId = user.id;
+    await this.personIdFor(participantId, user);
     await this.assertInstitutionExists(input.institutionId);
     const existing = await this.prisma.participantInsideLocation.findFirst({
       where: { id: locationId, participantProfileId: participantId, deletedAt: null },
@@ -334,8 +348,9 @@ export class ParticipantSubresourcesService {
     return updated;
   }
 
-  async deleteInsideLocation(participantId: string, locationId: string, userId: string) {
-    await this.personIdFor(participantId);
+  async deleteInsideLocation(participantId: string, locationId: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.personIdFor(participantId, user);
     const existing = await this.prisma.participantInsideLocation.findFirst({
       where: { id: locationId, participantProfileId: participantId, deletedAt: null },
     });
@@ -388,16 +403,21 @@ export class ParticipantSubresourcesService {
 
   // ── Most serious offenses (§7.2 justice field class, like DOC IDs) ────────
 
-  async listOffenses(participantId: string) {
-    await this.personIdFor(participantId);
+  async listOffenses(participantId: string, user: AuthenticatedUser) {
+    await this.personIdFor(participantId, user);
     return this.prisma.participantOffense.findMany({
       where: { participantProfileId: participantId, deletedAt: null },
       orderBy: [{ convictionDate: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
-  async createOffense(participantId: string, input: ParticipantOffenseInput, userId: string) {
-    await this.personIdFor(participantId);
+  async createOffense(
+    participantId: string,
+    input: ParticipantOffenseInput,
+    user: AuthenticatedUser,
+  ) {
+    const userId = user.id;
+    await this.personIdFor(participantId, user);
     const offense = await this.prisma.participantOffense.create({
       data: {
         ...this.offenseData(input),
@@ -414,9 +434,10 @@ export class ParticipantSubresourcesService {
     participantId: string,
     offenseId: string,
     input: ParticipantOffenseInput,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    await this.personIdFor(participantId);
+    const userId = user.id;
+    await this.personIdFor(participantId, user);
     const existing = await this.prisma.participantOffense.findFirst({
       where: { id: offenseId, participantProfileId: participantId, deletedAt: null },
     });
@@ -429,8 +450,9 @@ export class ParticipantSubresourcesService {
     return updated;
   }
 
-  async deleteOffense(participantId: string, offenseId: string, userId: string) {
-    await this.personIdFor(participantId);
+  async deleteOffense(participantId: string, offenseId: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.personIdFor(participantId, user);
     const existing = await this.prisma.participantOffense.findFirst({
       where: { id: offenseId, participantProfileId: participantId, deletedAt: null },
     });
@@ -457,8 +479,8 @@ export class ParticipantSubresourcesService {
 
   // ── Testimony consents (revocable, never deleted — §7.4) ──────────────────
 
-  async listTestimonyConsents(participantId: string) {
-    const personId = await this.personIdFor(participantId);
+  async listTestimonyConsents(participantId: string, user: AuthenticatedUser) {
+    const personId = await this.personIdFor(participantId, user);
     return this.prisma.testimonyConsent.findMany({
       where: { personId },
       orderBy: { grantedAt: 'desc' },
@@ -468,9 +490,10 @@ export class ParticipantSubresourcesService {
   async createTestimonyConsent(
     participantId: string,
     input: TestimonyConsentInput,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const personId = await this.personIdFor(participantId);
+    const userId = user.id;
+    const personId = await this.personIdFor(participantId, user);
     const consent = await this.prisma.testimonyConsent.create({
       data: { ...input, personId, createdById: userId, updatedById: userId },
     });
@@ -482,9 +505,10 @@ export class ParticipantSubresourcesService {
     participantId: string,
     consentId: string,
     input: TestimonyConsentInput,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const personId = await this.personIdFor(participantId);
+    const userId = user.id;
+    const personId = await this.personIdFor(participantId, user);
     const existing = await this.prisma.testimonyConsent.findFirst({
       where: { id: consentId, personId },
     });

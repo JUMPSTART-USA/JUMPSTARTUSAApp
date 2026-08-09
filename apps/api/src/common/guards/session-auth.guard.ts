@@ -43,7 +43,7 @@ export class SessionAuthGuard implements CanActivate {
             role: { include: { rolePermissions: { include: { permission: true } } } },
           },
         },
-        regionScopes: true,
+        regionScopes: { orderBy: { state: 'asc' } },
       },
     });
 
@@ -77,7 +77,14 @@ export class SessionAuthGuard implements CanActivate {
     }
 
     // One scope row = that chapter; no rows = all chapters (§7.2).
-    const scopedChapters = user.regionScopes.map((rs) => rs.state);
+    // Administrators are ALWAYS all-chapters (docs/chapter-scoping.md):
+    // scope rows are ignored for accounts that really hold admin, so a stray
+    // region-scope row can never blind an admin. Keyed to real roles, not the
+    // view-as preview — an admin previewing another role keeps the
+    // all-chapters view unless they also preview a chapter.
+    const scopedChapters = roles.includes('admin')
+      ? []
+      : user.regionScopes.map((rs) => rs.state);
     const allowedChapters = scopedChapters.length ? scopedChapters : null;
 
     // Chapter preview: honored only when the account may view more than one

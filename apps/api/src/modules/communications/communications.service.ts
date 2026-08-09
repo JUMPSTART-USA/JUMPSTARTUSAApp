@@ -2,12 +2,14 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { CommStatus, Prisma } from '@jumpstart/database';
 import {
   communicationTemplateSchema,
+  isChapterState,
   type CommChannel,
   type CommunicationTemplateInput,
   type ListQuery,
   type SendCommunicationInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 import { renderMergeFields } from './merge-fields.util';
@@ -24,6 +26,7 @@ export interface CommunicationListFilters {
   channel?: CommChannel;
   status?: CommStatus;
   batchId?: string;
+  state?: string;
 }
 
 // Whitelists of sortable columns — sortBy comes from the query string and must
@@ -127,13 +130,29 @@ export class CommunicationsService {
       include: {
         participantProfile: {
           select: {
+            chapterState: true,
             participantNumber: true,
             assignedCaseManager: { select: { firstName: true, lastName: true } },
           },
         },
+        volunteerProfile: { select: { chapterState: true } },
       },
     });
     if (!person) throw new NotFoundException('Person not found');
+
+    // Chapter scoping (§7.2): a scoped user cannot message another chapter's
+    // participant/volunteer; the row is stamped with the sender's chapter, the
+    // recipient's derived chapter, or an explicit pick — never left blank.
+    const profileChapter =
+      person.participantProfile?.chapterState ?? person.volunteerProfile?.chapterState ?? null;
+    assertChapterAccess(user.chapter, profileChapter);
+    const chapterState =
+      user.chapter ??
+      profileChapter ??
+      (person.state && isChapterState(person.state) ? person.state : null) ??
+      input.chapterState ??
+      null;
+    if (!chapterState) throw new BadRequestException('Select a chapter');
 
     const blocked = suppressionReason(person, input.channel);
     if (blocked) throw new BadRequestException(blocked);
@@ -176,6 +195,7 @@ export class CommunicationsService {
     let communication = await this.prisma.communication.create({
       data: {
         personId: person.id,
+        chapterState,
         channel: input.channel,
         templateId: template?.id ?? null,
         subject,
@@ -224,6 +244,7 @@ export class CommunicationsService {
       ...(filters.channel ? { channel: filters.channel } : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.batchId ? { batchId: filters.batchId } : {}),
+      ...(filters.state ? { chapterState: filters.state } : {}),
       ...(query.search
         ? {
             OR: [

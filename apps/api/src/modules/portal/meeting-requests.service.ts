@@ -2,12 +2,15 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { Prisma } from '@jumpstart/database';
 import type { ListQuery, MeetingDecisionInput, MeetingRequestStatus } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { PARTICIPANT_SUMMARY_SELECT, participantSearch } from './portal.util';
 
 export interface MeetingRequestListFilters {
   participantProfileId?: string;
   status?: MeetingRequestStatus;
+  state?: string;
 }
 
 const SORTABLE = new Set(['preferredDate', 'status', 'scheduledFor', 'decidedAt', 'createdAt']);
@@ -60,6 +63,12 @@ export class MeetingRequestsService {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): derived through the participant profile. Wrapped
+      // in AND so participantSearch's own participantProfile clause (spread
+      // below) cannot replace it.
+      ...(filters.state
+        ? { AND: [{ participantProfile: { chapterState: filters.state } }] }
+        : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(query.search ? participantSearch(query.search) : {}),
     };
@@ -90,11 +99,12 @@ export class MeetingRequestsService {
    * REQUIRES scheduledFor. Anything else is a 400; decisions are never edited
    * in place.
    */
-  async decide(id: string, input: MeetingDecisionInput, userId: string) {
+  async decide(id: string, input: MeetingDecisionInput, user: AuthenticatedUser) {
+    const userId = user.id;
     if (input.status === 'pending') {
       throw new BadRequestException('Pending is not a decision');
     }
-    const existing = await this.findRequest(id);
+    const existing = await this.findRequest(id, user.chapter);
     const allowed =
       existing.status === 'pending' ||
       (existing.status === 'scheduled' && input.status === 'canceled');
@@ -124,12 +134,15 @@ export class MeetingRequestsService {
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
-  private async findRequest(id: string): Promise<MeetingRequestViewRow> {
+  /** Fetch-for-mutation with the chapter guard (§7.2) applied once. */
+  private async findRequest(id: string, userChapter: string | null): Promise<MeetingRequestViewRow> {
     const request = await this.prisma.meetingRequest.findFirst({
       where: { id, deletedAt: null },
-      select: VIEW_SELECT,
+      select: { ...VIEW_SELECT, participantProfile: { select: { chapterState: true } } },
     });
     if (!request) throw new NotFoundException('Meeting request not found');
-    return request;
+    assertChapterAccess(userChapter, request.participantProfile.chapterState);
+    const { participantProfile: _participantProfile, ...requestOnly } = request;
+    return requestOnly;
   }
 }

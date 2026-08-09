@@ -16,7 +16,7 @@ import type {
   ReleaseInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
-import { assertChapterAccess } from '../../common/chapter.util';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
@@ -80,7 +80,9 @@ export class ParticipantsService {
   async list(query: ListQuery, filters: ParticipantListFilters) {
     const where: Prisma.ParticipantProfileWhereInput = {
       deletedAt: null,
-      person: { deletedAt: null, ...(filters.state ? { state: filters.state } : {}) },
+      person: { deletedAt: null },
+      // Chapter scoping (§7.2): own chapterState column — person.state is mail.
+      ...(filters.state ? { chapterState: filters.state } : {}),
       ...(filters.insideStatus ? { insideStatus: filters.insideStatus } : {}),
       ...(filters.outsideStatus ? { outsideStatus: filters.outsideStatus } : {}),
       ...(filters.alumniStatus ? { alumniStatus: filters.alumniStatus } : {}),
@@ -154,7 +156,7 @@ export class ParticipantsService {
    * person-creating flow — case-insensitive full-name match, same phone/email,
    * or same DOB + last name — with the roles each candidate already holds.
    */
-  async duplicateCheck(input: DuplicateCheckInput) {
+  async duplicateCheck(input: DuplicateCheckInput, user: AuthenticatedUser) {
     const or: Prisma.PersonWhereInput[] = [
       {
         firstName: { equals: input.firstName, mode: 'insensitive' },
@@ -171,7 +173,29 @@ export class ParticipantsService {
     }
 
     const matches = await this.prisma.person.findMany({
-      where: { deletedAt: null, OR: or },
+      where: {
+        deletedAt: null,
+        OR: or,
+        // Chapter scoping (§7.2): scoped users only get candidates they could
+        // act on — their chapter's profiles or profile-less persons; the
+        // cross-chapter dedupe stays with all-chapters users.
+        ...(user.chapter
+          ? {
+              AND: [
+                {
+                  OR: [
+                    { participantProfile: { chapterState: user.chapter } },
+                    { volunteerProfile: { chapterState: user.chapter } },
+                    {
+                      participantProfile: { is: null },
+                      volunteerProfile: { is: null },
+                    },
+                  ],
+                },
+              ],
+            }
+          : {}),
+      },
       select: {
         id: true,
         firstName: true,
@@ -190,37 +214,43 @@ export class ParticipantsService {
     });
 
     return {
-      candidates: matches.map(({ participantProfile, volunteerProfile, user, ...person }) => ({
-        ...person,
-        participantProfileId:
-          participantProfile && !participantProfile.deletedAt ? participantProfile.id : null,
-        participantNumber:
-          participantProfile && !participantProfile.deletedAt
-            ? participantProfile.participantNumber
-            : null,
-        profileTypes: [
-          ...(participantProfile && !participantProfile.deletedAt ? ['participant'] : []),
-          ...(volunteerProfile && !volunteerProfile.deletedAt ? ['volunteer'] : []),
-          ...(user ? ['staff'] : []),
-        ],
-      })),
+      candidates: matches.map(
+        ({ participantProfile, volunteerProfile, user: staffUser, ...person }) => ({
+          ...person,
+          participantProfileId:
+            participantProfile && !participantProfile.deletedAt ? participantProfile.id : null,
+          participantNumber:
+            participantProfile && !participantProfile.deletedAt
+              ? participantProfile.participantNumber
+              : null,
+          profileTypes: [
+            ...(participantProfile && !participantProfile.deletedAt ? ['participant'] : []),
+            ...(volunteerProfile && !volunteerProfile.deletedAt ? ['volunteer'] : []),
+            ...(staffUser ? ['staff'] : []),
+          ],
+        }),
+      ),
     };
   }
 
   /** Create person + participant profile in one transaction (§6.1 workflow 1). */
   async create(input: ParticipantCreateInput, user: AuthenticatedUser) {
     const userId = user.id;
-    // Chapter scoping (§7.2): a scoped user cannot create records for another
-    // chapter. The list filter derives state from person.state, so check it.
-    assertChapterAccess(user.chapter, input.person.state);
+    // Chapter scoping (§7.2): stamp the chapter from the creator — a scoped
+    // user gets their own chapter, an all-chapters user must pick one.
+    // person.state is the mailing address, never the chapter.
+    const chapterState = resolveCreateChapter(user.chapter, input.chapterState);
     if (!input.confirmNotDuplicate) {
-      const { candidates } = await this.duplicateCheck({
-        firstName: input.person.firstName,
-        lastName: input.person.lastName,
-        dateOfBirth: input.person.dateOfBirth,
-        phone: input.person.primaryPhone,
-        email: input.person.primaryEmail,
-      });
+      const { candidates } = await this.duplicateCheck(
+        {
+          firstName: input.person.firstName,
+          lastName: input.person.lastName,
+          dateOfBirth: input.person.dateOfBirth,
+          phone: input.person.primaryPhone,
+          email: input.person.primaryEmail,
+        },
+        user,
+      );
       if (candidates.length > 0) {
         throw new ConflictException({
           message:
@@ -252,6 +282,7 @@ export class ParticipantsService {
           const created = await tx.participantProfile.create({
             data: {
               ...input.profile,
+              chapterState,
               personId: person.id,
               participantNumber,
               createdById: userId,
@@ -327,8 +358,8 @@ export class ParticipantsService {
       },
     });
     if (!profile) throw new NotFoundException('Participant not found');
-    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
-    assertChapterAccess(viewer.chapter, profile.person.state);
+    // Chapter scoping (§7.2): same derivation as the list filter (own chapterState).
+    assertChapterAccess(viewer.chapter, profile.chapterState);
 
     // §7.2 field-level sensitivity: DOC numbers, the registry flag and the
     // offense records are justice-history data. DOC rows stay visible (so
@@ -361,9 +392,10 @@ export class ParticipantsService {
     });
     if (!existing) throw new NotFoundException('Participant not found');
     // Chapter scoping (§7.2): the record must be in the user's chapter, and a
-    // scoped user cannot move it to another chapter either.
-    assertChapterAccess(user.chapter, existing.person.state);
-    assertChapterAccess(user.chapter, input.person?.state);
+    // scoped user cannot move it to another chapter either (person.state is
+    // the mailing address — only profile.chapterState is the chapter).
+    assertChapterAccess(user.chapter, existing.chapterState);
+    assertChapterAccess(user.chapter, input.profile?.chapterState);
 
     const { statusEffectiveDate, statusChangeReason, ...profileData } = input.profile ?? {};
 
@@ -427,11 +459,10 @@ export class ParticipantsService {
     const userId = user.id;
     const existing = await this.prisma.participantProfile.findFirst({
       where: { id, deletedAt: null },
-      include: { person: { select: { state: true } } },
     });
     if (!existing) throw new NotFoundException('Participant not found');
-    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
-    assertChapterAccess(user.chapter, existing.person.state);
+    // Chapter scoping (§7.2): same derivation as the list filter (own chapterState).
+    assertChapterAccess(user.chapter, existing.chapterState);
     if (existing.insideStatus === 'released') {
       throw new ConflictException('Participant is already recorded as released');
     }
@@ -458,8 +489,7 @@ export class ParticipantsService {
         data: { status: 'inactive', endDate: releaseDate, updatedById: userId },
       }),
     ]);
-    const { person: _person, ...profileOnly } = existing;
-    await this.audit.logUpdate(userId, 'participant_profile', id, profileOnly, updated);
+    await this.audit.logUpdate(userId, 'participant_profile', id, existing, updated);
     return updated;
   }
 
@@ -467,28 +497,26 @@ export class ParticipantsService {
     const userId = user.id;
     const existing = await this.prisma.participantProfile.findFirst({
       where: { id, deletedAt: null },
-      include: { person: { select: { state: true } } },
     });
     if (!existing) throw new NotFoundException('Participant not found');
-    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
-    assertChapterAccess(user.chapter, existing.person.state);
+    // Chapter scoping (§7.2): same derivation as the list filter (own chapterState).
+    assertChapterAccess(user.chapter, existing.chapterState);
     await this.prisma.participantProfile.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
     });
-    // The person include was for the chapter check only — keep the audit
-    // payload the profile row, as before.
-    const { person: _person, ...profileOnly } = existing;
-    await this.audit.logDelete(userId, 'participant_profile', id, profileOnly);
+    await this.audit.logDelete(userId, 'participant_profile', id, existing);
     return { ok: true };
   }
 
-  async statusHistory(id: string) {
+  async statusHistory(id: string, user: AuthenticatedUser) {
     const exists = await this.prisma.participantProfile.findFirst({
       where: { id, deletedAt: null },
-      select: { id: true },
+      select: { id: true, chapterState: true },
     });
     if (!exists) throw new NotFoundException('Participant not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own chapterState).
+    assertChapterAccess(user.chapter, exists.chapterState);
     return this.prisma.participantStatusHistory.findMany({
       where: { participantProfileId: id },
       orderBy: [{ effectiveDate: 'desc' }, { createdAt: 'desc' }],
@@ -505,11 +533,10 @@ export class ParticipantsService {
     const userId = user.id;
     const existing = await this.prisma.participantProfile.findFirst({
       where: { id, deletedAt: null },
-      include: { person: { select: { state: true } } },
     });
     if (!existing) throw new NotFoundException('Participant not found');
-    // Chapter scoping (§7.2): same derivation as the list filter (person.state).
-    assertChapterAccess(user.chapter, existing.person.state);
+    // Chapter scoping (§7.2): same derivation as the list filter (own chapterState).
+    assertChapterAccess(user.chapter, existing.chapterState);
     if (existing.alumniStatus !== 'not_applicable') {
       throw new ConflictException('Participant has already graduated');
     }

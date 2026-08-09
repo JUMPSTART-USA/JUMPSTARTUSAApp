@@ -8,6 +8,8 @@ export interface Vehicle {
   vin: string | null;
   mileage: number | null;
   assignedLocation: string | null;
+  /** The vehicle's chapter (§7.2) — where the vehicle is stationed. */
+  chapterState: string;
   active: boolean;
   insuranceExpiration: string | null;
   registrationExpiration: string | null;
@@ -45,6 +47,7 @@ export interface VehicleAlert {
     model: string;
     year: number;
     licensePlate: string | null;
+    chapterState: string;
   };
   type: 'maintenance_due' | 'registration_expiring' | 'insurance_expiring';
   severity: AlertSeverity;

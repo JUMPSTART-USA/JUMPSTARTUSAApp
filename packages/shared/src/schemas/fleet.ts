@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHAPTER_STATES } from '../chapters';
 import {
   nonNegativeMoney,
   optionalDate,
@@ -31,6 +32,9 @@ export const vehicleSchema = z.object({
   ),
   mileage: z.coerce.number().int().min(0).optional(),
   assignedLocation: optionalTrimmed,
+  // Chapter (§7.2): optional at the pipe — the service stamps a scoped
+  // creator's chapter and requires a pick from all-chapters users.
+  chapterState: z.enum(CHAPTER_STATES).optional(),
   active: z.boolean().default(true),
   insuranceExpiration: optionalDate,
   registrationExpiration: optionalDate,

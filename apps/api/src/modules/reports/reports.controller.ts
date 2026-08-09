@@ -2,10 +2,10 @@ import { Controller, Get, Param, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import {
   ASSIGNMENT_TYPES,
+  CHAPTER_STATES,
   endNotBeforeStart,
   optionalDate,
   PROGRAM_TYPES,
-  US_STATES,
   uuid,
 } from '@jumpstart/shared';
 import { z } from 'zod';
@@ -19,7 +19,7 @@ import { ReportsService } from './reports.service';
 // One superset schema for every report's params — each report reads its own
 // subset; report-specific status vocabularies are validated in the service.
 const baseParamsSchema = z.object({
-  state: z.enum(US_STATES).optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
   status: z.string().trim().max(40).optional(),
   insideClassId: uuid.optional(),
   institutionId: uuid.optional(),

@@ -7,12 +7,15 @@ import {
 import type { Prisma } from '@jumpstart/database';
 import type { GoalInput, GoalMilestoneInput, ListQuery, ServicePlanInput } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { assertParticipant } from './participant.util';
 
 export interface ServicePlanListFilters {
   participantProfileId?: string;
   status?: string;
+  state?: string;
 }
 
 const SORTABLE = new Set(['title', 'status', 'reviewDate', 'createdAt']);
@@ -34,6 +37,8 @@ export class ServicePlansService {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): derived through the participant profile.
+      ...(filters.state ? { participantProfile: { chapterState: filters.state } } : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(query.search ? { title: { contains: query.search, mode: 'insensitive' } } : {}),
     };
@@ -62,12 +67,12 @@ export class ServicePlansService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const plan = await this.prisma.servicePlan.findFirst({
       where: { id, deletedAt: null },
       include: {
         participantProfile: {
-          select: { person: { select: { firstName: true, lastName: true } } },
+          select: { chapterState: true, person: { select: { firstName: true, lastName: true } } },
         },
         goals: {
           orderBy: { createdAt: 'asc' },
@@ -76,6 +81,8 @@ export class ServicePlansService {
       },
     });
     if (!plan) throw new NotFoundException('Service plan not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (participant).
+    assertChapterAccess(user.chapter, plan.participantProfile.chapterState);
     return plan;
   }
 
@@ -96,8 +103,9 @@ export class ServicePlansService {
     }
   }
 
-  async create(input: ServicePlanInput, userId: string) {
-    await assertParticipant(this.prisma, input.participantProfileId);
+  async create(input: ServicePlanInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
     if (input.status === 'active') {
       await this.assertNoOtherActivePlan(input.participantProfileId);
     }
@@ -108,9 +116,9 @@ export class ServicePlansService {
     return plan;
   }
 
-  async update(id: string, input: Partial<ServicePlanInput>, userId: string) {
-    const existing = await this.prisma.servicePlan.findFirst({ where: { id, deletedAt: null } });
-    if (!existing) throw new NotFoundException('Service plan not found');
+  async update(id: string, input: Partial<ServicePlanInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.getForModify(id, user);
     // Re-parenting a case plan is always a mistake — new participant, new plan.
     if (input.participantProfileId && input.participantProfileId !== existing.participantProfileId) {
       throw new BadRequestException('A service plan cannot be moved to another participant');
@@ -126,9 +134,9 @@ export class ServicePlansService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.prisma.servicePlan.findFirst({ where: { id, deletedAt: null } });
-    if (!existing) throw new NotFoundException('Service plan not found');
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.getForModify(id, user);
     await this.prisma.servicePlan.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
@@ -137,15 +145,31 @@ export class ServicePlansService {
     return { ok: true };
   }
 
+  /** Fetch-for-mutation with the chapter guard (§7.2) applied once. */
+  private async getForModify(id: string, user: AuthenticatedUser) {
+    const existing = await this.prisma.servicePlan.findFirst({
+      where: { id, deletedAt: null },
+      include: { participantProfile: { select: { chapterState: true } } },
+    });
+    if (!existing) throw new NotFoundException('Service plan not found');
+    assertChapterAccess(user.chapter, existing.participantProfile.chapterState);
+    const { participantProfile: _participantProfile, ...planOnly } = existing;
+    return planOnly;
+  }
+
   // ── Goals ─────────────────────────────────────────────────────────────────
   // Goals have no deletedAt — the lifecycle ends at status 'abandoned', so no
   // delete endpoint exists for them.
 
-  async createGoal(servicePlanId: string, input: GoalCreateInput, userId: string) {
+  async createGoal(servicePlanId: string, input: GoalCreateInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const plan = await this.prisma.servicePlan.findFirst({
       where: { id: servicePlanId, deletedAt: null },
+      include: { participantProfile: { select: { chapterState: true } } },
     });
     if (!plan) throw new NotFoundException('Service plan not found');
+    // Chapter scoping (§7.2): the goal inherits the plan's participant chapter.
+    assertChapterAccess(user.chapter, plan.participantProfile.chapterState);
     const goal = await this.prisma.goal.create({
       data: { ...input, servicePlanId, createdById: userId, updatedById: userId },
     });
@@ -153,16 +177,25 @@ export class ServicePlansService {
     return goal;
   }
 
-  private async getGoal(goalId: string) {
+  private async getGoal(goalId: string, user: AuthenticatedUser) {
     const goal = await this.prisma.goal.findFirst({
       where: { id: goalId, servicePlan: { deletedAt: null } },
+      include: {
+        servicePlan: {
+          select: { participantProfile: { select: { chapterState: true } } },
+        },
+      },
     });
     if (!goal) throw new NotFoundException('Goal not found');
-    return goal;
+    // Chapter scoping (§7.2): goal → plan → participant chapter.
+    assertChapterAccess(user.chapter, goal.servicePlan.participantProfile.chapterState);
+    const { servicePlan: _servicePlan, ...goalOnly } = goal;
+    return goalOnly;
   }
 
-  async updateGoal(goalId: string, input: Partial<GoalCreateInput>, userId: string) {
-    const existing = await this.getGoal(goalId);
+  async updateGoal(goalId: string, input: Partial<GoalCreateInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.getGoal(goalId, user);
     const updated = await this.prisma.goal.update({
       where: { id: goalId },
       data: { ...input, updatedById: userId },
@@ -173,8 +206,9 @@ export class ServicePlansService {
 
   // ── Milestones ────────────────────────────────────────────────────────────
 
-  async createMilestone(goalId: string, input: MilestoneCreateInput, userId: string) {
-    await this.getGoal(goalId);
+  async createMilestone(goalId: string, input: MilestoneCreateInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.getGoal(goalId, user);
     const milestone = await this.prisma.goalMilestone.create({
       data: { ...input, goalId },
     });
@@ -182,16 +216,36 @@ export class ServicePlansService {
     return milestone;
   }
 
-  private async getMilestone(milestoneId: string) {
+  private async getMilestone(milestoneId: string, user: AuthenticatedUser) {
     const milestone = await this.prisma.goalMilestone.findFirst({
       where: { id: milestoneId, goal: { servicePlan: { deletedAt: null } } },
+      include: {
+        goal: {
+          select: {
+            servicePlan: {
+              select: { participantProfile: { select: { chapterState: true } } },
+            },
+          },
+        },
+      },
     });
     if (!milestone) throw new NotFoundException('Milestone not found');
-    return milestone;
+    // Chapter scoping (§7.2): milestone → goal → plan → participant chapter.
+    assertChapterAccess(
+      user.chapter,
+      milestone.goal.servicePlan.participantProfile.chapterState,
+    );
+    const { goal: _goal, ...milestoneOnly } = milestone;
+    return milestoneOnly;
   }
 
-  async updateMilestone(milestoneId: string, input: Partial<MilestoneCreateInput>, userId: string) {
-    const existing = await this.getMilestone(milestoneId);
+  async updateMilestone(
+    milestoneId: string,
+    input: Partial<MilestoneCreateInput>,
+    user: AuthenticatedUser,
+  ) {
+    const userId = user.id;
+    const existing = await this.getMilestone(milestoneId, user);
     const updated = await this.prisma.goalMilestone.update({
       where: { id: milestoneId },
       data: input,
@@ -200,8 +254,9 @@ export class ServicePlansService {
     return updated;
   }
 
-  async completeMilestone(milestoneId: string, userId: string) {
-    const existing = await this.getMilestone(milestoneId);
+  async completeMilestone(milestoneId: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.getMilestone(milestoneId, user);
     if (existing.completedAt) throw new ConflictException('Milestone is already completed');
     const updated = await this.prisma.goalMilestone.update({
       where: { id: milestoneId },
@@ -211,8 +266,9 @@ export class ServicePlansService {
     return updated;
   }
 
-  async uncompleteMilestone(milestoneId: string, userId: string) {
-    const existing = await this.getMilestone(milestoneId);
+  async uncompleteMilestone(milestoneId: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.getMilestone(milestoneId, user);
     if (!existing.completedAt) throw new ConflictException('Milestone is not completed');
     const updated = await this.prisma.goalMilestone.update({
       where: { id: milestoneId },
@@ -223,8 +279,9 @@ export class ServicePlansService {
   }
 
   /** Hard delete — milestones have no deletedAt; completed ones are kept. */
-  async deleteMilestone(milestoneId: string, userId: string) {
-    const existing = await this.getMilestone(milestoneId);
+  async deleteMilestone(milestoneId: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.getMilestone(milestoneId, user);
     if (existing.completedAt) {
       throw new BadRequestException('Uncomplete the milestone before deleting it');
     }

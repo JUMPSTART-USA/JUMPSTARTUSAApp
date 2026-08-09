@@ -1,15 +1,25 @@
 import { BadRequestException } from '@nestjs/common';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
  * Resolves a body-supplied participant FK to a live profile. Without this,
  * a bad id surfaces as a Prisma P2003 (500) instead of a 400.
+ *
+ * Chapter scoping (§7.2): every case-management record inherits its chapter
+ * from the participant, so the same choke point rejects a scoped user
+ * referencing another chapter's participant (create AND re-parent paths).
  */
-export async function assertParticipant(prisma: PrismaService, participantProfileId: string) {
+export async function assertParticipant(
+  prisma: PrismaService,
+  participantProfileId: string,
+  userChapter: string | null,
+) {
   const profile = await prisma.participantProfile.findFirst({
     where: { id: participantProfileId, deletedAt: null },
   });
   if (!profile) throw new BadRequestException('Unknown participant');
+  assertChapterAccess(userChapter, profile.chapterState);
   return profile;
 }
 

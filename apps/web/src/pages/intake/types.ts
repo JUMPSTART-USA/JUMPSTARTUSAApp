@@ -28,6 +28,7 @@ export interface VolunteerApplicationItem {
   email: string | null;
   phone: string | null;
   city: string | null;
+  /** The submission's CHAPTER (§7.2) — null only on legacy rows. */
   state: string | null;
   interestAreas: string[];
   availability: string | null;
@@ -53,6 +54,7 @@ export interface ReferralItem {
   subjectLastName: string;
   subjectPhone: string | null;
   facilityName: string | null;
+  /** The referral's CHAPTER (§7.2) — null only on legacy rows. */
   state: string | null;
   expectedReleaseDate: string | null;
   needs: string;
@@ -81,6 +83,8 @@ export interface AlumniUpdateItem {
     id: string;
     participantNumber: string;
     alumniStatus: string;
+    /** Chapter of the alum (§7.2) — this update's chapter derives from it. */
+    chapterState: string;
     person: {
       id: string;
       firstName: string;
@@ -108,6 +112,11 @@ export interface ReviewPayload {
   action: 'approve' | 'reject' | 'spam';
   reviewNotes?: string;
   existingPersonId?: string;
+  /**
+   * Chapter for a legacy submission that arrived before the public forms
+   * required one (§7.2). The API rejects the review without it.
+   */
+  state?: string;
 }
 
 // ── Shared helpers ───────────────────────────────────────────────────────────

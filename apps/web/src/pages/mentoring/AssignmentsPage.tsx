@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { StatusBadge } from '@/components/ui/badge';
@@ -132,6 +133,7 @@ export function AssignmentsPage() {
     sortDir: 'desc',
   });
   const [status, setStatus] = useState('');
+  const [chapter, setChapter] = useState('');
   const [search, setSearch] = useState('');
   const [proposing, setProposing] = useState(false);
   const debounced = useDebounced(search);
@@ -141,7 +143,7 @@ export function AssignmentsPage() {
   }, [debounced]);
 
   const query = useQuery({
-    queryKey: ['mentoring', 'assignments', state, status, debounced],
+    queryKey: ['mentoring', 'assignments', state, status, chapter, debounced],
     queryFn: () =>
       api.get<Paged<AssignmentView>>(
         `/mentoring/assignments${qs({
@@ -150,6 +152,7 @@ export function AssignmentsPage() {
           sortBy: state.sortBy,
           sortDir: state.sortDir,
           status: status || undefined,
+          state: chapter || undefined,
           search: debounced,
         })}`,
       ),
@@ -211,6 +214,13 @@ export function AssignmentsPage() {
             </option>
           ))}
         </Select>
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        />
       </ListToolbar>
 
       {query.isError ? (

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -77,6 +78,7 @@ export function PledgesListPage() {
     sortDir: 'desc',
   });
   const [status, setStatus] = useState('');
+  const [chapter, setChapter] = useState('');
   const [donor, setDonor] = useState<PickerOption | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -86,6 +88,7 @@ export function PledgesListPage() {
     sortBy: state.sortBy,
     sortDir: state.sortDir,
     status,
+    state: chapter,
     donorId: donor?.id,
   });
   const query = useQuery({
@@ -121,6 +124,13 @@ export function PledgesListPage() {
             placeholder="Filter by donor…"
           />
         </div>
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        />
         <Select
           value={status}
           onChange={(e) => {

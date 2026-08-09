@@ -10,6 +10,7 @@ import {
   INCIDENT_STATUS_LABELS,
 } from '@jumpstart/shared';
 import { backTo } from '@/components/BackLink';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ export function IncidentReportsPage() {
   const [participant, setParticipant] = useState<PickerOption | null>(null);
   const [severity, setSeverity] = useState('');
   const [status, setStatus] = useState('');
+  const [state, setState] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [dialogReport, setDialogReport] = useState<IncidentReportRow | 'new' | null>(null);
@@ -52,6 +54,7 @@ export function IncidentReportsPage() {
     participantProfileId: participant?.id,
     severity,
     status,
+    state,
     from,
     to,
   });
@@ -215,6 +218,15 @@ export function IncidentReportsPage() {
             </option>
           ))}
         </Select>
+        {/* Chapter scoping (§7.2): reports derive their chapter from the
+            participant — hidden for scoped users, whom the API force-filters. */}
+        <ChapterFilterSelect
+          value={state}
+          onChange={(v) => {
+            setState(v);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
+        />
         <ToolbarDateField
           label="From"
           value={from}

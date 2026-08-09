@@ -26,6 +26,12 @@ import type { ParticipantDetail } from './types';
  * coerce on validation, and each consumer builds its own API payload.
  */
 export interface ParticipantFormValues {
+  /**
+   * Chapter assignment (§7.2) — create form only: rendered via ChapterSelect
+   * for all-chapters users; scoped users' records are stamped server-side.
+   * person.state below stays the mailing-address field.
+   */
+  chapterState?: string;
   person: {
     firstName: string;
     middleName: string;
@@ -66,6 +72,7 @@ export interface ParticipantFormValues {
 
 export function emptyParticipantFormValues(): ParticipantFormValues {
   return {
+    chapterState: '',
     person: {
       firstName: '',
       middleName: '',

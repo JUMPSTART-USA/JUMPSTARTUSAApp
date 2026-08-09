@@ -3,6 +3,7 @@ import { CheckCircle2, Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { caseTaskSchema, TASK_STATUSES, type TaskStatus } from '@jumpstart/shared';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { StatusBadge } from '@/components/ui/badge';
@@ -183,6 +184,7 @@ export function TasksPage() {
   const [listState, setListState] = useState<ListState>({ ...initialListState, sortBy: 'dueDate' });
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
+  const [state, setState] = useState('');
   const [mineOnly, setMineOnly] = useState(true);
   const [editing, setEditing] = useState<CaseTaskRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -195,6 +197,7 @@ export function TasksPage() {
     sortDir: listState.sortDir,
     search: debouncedSearch,
     status,
+    state,
     assignedToId: mineOnly ? user?.id : undefined,
   });
 
@@ -305,6 +308,16 @@ export function TasksPage() {
             </option>
           ))}
         </Select>
+        {/* Chapter scoping (§7.2): tasks derive their chapter from the linked
+            participant (unlinked staff to-dos are chapter-neutral and always
+            listed) — hidden for scoped users, whom the API force-filters. */}
+        <ChapterFilterSelect
+          value={state}
+          onChange={(v) => {
+            setState(v);
+            setListState((s) => ({ ...s, page: 1 }));
+          }}
+        />
         <div className="flex items-center gap-2">
           <Checkbox
             id="tasks-mine"

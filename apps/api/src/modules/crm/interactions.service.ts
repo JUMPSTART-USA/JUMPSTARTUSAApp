@@ -7,12 +7,16 @@ import type {
   ListQuery,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 export interface InteractionListFilters {
   donorId?: string;
   channel?: InteractionChannel;
   purpose?: InteractionPurpose;
+  /** Chapter filter — the controller forces `user.chapter ?? requested`. */
+  state?: string;
   from?: Date;
   to?: Date;
 }
@@ -30,7 +34,8 @@ export class InteractionsService {
 
   async list(query: ListQuery, filters: InteractionListFilters) {
     const where: Prisma.DonorInteractionWhereInput = {
-      donor: { deletedAt: null },
+      // Chapter scoping (§7.2): interactions derive chapter through their donor.
+      donor: { deletedAt: null, ...(filters.state ? { chapterState: filters.state } : {}) },
       ...(filters.donorId ? { donorId: filters.donorId } : {}),
       ...(filters.channel ? { channel: filters.channel } : {}),
       ...(filters.purpose ? { purpose: filters.purpose } : {}),
@@ -64,8 +69,9 @@ export class InteractionsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async create(input: DonorInteractionInput, userId: string) {
-    await this.assertDonorExists(input.donorId);
+  async create(input: DonorInteractionInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.assertDonorAccess(input.donorId, user);
     const interaction = await this.prisma.donorInteraction.create({
       data: { ...input, createdById: userId, updatedById: userId },
     });
@@ -73,34 +79,50 @@ export class InteractionsService {
     return interaction;
   }
 
-  async update(id: string, input: Partial<DonorInteractionInput>, userId: string) {
-    const existing = await this.prisma.donorInteraction.findUnique({ where: { id } });
+  async update(id: string, input: Partial<DonorInteractionInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.prisma.donorInteraction.findUnique({
+      where: { id },
+      include: { donor: { select: { chapterState: true } } },
+    });
     if (!existing) throw new NotFoundException('Interaction not found');
+    // Chapter scoping (§7.2): derived through the parent donor.
+    assertChapterAccess(user.chapter, existing.donor.chapterState);
+    const { donor: _donor, ...interactionOnly } = existing;
     if (input.donorId && input.donorId !== existing.donorId) {
-      await this.assertDonorExists(input.donorId);
+      await this.assertDonorAccess(input.donorId, user);
     }
     const updated = await this.prisma.donorInteraction.update({
       where: { id },
       data: { ...input, updatedById: userId },
     });
-    await this.audit.logUpdate(userId, 'donor_interaction', id, existing, updated);
+    await this.audit.logUpdate(userId, 'donor_interaction', id, interactionOnly, updated);
     return updated;
   }
 
   // No deletedAt column — delete exists for corrections only; the audit row
   // keeps what was removed (same convention as volunteer trainings).
-  async remove(id: string, userId: string) {
-    const existing = await this.prisma.donorInteraction.findUnique({ where: { id } });
+  async remove(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.prisma.donorInteraction.findUnique({
+      where: { id },
+      include: { donor: { select: { chapterState: true } } },
+    });
     if (!existing) throw new NotFoundException('Interaction not found');
+    // Chapter scoping (§7.2): derived through the parent donor.
+    assertChapterAccess(user.chapter, existing.donor.chapterState);
+    const { donor: _donor, ...interactionOnly } = existing;
     await this.prisma.donorInteraction.delete({ where: { id } });
-    await this.audit.logDelete(userId, 'donor_interaction', id, existing);
+    await this.audit.logDelete(userId, 'donor_interaction', id, interactionOnly);
     return { ok: true };
   }
 
-  private async assertDonorExists(donorId: string) {
+  private async assertDonorAccess(donorId: string, user: AuthenticatedUser) {
     const donor = await this.prisma.donor.findFirst({
       where: { id: donorId, deletedAt: null },
     });
     if (!donor) throw new BadRequestException('Donor not found');
+    // Chapter scoping (§7.2): the referenced donor must be in the user's chapter.
+    assertChapterAccess(user.chapter, donor.chapterState);
   }
 }

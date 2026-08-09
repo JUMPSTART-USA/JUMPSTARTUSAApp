@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -112,6 +113,7 @@ export function DonationsListPage() {
     sortDir: 'desc',
   });
   const [search, setSearch] = useState('');
+  const [chapter, setChapter] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [campaignId, setCampaignId] = useState('');
@@ -132,6 +134,7 @@ export function DonationsListPage() {
 
   const filterParams = {
     search: debouncedSearch,
+    state: chapter,
     from,
     to,
     campaignId,
@@ -197,6 +200,13 @@ export function DonationsListPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search donor name…"
+        />
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            resetPage();
+          }}
         />
         {dateFilter('From', from, setFrom)}
         {dateFilter('To', to, setTo)}

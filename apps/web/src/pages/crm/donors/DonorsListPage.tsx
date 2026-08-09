@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
-import { StatusBadge } from '@/components/ui/badge';
+import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
@@ -27,6 +28,12 @@ const columns: Column<DonorListItem>[] = [
   { key: 'status', header: 'Status', sortKey: 'status', render: (d) => <StatusBadge status={d.status} /> },
   { key: 'lifecycle', header: 'Lifecycle', render: (d) => <LifecycleBadge lifecycle={d.lifecycle} /> },
   { key: 'household', header: 'Household', render: (d) => d.household?.name ?? '—' },
+  {
+    key: 'chapterState',
+    header: 'Chapter',
+    sortKey: 'chapterState',
+    render: (d) => <Badge variant="outline">{d.chapterState}</Badge>,
+  },
   { key: 'email', header: 'Email', render: (d) => d.email ?? '—' },
   {
     key: 'location',
@@ -50,6 +57,7 @@ export function DonorsListPage() {
   const [search, setSearch] = useState('');
   const [donorType, setDonorType] = useState('');
   const [status, setStatus] = useState('');
+  const [chapter, setChapter] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const debouncedSearch = useDebounced(search);
 
@@ -65,6 +73,7 @@ export function DonorsListPage() {
     search: debouncedSearch,
     donorType,
     status,
+    state: chapter,
   });
   const query = useQuery({
     queryKey: ['crm', 'donors', 'list', params],
@@ -123,6 +132,13 @@ export function DonorsListPage() {
             </option>
           ))}
         </Select>
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        />
       </ListToolbar>
 
       {query.isError ? <ErrorState error={query.error} /> : null}

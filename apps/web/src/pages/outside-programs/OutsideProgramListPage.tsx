@@ -1,8 +1,9 @@
-import { PROGRAM_TYPES, US_STATES } from '@jumpstart/shared';
+import { PROGRAM_TYPES } from '@jumpstart/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -153,14 +154,8 @@ export function OutsideProgramListPage() {
             </option>
           ))}
         </Select>
-        <Select value={state} onChange={(e) => setState(e.target.value)} className="w-full sm:w-44">
-          <option value="">All states</option>
-          {US_STATES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </Select>
+        {/* Chapter scoping (§7.2): hidden for scoped users — the API force-filters their chapter. */}
+        <ChapterFilterSelect value={state} onChange={setState} />
       </ListToolbar>
 
       {query.error ? <ErrorState error={query.error} /> : null}

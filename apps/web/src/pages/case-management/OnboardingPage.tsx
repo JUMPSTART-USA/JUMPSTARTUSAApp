@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListChecks } from 'lucide-react';
 import { useState } from 'react';
 import { CHECKLIST_ITEM_STATUSES, type ChecklistItemStatus } from '@jumpstart/shared';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -125,10 +126,17 @@ function ChecklistCard({ checklist }: { checklist: ChecklistRow }) {
 }
 
 /** Every checklist across participants — shown until a participant is chosen. */
-function OnboardingOverview({ onOpen }: { onOpen: (participant: PickerOption) => void }) {
+function OnboardingOverview({
+  state,
+  onOpen,
+}: {
+  state: string;
+  onOpen: (participant: PickerOption) => void;
+}) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['case-management', 'onboarding', 'overview'],
-    queryFn: () => api.get<Paged<ChecklistRow>>(`/onboarding/checklists${qs({ pageSize: 200 })}`),
+    queryKey: ['case-management', 'onboarding', 'overview', state],
+    queryFn: () =>
+      api.get<Paged<ChecklistRow>>(`/onboarding/checklists${qs({ pageSize: 200, state })}`),
   });
 
   if (isLoading) return <PageLoader />;
@@ -202,6 +210,7 @@ export function OnboardingPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [participant, setParticipant] = useState<PickerOption | null>(null);
+  const [state, setState] = useState('');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['case-management', 'onboarding', participant?.id],
@@ -224,14 +233,20 @@ export function OnboardingPage() {
       <SectionHeader
         title="Onboarding"
         actions={
-          <div className="w-full sm:w-72">
-            <ParticipantPicker value={participant} onChange={setParticipant} />
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            {/* Chapter scoping (§7.2): filters the all-participants overview;
+                checklists derive their chapter from the participant. Hidden for
+                chapter-scoped users. */}
+            <ChapterFilterSelect value={state} onChange={setState} />
+            <div className="w-full sm:w-72">
+              <ParticipantPicker value={participant} onChange={setParticipant} />
+            </div>
           </div>
         }
       />
 
       {!participant ? (
-        <OnboardingOverview onOpen={setParticipant} />
+        <OnboardingOverview state={state} onOpen={setParticipant} />
       ) : isLoading ? (
         <PageLoader />
       ) : error ? (

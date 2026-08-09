@@ -109,7 +109,7 @@ export class OutsideProgramsController {
     @Body(zodBody(outsideEnrollmentSchema)) body: OutsideEnrollmentInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.programs.enroll(body, user.id);
+    return this.programs.enroll(body, user);
   }
 
   @Patch('enrollments/:id')
@@ -119,7 +119,7 @@ export class OutsideProgramsController {
     @Body(zodBody(enrollmentUpdateSchema)) body: OutsideEnrollmentUpdate,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.programs.updateEnrollment(id, body, user.id);
+    return this.programs.updateEnrollment(id, body, user);
   }
 
   @Delete('enrollments/:id')
@@ -128,15 +128,18 @@ export class OutsideProgramsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.programs.softDeleteEnrollment(id, user.id);
+    return this.programs.softDeleteEnrollment(id, user);
   }
 
   // ── Sessions & attendance ─────────────────────────────────────────────────
 
   @Get('sessions/:sessionId')
   @RequirePermission('outside_programs.read')
-  getSession(@Param('sessionId', ParseUUIDPipe) sessionId: string) {
-    return this.programs.getSession(sessionId);
+  getSession(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.programs.getSession(sessionId, user);
   }
 
   @Patch('sessions/:sessionId')
@@ -146,7 +149,7 @@ export class OutsideProgramsController {
     @Body(zodBody(sessionUpdateSchema)) body: Partial<OutsideSessionInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.programs.updateSession(sessionId, body, user.id);
+    return this.programs.updateSession(sessionId, body, user);
   }
 
   @Delete('sessions/:sessionId')
@@ -155,7 +158,7 @@ export class OutsideProgramsController {
     @Param('sessionId', ParseUUIDPipe) sessionId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.programs.deleteSession(sessionId, user.id);
+    return this.programs.deleteSession(sessionId, user);
   }
 
   @Post('sessions/:sessionId/attendance')
@@ -165,13 +168,16 @@ export class OutsideProgramsController {
     @Body(zodBody(attendanceSchema)) body: AttendanceBody,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.programs.recordAttendance(sessionId, body.rows, user.id);
+    return this.programs.recordAttendance(sessionId, body.rows, user);
   }
 
   @Get(':id/sessions')
   @RequirePermission('outside_programs.read')
-  listSessions(@Param('id', ParseUUIDPipe) id: string) {
-    return this.programs.listSessions(id);
+  listSessions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.programs.listSessions(id, user);
   }
 
   @Post(':id/sessions')
@@ -181,7 +187,7 @@ export class OutsideProgramsController {
     @Body(zodBody(sessionSchema)) body: OutsideSessionInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.programs.createSession(id, body, user.id);
+    return this.programs.createSession(id, body, user);
   }
 
   // ── Program detail / update / delete ──────────────────────────────────────

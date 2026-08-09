@@ -8,7 +8,9 @@ import type {
   ListQuery,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { startOfUtcDay } from './giving.util';
 
 export interface DonorTaskListFilters {
@@ -16,6 +18,8 @@ export interface DonorTaskListFilters {
   /** Already resolved — the controller maps 'me' to the caller's user id. */
   assignedToId?: string;
   status?: DonorTaskStatus;
+  /** Chapter filter — the controller forces `user.chapter ?? requested`. */
+  state?: string;
   overdue?: boolean;
 }
 
@@ -37,7 +41,8 @@ export class DonorTasksService {
 
   async list(query: ListQuery, filters: DonorTaskListFilters) {
     const where: Prisma.DonorTaskWhereInput = {
-      donor: { deletedAt: null },
+      // Chapter scoping (§7.2): tasks derive chapter through their donor.
+      donor: { deletedAt: null, ...(filters.state ? { chapterState: filters.state } : {}) },
       ...(filters.donorId ? { donorId: filters.donorId } : {}),
       ...(filters.assignedToId ? { assignedToId: filters.assignedToId } : {}),
       ...(filters.status ? { status: filters.status } : {}),
@@ -66,8 +71,9 @@ export class DonorTasksService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async create(input: DonorTaskInput, userId: string) {
-    await this.assertDonorExists(input.donorId);
+  async create(input: DonorTaskInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.assertDonorAccess(input.donorId, user);
     await this.assertUserExists(input.assignedToId);
     const task = await this.prisma.donorTask.create({
       data: {
@@ -81,13 +87,20 @@ export class DonorTasksService {
     return task;
   }
 
-  async update(id: string, input: DonorTaskUpdate, userId: string) {
-    const existing = await this.prisma.donorTask.findUnique({ where: { id } });
+  async update(id: string, input: DonorTaskUpdate, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.prisma.donorTask.findUnique({
+      where: { id },
+      include: { donor: { select: { chapterState: true } } },
+    });
     if (!existing) throw new NotFoundException('Task not found');
+    // Chapter scoping (§7.2): derived through the parent donor.
+    assertChapterAccess(user.chapter, existing.donor.chapterState);
+    const { donor: _donor, ...taskOnly } = existing;
 
     const { logInteraction, ...data } = input;
     if (data.donorId && data.donorId !== existing.donorId) {
-      await this.assertDonorExists(data.donorId);
+      await this.assertDonorAccess(data.donorId, user);
     }
     if (data.assignedToId && data.assignedToId !== existing.assignedToId) {
       await this.assertUserExists(data.assignedToId);
@@ -104,7 +117,7 @@ export class DonorTasksService {
         updatedById: userId,
       },
     });
-    await this.audit.logUpdate(userId, 'donor_task', id, existing, updated);
+    await this.audit.logUpdate(userId, 'donor_task', id, taskOnly, updated);
 
     // Optional one-step "log as interaction" on completion.
     if (completing && logInteraction) {
@@ -128,19 +141,28 @@ export class DonorTasksService {
 
   // No deletedAt column — delete exists for corrections only; the audit row
   // keeps what was removed.
-  async remove(id: string, userId: string) {
-    const existing = await this.prisma.donorTask.findUnique({ where: { id } });
+  async remove(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.prisma.donorTask.findUnique({
+      where: { id },
+      include: { donor: { select: { chapterState: true } } },
+    });
     if (!existing) throw new NotFoundException('Task not found');
+    // Chapter scoping (§7.2): derived through the parent donor.
+    assertChapterAccess(user.chapter, existing.donor.chapterState);
+    const { donor: _donor, ...taskOnly } = existing;
     await this.prisma.donorTask.delete({ where: { id } });
-    await this.audit.logDelete(userId, 'donor_task', id, existing);
+    await this.audit.logDelete(userId, 'donor_task', id, taskOnly);
     return { ok: true };
   }
 
-  private async assertDonorExists(donorId: string) {
+  private async assertDonorAccess(donorId: string, user: AuthenticatedUser) {
     const donor = await this.prisma.donor.findFirst({
       where: { id: donorId, deletedAt: null },
     });
     if (!donor) throw new BadRequestException('Donor not found');
+    // Chapter scoping (§7.2): the referenced donor must be in the user's chapter.
+    assertChapterAccess(user.chapter, donor.chapterState);
   }
 
   private async assertUserExists(userId?: string | null) {

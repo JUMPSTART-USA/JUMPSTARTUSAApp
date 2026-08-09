@@ -8,8 +8,11 @@ export interface Employer {
   email: string | null;
   addressLine1: string | null;
   city: string | null;
+  /** Postal address state — NOT the chapter (§7.2). */
   state: string | null;
   zip: string | null;
+  /** Chapter the employer belongs to (§7.2). */
+  chapterState: string;
   industry: string | null;
   hiringStatus: HiringStatus;
   notes: string | null;

@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { Link } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
@@ -265,6 +266,7 @@ export function OutcomeCheckinsPage() {
   const [state, setState] = useState<ListState>({ ...initialListState, sortBy: 'dueDate' });
   const [due, setDue] = useState<'overdue' | 'upcoming' | ''>('overdue');
   const [wave, setWave] = useState('');
+  const [chapter, setChapter] = useState('');
   const [search, setSearch] = useState('');
   const [completing, setCompleting] = useState<CheckinView | null>(null);
   const debounced = useDebounced(search);
@@ -274,7 +276,7 @@ export function OutcomeCheckinsPage() {
   }, [debounced]);
 
   const query = useQuery({
-    queryKey: ['mentoring', 'checkins', state, due, wave, debounced],
+    queryKey: ['mentoring', 'checkins', state, due, wave, chapter, debounced],
     queryFn: () =>
       api.get<Paged<CheckinView>>(
         `/outcome-checkins${qs({
@@ -284,6 +286,7 @@ export function OutcomeCheckinsPage() {
           sortDir: state.sortDir,
           due: due || undefined,
           wave: wave || undefined,
+          state: chapter || undefined,
           search: debounced,
         })}`,
       ),
@@ -403,6 +406,13 @@ export function OutcomeCheckinsPage() {
             </option>
           ))}
         </Select>
+        <ChapterFilterSelect
+          value={chapter}
+          onChange={(value) => {
+            setChapter(value);
+            setState((s) => ({ ...s, page: 1 }));
+          }}
+        />
       </ListToolbar>
 
       {query.isError ? (

@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   goalMilestoneSchema,
   goalSchema,
   listQuerySchema,
@@ -31,6 +32,7 @@ import {
 const listFiltersSchema = listQuerySchema.extend({
   participantProfileId: uuid.optional(),
   status: z.enum(['active', 'completed', 'archived']).optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -44,9 +46,17 @@ export class ServicePlansController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, status, ...listQuery } = query;
-    return this.plans.list(listQuery as ListQuery, { participantProfileId, status });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, status, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.plans.list(listQuery as ListQuery, {
+      participantProfileId,
+      status,
+      state: user.chapter ?? state,
+    });
   }
 
   @Post()
@@ -55,7 +65,7 @@ export class ServicePlansController {
     @Body(zodBody(servicePlanSchema)) body: ServicePlanInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.plans.create(body, user.id);
+    return this.plans.create(body, user);
   }
 
   // ── Goals & milestones (declared before ':id' so static prefixes win) ─────
@@ -67,7 +77,7 @@ export class ServicePlansController {
     @Body(zodBody(goalCreateSchema.partial())) body: Partial<GoalCreateInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.plans.updateGoal(goalId, body, user.id);
+    return this.plans.updateGoal(goalId, body, user);
   }
 
   @Post('goals/:goalId/milestones')
@@ -77,7 +87,7 @@ export class ServicePlansController {
     @Body(zodBody(milestoneCreateSchema)) body: MilestoneCreateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.plans.createMilestone(goalId, body, user.id);
+    return this.plans.createMilestone(goalId, body, user);
   }
 
   @Patch('milestones/:milestoneId')
@@ -87,7 +97,7 @@ export class ServicePlansController {
     @Body(zodBody(milestoneCreateSchema.partial())) body: Partial<MilestoneCreateInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.plans.updateMilestone(milestoneId, body, user.id);
+    return this.plans.updateMilestone(milestoneId, body, user);
   }
 
   @Post('milestones/:milestoneId/complete')
@@ -96,7 +106,7 @@ export class ServicePlansController {
     @Param('milestoneId', ParseUUIDPipe) milestoneId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.plans.completeMilestone(milestoneId, user.id);
+    return this.plans.completeMilestone(milestoneId, user);
   }
 
   @Post('milestones/:milestoneId/uncomplete')
@@ -105,7 +115,7 @@ export class ServicePlansController {
     @Param('milestoneId', ParseUUIDPipe) milestoneId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.plans.uncompleteMilestone(milestoneId, user.id);
+    return this.plans.uncompleteMilestone(milestoneId, user);
   }
 
   @Delete('milestones/:milestoneId')
@@ -114,15 +124,15 @@ export class ServicePlansController {
     @Param('milestoneId', ParseUUIDPipe) milestoneId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.plans.deleteMilestone(milestoneId, user.id);
+    return this.plans.deleteMilestone(milestoneId, user);
   }
 
   // ── Plan by id ────────────────────────────────────────────────────────────
 
   @Get(':id')
   @RequirePermission('case_management.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.plans.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.plans.get(id, user);
   }
 
   @Post(':id/goals')
@@ -132,7 +142,7 @@ export class ServicePlansController {
     @Body(zodBody(goalCreateSchema)) body: GoalCreateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.plans.createGoal(id, body, user.id);
+    return this.plans.createGoal(id, body, user);
   }
 
   @Patch(':id')
@@ -142,12 +152,12 @@ export class ServicePlansController {
     @Body(zodBody(servicePlanSchema.partial())) body: Partial<ServicePlanInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.plans.update(id, body, user.id);
+    return this.plans.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('case_management.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.plans.softDelete(id, user.id);
+    return this.plans.softDelete(id, user);
   }
 }

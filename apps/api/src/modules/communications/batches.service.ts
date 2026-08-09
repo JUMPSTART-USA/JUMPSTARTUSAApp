@@ -2,13 +2,15 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { Prisma } from '@jumpstart/database';
 import {
   ALUMNI_STATUSES,
-  US_STATES,
+  CHAPTER_STATES,
   VOLUNTEER_STATUSES,
+  type ChapterState,
   type CommunicationBatchInput,
   type ListQuery,
 } from '@jumpstart/shared';
 import { z } from 'zod';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 import { renderMergeFields } from './merge-fields.util';
@@ -22,9 +24,16 @@ const audienceFilterSchema = z
   .object({
     alumniStatus: z.enum(ALUMNI_STATUSES).optional(),
     volunteerStatus: z.enum(VOLUNTEER_STATUSES).optional(),
-    state: z.enum(US_STATES).optional(),
+    // The audience "state" IS the batch's chapter (§7.2) — optional at the
+    // pipe; create() stamps a scoped creator's chapter and requires a pick
+    // from all-chapters users.
+    state: z.enum(CHAPTER_STATES).optional(),
   })
   .strict();
+
+export interface BatchListFilters {
+  state?: string;
+}
 
 const BATCH_SORTABLE = new Set(['name', 'channel', 'status', 'createdAt', 'sentAt']);
 
@@ -53,6 +62,13 @@ export class BatchesService {
     }
     const filter = parsed.data;
 
+    // Chapter scoping (§7.2): the audience "state" IS the batch's chapter —
+    // a scoped creator's own chapter, or the explicit pick from an
+    // all-chapters creator — forced back into the stored filter so an
+    // audience can never span chapters.
+    const batchState = resolveCreateChapter(user.chapter, filter.state) as ChapterState;
+    filter.state = batchState;
+
     const template = await this.prisma.communicationTemplate.findFirst({
       where: { id: input.templateId, active: true },
     });
@@ -61,14 +77,36 @@ export class BatchesService {
       throw new BadRequestException('Template channel does not match the batch channel');
     }
 
+    // A person's chapter binds through their profile chapterState (person.state
+    // is a mailing address): a status filter carries the chapter directly;
+    // with no status filter, any profile in the batch chapter qualifies.
     const demographic: Prisma.PersonWhereInput = {
       deletedAt: null,
-      ...(filter.state ? { state: filter.state } : {}),
       ...(filter.alumniStatus
-        ? { participantProfile: { deletedAt: null, alumniStatus: filter.alumniStatus } }
+        ? {
+            participantProfile: {
+              deletedAt: null,
+              alumniStatus: filter.alumniStatus,
+              chapterState: batchState,
+            },
+          }
         : {}),
       ...(filter.volunteerStatus
-        ? { volunteerProfile: { deletedAt: null, status: filter.volunteerStatus } }
+        ? {
+            volunteerProfile: {
+              deletedAt: null,
+              status: filter.volunteerStatus,
+              chapterState: batchState,
+            },
+          }
+        : {}),
+      ...(!filter.alumniStatus && !filter.volunteerStatus
+        ? {
+            OR: [
+              { participantProfile: { deletedAt: null, chapterState: batchState } },
+              { volunteerProfile: { deletedAt: null, chapterState: batchState } },
+            ],
+          }
         : {}),
     };
 
@@ -97,6 +135,7 @@ export class BatchesService {
           name: input.name,
           channel: input.channel,
           audienceFilter: filter as Prisma.InputJsonValue,
+          chapterState: batchState,
           status: 'queued',
           createdById: user.id,
           updatedById: user.id,
@@ -117,6 +156,7 @@ export class BatchesService {
             };
             return {
               personId: person.id,
+              chapterState: batchState,
               channel: input.channel,
               templateId: template.id,
               batchId: created.id,
@@ -163,6 +203,8 @@ export class BatchesService {
   async dispatch(id: string, user: AuthenticatedUser) {
     const batch = await this.prisma.communicationBatch.findUnique({ where: { id } });
     if (!batch) throw new NotFoundException('Batch not found');
+    // Chapter scoping (§7.2): a scoped user cannot dispatch another chapter's batch.
+    assertChapterAccess(user.chapter, batch.chapterState);
     if (batch.channel === 'letter') {
       throw new BadRequestException(
         'Letter batches are not dispatched electronically — download letters.pdf instead',
@@ -211,10 +253,11 @@ export class BatchesService {
     return { batch: updated, counts: { processed: queued.length, sent, failed } };
   }
 
-  async list(query: ListQuery) {
-    const where: Prisma.CommunicationBatchWhereInput = query.search
-      ? { name: { contains: query.search, mode: 'insensitive' } }
-      : {};
+  async list(query: ListQuery, filters: BatchListFilters) {
+    const where: Prisma.CommunicationBatchWhereInput = {
+      ...(filters.state ? { chapterState: filters.state } : {}),
+      ...(query.search ? { name: { contains: query.search, mode: 'insensitive' } } : {}),
+    };
 
     const orderBy: Prisma.CommunicationBatchOrderByWithRelationInput =
       query.sortBy && BATCH_SORTABLE.has(query.sortBy)
@@ -234,12 +277,14 @@ export class BatchesService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const batch = await this.prisma.communicationBatch.findUnique({
       where: { id },
       include: { _count: { select: { communications: true } } },
     });
     if (!batch) throw new NotFoundException('Batch not found');
+    // Chapter scoping (§7.2): batch id probes cannot cross chapters.
+    assertChapterAccess(user.chapter, batch.chapterState);
 
     const statusCounts = await this.prisma.communication.groupBy({
       by: ['status'],

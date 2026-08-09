@@ -2,7 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { Prisma } from '@jumpstart/database';
 import type { ListQuery, OutboundReferralInput } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { assertParticipant } from './participant.util';
 
 export interface ReferralListFilters {
@@ -10,6 +12,7 @@ export interface ReferralListFilters {
   vendorId?: string;
   from?: Date;
   to?: Date;
+  state?: string;
 }
 
 const SORTABLE = new Set(['referralDate', 'createdAt']);
@@ -17,7 +20,7 @@ const SORTABLE = new Set(['referralDate', 'createdAt']);
 const REFERRAL_INCLUDE = {
   vendor: { select: { name: true } },
   participantProfile: {
-    select: { person: { select: { firstName: true, lastName: true } } },
+    select: { chapterState: true, person: { select: { firstName: true, lastName: true } } },
   },
 } as const;
 
@@ -34,6 +37,8 @@ export class ReferralsService {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): derived through the participant profile.
+      ...(filters.state ? { participantProfile: { chapterState: filters.state } } : {}),
       ...(filters.vendorId ? { vendorId: filters.vendorId } : {}),
       ...(filters.from || filters.to
         ? {
@@ -73,12 +78,14 @@ export class ReferralsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const referral = await this.prisma.outboundReferral.findFirst({
       where: { id, deletedAt: null },
       include: REFERRAL_INCLUDE,
     });
     if (!referral) throw new NotFoundException('Referral not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (participant).
+    assertChapterAccess(user.chapter, referral.participantProfile.chapterState);
     return referral;
   }
 
@@ -87,8 +94,9 @@ export class ReferralsService {
     if (!vendor) throw new BadRequestException('Unknown partner organization');
   }
 
-  async create(input: OutboundReferralInput, userId: string) {
-    await assertParticipant(this.prisma, input.participantProfileId);
+  async create(input: OutboundReferralInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
     if (input.vendorId) await this.assertVendor(input.vendorId);
     const referral = await this.prisma.outboundReferral.create({
       data: { ...input, createdById: userId, updatedById: userId },
@@ -98,12 +106,12 @@ export class ReferralsService {
     return referral;
   }
 
-  async update(id: string, input: Partial<OutboundReferralInput>, userId: string) {
-    const existing = await this.prisma.outboundReferral.findFirst({
-      where: { id, deletedAt: null },
-    });
-    if (!existing) throw new NotFoundException('Referral not found');
-    if (input.participantProfileId) await assertParticipant(this.prisma, input.participantProfileId);
+  async update(id: string, input: Partial<OutboundReferralInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.getForModify(id, user);
+    if (input.participantProfileId) {
+      await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
+    }
     if (input.vendorId) await this.assertVendor(input.vendorId);
     const updated = await this.prisma.outboundReferral.update({
       where: { id },
@@ -114,16 +122,26 @@ export class ReferralsService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.prisma.outboundReferral.findFirst({
-      where: { id, deletedAt: null },
-    });
-    if (!existing) throw new NotFoundException('Referral not found');
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.getForModify(id, user);
     await this.prisma.outboundReferral.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
     });
     await this.audit.logDelete(userId, 'outbound_referral', id, existing);
     return { ok: true };
+  }
+
+  /** Fetch-for-mutation with the chapter guard (§7.2) applied once. */
+  private async getForModify(id: string, user: AuthenticatedUser) {
+    const existing = await this.prisma.outboundReferral.findFirst({
+      where: { id, deletedAt: null },
+      include: { participantProfile: { select: { chapterState: true } } },
+    });
+    if (!existing) throw new NotFoundException('Referral not found');
+    assertChapterAccess(user.chapter, existing.participantProfile.chapterState);
+    const { participantProfile: _participantProfile, ...referralOnly } = existing;
+    return referralOnly;
   }
 }

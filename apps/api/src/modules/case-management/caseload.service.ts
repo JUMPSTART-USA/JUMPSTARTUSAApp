@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { NoteCategory, TaskStatus } from '@jumpstart/shared';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { localTodayStr, personName, todayUtcMidnight, utcDateStr } from './participant.util';
 
 export interface FollowUpItem {
@@ -28,15 +29,41 @@ export class CaseloadService {
    * The case manager's home screen (§6.5): my open tasks + my note follow-ups
    * not yet done, split overdue / today / upcoming.
    */
-  async followUps(userId: string) {
+  async followUps(user: AuthenticatedUser) {
+    const userId = user.id;
+    // Chapter scoping (§7.2): a scoped user's queue drops other-chapter
+    // participants; unlinked staff to-dos are chapter-neutral and stay.
+    const taskChapterWhere = user.chapter
+      ? {
+          OR: [
+            { participantProfileId: null },
+            { participantProfile: { chapterState: user.chapter } },
+          ],
+        }
+      : {};
+    const noteChapterWhere = user.chapter
+      ? { participantProfile: { chapterState: user.chapter } }
+      : {};
+
     const [tasks, notes] = await this.prisma.$transaction([
       this.prisma.caseTask.findMany({
-        where: { deletedAt: null, assignedToId: userId, status: { in: ['open', 'in_progress'] } },
+        where: {
+          deletedAt: null,
+          assignedToId: userId,
+          status: { in: ['open', 'in_progress'] },
+          ...taskChapterWhere,
+        },
         include: PARTICIPANT_NAME_INCLUDE,
         orderBy: { dueDate: 'asc' },
       }),
       this.prisma.caseNote.findMany({
-        where: { deletedAt: null, caseManagerId: userId, followUpRequired: true, followUpDoneAt: null },
+        where: {
+          deletedAt: null,
+          caseManagerId: userId,
+          followUpRequired: true,
+          followUpDoneAt: null,
+          ...noteChapterWhere,
+        },
         include: PARTICIPANT_NAME_INCLUDE,
         orderBy: { followUpDate: 'asc' },
       }),
@@ -92,11 +119,25 @@ export class CaseloadService {
    * Supervisor caseload dashboard (§6.5). Counts only — never note content,
    * so it is safe for every case_management.read holder (§7.3).
    */
-  async caseloadSummary() {
+  async caseloadSummary(user: AuthenticatedUser) {
     const todayUtc = todayUtcMidnight();
     const now = Date.now();
     const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+
+    // Chapter scoping (§7.2): every leg of the aggregate carries the viewer's
+    // chapter; unlinked staff to-dos are chapter-neutral and stay counted.
+    const noteChapterWhere = user.chapter
+      ? { participantProfile: { chapterState: user.chapter } }
+      : {};
+    const taskChapterWhere = user.chapter
+      ? {
+          OR: [
+            { participantProfileId: null },
+            { participantProfile: { chapterState: user.chapter } },
+          ],
+        }
+      : {};
 
     // Promise.all, not $transaction: groupBy loses its result typing in a
     // batch context, and a dashboard snapshot needs no isolation guarantee.
@@ -104,12 +145,16 @@ export class CaseloadService {
       await Promise.all([
         // "Caseload" = every non-deleted participant with an assigned CM.
         this.prisma.participantProfile.findMany({
-          where: { deletedAt: null, assignedCaseManagerId: { not: null } },
+          where: {
+            deletedAt: null,
+            assignedCaseManagerId: { not: null },
+            ...(user.chapter ? { chapterState: user.chapter } : {}),
+          },
           select: { id: true, assignedCaseManagerId: true },
         }),
         this.prisma.caseNote.groupBy({
           by: ['caseManagerId'],
-          where: { deletedAt: null, noteDate: { gte: sevenDaysAgo } },
+          where: { deletedAt: null, noteDate: { gte: sevenDaysAgo }, ...noteChapterWhere },
           _count: { _all: true },
           orderBy: { caseManagerId: 'asc' },
         }),
@@ -119,6 +164,7 @@ export class CaseloadService {
             deletedAt: null,
             status: { in: ['open', 'in_progress'] },
             dueDate: { lt: todayUtc },
+            ...taskChapterWhere,
           },
           _count: { _all: true },
           orderBy: { assignedToId: 'asc' },
@@ -130,12 +176,13 @@ export class CaseloadService {
             followUpRequired: true,
             followUpDoneAt: null,
             followUpDate: { lt: todayUtc },
+            ...noteChapterWhere,
           },
           _count: { _all: true },
           orderBy: { caseManagerId: 'asc' },
         }),
         this.prisma.caseNote.findMany({
-          where: { deletedAt: null, noteDate: { gte: thirtyDaysAgo } },
+          where: { deletedAt: null, noteDate: { gte: thirtyDaysAgo }, ...noteChapterWhere },
           distinct: ['participantProfileId'],
           select: { participantProfileId: true },
         }),

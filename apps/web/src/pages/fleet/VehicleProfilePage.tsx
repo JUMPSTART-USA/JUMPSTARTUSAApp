@@ -1,3 +1,4 @@
+import { CHAPTER_NAMES, type ChapterState } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Paperclip, Pencil, Plus, Trash2, Wrench } from 'lucide-react';
 import { useState } from 'react';
@@ -143,6 +144,10 @@ export function VehicleProfilePage() {
               </InfoItem>
               <InfoItem label="VIN">{vehicle.vin}</InfoItem>
               <InfoItem label="Assigned location">{vehicle.assignedLocation}</InfoItem>
+              {/* The vehicle's chapter (§7.2). */}
+              <InfoItem label="Chapter">
+                {CHAPTER_NAMES[vehicle.chapterState as ChapterState] ?? vehicle.chapterState}
+              </InfoItem>
               <InfoItem label="Registration expires">
                 {vehicle.registrationExpiration
                   ? formatDate(vehicle.registrationExpiration)

@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   listQuerySchema,
   optionalDate,
   outboundReferralSchema,
@@ -28,6 +29,7 @@ const listFiltersSchema = listQuerySchema.extend({
   vendorId: uuid.optional(),
   from: optionalDate,
   to: optionalDate,
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -42,15 +44,25 @@ export class ReferralsController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, vendorId, from, to, ...listQuery } = query;
-    return this.referrals.list(listQuery as ListQuery, { participantProfileId, vendorId, from, to });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, vendorId, from, to, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.referrals.list(listQuery as ListQuery, {
+      participantProfileId,
+      vendorId,
+      from,
+      to,
+      state: user.chapter ?? state,
+    });
   }
 
   @Get(':id')
   @RequirePermission('case_management.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.referrals.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.referrals.get(id, user);
   }
 
   @Post()
@@ -59,7 +71,7 @@ export class ReferralsController {
     @Body(zodBody(outboundReferralSchema)) body: OutboundReferralInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.referrals.create(body, user.id);
+    return this.referrals.create(body, user);
   }
 
   @Patch(':id')
@@ -69,12 +81,12 @@ export class ReferralsController {
     @Body(zodBody(referralUpdateSchema)) body: Partial<OutboundReferralInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.referrals.update(id, body, user.id);
+    return this.referrals.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('case_management.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.referrals.softDelete(id, user.id);
+    return this.referrals.softDelete(id, user);
   }
 }

@@ -53,8 +53,11 @@ export interface Donor {
   email: string | null;
   addressLine1: string | null;
   city: string | null;
+  /** Postal address state — NOT the chapter. */
   state: string | null;
   zip: string | null;
+  /** Chapter the donor belongs to (§7.2). */
+  chapterState: string;
   status: string;
   personId: string | null;
   householdId: string | null;
@@ -76,6 +79,8 @@ export interface Household {
   name: string;
   envelopeName: string | null;
   notes: string | null;
+  /** Chapter the household belongs to (§7.2). */
+  chapterState: string;
 }
 
 export interface HouseholdListItem extends Household {
@@ -330,6 +335,8 @@ export interface Campaign {
   goalAmount: string | number | null;
   status: CampaignStatus;
   notes: string | null;
+  /** Chapter the campaign belongs to (§7.2). */
+  chapterState: string;
 }
 
 export interface CampaignListItem extends Campaign {
@@ -352,6 +359,8 @@ export interface EventRecord {
   eventType: string | null;
   eventDate: string;
   location: string | null;
+  /** Chapter the event belongs to (§7.2). */
+  chapterState: string;
   campaignId: string | null;
   description: string | null;
   attendanceCount: number | null;
@@ -394,8 +403,11 @@ export interface Vendor {
   email: string | null;
   addressLine1: string | null;
   city: string | null;
+  /** Postal address state — NOT the chapter. */
   state: string | null;
   zip: string | null;
+  /** Chapter the vendor belongs to (§7.2). */
+  chapterState: string;
   servicesProvided: string | null;
   isReferralPartner: boolean;
   active: boolean;

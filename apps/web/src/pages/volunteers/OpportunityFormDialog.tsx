@@ -1,15 +1,15 @@
 import {
   OPPORTUNITY_STATUSES,
   OPPORTUNITY_STATUS_LABELS,
-  US_STATES,
   volunteerOpportunitySchema,
+  type ChapterState,
   type OpportunityStatus,
-  type UsState,
 } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,7 +30,9 @@ import type { OpportunityFields } from './types';
 interface OpportunityFormValues {
   name: string;
   description?: string;
-  state?: UsState;
+  // Chapter (§7.2): required pick for all-chapters users; stamped server-side
+  // for chapter-scoped users.
+  state?: ChapterState;
   institutionId?: string;
   outsideProgramId?: string;
   eventId?: string;
@@ -63,7 +65,7 @@ export function OpportunityFormDialog({
     values: {
       name: opportunity?.name ?? '',
       description: opportunity?.description ?? '',
-      state: (opportunity?.state ?? undefined) as UsState | undefined,
+      state: (opportunity?.state ?? undefined) as ChapterState | undefined,
       institutionId: opportunity?.institutionId ?? '',
       outsideProgramId: opportunity?.outsideProgramId ?? '',
       eventId: opportunity?.eventId ?? '',
@@ -127,20 +129,11 @@ export function OpportunityFormDialog({
                 ))}
               </Select>
             </FormField>
-            <FormField
-              label="Chapter state"
+            <ChapterSelect
               error={formState.errors.state}
               hint="Scopes the opportunity to a chapter"
-            >
-              <Select {...register('state', { setValueAs: (v) => (v === '' ? undefined : v) })}>
-                <option value="">—</option>
-                {US_STATES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
+              {...register('state', { setValueAs: (v) => (v === '' ? undefined : v) })}
+            />
             <FormField label="Location" error={formState.errors.location} className="sm:col-span-2">
               <Input {...register('location')} placeholder="Where volunteers report" />
             </FormField>

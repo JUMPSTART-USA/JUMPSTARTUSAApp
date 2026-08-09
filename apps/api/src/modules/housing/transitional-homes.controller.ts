@@ -10,9 +10,9 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   listQuerySchema,
   transitionalHomeSchema,
-  US_STATES,
   type ListQuery,
   type TransitionalHomeInput,
 } from '@jumpstart/shared';
@@ -23,7 +23,8 @@ import type { AuthenticatedUser } from '../../common/types';
 import { HousingService, type TransitionalHomeUpdate } from './housing.service';
 
 const listFiltersSchema = listQuerySchema.extend({
-  state: z.enum(US_STATES).optional(),
+  // Home state IS the chapter (§7.2) — chapter states only.
+  state: z.enum(CHAPTER_STATES).optional(),
   active: z
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
@@ -52,8 +53,8 @@ export class TransitionalHomesController {
   /** Occupancy dashboard (§6.4) — declared before ':id' so it matches first. */
   @Get('occupancy')
   @RequirePermission('housing.read')
-  occupancy() {
-    return this.housing.occupancy();
+  occupancy(@CurrentUser() user: AuthenticatedUser) {
+    return this.housing.occupancy(user);
   }
 
   @Get(':id')

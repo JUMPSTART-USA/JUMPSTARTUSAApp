@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   listQuerySchema,
   vendorSchema,
   type ListQuery,
@@ -29,6 +30,9 @@ const boolParam = z
 const listFiltersSchema = listQuerySchema.extend({
   active: boolParam,
   isReferralPartner: boolParam,
+  // External param stays `state`, but it filters the CHAPTER column (§7.2) —
+  // the postal address state is not a list filter.
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -38,15 +42,23 @@ export class VendorsController {
 
   @Get()
   @RequirePermission('vendors.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { active, isReferralPartner, ...listQuery } = query;
-    return this.vendors.list(listQuery as ListQuery, { active, isReferralPartner });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { active, isReferralPartner, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.vendors.list(listQuery as ListQuery, {
+      active,
+      isReferralPartner,
+      chapterState: (user.chapter ?? state) as ListFilters['state'],
+    });
   }
 
   @Get(':id')
   @RequirePermission('vendors.read')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.vendors.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.vendors.get(id, user);
   }
 
   @Post()
@@ -55,7 +67,7 @@ export class VendorsController {
     @Body(zodBody(vendorSchema)) body: VendorInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.vendors.create(body, user.id);
+    return this.vendors.create(body, user);
   }
 
   @Patch(':id')
@@ -65,12 +77,12 @@ export class VendorsController {
     @Body(zodBody(vendorSchema.partial())) body: Partial<VendorInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.vendors.update(id, body, user.id);
+    return this.vendors.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('vendors.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.vendors.softDelete(id, user.id);
+    return this.vendors.softDelete(id, user);
   }
 }

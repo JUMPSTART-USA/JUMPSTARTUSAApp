@@ -56,6 +56,8 @@ ring, login CTA), real status tokens, mobile-first.
 | `Notice` | `@/components/ui/notice` | Inline callouts: `variant="error|warning|success|info"`, optional `title`. Replaces WarningNotice/AmberNotice. |
 | `ConfirmDialog` | `@/components/ui/confirm-dialog` | ALL destructive confirmations. Replaces `window.confirm`, module ConfirmDialogs, bespoke delete `<Dialog>`s. Props: `open, onOpenChange, title, description?, confirmLabel?, destructive?, isPending?, error?, onConfirm`. |
 | `EntityPicker` | `@/components/ui/entity-picker` | Generic debounced search-and-pick. |
+| `ChapterSelect` | `@/components/ChapterSelect` | Chapter (state) field on create/edit forms (§7.2): REQUIRED select over the six chapter states, rendered ONLY for all-chapters users — scoped users' records are stamped server-side. Spread `register('chapterState')` into it. |
+| `ChapterFilterSelect` | `@/components/ChapterSelect` | Chapter filter in `ListToolbar`: "All chapters" + the six states, hidden for chapter-scoped users (the API force-filters them). Controlled `value`/`onChange`. |
 | `ParticipantPicker, VolunteerPicker` | `@/components/pickers` | Standard pickers (`value`/`onChange` with `{id,label,sublabel?}`). Replace all module-local pickers. |
 
 Form grids: `grid gap-4 sm:grid-cols-2` (never 2 columns on mobile).

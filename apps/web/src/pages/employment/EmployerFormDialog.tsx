@@ -3,6 +3,7 @@ import { employerSchema, HIRING_STATUSES, US_STATES } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +17,7 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { applyApiError } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import type { Employer } from './types';
@@ -29,12 +31,13 @@ interface EmployerFormValues {
   city: string;
   state: string;
   zip: string;
+  chapterState: string;
   industry: string;
   hiringStatus: string;
   notes: string;
 }
 
-function buildDefaults(employer?: Employer): EmployerFormValues {
+function buildDefaults(employer: Employer | undefined, chapter: string | null): EmployerFormValues {
   return {
     name: employer?.name ?? '',
     contactPerson: employer?.contactPerson ?? '',
@@ -44,6 +47,9 @@ function buildDefaults(employer?: Employer): EmployerFormValues {
     city: employer?.city ?? '',
     state: employer?.state ?? '',
     zip: employer?.zip ?? '',
+    // Chapter (§7.2), distinct from the postal address state. Scoped users
+    // never see the picker — their chapter is preset here.
+    chapterState: employer?.chapterState ?? chapter ?? '',
     industry: employer?.industry ?? '',
     hiringStatus: employer?.hiringStatus ?? 'prospect',
     notes: employer?.notes ?? '',
@@ -61,6 +67,8 @@ export function EmployerFormDialog({
   employer?: Employer;
 }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const chapter = user?.chapter ?? null;
   const [topError, setTopError] = useState<string | null>(null);
   const {
     register,
@@ -70,15 +78,15 @@ export function EmployerFormDialog({
     formState: { errors, isSubmitting },
   } = useForm<EmployerFormValues>({
     resolver: zodResolver(employerSchema) as unknown as Resolver<EmployerFormValues>,
-    defaultValues: buildDefaults(employer),
+    defaultValues: buildDefaults(employer, chapter),
   });
 
   useEffect(() => {
     if (open) {
-      reset(buildDefaults(employer));
+      reset(buildDefaults(employer, chapter));
       setTopError(null);
     }
-  }, [open, employer, reset]);
+  }, [open, employer, chapter, reset]);
 
   const mutation = useMutation({
     mutationFn: (values: EmployerFormValues) =>
@@ -107,6 +115,12 @@ export function EmployerFormDialog({
             <FormField label="Name" required error={errors.name} className="sm:col-span-2">
               <Input {...register('name')} autoFocus />
             </FormField>
+            {/* Chapter (§7.2) — NOT the postal address state below; hidden for
+                scoped users, whose chapter is stamped server-side. */}
+            <ChapterSelect
+              error={errors.chapterState}
+              {...register('chapterState', { setValueAs: (v) => (v === '' ? undefined : v) })}
+            />
             <FormField label="Industry" error={errors.industry}>
               <Input {...register('industry')} placeholder="e.g. Manufacturing, Food service" />
             </FormField>

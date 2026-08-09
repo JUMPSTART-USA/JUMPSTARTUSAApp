@@ -2,7 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@jumpstart/database';
 import type { ListQuery, PortalMessageStatus } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { PARTICIPANT_SUMMARY_SELECT, participantSearch } from './portal.util';
 
 export interface PortalMessageReviewInput {
@@ -13,6 +15,7 @@ export interface PortalMessageReviewInput {
 export interface PortalMessageListFilters {
   participantProfileId?: string;
   status?: PortalMessageStatus;
+  state?: string;
 }
 
 const SORTABLE = new Set(['createdAt', 'status', 'subject', 'reviewedAt']);
@@ -64,6 +67,12 @@ export class PortalMessagesService {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): derived through the participant profile. Wrapped
+      // in AND so participantSearch's own participantProfile clause (spread
+      // below) cannot replace it.
+      ...(filters.state
+        ? { AND: [{ participantProfile: { chapterState: filters.state } }] }
+        : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(query.search ? participantSearch(query.search) : {}),
     };
@@ -92,8 +101,9 @@ export class PortalMessagesService {
    * later status changes keep the original reviewer (an audit row records
    * every subsequent touch). Omitted staffNotes = unchanged.
    */
-  async review(id: string, input: PortalMessageReviewInput, userId: string) {
-    const existing = await this.findMessage(id);
+  async review(id: string, input: PortalMessageReviewInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.findMessage(id, user.chapter);
     const stampReview = input.status !== 'new' && !existing.reviewedAt;
 
     const updated = await this.prisma.portalMessage.update({
@@ -111,12 +121,15 @@ export class PortalMessagesService {
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
-  private async findMessage(id: string): Promise<PortalMessageViewRow> {
+  /** Fetch-for-mutation with the chapter guard (§7.2) applied once. */
+  private async findMessage(id: string, userChapter: string | null): Promise<PortalMessageViewRow> {
     const message = await this.prisma.portalMessage.findFirst({
       where: { id, deletedAt: null },
-      select: VIEW_SELECT,
+      select: { ...VIEW_SELECT, participantProfile: { select: { chapterState: true } } },
     });
     if (!message) throw new NotFoundException('Portal message not found');
-    return message;
+    assertChapterAccess(userChapter, message.participantProfile.chapterState);
+    const { participantProfile: _participantProfile, ...messageOnly } = message;
+    return messageOnly;
   }
 }

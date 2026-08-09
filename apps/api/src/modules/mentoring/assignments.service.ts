@@ -15,6 +15,7 @@ import type {
   MentorSessionLogInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
@@ -22,6 +23,7 @@ export interface AssignmentListFilters {
   status?: MentorAssignmentStatus;
   mentorProfileId?: string;
   participantProfileId?: string;
+  state?: string;
 }
 
 const SORTABLE = new Set(['status', 'startDate', 'endDate', 'createdAt']);
@@ -41,6 +43,7 @@ const ASSIGNMENT_INCLUDE = {
     select: {
       id: true,
       participantNumber: true,
+      chapterState: true,
       person: { select: { firstName: true, lastName: true } },
     },
   },
@@ -108,7 +111,8 @@ export class MentorAssignmentsService {
    * Propose a match (§6.7 workflow 4). Assignments always start as 'proposed':
    * activation is the case manager's approval and has its own endpoint.
    */
-  async create(input: MentorAssignmentInput, userId: string) {
+  async create(input: MentorAssignmentInput, user: AuthenticatedUser) {
+    const userId = user.id;
     if (input.status !== 'proposed') {
       throw new BadRequestException(
         'Assignments start as proposed — activation requires case-manager approval',
@@ -124,11 +128,20 @@ export class MentorAssignmentsService {
         'This volunteer has not been approved as a mentor — complete the screening pipeline first',
       );
     }
+    // Chapter scoping (§7.2): a scoped user can only match within their chapter.
+    assertChapterAccess(user.chapter, mentor.chapterState);
 
     const participant = await this.prisma.participantProfile.findFirst({
       where: { id: input.participantProfileId, deletedAt: null },
     });
     if (!participant) throw new BadRequestException('Participant not found');
+    assertChapterAccess(user.chapter, participant.chapterState);
+
+    // Chapter scoping (§7.2): matches never cross chapters — for ANY user.
+    // The assignment's chapter is the mentee's (participantProfile.chapterState).
+    if (mentor.chapterState !== participant.chapterState) {
+      throw new BadRequestException('Mentor and participant must belong to the same chapter');
+    }
 
     const open = await this.prisma.mentorAssignment.findFirst({
       where: {
@@ -151,7 +164,7 @@ export class MentorAssignmentsService {
       data: { ...input, matchedById: userId, createdById: userId, updatedById: userId },
     });
     await this.audit.logCreate(userId, 'mentor_assignment', assignment.id, assignment);
-    return this.get(assignment.id);
+    return this.get(assignment.id, user);
   }
 
   async list(query: ListQuery, filters: AssignmentListFilters) {
@@ -162,6 +175,8 @@ export class MentorAssignmentsService {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): the record chapter is the MENTEE's chapter.
+      ...(filters.state ? { participantProfile: { chapterState: filters.state } } : {}),
       ...(query.search
         ? {
             OR: [
@@ -214,21 +229,27 @@ export class MentorAssignmentsService {
     return { items: rows.map(toView), total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const assignment = await this.prisma.mentorAssignment.findFirst({
       where: { id, deletedAt: null },
       include: ASSIGNMENT_INCLUDE,
     });
     if (!assignment) throw new NotFoundException('Mentor assignment not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (mentee).
+    assertChapterAccess(user.chapter, assignment.participantProfile.chapterState);
     return toView(assignment);
   }
 
-  private async getRaw(id: string) {
+  private async getRaw(id: string, user: AuthenticatedUser) {
     const assignment = await this.prisma.mentorAssignment.findFirst({
       where: { id, deletedAt: null },
+      include: { participantProfile: { select: { chapterState: true } } },
     });
     if (!assignment) throw new NotFoundException('Mentor assignment not found');
-    return assignment;
+    // Chapter scoping (§7.2): derived through the mentee's participant profile.
+    assertChapterAccess(user.chapter, assignment.participantProfile.chapterState);
+    const { participantProfile: _participant, ...raw } = assignment;
+    return raw;
   }
 
   async update(
@@ -236,15 +257,16 @@ export class MentorAssignmentsService {
     input: Partial<
       Omit<MentorAssignmentInput, 'mentorProfileId' | 'participantProfileId' | 'status'>
     >,
-    userId: string,
+    user: AuthenticatedUser,
   ) {
-    const existing = await this.getRaw(id);
+    const userId = user.id;
+    const existing = await this.getRaw(id, user);
     const updated = await this.prisma.mentorAssignment.update({
       where: { id },
       data: { ...input, updatedById: userId },
     });
     await this.audit.logUpdate(userId, 'mentor_assignment', id, existing, updated);
-    return this.get(id);
+    return this.get(id, user);
   }
 
   /**
@@ -257,9 +279,13 @@ export class MentorAssignmentsService {
   async activate(id: string, user: AuthenticatedUser) {
     const existing = await this.prisma.mentorAssignment.findFirst({
       where: { id, deletedAt: null },
-      include: { participantProfile: { select: { assignedCaseManagerId: true } } },
+      include: {
+        participantProfile: { select: { assignedCaseManagerId: true, chapterState: true } },
+      },
     });
     if (!existing) throw new NotFoundException('Mentor assignment not found');
+    // Chapter scoping (§7.2): derived through the mentee's participant profile.
+    assertChapterAccess(user.chapter, existing.participantProfile.chapterState);
 
     const isAssignedCaseManager =
       existing.participantProfile.assignedCaseManagerId === user.id;
@@ -292,11 +318,12 @@ export class MentorAssignmentsService {
     });
     const { participantProfile: _p, ...before } = existing;
     await this.audit.logUpdate(user.id, 'mentor_assignment', id, before, updated);
-    return this.get(id);
+    return this.get(id, user);
   }
 
-  async pause(id: string, input: MentorAssignmentPauseInput, userId: string) {
-    const existing = await this.getRaw(id);
+  async pause(id: string, input: MentorAssignmentPauseInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.getRaw(id, user);
     if (existing.status !== 'active') {
       throw new BadRequestException('Only active assignments can be paused');
     }
@@ -305,11 +332,12 @@ export class MentorAssignmentsService {
       data: { status: 'paused', pauseReason: input.pauseReason, updatedById: userId },
     });
     await this.audit.logUpdate(userId, 'mentor_assignment', id, existing, updated);
-    return this.get(id);
+    return this.get(id, user);
   }
 
-  async end(id: string, input: MentorAssignmentEndInput, userId: string) {
-    const existing = await this.getRaw(id);
+  async end(id: string, input: MentorAssignmentEndInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.getRaw(id, user);
     if (existing.status === 'ended') {
       throw new ConflictException('Assignment has already ended');
     }
@@ -326,16 +354,20 @@ export class MentorAssignmentsService {
       },
     });
     await this.audit.logUpdate(userId, 'mentor_assignment', id, existing, updated);
-    return this.get(id);
+    return this.get(id, user);
   }
 
   // ── Session logs ──────────────────────────────────────────────────────────
 
-  async logSession(input: MentorSessionLogInput, userId: string) {
+  async logSession(input: MentorSessionLogInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const assignment = await this.prisma.mentorAssignment.findFirst({
       where: { id: input.mentorAssignmentId, deletedAt: null },
+      include: { participantProfile: { select: { chapterState: true } } },
     });
     if (!assignment) throw new BadRequestException('Mentor assignment not found');
+    // Chapter scoping (§7.2): session logs derive through the assignment's mentee.
+    assertChapterAccess(user.chapter, assignment.participantProfile.chapterState);
     // Late entries against paused/ended assignments are fine; sessions before
     // case-manager approval are not (§6.7 workflow 4).
     if (assignment.status === 'proposed') {
@@ -351,10 +383,18 @@ export class MentorAssignmentsService {
     return log;
   }
 
-  async listSessions(query: ListQuery, filters: { mentorAssignmentId?: string }) {
+  async listSessions(
+    query: ListQuery,
+    filters: { mentorAssignmentId?: string },
+    user: AuthenticatedUser,
+  ) {
     const where: Prisma.MentorSessionLogWhereInput = {
       ...(filters.mentorAssignmentId
         ? { mentorAssignmentId: filters.mentorAssignmentId }
+        : {}),
+      // Chapter scoping (§7.2): session logs derive through the assignment's mentee.
+      ...(user.chapter
+        ? { mentorAssignment: { participantProfile: { chapterState: user.chapter } } }
         : {}),
     };
 
@@ -378,25 +418,36 @@ export class MentorAssignmentsService {
 
   // ── Oversight dashboard (§6.7 workflow 5) ─────────────────────────────────
 
-  async oversight() {
+  async oversight(user: AuthenticatedUser) {
     const staleCutoff = daysAgo(30);
     const engagementCutoff = daysAgo(90);
 
+    // Chapter scoping (§7.2): every widget counts only the viewer's chapter —
+    // participant-derived records via the mentee, screenings via the volunteer.
+    const participantChapter = user.chapter
+      ? { participantProfile: { chapterState: user.chapter } }
+      : {};
+    const volunteerChapter = user.chapter
+      ? { volunteerProfile: { chapterState: user.chapter } }
+      : {};
+
     const [activeMatches, activeWithLastSession, alumniEngagementLast90Days, checkinsOverdue] =
       await this.prisma.$transaction([
-        this.prisma.mentorAssignment.count({ where: { status: 'active', deletedAt: null } }),
+        this.prisma.mentorAssignment.count({
+          where: { status: 'active', deletedAt: null, ...participantChapter },
+        }),
         this.prisma.mentorAssignment.findMany({
-          where: { status: 'active', deletedAt: null },
+          where: { status: 'active', deletedAt: null, ...participantChapter },
           include: {
             ...ASSIGNMENT_INCLUDE,
             sessionLogs: { orderBy: { sessionDate: 'desc' }, take: 1 },
           },
         }),
         this.prisma.alumniEngagement.count({
-          where: { engagementDate: { gte: engagementCutoff } },
+          where: { engagementDate: { gte: engagementCutoff }, ...participantChapter },
         }),
         this.prisma.outcomeCheckin.count({
-          where: { completedDate: null, dueDate: { lt: utcToday() } },
+          where: { completedDate: null, dueDate: { lt: utcToday() }, ...participantChapter },
         }),
       ]);
 
@@ -404,7 +455,10 @@ export class MentorAssignmentsService {
     // _count typing inside PrismaPromise tuples.
     const pipeline = await this.prisma.mentorScreening.groupBy({
       by: ['stage'],
-      where: { stage: { notIn: ['approved', 'rejected', 'withdrawn'] } },
+      where: {
+        stage: { notIn: ['approved', 'rejected', 'withdrawn'] },
+        ...volunteerChapter,
+      },
       _count: { _all: true },
       orderBy: { stage: 'asc' },
     });

@@ -169,6 +169,9 @@ export function CampaignDetailPage() {
           </CardHeader>
           <CardContent>
             <DescriptionList className="gap-y-3">
+              <InfoItem label="Chapter">
+                <Badge variant="outline">{campaign.chapterState}</Badge>
+              </InfoItem>
               <InfoItem label="Start date">{formatDate(campaign.startDate)}</InfoItem>
               <InfoItem label="End date">{formatDate(campaign.endDate)}</InfoItem>
               <InfoItem label="Description">

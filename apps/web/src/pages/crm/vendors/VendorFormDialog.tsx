@@ -3,6 +3,7 @@ import { US_STATES, vendorSchema } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -29,8 +30,11 @@ interface VendorFormValues {
   email?: string;
   addressLine1?: string;
   city?: string;
+  /** Postal address state — NOT the chapter. */
   state?: string;
   zip?: string;
+  /** Chapter (§7.2) — the API stamps scoped users' own chapter. */
+  chapterState?: string;
   servicesProvided?: string;
   isReferralPartner: boolean;
   active: boolean;
@@ -46,7 +50,8 @@ export function VendorFormDialog({
   onOpenChange: (open: boolean) => void;
   vendor?: Vendor | null;
 }) {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  const chapter = user?.chapter ?? null;
   const queryClient = useQueryClient();
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -68,17 +73,19 @@ export function VendorFormDialog({
               city: vendor.city ?? '',
               state: vendor.state ?? '',
               zip: vendor.zip ?? '',
+              chapterState: vendor.chapterState,
               servicesProvided: vendor.servicesProvided ?? '',
               isReferralPartner: vendor.isReferralPartner,
               active: vendor.active,
               notes: vendor.notes ?? '',
             }
-          : { name: '', isReferralPartner: false, active: true },
+          : // Chapter (§7.2): scoped users never see the picker — theirs is preset.
+            { name: '', isReferralPartner: false, active: true, chapterState: chapter ?? '' },
       );
       setFormError(null);
       setConfirmDeleteOpen(false);
     }
-  }, [open, vendor]);
+  }, [open, vendor, chapter]);
 
   const mutation = useMutation({
     mutationFn: (values: VendorFormValues) =>
@@ -133,6 +140,12 @@ export function VendorFormDialog({
           <FormField label="Name" required error={form.formState.errors.name}>
             <Input {...form.register('name')} />
           </FormField>
+          {/* Chapter (§7.2) — NOT the postal address state below; hidden for
+              scoped users, whose chapter is stamped server-side. */}
+          <ChapterSelect
+            error={form.formState.errors.chapterState}
+            {...form.register('chapterState', optional)}
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Contact person" error={form.formState.errors.contactPerson}>
               <Input {...form.register('contactPerson', optional)} />

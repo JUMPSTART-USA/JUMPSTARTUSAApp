@@ -15,7 +15,7 @@ import {
   type UsState,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
-import { assertChapterAccess } from '../../common/chapter.util';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
@@ -100,9 +100,14 @@ export class HousingService {
   }
 
   /** Occupancy dashboard feed: beds used vs capacity + current residents (§6.4). */
-  async occupancy() {
+  async occupancy(user: AuthenticatedUser) {
     const homes = await this.prisma.transitionalHome.findMany({
-      where: { deletedAt: null, active: true },
+      // Chapter scoping (§7.2): same derivation as the list filter (own state).
+      where: {
+        deletedAt: null,
+        active: true,
+        ...(user.chapter ? { state: user.chapter } : {}),
+      },
       orderBy: [{ state: 'asc' }, { name: 'asc' }],
       include: {
         enrollments: {
@@ -149,10 +154,11 @@ export class HousingService {
 
   async createHome(input: TransitionalHomeInput, user: AuthenticatedUser) {
     const userId = user.id;
-    // Chapter scoping (§7.2): a scoped user cannot create for another chapter.
-    assertChapterAccess(user.chapter, input.state);
+    // Chapter scoping (§7.2): the creator decides the chapter — scoped users
+    // get theirs stamped, all-chapters users must pick one.
+    const state = resolveCreateChapter(user.chapter, input.state);
     const home = await this.prisma.transitionalHome.create({
-      data: { ...input, createdById: userId, updatedById: userId },
+      data: { ...input, state, createdById: userId, updatedById: userId },
     });
     await this.audit.logCreate(userId, 'transitional_home', home.id, home);
     return home;
@@ -194,9 +200,11 @@ export class HousingService {
 
   // ── Housing enrollments (history is sacred — closed records never change) ─
 
-  async listEnrollments(query: ListQuery, filters: EnrollmentListFilters) {
+  async listEnrollments(query: ListQuery, filters: EnrollmentListFilters, user: AuthenticatedUser) {
     const where: Prisma.HousingEnrollmentWhereInput = {
       deletedAt: null,
+      // Chapter scoping (§7.2): enrollments derive chapter via home.state.
+      ...(user.chapter ? { home: { state: user.chapter } } : {}),
       ...(filters.homeId ? { homeId: filters.homeId } : {}),
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
@@ -237,7 +245,7 @@ export class HousingService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async getEnrollment(id: string) {
+  async getEnrollment(id: string, user: AuthenticatedUser) {
     const enrollment = await this.prisma.housingEnrollment.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -246,12 +254,18 @@ export class HousingService {
       },
     });
     if (!enrollment) throw new NotFoundException('Housing enrollment not found');
+    // Chapter scoping (§7.2): derived through the home, like the list filter.
+    assertChapterAccess(user.chapter, enrollment.home.state);
     return enrollment;
   }
 
   /** Move-in. Capacity and duplicate-active-enrollment WARN, never block (§6.4). */
-  async moveIn(input: HousingEnrollmentInput, userId: string) {
+  async moveIn(input: HousingEnrollmentInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const home = await this.findHome(input.homeId);
+    // Chapter scoping (§7.2): a scoped user can only move residents into a
+    // home in their own chapter — the enrollment inherits the home's chapter.
+    assertChapterAccess(user.chapter, home.state);
     const participant = await this.prisma.participantProfile.findFirst({
       where: { id: input.participantProfileId, deletedAt: null },
     });
@@ -290,8 +304,11 @@ export class HousingService {
   }
 
   /** Move-out and corrections. Re-validates §6.4 rules on the MERGED record. */
-  async updateEnrollment(id: string, input: HousingEnrollmentUpdate, userId: string) {
+  async updateEnrollment(id: string, input: HousingEnrollmentUpdate, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.findEnrollment(id);
+    // Chapter scoping (§7.2): derived through the home, like the list filter.
+    assertChapterAccess(user.chapter, existing.home.state);
     await this.assertUmbrellaEnrollment(input.outsideProgramEnrollmentId);
 
     const merged = {
@@ -329,11 +346,15 @@ export class HousingService {
    * (status transferred, move-out = transfer date, reason recorded) and opens
    * a new one at the destination. One action, two records — history preserved.
    */
-  async transfer(id: string, input: HousingTransferInput, userId: string) {
+  async transfer(id: string, input: HousingTransferInput, user: AuthenticatedUser) {
+    const userId = user.id;
     if (input.fromEnrollmentId !== id) {
       throw new BadRequestException('Transfer payload does not match the enrollment in the URL');
     }
     const source = await this.findEnrollment(id);
+    // Chapter scoping (§7.2): both ends of a transfer must be reachable —
+    // the source enrollment's home and the destination home.
+    assertChapterAccess(user.chapter, source.home.state);
     if (source.status !== 'active') {
       throw new BadRequestException('Only an active enrollment can be transferred');
     }
@@ -344,6 +365,7 @@ export class HousingService {
       where: { id: input.toHomeId, deletedAt: null },
     });
     if (!toHome) throw new NotFoundException('Destination home not found');
+    assertChapterAccess(user.chapter, toHome.state);
     if (input.transferDate < source.moveInDate) {
       throw new BadRequestException('Transfer date cannot be before the current move-in date');
     }
@@ -387,8 +409,11 @@ export class HousingService {
   }
 
   /** Soft delete is for true data errors only — exits are status changes. */
-  async softDeleteEnrollment(id: string, userId: string) {
+  async softDeleteEnrollment(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
     const existing = await this.findEnrollment(id);
+    // Chapter scoping (§7.2): derived through the home, like the list filter.
+    assertChapterAccess(user.chapter, existing.home.state);
     await this.prisma.housingEnrollment.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
@@ -408,6 +433,8 @@ export class HousingService {
   private async findEnrollment(id: string) {
     const enrollment = await this.prisma.housingEnrollment.findFirst({
       where: { id, deletedAt: null },
+      // home.state carried along for the chapter asserts (§7.2).
+      include: { home: { select: { state: true } } },
     });
     if (!enrollment) throw new NotFoundException('Housing enrollment not found');
     return enrollment;

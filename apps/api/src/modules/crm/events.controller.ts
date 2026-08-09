@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   eventRegistrationSchema,
   eventSchema,
   listQuerySchema,
@@ -32,6 +33,8 @@ const listFiltersSchema = listQuerySchema.extend({
   campaignId: z.string().uuid().optional(),
   from: optionalDate,
   to: optionalDate,
+  // External param stays `state`, but it filters the CHAPTER column (§7.2).
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -46,21 +49,31 @@ export class EventsController {
 
   @Get()
   @RequirePermission('events.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { eventType, campaignId, from, to, ...listQuery } = query;
-    return this.events.list(listQuery as ListQuery, { eventType, campaignId, from, to });
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { eventType, campaignId, from, to, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.events.list(listQuery as ListQuery, {
+      eventType,
+      campaignId,
+      from,
+      to,
+      chapterState: (user.chapter ?? state) as ListFilters['state'],
+    });
   }
 
   @Get(':id')
   @RequirePermission('events.read')
-  detail(@Param('id', ParseUUIDPipe) id: string) {
-    return this.events.detail(id);
+  detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.events.detail(id, user);
   }
 
   @Get(':id/financial-summary')
   @RequirePermission('events.read')
-  financialSummary(@Param('id', ParseUUIDPipe) id: string) {
-    return this.events.financialSummary(id);
+  financialSummary(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.events.financialSummary(id, user);
   }
 
   @Post()
@@ -69,7 +82,7 @@ export class EventsController {
     @Body(zodBody(eventSchema)) body: EventInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.events.create(body, user.id);
+    return this.events.create(body, user);
   }
 
   @Patch(':id')
@@ -79,13 +92,13 @@ export class EventsController {
     @Body(zodBody(eventSchema.partial())) body: Partial<EventInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.events.update(id, body, user.id);
+    return this.events.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('events.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.events.softDelete(id, user.id);
+    return this.events.softDelete(id, user);
   }
 
   // Roster changes are an edit of the event, so 'events.update' rather than
@@ -97,7 +110,7 @@ export class EventsController {
     @Body(zodBody(registrationCreateSchema)) body: RegistrationCreate,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.events.addRegistration(id, body, user.id);
+    return this.events.addRegistration(id, body, user);
   }
 }
 
@@ -112,6 +125,6 @@ export class EventRegistrationsController {
     @Body(zodBody(registrationUpdateSchema)) body: RegistrationUpdate,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.events.updateRegistration(id, body, user.id);
+    return this.events.updateRegistration(id, body, user);
   }
 }

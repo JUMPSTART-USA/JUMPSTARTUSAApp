@@ -7,7 +7,9 @@ import type {
   TravelRequestStatus,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { assertParticipant } from './participant.util';
 
 export type TravelRequestCreateInput = TravelRequestInput;
@@ -21,6 +23,7 @@ export interface TravelRequestListFilters {
   status?: TravelRequestStatus;
   from?: Date;
   to?: Date;
+  state?: string;
 }
 
 const SORTABLE = new Set([
@@ -78,6 +81,11 @@ export class TravelRequestsService {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): derived through the participant profile. Wrapped
+      // in AND so the search's own participantProfile clause cannot replace it.
+      ...(filters.state
+        ? { AND: [{ participantProfile: { chapterState: filters.state } }] }
+        : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.from || filters.to
         ? {
@@ -120,8 +128,9 @@ export class TravelRequestsService {
   }
 
   /** New requests always start pending (Prisma default) — status is never client-set. */
-  async create(input: TravelRequestCreateInput, userId: string) {
-    await assertParticipant(this.prisma, input.participantProfileId);
+  async create(input: TravelRequestCreateInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
     const created = await this.prisma.travelRequest.create({
       data: { ...input, createdById: userId },
       select: VIEW_SELECT,
@@ -131,8 +140,9 @@ export class TravelRequestsService {
   }
 
   /** Trip details are editable only while the request is still pending. */
-  async update(id: string, input: TravelRequestUpdateInput, userId: string) {
-    const existing = await this.findRequest(id);
+  async update(id: string, input: TravelRequestUpdateInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.findRequest(id, user.chapter);
     if (existing.status !== 'pending') {
       throw new BadRequestException('Only pending travel requests can be edited');
     }
@@ -158,8 +168,9 @@ export class TravelRequestsService {
    * and approved → canceled (trip called off after sign-off). Anything else is
    * a 400 — decisions are never edited in place, and denied/canceled are final.
    */
-  async decide(id: string, input: TravelDecisionInput, userId: string) {
-    const existing = await this.findRequest(id);
+  async decide(id: string, input: TravelDecisionInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.findRequest(id, user.chapter);
     const allowed =
       existing.status === 'pending' ||
       (existing.status === 'approved' && input.status === 'canceled');
@@ -183,21 +194,24 @@ export class TravelRequestsService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.findRequest(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const existing = await this.findRequest(id, user.chapter);
     await this.prisma.travelRequest.update({ where: { id }, data: { deletedAt: new Date() } });
-    await this.audit.logDelete(userId, 'travel_request', id, existing);
+    await this.audit.logDelete(user.id, 'travel_request', id, existing);
     return { ok: true };
   }
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
-  private async findRequest(id: string): Promise<TravelRequestViewRow> {
+  /** Fetch-for-mutation with the chapter guard (§7.2) applied once. */
+  private async findRequest(id: string, userChapter: string | null): Promise<TravelRequestViewRow> {
     const request = await this.prisma.travelRequest.findFirst({
       where: { id, deletedAt: null },
-      select: VIEW_SELECT,
+      select: { ...VIEW_SELECT, participantProfile: { select: { chapterState: true } } },
     });
     if (!request) throw new NotFoundException('Travel request not found');
-    return request;
+    assertChapterAccess(userChapter, request.participantProfile.chapterState);
+    const { participantProfile: _participantProfile, ...requestOnly } = request;
+    return requestOnly;
   }
 }

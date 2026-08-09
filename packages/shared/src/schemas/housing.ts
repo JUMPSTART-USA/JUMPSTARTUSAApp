@@ -1,10 +1,10 @@
 import { z } from 'zod';
+import { CHAPTER_STATES } from '../chapters';
 import {
   FINAL_ASSESSMENTS,
   HOME_GENDERS,
   HOUSING_EXIT_STATUSES,
   HOUSING_STATUSES,
-  US_STATES,
 } from '../enums';
 import {
   optionalDate,
@@ -20,7 +20,8 @@ export const transitionalHomeSchema = z.object({
   name: requiredTrimmed.pipe(z.string().max(200)),
   addressLine1: optionalTrimmed,
   city: optionalTrimmed,
-  state: z.enum(US_STATES),
+  // Home state IS the chapter (§7.2) — homes exist only in chapter states.
+  state: z.enum(CHAPTER_STATES),
   zip: optionalTrimmed,
   phone: optionalPhone,
   houseManagerName: optionalTrimmed,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHAPTER_STATES } from '../chapters';
 import { EMPLOYMENT_STATUSES, HIRING_STATUSES, US_STATES } from '../enums';
 import {
   endNotBeforeStart,
@@ -18,8 +19,11 @@ export const employerSchema = z.object({
   email: optionalEmail,
   addressLine1: optionalTrimmed,
   city: optionalTrimmed,
-  state: z.enum(US_STATES).optional(),
+  state: z.enum(US_STATES).optional(), // postal address state — NOT the chapter
   zip: optionalTrimmed,
+  // Chapter (§7.2): optional at the pipe — the service stamps a scoped
+  // creator's chapter and requires a pick from all-chapters users.
+  chapterState: z.enum(CHAPTER_STATES).optional(),
   industry: optionalTrimmed,
   hiringStatus: z.enum(HIRING_STATUSES).default('prospect'),
   notes: optionalTrimmed,

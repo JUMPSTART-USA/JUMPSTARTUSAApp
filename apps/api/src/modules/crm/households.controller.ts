@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   householdSchema,
   listQuerySchema,
   uuid,
@@ -27,20 +28,32 @@ const memberSchema = z.object({
   isHeadOfHousehold: z.boolean().optional(),
 });
 
+const listFiltersSchema = listQuerySchema.extend({
+  state: z.enum(CHAPTER_STATES).optional(),
+});
+type ListFilters = z.infer<typeof listFiltersSchema>;
+
 @Controller('households')
 export class HouseholdsController {
   constructor(private readonly households: HouseholdsService) {}
 
   @Get()
   @RequirePermission('donors.read')
-  list(@Query(zodQuery(listQuerySchema)) query: ListQuery) {
-    return this.households.list(query);
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
+    return this.households.list(listQuery as ListQuery, {
+      state: (user.chapter ?? state) as ListFilters['state'],
+    });
   }
 
   @Get(':id')
   @RequirePermission('donors.read')
-  detail(@Param('id', ParseUUIDPipe) id: string) {
-    return this.households.detail(id);
+  detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.households.detail(id, user);
   }
 
   @Post()
@@ -49,7 +62,7 @@ export class HouseholdsController {
     @Body(zodBody(householdSchema)) body: HouseholdInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.households.create(body, user.id);
+    return this.households.create(body, user);
   }
 
   @Patch(':id')
@@ -59,13 +72,13 @@ export class HouseholdsController {
     @Body(zodBody(householdSchema.partial())) body: Partial<HouseholdInput>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.households.update(id, body, user.id);
+    return this.households.update(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('donors.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.households.softDelete(id, user.id);
+    return this.households.softDelete(id, user);
   }
 
   // Membership changes are an edit of the donor record — 'donors.update'.
@@ -76,7 +89,7 @@ export class HouseholdsController {
     @Body(zodBody(memberSchema)) body: HouseholdMemberInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.households.addMember(id, body, user.id);
+    return this.households.addMember(id, body, user);
   }
 
   @Delete(':id/members/:donorId')
@@ -86,6 +99,6 @@ export class HouseholdsController {
     @Param('donorId', ParseUUIDPipe) donorId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.households.removeMember(id, donorId, user.id);
+    return this.households.removeMember(id, donorId, user);
   }
 }

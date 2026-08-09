@@ -12,6 +12,7 @@ import {
 import {
   budgetItemSchema,
   budgetPaymentSchema,
+  CHAPTER_STATES,
   endNotBeforeStart,
   listQuerySchema,
   uuid,
@@ -58,6 +59,7 @@ type ItemListFilters = z.infer<typeof itemListFiltersSchema>;
 const paymentListFiltersSchema = listQuerySchema.extend({
   participantProfileId: uuid.optional(),
   budgetItemId: uuid.optional(),
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type PaymentListFilters = z.infer<typeof paymentListFiltersSchema>;
 
@@ -67,8 +69,11 @@ export class BudgetItemsController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(itemListFiltersSchema)) query: ItemListFilters) {
-    return this.budgets.listItems(query.participantProfileId);
+  list(
+    @Query(zodQuery(itemListFiltersSchema)) query: ItemListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.budgets.listItems(query.participantProfileId, user);
   }
 
   @Post()
@@ -77,7 +82,7 @@ export class BudgetItemsController {
     @Body(zodBody(budgetItemSchema)) body: BudgetItemInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.budgets.createItem(body, user.id);
+    return this.budgets.createItem(body, user);
   }
 
   @Patch(':id')
@@ -87,14 +92,14 @@ export class BudgetItemsController {
     @Body(zodBody(budgetItemUpdateSchema)) body: BudgetItemUpdateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.budgets.updateItem(id, body, user.id);
+    return this.budgets.updateItem(id, body, user);
   }
 
   // Soft delete — the item's payment history is preserved on purpose.
   @Delete(':id')
   @RequirePermission('case_management.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.budgets.softDeleteItem(id, user.id);
+    return this.budgets.softDeleteItem(id, user);
   }
 }
 
@@ -104,11 +109,16 @@ export class BudgetPaymentsController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(paymentListFiltersSchema)) query: PaymentListFilters) {
-    const { participantProfileId, budgetItemId, ...listQuery } = query;
+  list(
+    @Query(zodQuery(paymentListFiltersSchema)) query: PaymentListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, budgetItemId, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.budgets.listPayments(listQuery as ListQuery, {
       participantProfileId,
       budgetItemId,
+      state: user.chapter ?? state,
     });
   }
 
@@ -119,7 +129,7 @@ export class BudgetPaymentsController {
     @Body(zodBody(budgetPaymentSchema)) body: BudgetPaymentInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.budgets.createPayment(body, user.id);
+    return this.budgets.createPayment(body, user);
   }
 
   @Patch(':id')
@@ -129,12 +139,12 @@ export class BudgetPaymentsController {
     @Body(zodBody(budgetPaymentUpdateSchema)) body: BudgetPaymentUpdateInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.budgets.updatePayment(id, body, user.id);
+    return this.budgets.updatePayment(id, body, user);
   }
 
   @Delete(':id')
   @RequirePermission('case_management.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.budgets.softDeletePayment(id, user.id);
+    return this.budgets.softDeletePayment(id, user);
   }
 }

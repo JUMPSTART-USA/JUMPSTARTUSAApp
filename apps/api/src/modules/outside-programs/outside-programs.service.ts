@@ -14,7 +14,7 @@ import {
   type UsState,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
-import { assertChapterAccess } from '../../common/chapter.util';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
@@ -136,11 +136,12 @@ export class OutsideProgramsService {
 
   async create(input: OutsideProgramInput, user: AuthenticatedUser) {
     const userId = user.id;
-    // Chapter scoping (§7.2): a scoped user cannot create for another chapter.
-    assertChapterAccess(user.chapter, input.state);
+    // Chapter scoping (§7.2): stamp the creator's chapter; all-chapters users
+    // must pick one explicitly.
+    const state = resolveCreateChapter(user.chapter, input.state);
     await this.assertStaffLead(input.staffLeadId);
     const program = await this.prisma.outsideProgram.create({
-      data: { ...input, createdById: userId, updatedById: userId },
+      data: { ...input, state, createdById: userId, updatedById: userId },
     });
     await this.audit.logCreate(userId, 'outside_program', program.id, program);
     return program;
@@ -199,12 +200,17 @@ export class OutsideProgramsService {
 
   // ── Enrollments (§6.3 — same close-out rules as inside classes) ───────────
 
-  async enroll(input: OutsideEnrollmentInput, userId: string) {
+  async enroll(input: OutsideEnrollmentInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const program = await this.findProgram(input.outsideProgramId);
+    // Chapter scoping (§7.2): no enrolling into another chapter's program.
+    assertChapterAccess(user.chapter, program.state);
     const participant = await this.prisma.participantProfile.findFirst({
       where: { id: input.participantProfileId, deletedAt: null },
     });
     if (!participant) throw new NotFoundException('Participant not found');
+    // Chapter scoping (§7.2): no enrolling another chapter's participant.
+    assertChapterAccess(user.chapter, participant.chapterState);
 
     // Re-enrollment after an exit is normal (history preserved); a second
     // concurrently-open enrollment in the same program is a data error.
@@ -247,8 +253,9 @@ export class OutsideProgramsService {
     return { ...enrollment, warnings };
   }
 
-  async updateEnrollment(id: string, input: OutsideEnrollmentUpdate, userId: string) {
-    const existing = await this.findEnrollment(id);
+  async updateEnrollment(id: string, input: OutsideEnrollmentUpdate, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.findEnrollment(user, id);
 
     // Re-validate §6.2/§6.3 close-out rules against the MERGED record: a
     // partial update must not produce a state the full-payload schema rejects.
@@ -284,8 +291,9 @@ export class OutsideProgramsService {
   }
 
   /** Soft delete is for true data errors only — exits are status changes. */
-  async softDeleteEnrollment(id: string, userId: string) {
-    const existing = await this.findEnrollment(id);
+  async softDeleteEnrollment(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.findEnrollment(user, id);
     await this.prisma.outsideProgramEnrollment.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
@@ -296,8 +304,10 @@ export class OutsideProgramsService {
 
   // ── Sessions & attendance (mirrors the inside-class session model) ────────
 
-  async listSessions(programId: string) {
-    await this.findProgram(programId);
+  async listSessions(programId: string, user: AuthenticatedUser) {
+    const program = await this.findProgram(programId);
+    // Chapter scoping (§7.2): derived through the parent program.
+    assertChapterAccess(user.chapter, program.state);
     return this.prisma.outsideProgramSession.findMany({
       where: { outsideProgramId: programId },
       orderBy: { sessionDate: 'desc' },
@@ -305,11 +315,11 @@ export class OutsideProgramsService {
     });
   }
 
-  async getSession(sessionId: string) {
+  async getSession(sessionId: string, user: AuthenticatedUser) {
     const session = await this.prisma.outsideProgramSession.findUnique({
       where: { id: sessionId },
       include: {
-        outsideProgram: { select: { id: true, name: true } },
+        outsideProgram: { select: { id: true, name: true, state: true } },
         attendance: {
           include: {
             enrollment: {
@@ -324,11 +334,17 @@ export class OutsideProgramsService {
       },
     });
     if (!session) throw new NotFoundException('Session not found');
+    // Chapter scoping (§7.2): the roster (participant names) must not leak
+    // across chapters — derived through the parent program.
+    assertChapterAccess(user.chapter, session.outsideProgram.state);
     return session;
   }
 
-  async createSession(programId: string, input: OutsideSessionInput, userId: string) {
-    await this.findProgram(programId);
+  async createSession(programId: string, input: OutsideSessionInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const program = await this.findProgram(programId);
+    // Chapter scoping (§7.2): derived through the parent program.
+    assertChapterAccess(user.chapter, program.state);
     const session = await this.prisma.outsideProgramSession.create({
       data: { ...input, outsideProgramId: programId, createdById: userId, updatedById: userId },
     });
@@ -336,11 +352,13 @@ export class OutsideProgramsService {
     return session;
   }
 
-  async updateSession(sessionId: string, input: Partial<OutsideSessionInput>, userId: string) {
-    const existing = await this.prisma.outsideProgramSession.findUnique({
-      where: { id: sessionId },
-    });
-    if (!existing) throw new NotFoundException('Session not found');
+  async updateSession(
+    sessionId: string,
+    input: Partial<OutsideSessionInput>,
+    user: AuthenticatedUser,
+  ) {
+    const userId = user.id;
+    const existing = await this.findSession(user, sessionId);
     const updated = await this.prisma.outsideProgramSession.update({
       where: { id: sessionId },
       data: { ...input, updatedById: userId },
@@ -350,11 +368,9 @@ export class OutsideProgramsService {
   }
 
   /** Hard delete — sessions have no soft-delete column; attendance goes with them. */
-  async deleteSession(sessionId: string, userId: string) {
-    const existing = await this.prisma.outsideProgramSession.findUnique({
-      where: { id: sessionId },
-    });
-    if (!existing) throw new NotFoundException('Session not found');
+  async deleteSession(sessionId: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.findSession(user, sessionId);
     await this.prisma.$transaction([
       this.prisma.outsideSessionAttendance.deleteMany({ where: { sessionId } }),
       this.prisma.outsideProgramSession.delete({ where: { id: sessionId } }),
@@ -364,11 +380,9 @@ export class OutsideProgramsService {
   }
 
   /** Batch upsert — staff mark the whole roster in one save (§6.2 pattern). */
-  async recordAttendance(sessionId: string, rows: AttendanceRowInput[], userId: string) {
-    const session = await this.prisma.outsideProgramSession.findUnique({
-      where: { id: sessionId },
-    });
-    if (!session) throw new NotFoundException('Session not found');
+  async recordAttendance(sessionId: string, rows: AttendanceRowInput[], user: AuthenticatedUser) {
+    const userId = user.id;
+    const session = await this.findSession(user, sessionId);
 
     const ids = rows.map((r) => r.enrollmentId);
     if (new Set(ids).size !== ids.length) {
@@ -404,12 +418,28 @@ export class OutsideProgramsService {
     return program;
   }
 
-  private async findEnrollment(id: string) {
+  private async findSession(user: AuthenticatedUser, id: string) {
+    const session = await this.prisma.outsideProgramSession.findUnique({
+      where: { id },
+      include: { outsideProgram: { select: { state: true } } },
+    });
+    if (!session) throw new NotFoundException('Session not found');
+    // Chapter scoping (§7.2): derived through the parent program.
+    assertChapterAccess(user.chapter, session.outsideProgram.state);
+    const { outsideProgram: _program, ...sessionOnly } = session;
+    return sessionOnly;
+  }
+
+  private async findEnrollment(user: AuthenticatedUser, id: string) {
     const enrollment = await this.prisma.outsideProgramEnrollment.findFirst({
       where: { id, deletedAt: null },
+      include: { outsideProgram: { select: { state: true } } },
     });
     if (!enrollment) throw new NotFoundException('Enrollment not found');
-    return enrollment;
+    // Chapter scoping (§7.2): derived through the parent program.
+    assertChapterAccess(user.chapter, enrollment.outsideProgram.state);
+    const { outsideProgram: _program, ...enrollmentOnly } = enrollment;
+    return enrollmentOnly;
   }
 
   private async assertStaffLead(staffLeadId: string | undefined) {

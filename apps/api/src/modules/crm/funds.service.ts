@@ -7,6 +7,7 @@ import {
 import type { Prisma } from '@jumpstart/database';
 import type { FundInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface FundListFilters {
@@ -24,7 +25,9 @@ export class FundsService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(query: ListQuery, filters: FundListFilters) {
+  // Funds are org-global accounting designations (§7.2) — the rows are never
+  // chapter-filtered; only the giving rollups below respect the user's chapter.
+  async list(query: ListQuery, filters: FundListFilters, user: AuthenticatedUser) {
     const where: Prisma.FundWhereInput = {
       ...(filters.active !== undefined ? { isActive: filters.active } : {}),
       ...(query.search ? { name: { contains: query.search, mode: 'insensitive' } } : {}),
@@ -49,7 +52,13 @@ export class FundsService {
     const sums = funds.length
       ? await this.prisma.donation.groupBy({
           by: ['fundId'],
-          where: { fundId: { in: funds.map((f) => f.id) }, deletedAt: null },
+          where: {
+            fundId: { in: funds.map((f) => f.id) },
+            deletedAt: null,
+            // Chapter scoping (§7.2): a scoped viewer's totals only count
+            // their own chapter's gifts (via each gift's required donor).
+            ...(user.chapter ? { donor: { chapterState: user.chapter } } : {}),
+          },
           _sum: { amount: true },
           _count: { _all: true },
         })

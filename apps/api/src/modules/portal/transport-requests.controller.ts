@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import {
+  CHAPTER_STATES,
   TRANSPORT_REQUEST_STATUSES,
   listQuerySchema,
   optionalDate,
@@ -19,6 +20,7 @@ const listFiltersSchema = listQuerySchema.extend({
   status: z.enum(TRANSPORT_REQUEST_STATUSES).optional(),
   from: optionalDate,
   to: optionalDate,
+  state: z.enum(CHAPTER_STATES).optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
@@ -28,13 +30,18 @@ export class TransportRequestsController {
 
   @Get()
   @RequirePermission('case_management.read')
-  list(@Query(zodQuery(listFiltersSchema)) query: ListFilters) {
-    const { participantProfileId, status, from, to, ...listQuery } = query;
+  list(
+    @Query(zodQuery(listFiltersSchema)) query: ListFilters,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { participantProfileId, status, from, to, state, ...listQuery } = query;
+    // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.transportRequests.list(listQuery as ListQuery, {
       participantProfileId,
       status,
       from,
       to,
+      state: user.chapter ?? state,
     });
   }
 
@@ -45,6 +52,6 @@ export class TransportRequestsController {
     @Body(zodBody(transportDecisionSchema)) body: TransportDecisionInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.transportRequests.decide(id, body, user.id);
+    return this.transportRequests.decide(id, body, user);
   }
 }

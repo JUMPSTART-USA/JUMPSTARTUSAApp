@@ -7,6 +7,7 @@ import {
 import type { Prisma } from '@jumpstart/database';
 import {
   ASSIGNMENT_TYPES,
+  CHAPTER_STATES,
   ENROLLMENT_STATUSES,
   HOUSING_EXIT_STATUSES,
   INSIDE_STATUSES,
@@ -14,7 +15,6 @@ import {
   PLEDGE_STATUSES,
   PROGRAM_TYPES,
   RECURRING_GIFT_STATUSES,
-  US_STATES,
   type AssignmentType,
   type EnrollmentStatus,
   type InsideStatus,
@@ -24,6 +24,7 @@ import {
   type ProgramType,
   type RecurringGiftStatus,
 } from '@jumpstart/shared';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { hasPerm, type AuthenticatedUser } from '../../common/types';
 import { pledgeComputed } from '../crm/giving.util';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -111,7 +112,7 @@ export class ReportsService {
       name: 'Participant Status Summary',
       permission: 'participants.read',
       params: [
-        { name: 'state', label: 'State', type: 'enum', values: US_STATES },
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'status', label: 'Status', type: 'enum', values: PARTICIPANT_STATUS_VALUES },
       ],
       run: (p) => this.participantStatus(p),
@@ -128,6 +129,7 @@ export class ReportsService {
       name: 'Inside Class Completions & Assessments',
       permission: 'inside_classes.read',
       params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'institutionId', label: 'Institution', type: 'uuid' },
         { name: 'from', label: 'From', type: 'date' },
         { name: 'to', label: 'To', type: 'date' },
@@ -138,7 +140,7 @@ export class ReportsService {
       key: 'institution-activity',
       name: 'Institution Activity',
       permission: 'institutions.read',
-      params: [{ name: 'state', label: 'State', type: 'enum', values: US_STATES }],
+      params: [{ name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES }],
       run: (p) => this.institutionActivity(p),
     },
     {
@@ -146,6 +148,7 @@ export class ReportsService {
       name: 'Outside Program Enrollment',
       permission: 'outside_programs.read',
       params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'programType', label: 'Program Type', type: 'enum', values: PROGRAM_TYPES },
         { name: 'status', label: 'Status', type: 'enum', values: ENROLLMENT_STATUSES },
       ],
@@ -155,7 +158,7 @@ export class ReportsService {
       key: 'housing-occupancy',
       name: 'Transitional Housing Occupancy',
       permission: 'housing.read',
-      params: [{ name: 'state', label: 'State', type: 'enum', values: US_STATES }],
+      params: [{ name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES }],
       run: (p) => this.housingOccupancy(p),
     },
     {
@@ -163,6 +166,7 @@ export class ReportsService {
       name: 'Housing Completions & Exits',
       permission: 'housing.read',
       params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'from', label: 'From', type: 'date' },
         { name: 'to', label: 'To', type: 'date' },
       ],
@@ -173,6 +177,7 @@ export class ReportsService {
       name: 'Case Management Activity (counts)',
       permission: 'case_management.read',
       params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'caseManagerId', label: 'Case Manager', type: 'uuid' },
         { name: 'from', label: 'From', type: 'date' },
         { name: 'to', label: 'To', type: 'date' },
@@ -184,6 +189,7 @@ export class ReportsService {
       name: 'Volunteer Assignments',
       permission: 'volunteers.read',
       params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'institutionId', label: 'Institution', type: 'uuid' },
         { name: 'assignmentType', label: 'Assignment Type', type: 'enum', values: ASSIGNMENT_TYPES },
       ],
@@ -194,7 +200,7 @@ export class ReportsService {
       name: 'Volunteer Trainings',
       permission: 'volunteers.read',
       params: [
-        { name: 'state', label: 'State', type: 'enum', values: US_STATES },
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'expiringWithinDays', label: 'Expiring Within (days)', type: 'number' },
       ],
       run: (p) => this.volunteerTrainings(p),
@@ -204,6 +210,7 @@ export class ReportsService {
       name: 'Donor Giving History',
       permission: 'donors.read',
       params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'from', label: 'From', type: 'date' },
         { name: 'to', label: 'To', type: 'date' },
         { name: 'campaignId', label: 'Campaign', type: 'uuid' },
@@ -214,14 +221,15 @@ export class ReportsService {
       key: 'campaign-performance',
       name: 'Campaign Performance',
       permission: 'campaigns.read',
-      params: [],
-      run: () => this.campaignPerformance(),
+      params: [{ name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES }],
+      run: (p) => this.campaignPerformance(p),
     },
     {
       key: 'event-financials',
       name: 'Event Financial Summary',
       permission: 'events.read',
       params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'from', label: 'From', type: 'date' },
         { name: 'to', label: 'To', type: 'date' },
       ],
@@ -231,21 +239,30 @@ export class ReportsService {
       key: 'pledge-status',
       name: 'Pledge Status',
       permission: 'donors.read',
-      params: [{ name: 'status', label: 'Status', type: 'enum', values: PLEDGE_STATUSES }],
+      params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
+        { name: 'status', label: 'Status', type: 'enum', values: PLEDGE_STATUSES },
+      ],
       run: (p) => this.pledgeStatus(p),
     },
     {
       key: 'recurring-gifts',
       name: 'Recurring Gifts',
       permission: 'donors.read',
-      params: [{ name: 'status', label: 'Status', type: 'enum', values: RECURRING_GIFT_STATUSES }],
+      params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
+        { name: 'status', label: 'Status', type: 'enum', values: RECURRING_GIFT_STATUSES },
+      ],
       run: (p) => this.recurringGifts(p),
     },
     {
       key: 'giving-statements',
       name: 'Year-End Giving Statements',
       permission: 'donors.read',
-      params: [{ name: 'year', label: 'Year', type: 'number', required: true }],
+      params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
+        { name: 'year', label: 'Year', type: 'number', required: true },
+      ],
       run: (p) => this.givingStatements(p),
     },
     {
@@ -253,7 +270,7 @@ export class ReportsService {
       name: 'Volunteer Hours',
       permission: 'volunteers.read',
       params: [
-        { name: 'state', label: 'State', type: 'enum', values: US_STATES },
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'from', label: 'From', type: 'date' },
         { name: 'to', label: 'To', type: 'date' },
         { name: 'opportunityId', label: 'Opportunity', type: 'uuid' },
@@ -264,14 +281,15 @@ export class ReportsService {
       key: 'employer-participation',
       name: 'Employer Participation',
       permission: 'employers.read',
-      params: [],
-      run: () => this.employerParticipation(),
+      params: [{ name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES }],
+      run: (p) => this.employerParticipation(p),
     },
     {
       key: 'employment-history',
       name: 'Participant Employment History',
       permission: 'employment.read',
       params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'participantProfileId', label: 'Participant', type: 'uuid' },
         { name: 'employerId', label: 'Employer', type: 'uuid' },
       ],
@@ -282,6 +300,7 @@ export class ReportsService {
       name: 'Vehicle Maintenance History',
       permission: 'vehicles.read',
       params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
         { name: 'vehicleId', label: 'Vehicle', type: 'uuid' },
         { name: 'from', label: 'From', type: 'date' },
         { name: 'to', label: 'To', type: 'date' },
@@ -292,8 +311,8 @@ export class ReportsService {
       key: 'upcoming-maintenance',
       name: 'Upcoming Vehicle Maintenance',
       permission: 'vehicles.read',
-      params: [],
-      run: () => this.upcomingMaintenance(),
+      params: [{ name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES }],
+      run: (p) => this.upcomingMaintenance(p),
     },
   ];
 
@@ -347,8 +366,9 @@ export class ReportsService {
     const rows = await this.prisma.participantProfile.findMany({
       where: {
         deletedAt: null,
-        // A participant's "state" is their current mailing-address state.
-        ...(p.state ? { person: { state: p.state } } : {}),
+        // Chapter scoping (§7.2): filter by the profile's chapter, never the
+        // person's mailing-address state.
+        ...(p.state ? { chapterState: p.state } : {}),
         ...(or.length ? { OR: or } : {}),
       },
       orderBy: { participantNumber: 'asc' },
@@ -404,9 +424,12 @@ export class ReportsService {
     if (!p.insideClassId) throw new BadRequestException('insideClassId is required');
     const cls = await this.prisma.insideClass.findFirst({
       where: { id: p.insideClassId, deletedAt: null },
-      select: { name: true, institution: { select: { name: true } } },
+      select: { name: true, institution: { select: { name: true, state: true } } },
     });
     if (!cls) throw new NotFoundException('Inside class not found');
+    // Chapter scoping (§7.2): a scoped user cannot pull another chapter's
+    // roster by id — the class's chapter is its institution's state.
+    assertChapterAccess(user.chapter, cls.institution.state);
 
     const enrollments = await this.prisma.insideClassEnrollment.findMany({
       where: { insideClassId: p.insideClassId, deletedAt: null },
@@ -470,7 +493,12 @@ export class ReportsService {
   private async insideClassCompletions(p: ReportParams): Promise<ReportResult> {
     const range = dateRange(p.from, p.to);
     const classes = await this.prisma.insideClass.findMany({
-      where: { deletedAt: null, ...(p.institutionId ? { institutionId: p.institutionId } : {}) },
+      where: {
+        deletedAt: null,
+        // Chapter scoping (§7.2): a class's chapter is its institution's state.
+        ...(p.state ? { institution: { state: p.state } } : {}),
+        ...(p.institutionId ? { institutionId: p.institutionId } : {}),
+      },
       orderBy: [{ startDate: 'desc' }],
       select: {
         name: true,
@@ -611,7 +639,15 @@ export class ReportsService {
       where: {
         deletedAt: null,
         ...(status ? { status } : {}),
-        ...(p.programType ? { outsideProgram: { programType: p.programType } } : {}),
+        // Chapter scoping (§7.2): enrollments inherit the program's chapter.
+        ...(p.programType || p.state
+          ? {
+              outsideProgram: {
+                ...(p.programType ? { programType: p.programType } : {}),
+                ...(p.state ? { state: p.state } : {}),
+              },
+            }
+          : {}),
       },
       orderBy: { enrollmentDate: 'desc' },
       select: {
@@ -698,6 +734,8 @@ export class ReportsService {
         deletedAt: null,
         status: { in: [...HOUSING_EXIT_STATUSES] },
         moveOutDate: range ?? { not: null },
+        // Chapter scoping (§7.2): enrollments inherit the home's chapter.
+        ...(p.state ? { home: { state: p.state } } : {}),
       },
       orderBy: { moveOutDate: 'desc' },
       select: {
@@ -756,6 +794,8 @@ export class ReportsService {
           deletedAt: null,
           ...(p.caseManagerId ? { caseManagerId: p.caseManagerId } : {}),
           ...(range ? { noteDate: range } : {}),
+          // Chapter scoping (§7.2): notes inherit the participant's chapter.
+          ...(p.state ? { participantProfile: { chapterState: p.state } } : {}),
         },
         _count: { _all: true },
       }),
@@ -765,8 +805,14 @@ export class ReportsService {
         where: {
           deletedAt: null,
           ...(range ? { serviceDate: range } : {}),
-          ...(p.caseManagerId
-            ? { participantProfile: { assignedCaseManagerId: p.caseManagerId } }
+          // Chapter scoping (§7.2): services inherit the participant's chapter.
+          ...(p.caseManagerId || p.state
+            ? {
+                participantProfile: {
+                  ...(p.caseManagerId ? { assignedCaseManagerId: p.caseManagerId } : {}),
+                  ...(p.state ? { chapterState: p.state } : {}),
+                },
+              }
             : {}),
         },
         select: { participantProfile: { select: { assignedCaseManagerId: true } } },
@@ -829,6 +875,8 @@ export class ReportsService {
     const rows = await this.prisma.volunteerAssignment.findMany({
       where: {
         deletedAt: null,
+        // Chapter scoping (§7.2): assignments inherit the volunteer's chapter.
+        ...(p.state ? { volunteerProfile: { chapterState: p.state } } : {}),
         ...(p.institutionId ? { institutionId: p.institutionId } : {}),
         ...(p.assignmentType ? { assignmentType: p.assignmentType } : {}),
       },
@@ -882,9 +930,8 @@ export class ReportsService {
     const today = startOfUtcDay(new Date());
     const rows = await this.prisma.volunteerTraining.findMany({
       where: {
-        // Chapter scoping (§7.2): the controller forces state for scoped users
-        // — derive it the way the volunteers list does (person.state).
-        ...(p.state ? { volunteerProfile: { person: { state: p.state } } } : {}),
+        // Chapter scoping (§7.2): trainings inherit the volunteer's chapter.
+        ...(p.state ? { volunteerProfile: { chapterState: p.state } } : {}),
         ...(p.expiringWithinDays
           ? { expiresAt: { lte: addDays(today, p.expiringWithinDays) } }
           : {}),
@@ -926,9 +973,8 @@ export class ReportsService {
       where: {
         deletedAt: null,
         status: 'approved',
-        // Chapter scoping (§7.2): the controller forces state for scoped users
-        // — derive it the way the volunteers list does (person.state).
-        ...(p.state ? { volunteerProfile: { person: { state: p.state } } } : {}),
+        // Chapter scoping (§7.2): hours inherit the volunteer's chapter.
+        ...(p.state ? { volunteerProfile: { chapterState: p.state } } : {}),
         ...(range ? { activityDate: range } : {}),
         ...(p.opportunityId ? { opportunityId: p.opportunityId } : {}),
       },
@@ -1000,6 +1046,8 @@ export class ReportsService {
     const rows = await this.prisma.donation.findMany({
       where: {
         deletedAt: null,
+        // Chapter scoping (§7.2): donations inherit the donor's chapter.
+        ...(p.state ? { donor: { chapterState: p.state } } : {}),
         ...(range ? { donationDate: range } : {}),
         ...(p.campaignId ? { campaignId: p.campaignId } : {}),
       },
@@ -1046,7 +1094,12 @@ export class ReportsService {
       | PledgeStatus
       | undefined;
     const pledges = await this.prisma.pledge.findMany({
-      where: { deletedAt: null, ...(status ? { status } : {}) },
+      where: {
+        deletedAt: null,
+        // Chapter scoping (§7.2): pledges inherit the donor's chapter.
+        ...(p.state ? { donor: { chapterState: p.state } } : {}),
+        ...(status ? { status } : {}),
+      },
       orderBy: { pledgeDate: 'desc' },
       select: {
         id: true,
@@ -1100,7 +1153,12 @@ export class ReportsService {
       | RecurringGiftStatus
       | undefined;
     const gifts = await this.prisma.recurringGift.findMany({
-      where: { deletedAt: null, ...(status ? { status } : {}) },
+      where: {
+        deletedAt: null,
+        // Chapter scoping (§7.2): recurring gifts inherit the donor's chapter.
+        ...(p.state ? { donor: { chapterState: p.state } } : {}),
+        ...(status ? { status } : {}),
+      },
       orderBy: { startDate: 'desc' },
       select: {
         id: true,
@@ -1151,6 +1209,8 @@ export class ReportsService {
     const donations = await this.prisma.donation.findMany({
       where: {
         deletedAt: null,
+        // Chapter scoping (§7.2): statements cover the donor's chapter only.
+        ...(p.state ? { donor: { chapterState: p.state } } : {}),
         donationDate: {
           gte: new Date(Date.UTC(year, 0, 1)),
           lte: new Date(Date.UTC(year, 11, 31)),
@@ -1226,9 +1286,10 @@ export class ReportsService {
     };
   }
 
-  private async campaignPerformance(): Promise<ReportResult> {
+  private async campaignPerformance(p: ReportParams): Promise<ReportResult> {
     const campaigns = await this.prisma.campaign.findMany({
-      where: { deletedAt: null },
+      // Chapter scoping (§7.2): campaigns carry their own chapter column.
+      where: { deletedAt: null, ...(p.state ? { chapterState: p.state } : {}) },
       orderBy: [{ startDate: 'desc' }],
       select: {
         id: true,
@@ -1300,7 +1361,12 @@ export class ReportsService {
   private async eventFinancials(p: ReportParams): Promise<ReportResult> {
     const range = dateRange(p.from, p.to);
     const events = await this.prisma.event.findMany({
-      where: { deletedAt: null, ...(range ? { eventDate: range } : {}) },
+      where: {
+        deletedAt: null,
+        // Chapter scoping (§7.2): events carry their own chapter column.
+        ...(p.state ? { chapterState: p.state } : {}),
+        ...(range ? { eventDate: range } : {}),
+      },
       orderBy: { eventDate: 'desc' },
       select: {
         id: true,
@@ -1354,10 +1420,12 @@ export class ReportsService {
 
   // ── Employment ────────────────────────────────────────────────────────────
 
-  private async employerParticipation(): Promise<ReportResult> {
+  private async employerParticipation(p: ReportParams): Promise<ReportResult> {
     const [employers, employments] = await Promise.all([
       this.prisma.employer.findMany({
-        where: { deletedAt: null },
+        // Chapter scoping (§7.2): employers carry their own chapter column
+        // (postal `state` stays address data).
+        where: { deletedAt: null, ...(p.state ? { chapterState: p.state } : {}) },
         orderBy: { name: 'asc' },
         select: {
           id: true,
@@ -1369,7 +1437,11 @@ export class ReportsService {
         },
       }),
       this.prisma.participantEmployment.findMany({
-        where: { deletedAt: null },
+        where: {
+          deletedAt: null,
+          // Chapter scoping (§7.2): placements inherit the participant's chapter.
+          ...(p.state ? { participantProfile: { chapterState: p.state } } : {}),
+        },
         select: { employerId: true, status: true, participantProfileId: true },
       }),
     ]);
@@ -1418,6 +1490,8 @@ export class ReportsService {
     const rows = await this.prisma.participantEmployment.findMany({
       where: {
         deletedAt: null,
+        // Chapter scoping (§7.2): employment inherits the participant's chapter.
+        ...(p.state ? { participantProfile: { chapterState: p.state } } : {}),
         ...(p.participantProfileId ? { participantProfileId: p.participantProfileId } : {}),
         ...(p.employerId ? { employerId: p.employerId } : {}),
       },
@@ -1488,6 +1562,8 @@ export class ReportsService {
     const rows = await this.prisma.vehicleMaintenanceRecord.findMany({
       where: {
         deletedAt: null,
+        // Chapter scoping (§7.2): records inherit the vehicle's chapter.
+        ...(p.state ? { vehicle: { chapterState: p.state } } : {}),
         ...(p.vehicleId ? { vehicleId: p.vehicleId } : {}),
         ...(range ? { maintenanceDate: range } : {}),
       },
@@ -1532,13 +1608,21 @@ export class ReportsService {
     };
   }
 
-  private async upcomingMaintenance(): Promise<ReportResult> {
+  private async upcomingMaintenance(p: ReportParams): Promise<ReportResult> {
     // The LATEST record per active vehicle decides what is due — older records
     // are superseded by later service. Fixed 90-day horizon, overdue included.
     const today = startOfUtcDay(new Date());
     const horizon = addDays(today, 90);
     const latest = await this.prisma.vehicleMaintenanceRecord.findMany({
-      where: { deletedAt: null, vehicle: { deletedAt: null, active: true } },
+      where: {
+        deletedAt: null,
+        // Chapter scoping (§7.2): records inherit the vehicle's chapter.
+        vehicle: {
+          deletedAt: null,
+          active: true,
+          ...(p.state ? { chapterState: p.state } : {}),
+        },
+      },
       orderBy: { maintenanceDate: 'desc' },
       distinct: ['vehicleId'],
       select: {

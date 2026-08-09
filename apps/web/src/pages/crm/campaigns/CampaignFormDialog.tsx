@@ -3,6 +3,7 @@ import { campaignSchema } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,6 +16,7 @@ import {
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { applyApiError } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import type { Campaign, CampaignStatus } from '../types';
@@ -29,6 +31,8 @@ interface CampaignFormValues {
   goalAmount?: number | string;
   status: CampaignStatus;
   notes?: string;
+  /** Chapter (§7.2) — the API stamps scoped users' own chapter. */
+  chapterState?: string;
 }
 
 export function CampaignFormDialog({
@@ -41,6 +45,8 @@ export function CampaignFormDialog({
   campaign?: Campaign | null;
 }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const chapter = user?.chapter ?? null;
   const [formError, setFormError] = useState<string | null>(null);
 
   const form = useForm<CampaignFormValues>({
@@ -59,12 +65,14 @@ export function CampaignFormDialog({
               goalAmount: campaign.goalAmount ?? '',
               status: campaign.status,
               notes: campaign.notes ?? '',
+              chapterState: campaign.chapterState,
             }
-          : { name: '', status: 'active' },
+          : // Chapter (§7.2): scoped users never see the picker — theirs is preset.
+            { name: '', status: 'active', chapterState: chapter ?? '' },
       );
       setFormError(null);
     }
-  }, [open, campaign]);
+  }, [open, campaign, chapter]);
 
   const mutation = useMutation({
     mutationFn: (values: CampaignFormValues) =>
@@ -102,6 +110,12 @@ export function CampaignFormDialog({
             <Input {...form.register('name')} />
           </FormField>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Chapter (§7.2) — hidden for scoped users, whose chapter is
+                stamped server-side. */}
+            <ChapterSelect
+              error={form.formState.errors.chapterState}
+              {...form.register('chapterState', optional)}
+            />
             <FormField label="Status" required error={form.formState.errors.status}>
               <Select {...form.register('status')}>
                 {CAMPAIGN_STATUSES.map((s) => (

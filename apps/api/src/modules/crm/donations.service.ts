@@ -12,10 +12,14 @@ import type {
   SoftCreditInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
+import type { AuthenticatedUser } from '../../common/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { addFrequency, num, roundMoney, startOfUtcDay } from './giving.util';
 
 export interface DonationListFilters {
+  /** Chapter (§7.2) — forced to the user's chapter in the controller. */
+  state?: string;
   donorId?: string;
   campaignId?: string;
   eventId?: string;
@@ -65,7 +69,16 @@ export class DonationsService {
             },
           }
         : {}),
-      ...(search ? { donor: { name: { contains: search, mode: 'insensitive' } } } : {}),
+      // Chapter scoping (§7.2): gifts derive chapter through their required
+      // donor — one clause covers list and summary alike.
+      ...(filters.state || search
+        ? {
+            donor: {
+              ...(filters.state ? { chapterState: filters.state } : {}),
+              ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
+            },
+          }
+        : {}),
     };
   }
 
@@ -112,11 +125,11 @@ export class DonationsService {
     };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const donation = await this.prisma.donation.findFirst({
       where: { id, deletedAt: null },
       include: {
-        donor: { select: { id: true, name: true } },
+        donor: { select: { id: true, name: true, chapterState: true } },
         campaign: { select: { id: true, name: true } },
         event: { select: { id: true, name: true } },
         fund: { select: { id: true, name: true } },
@@ -130,11 +143,14 @@ export class DonationsService {
       },
     });
     if (!donation) throw new NotFoundException('Donation not found');
+    // Chapter scoping (§7.2): derived through the required donor.
+    assertChapterAccess(user.chapter, donation.donor.chapterState);
     return donation;
   }
 
-  async create(input: DonationInput, userId: string) {
-    await this.assertLinksExist(input);
+  async create(input: DonationInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.assertLinksExist(input, user);
 
     const donation = await this.prisma.donation.create({
       data: {
@@ -156,11 +172,18 @@ export class DonationsService {
     return donation;
   }
 
-  async update(id: string, input: Partial<DonationInput>, userId: string) {
-    const existing = await this.prisma.donation.findFirst({ where: { id, deletedAt: null } });
-    if (!existing) throw new NotFoundException('Donation not found');
+  async update(id: string, input: Partial<DonationInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const found = await this.prisma.donation.findFirst({
+      where: { id, deletedAt: null },
+      include: { donor: { select: { chapterState: true } } },
+    });
+    if (!found) throw new NotFoundException('Donation not found');
+    // Chapter scoping (§7.2): derived through the required donor.
+    assertChapterAccess(user.chapter, found.donor.chapterState);
+    const { donor: _donor, ...existing } = found;
 
-    await this.assertLinksExist(input, existing);
+    await this.assertLinksExist(input, user, existing);
     this.assertMergedRules(existing, input);
 
     const updated = await this.prisma.donation.update({
@@ -202,9 +225,16 @@ export class DonationsService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.prisma.donation.findFirst({ where: { id, deletedAt: null } });
-    if (!existing) throw new NotFoundException('Donation not found');
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const found = await this.prisma.donation.findFirst({
+      where: { id, deletedAt: null },
+      include: { donor: { select: { chapterState: true } } },
+    });
+    if (!found) throw new NotFoundException('Donation not found');
+    // Chapter scoping (§7.2): derived through the required donor.
+    assertChapterAccess(user.chapter, found.donor.chapterState);
+    const { donor: _donor, ...existing } = found;
     await this.prisma.donation.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },
@@ -220,9 +250,16 @@ export class DonationsService {
   }
 
   /** Acknowledgment workflow: stamp the gift and log the touchpoint (§6.8). */
-  async acknowledge(id: string, input: AcknowledgeDonationInput, userId: string) {
-    const existing = await this.prisma.donation.findFirst({ where: { id, deletedAt: null } });
-    if (!existing) throw new NotFoundException('Donation not found');
+  async acknowledge(id: string, input: AcknowledgeDonationInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const found = await this.prisma.donation.findFirst({
+      where: { id, deletedAt: null },
+      include: { donor: { select: { chapterState: true } } },
+    });
+    if (!found) throw new NotFoundException('Donation not found');
+    // Chapter scoping (§7.2): derived through the required donor.
+    assertChapterAccess(user.chapter, found.donor.chapterState);
+    const { donor: _donor, ...existing } = found;
     if (existing.acknowledgedAt) {
       throw new ConflictException('Donation is already acknowledged');
     }
@@ -259,11 +296,15 @@ export class DonationsService {
   // ── Soft credits ──────────────────────────────────────────────────────────
   // Credit a donor other than the payer — never counted in hard-credit totals.
 
-  async addSoftCredit(donationId: string, input: SoftCreditInput, userId: string) {
+  async addSoftCredit(donationId: string, input: SoftCreditInput, user: AuthenticatedUser) {
+    const userId = user.id;
     const donation = await this.prisma.donation.findFirst({
       where: { id: donationId, deletedAt: null },
+      include: { donor: { select: { chapterState: true } } },
     });
     if (!donation) throw new NotFoundException('Donation not found');
+    // Chapter scoping (§7.2): the parent gift's donor governs access.
+    assertChapterAccess(user.chapter, donation.donor.chapterState);
     if (input.donorId === donation.donorId) {
       throw new BadRequestException("Cannot soft-credit the gift's own donor");
     }
@@ -271,6 +312,9 @@ export class DonationsService {
       where: { id: input.donorId, deletedAt: null },
     });
     if (!credited) throw new BadRequestException('Credited donor not found');
+    // Chapter scoping (§7.2): a scoped user can only credit donors they can
+    // reach — cross-chapter soft credits are an all-chapters operation.
+    assertChapterAccess(user.chapter, credited.chapterState);
     if (Number(input.amount) > Number(donation.amount)) {
       throw new BadRequestException('Soft credit cannot exceed the gift amount');
     }
@@ -287,9 +331,16 @@ export class DonationsService {
   }
 
   // No deletedAt column — delete exists for corrections; the audit row keeps history.
-  async removeSoftCredit(id: string, userId: string) {
-    const existing = await this.prisma.softCredit.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Soft credit not found');
+  async removeSoftCredit(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const found = await this.prisma.softCredit.findUnique({
+      where: { id },
+      include: { donation: { select: { donor: { select: { chapterState: true } } } } },
+    });
+    if (!found) throw new NotFoundException('Soft credit not found');
+    // Chapter scoping (§7.2): the parent gift's donor governs access.
+    assertChapterAccess(user.chapter, found.donation.donor.chapterState);
+    const { donation: _donation, ...existing } = found;
     await this.prisma.softCredit.delete({ where: { id } });
     await this.audit.logDelete(userId, 'soft_credit', id, existing);
     return { ok: true };
@@ -416,25 +467,47 @@ export class DonationsService {
 
   private async assertLinksExist(
     input: Partial<DonationInput>,
+    user: AuthenticatedUser,
     existing?: { donorId: string; pledgeId: string | null; recurringGiftId: string | null },
   ) {
+    // Resolve the MERGED donor's chapter first — the gift's chapter follows
+    // its donor, and every linked designation must stay in that chapter.
+    const donorId = input.donorId ?? existing?.donorId;
+    let donorChapter: string | null = null;
     if (input.donorId) {
       const donor = await this.prisma.donor.findFirst({
         where: { id: input.donorId, deletedAt: null },
       });
       if (!donor) throw new BadRequestException('Donor not found');
+      // Chapter scoping (§7.2): a scoped user cannot record gifts against
+      // another chapter's donor.
+      assertChapterAccess(user.chapter, donor.chapterState);
+      donorChapter = donor.chapterState;
+    } else if (existing && (input.campaignId || input.eventId || input.appealId)) {
+      const donor = await this.prisma.donor.findFirst({ where: { id: existing.donorId } });
+      donorChapter = donor?.chapterState ?? null;
     }
     if (input.campaignId) {
       const campaign = await this.prisma.campaign.findFirst({
         where: { id: input.campaignId, deletedAt: null },
       });
       if (!campaign) throw new BadRequestException('Campaign not found');
+      if (donorChapter && campaign.chapterState !== donorChapter) {
+        throw new BadRequestException(
+          "Campaign belongs to a different chapter than the gift's donor",
+        );
+      }
     }
     if (input.eventId) {
       const event = await this.prisma.event.findFirst({
         where: { id: input.eventId, deletedAt: null },
       });
       if (!event) throw new BadRequestException('Event not found');
+      if (donorChapter && event.chapterState !== donorChapter) {
+        throw new BadRequestException(
+          "Event belongs to a different chapter than the gift's donor",
+        );
+      }
     }
     if (input.fundId) {
       const fund = await this.prisma.fund.findFirst({ where: { id: input.fundId } });
@@ -443,13 +516,19 @@ export class DonationsService {
     if (input.appealId) {
       const appeal = await this.prisma.appeal.findFirst({
         where: { id: input.appealId, deletedAt: null },
+        include: { campaign: { select: { chapterState: true } } },
       });
       if (!appeal) throw new BadRequestException('Appeal not found');
+      // A standalone appeal (no campaign) is org-global and matches any donor.
+      if (donorChapter && appeal.campaign && appeal.campaign.chapterState !== donorChapter) {
+        throw new BadRequestException(
+          "Appeal belongs to a different chapter than the gift's donor",
+        );
+      }
     }
     // Ownership is enforced against the MERGED record — a PATCH carrying only
     // pledgeId, only recurringGiftId, or only donorId must never leave a gift
     // counting toward another donor's schedule.
-    const donorId = input.donorId ?? existing?.donorId;
     const pledgeId = input.pledgeId !== undefined ? input.pledgeId : (existing?.pledgeId ?? null);
     const recurringGiftId =
       input.recurringGiftId !== undefined ? input.recurringGiftId : (existing?.recurringGiftId ?? null);

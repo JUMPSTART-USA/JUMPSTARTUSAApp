@@ -7,11 +7,15 @@ import {
 import type { Prisma } from '@jumpstart/database';
 import type { ListQuery, PledgeInput, PledgeStatus, SchedulePaymentInput } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
+import type { AuthenticatedUser } from '../../common/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DonationsService } from './donations.service';
 import { pledgeComputed } from './giving.util';
 
 export interface PledgeListFilters {
+  /** Chapter (§7.2) — forced to the user's chapter in the controller. */
+  state?: string;
   donorId?: string;
   status?: PledgeStatus;
   campaignId?: string;
@@ -37,8 +41,17 @@ export class PledgesService {
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.campaignId ? { campaignId: filters.campaignId } : {}),
       ...(filters.fundId ? { fundId: filters.fundId } : {}),
-      ...(query.search
-        ? { donor: { name: { contains: query.search, mode: 'insensitive' } } }
+      // Chapter scoping (§7.2): pledges derive chapter through their required
+      // donor — the donor-name search rides the same join.
+      ...(filters.state || query.search
+        ? {
+            donor: {
+              ...(filters.state ? { chapterState: filters.state } : {}),
+              ...(query.search
+                ? { name: { contains: query.search, mode: 'insensitive' as const } }
+                : {}),
+            },
+          }
         : {}),
     };
 
@@ -82,24 +95,32 @@ export class PledgesService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
-    const pledge = await this.prisma.pledge.findFirst({ where: { id, deletedAt: null } });
-    if (!pledge) throw new NotFoundException('Pledge not found');
+  async get(id: string, user: AuthenticatedUser) {
+    const found = await this.prisma.pledge.findFirst({
+      where: { id, deletedAt: null },
+      include: { donor: { select: { chapterState: true } } },
+    });
+    if (!found) throw new NotFoundException('Pledge not found');
+    // Chapter scoping (§7.2): derived through the required donor.
+    assertChapterAccess(user.chapter, found.donor.chapterState);
+    const { donor: _donor, ...pledge } = found;
     return pledge;
   }
 
   /** Pledge detail: schedule math + the payment history behind it. */
-  async detail(id: string) {
+  async detail(id: string, user: AuthenticatedUser) {
     const pledge = await this.prisma.pledge.findFirst({
       where: { id, deletedAt: null },
       include: {
-        donor: { select: { id: true, name: true } },
+        donor: { select: { id: true, name: true, chapterState: true } },
         campaign: { select: { id: true, name: true } },
         fund: { select: { id: true, name: true } },
         appeal: { select: { id: true, name: true } },
       },
     });
     if (!pledge) throw new NotFoundException('Pledge not found');
+    // Chapter scoping (§7.2): derived through the required donor.
+    assertChapterAccess(user.chapter, pledge.donor.chapterState);
 
     const payments = await this.prisma.donation.findMany({
       where: { pledgeId: id, deletedAt: null },
@@ -115,8 +136,9 @@ export class PledgesService {
     };
   }
 
-  async create(input: PledgeInput, userId: string) {
-    await this.assertLinksExist(input);
+  async create(input: PledgeInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await this.assertLinksExist(input, user);
     if (
       input.writtenOffAmount !== null &&
       input.writtenOffAmount !== undefined &&
@@ -131,9 +153,10 @@ export class PledgesService {
     return pledge;
   }
 
-  async update(id: string, input: Partial<PledgeInput>, userId: string) {
-    const existing = await this.get(id);
-    await this.assertLinksExist(input);
+  async update(id: string, input: Partial<PledgeInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user);
+    await this.assertLinksExist(input, user, existing.donorId);
 
     // Recorded payments carry the pledge's donor — repointing the schedule
     // would split the two sides across donors (mirrors the softDelete guard).
@@ -183,13 +206,14 @@ export class PledgesService {
       input.status !== undefined
     ) {
       await this.donations.recomputePledgeStatus(id, userId);
-      return this.get(id);
+      return this.get(id, user);
     }
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.get(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user);
     const payments = await this.prisma.donation.count({
       where: { pledgeId: id, deletedAt: null },
     });
@@ -209,8 +233,9 @@ export class PledgesService {
    * pledge's designations unless overridden. Fulfillment flips automatically
    * inside the donation create path.
    */
-  async recordPayment(id: string, input: SchedulePaymentInput, userId: string) {
-    const pledge = await this.get(id);
+  async recordPayment(id: string, input: SchedulePaymentInput, user: AuthenticatedUser) {
+    // Chapter scoping (§7.2): get() asserts the pledge's donor chapter.
+    const pledge = await this.get(id, user);
     return this.donations.create(
       {
         donorId: pledge.donorId,
@@ -226,22 +251,41 @@ export class PledgesService {
         appealId: input.appealId !== undefined ? input.appealId : pledge.appealId,
         notes: input.notes,
       },
-      userId,
+      user,
     );
   }
 
-  private async assertLinksExist(input: Partial<PledgeInput>) {
+  private async assertLinksExist(
+    input: Partial<PledgeInput>,
+    user: AuthenticatedUser,
+    existingDonorId?: string,
+  ) {
+    // Resolve the MERGED donor's chapter first — the pledge's chapter follows
+    // its donor, and every linked designation must stay in that chapter.
+    let donorChapter: string | null = null;
     if (input.donorId) {
       const donor = await this.prisma.donor.findFirst({
         where: { id: input.donorId, deletedAt: null },
       });
       if (!donor) throw new BadRequestException('Donor not found');
+      // Chapter scoping (§7.2): a scoped user cannot pledge against another
+      // chapter's donor.
+      assertChapterAccess(user.chapter, donor.chapterState);
+      donorChapter = donor.chapterState;
+    } else if (existingDonorId && (input.campaignId || input.appealId)) {
+      const donor = await this.prisma.donor.findFirst({ where: { id: existingDonorId } });
+      donorChapter = donor?.chapterState ?? null;
     }
     if (input.campaignId) {
       const campaign = await this.prisma.campaign.findFirst({
         where: { id: input.campaignId, deletedAt: null },
       });
       if (!campaign) throw new BadRequestException('Campaign not found');
+      if (donorChapter && campaign.chapterState !== donorChapter) {
+        throw new BadRequestException(
+          "Campaign belongs to a different chapter than the pledge's donor",
+        );
+      }
     }
     if (input.fundId) {
       const fund = await this.prisma.fund.findFirst({ where: { id: input.fundId } });
@@ -250,8 +294,15 @@ export class PledgesService {
     if (input.appealId) {
       const appeal = await this.prisma.appeal.findFirst({
         where: { id: input.appealId, deletedAt: null },
+        include: { campaign: { select: { chapterState: true } } },
       });
       if (!appeal) throw new BadRequestException('Appeal not found');
+      // A standalone appeal (no campaign) is org-global and matches any donor.
+      if (donorChapter && appeal.campaign && appeal.campaign.chapterState !== donorChapter) {
+        throw new BadRequestException(
+          "Appeal belongs to a different chapter than the pledge's donor",
+        );
+      }
     }
   }
 }

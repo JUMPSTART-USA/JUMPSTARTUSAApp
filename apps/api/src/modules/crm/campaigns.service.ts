@@ -2,15 +2,27 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { Prisma } from '@jumpstart/database';
 import type { CampaignInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 
 export interface CampaignListFilters {
   status?: 'planned' | 'active' | 'completed' | 'canceled';
+  /** Chapter filter — matches the `chapterState` column (§7.2). */
+  chapterState?: string;
 }
 
 // Whitelist of sortable columns — sortBy comes from the query string and must
 // never reach Prisma unchecked.
-const SORTABLE = new Set(['name', 'startDate', 'endDate', 'goalAmount', 'status', 'createdAt']);
+const SORTABLE = new Set([
+  'name',
+  'startDate',
+  'endDate',
+  'goalAmount',
+  'status',
+  'chapterState',
+  'createdAt',
+]);
 
 /** Percent of goal (1 decimal), null when no goal is set. */
 function progressPct(goalAmount: Prisma.Decimal | null, raised: number): number | null {
@@ -30,6 +42,7 @@ export class CampaignsService {
     const where: Prisma.CampaignWhereInput = {
       deletedAt: null,
       ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.chapterState ? { chapterState: filters.chapterState } : {}),
       ...(query.search
         ? {
             OR: [
@@ -73,16 +86,18 @@ export class CampaignsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthenticatedUser) {
     const campaign = await this.prisma.campaign.findFirst({
       where: { id, deletedAt: null },
     });
     if (!campaign) throw new NotFoundException('Campaign not found');
+    // Chapter scoping (§7.2): same derivation as the list filter (own chapterState).
+    assertChapterAccess(user.chapter, campaign.chapterState);
     return campaign;
   }
 
-  async detail(id: string) {
-    const campaign = await this.get(id);
+  async detail(id: string, user: AuthenticatedUser) {
+    const campaign = await this.get(id, user);
 
     const [agg, events, appeals] = await this.prisma.$transaction([
       this.prisma.donation.aggregate({
@@ -130,16 +145,23 @@ export class CampaignsService {
     };
   }
 
-  async create(input: CampaignInput, userId: string) {
+  async create(input: CampaignInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    // Chapter scoping (§7.2): the creator decides the chapter — scoped users
+    // get theirs stamped, all-chapters users must pick one.
+    const chapterState = resolveCreateChapter(user.chapter, input.chapterState);
     const campaign = await this.prisma.campaign.create({
-      data: { ...input, createdById: userId, updatedById: userId },
+      data: { ...input, chapterState, createdById: userId, updatedById: userId },
     });
     await this.audit.logCreate(userId, 'campaign', campaign.id, campaign);
     return campaign;
   }
 
-  async update(id: string, input: Partial<CampaignInput>, userId: string) {
-    const existing = await this.get(id);
+  async update(id: string, input: Partial<CampaignInput>, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // chapter check inside
+    // ...and a scoped user cannot move the record to another chapter either.
+    assertChapterAccess(user.chapter, input.chapterState);
 
     // The schema's end>=start refinement only sees the payload; a partial
     // update must be checked against the merged record.
@@ -157,8 +179,9 @@ export class CampaignsService {
     return updated;
   }
 
-  async softDelete(id: string, userId: string) {
-    const existing = await this.get(id);
+  async softDelete(id: string, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.get(id, user); // chapter check inside
     await this.prisma.campaign.update({
       where: { id },
       data: { deletedAt: new Date(), updatedById: userId },

@@ -2,7 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { Prisma } from '@jumpstart/database';
 import type { BudgetItemInput, BudgetPaymentInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
+import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AuthenticatedUser } from '../../common/types';
 import { assertParticipant } from './participant.util';
 
 export type BudgetItemUpdateInput = Partial<BudgetItemInput>;
@@ -11,6 +13,7 @@ export type BudgetPaymentUpdateInput = Partial<BudgetPaymentInput>;
 export interface BudgetPaymentListFilters {
   participantProfileId?: string;
   budgetItemId?: string;
+  state?: string;
 }
 
 const PAYMENT_SORTABLE = new Set(['paidDate', 'amount', 'method', 'createdAt']);
@@ -75,7 +78,13 @@ export class BudgetsService {
   // ── Budget items ───────────────────────────────────────────────────────────
 
   /** All non-deleted items for one participant: active first, then category. */
-  async listItems(participantProfileId: string): Promise<{ items: BudgetItemView[] }> {
+  async listItems(
+    participantProfileId: string,
+    user: AuthenticatedUser,
+  ): Promise<{ items: BudgetItemView[] }> {
+    // Chapter scoping (§7.2): the list is participant-keyed — assert that
+    // participant's chapter instead of filtering.
+    await assertParticipant(this.prisma, participantProfileId, user.chapter);
     const rows = await this.prisma.budgetItem.findMany({
       where: { participantProfileId, deletedAt: null },
       orderBy: [{ active: 'desc' }, { category: 'asc' }],
@@ -85,8 +94,9 @@ export class BudgetsService {
     return { items: rows.map((r) => toItemView(r, aggregates.get(r.id))) };
   }
 
-  async createItem(input: BudgetItemInput, userId: string) {
-    await assertParticipant(this.prisma, input.participantProfileId);
+  async createItem(input: BudgetItemInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
     const created = await this.prisma.budgetItem.create({
       data: { ...input, createdById: userId },
       select: ITEM_SELECT,
@@ -96,12 +106,15 @@ export class BudgetsService {
     return view;
   }
 
-  async updateItem(id: string, input: BudgetItemUpdateInput, userId: string) {
-    const existing = await this.findItem(id);
+  async updateItem(id: string, input: BudgetItemUpdateInput, user: AuthenticatedUser) {
+    const userId = user.id;
+    const existing = await this.findItem(id, user.chapter);
     const movingParticipant =
       input.participantProfileId !== undefined &&
       input.participantProfileId !== existing.participantProfileId;
-    if (input.participantProfileId) await assertParticipant(this.prisma, input.participantProfileId);
+    if (input.participantProfileId) {
+      await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
+    }
 
     let updated: BudgetItemRow;
     if (movingParticipant) {
@@ -130,10 +143,10 @@ export class BudgetsService {
   }
 
   /** Soft delete. The item's payments are intentionally left untouched. */
-  async softDeleteItem(id: string, userId: string) {
-    const existing = await this.findItem(id);
+  async softDeleteItem(id: string, user: AuthenticatedUser) {
+    const existing = await this.findItem(id, user.chapter);
     await this.prisma.budgetItem.update({ where: { id }, data: { deletedAt: new Date() } });
-    await this.audit.logDelete(userId, 'budget_item', id, toItemView(existing));
+    await this.audit.logDelete(user.id, 'budget_item', id, toItemView(existing));
     return { ok: true };
   }
 
@@ -145,6 +158,8 @@ export class BudgetsService {
       ...(filters.participantProfileId
         ? { participantProfileId: filters.participantProfileId }
         : {}),
+      // Chapter scoping (§7.2): derived through the participant profile.
+      ...(filters.state ? { participantProfile: { chapterState: filters.state } } : {}),
       ...(filters.budgetItemId ? { budgetItemId: filters.budgetItemId } : {}),
     };
 
@@ -167,10 +182,14 @@ export class BudgetsService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async createPayment(input: BudgetPaymentInput, userId: string) {
+  async createPayment(input: BudgetPaymentInput, user: AuthenticatedUser) {
+    const userId = user.id;
     // participantProfileId is derived from the item, never taken from the
     // body — the item must be live and belong to a real participant.
-    const participantProfileId = await this.resolveItemParticipant(input.budgetItemId);
+    const participantProfileId = await this.resolveItemParticipant(
+      input.budgetItemId,
+      user.chapter,
+    );
     const created = await this.prisma.budgetPayment.create({
       data: { ...input, participantProfileId, createdById: userId },
       select: PAYMENT_SELECT,
@@ -179,26 +198,29 @@ export class BudgetsService {
     return created;
   }
 
-  async updatePayment(id: string, input: BudgetPaymentUpdateInput, userId: string) {
-    const existing = await this.findPayment(id);
+  async updatePayment(id: string, input: BudgetPaymentUpdateInput, user: AuthenticatedUser) {
+    const existing = await this.findPayment(id, user.chapter);
     const data: Prisma.BudgetPaymentUncheckedUpdateInput = { ...input };
     if (input.budgetItemId && input.budgetItemId !== existing.budgetItemId) {
       // Re-derive the participant when the payment moves to another item.
-      data.participantProfileId = await this.resolveItemParticipant(input.budgetItemId);
+      data.participantProfileId = await this.resolveItemParticipant(
+        input.budgetItemId,
+        user.chapter,
+      );
     }
     const updated = await this.prisma.budgetPayment.update({
       where: { id },
       data,
       select: PAYMENT_SELECT,
     });
-    await this.audit.logUpdate(userId, 'budget_payment', id, existing, updated);
+    await this.audit.logUpdate(user.id, 'budget_payment', id, existing, updated);
     return updated;
   }
 
-  async softDeletePayment(id: string, userId: string) {
-    const existing = await this.findPayment(id);
+  async softDeletePayment(id: string, user: AuthenticatedUser) {
+    const existing = await this.findPayment(id, user.chapter);
     await this.prisma.budgetPayment.update({ where: { id }, data: { deletedAt: new Date() } });
-    await this.audit.logDelete(userId, 'budget_payment', id, existing);
+    await this.audit.logDelete(user.id, 'budget_payment', id, existing);
     return { ok: true };
   }
 
@@ -225,31 +247,41 @@ export class BudgetsService {
   }
 
   /** Live budget item → its participant id (400 on a bad/deleted item). */
-  private async resolveItemParticipant(budgetItemId: string): Promise<string> {
+  private async resolveItemParticipant(
+    budgetItemId: string,
+    userChapter: string | null,
+  ): Promise<string> {
     const item = await this.prisma.budgetItem.findFirst({
       where: { id: budgetItemId, deletedAt: null },
       select: { participantProfileId: true },
     });
     if (!item) throw new BadRequestException('Unknown budget item');
-    await assertParticipant(this.prisma, item.participantProfileId);
+    // Chapter scoping (§7.2): the derived participant carries the chapter.
+    await assertParticipant(this.prisma, item.participantProfileId, userChapter);
     return item.participantProfileId;
   }
 
-  private async findItem(id: string): Promise<BudgetItemRow> {
+  /** Fetch-for-mutation with the chapter guard (§7.2) applied once. */
+  private async findItem(id: string, userChapter: string | null): Promise<BudgetItemRow> {
     const item = await this.prisma.budgetItem.findFirst({
       where: { id, deletedAt: null },
-      select: ITEM_SELECT,
+      select: { ...ITEM_SELECT, participantProfile: { select: { chapterState: true } } },
     });
     if (!item) throw new NotFoundException('Budget item not found');
-    return item;
+    assertChapterAccess(userChapter, item.participantProfile.chapterState);
+    const { participantProfile: _participantProfile, ...itemOnly } = item;
+    return itemOnly;
   }
 
-  private async findPayment(id: string): Promise<BudgetPaymentRow> {
+  /** Fetch-for-mutation with the chapter guard (§7.2) applied once. */
+  private async findPayment(id: string, userChapter: string | null): Promise<BudgetPaymentRow> {
     const payment = await this.prisma.budgetPayment.findFirst({
       where: { id, deletedAt: null },
-      select: PAYMENT_SELECT,
+      select: { ...PAYMENT_SELECT, participantProfile: { select: { chapterState: true } } },
     });
     if (!payment) throw new NotFoundException('Budget payment not found');
-    return payment;
+    assertChapterAccess(userChapter, payment.participantProfile.chapterState);
+    const { participantProfile: _participantProfile, ...paymentOnly } = payment;
+    return paymentOnly;
   }
 }

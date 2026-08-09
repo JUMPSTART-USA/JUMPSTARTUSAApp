@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
+import { ChapterSelect } from '@/components/ChapterSelect';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,8 +33,11 @@ interface DonorFormValues {
   email: string;
   addressLine1: string;
   city: string;
+  /** Postal address state — NOT the chapter. */
   state: string;
   zip: string;
+  /** Chapter (§7.2) — the API stamps scoped users' own chapter. */
+  chapterState: string;
   status: string;
   personId?: string;
   notes: string;
@@ -50,6 +54,7 @@ function buildDefaults(donor?: Donor): DonorFormValues {
     city: donor?.city ?? '',
     state: donor?.state ?? '',
     zip: donor?.zip ?? '',
+    chapterState: donor?.chapterState ?? '',
     status: donor?.status ?? 'active',
     personId: donor?.personId ?? undefined,
     notes: donor?.notes ?? '',
@@ -260,6 +265,8 @@ export function DonorFormDialog({
                 ))}
               </Select>
             </FormField>
+            {/* Chapter (§7.2) — hidden for scoped users; the API stamps theirs. */}
+            <ChapterSelect error={errors.chapterState} {...register('chapterState')} />
             <FormField label="Contact person" error={errors.contactPerson}>
               <Input {...register('contactPerson')} />
             </FormField>

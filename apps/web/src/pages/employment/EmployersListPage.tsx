@@ -1,8 +1,9 @@
-import { HIRING_STATUSES, US_STATES } from '@jumpstart/shared';
+import { HIRING_STATUSES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Briefcase, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
@@ -28,7 +29,13 @@ const columns: Column<EmployerListItem>[] = [
   { key: 'contactPerson', header: 'Contact', render: (row) => row.contactPerson ?? '—' },
   { key: 'industry', header: 'Industry', sortKey: 'industry', render: (row) => row.industry ?? '—' },
   { key: 'city', header: 'City', sortKey: 'city', render: (row) => row.city ?? '—' },
-  { key: 'state', header: 'State', sortKey: 'state', render: (row) => row.state ?? '—' },
+  // The employer's CHAPTER (§7.2), not the postal address state.
+  {
+    key: 'chapterState',
+    header: 'Chapter',
+    sortKey: 'chapterState',
+    render: (row) => row.chapterState,
+  },
   {
     key: 'hiringStatus',
     header: 'Hiring status',
@@ -137,21 +144,15 @@ export function EmployersListPage() {
             resetPage();
           }}
         />
-        <Select
-          className="w-full sm:w-44"
+        {/* Chapter filter (§7.2) — still sent as the `state` query param;
+            hidden for scoped users (the API forces their chapter). */}
+        <ChapterFilterSelect
           value={stateFilter}
-          onChange={(e) => {
-            setStateFilter(e.target.value);
+          onChange={(value) => {
+            setStateFilter(value);
             resetPage();
           }}
-        >
-          <option value="">All states</option>
-          {US_STATES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </Select>
+        />
       </ListToolbar>
 
       {query.isError ? (

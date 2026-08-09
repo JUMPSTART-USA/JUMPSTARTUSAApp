@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,12 +27,22 @@ export function VehiclesListPage() {
   const [search, setSearch] = useState('');
   const [location, setLocation] = useState('');
   const [active, setActive] = useState('true');
+  const [stateFilter, setStateFilter] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const debouncedSearch = useDebounced(search);
   const debouncedLocation = useDebounced(location);
 
   const query = useQuery({
-    queryKey: ['fleet', 'vehicles', 'list', listState, debouncedSearch, debouncedLocation, active],
+    queryKey: [
+      'fleet',
+      'vehicles',
+      'list',
+      listState,
+      debouncedSearch,
+      debouncedLocation,
+      active,
+      stateFilter,
+    ],
     queryFn: () =>
       api.get<Paged<VehicleListItem>>(
         `/vehicles${qs({
@@ -42,15 +53,20 @@ export function VehiclesListPage() {
           search: debouncedSearch,
           assignedLocation: debouncedLocation,
           active,
+          state: stateFilter,
         })}`,
       ),
     placeholderData: keepPreviousData,
   });
 
-  // One fleet-wide alerts fetch feeds the per-row indicator column.
+  // One alerts fetch feeds the per-row indicator column — same chapter filter
+  // as the table so the counts match what is listed (§7.2).
   const alertsQuery = useQuery({
-    queryKey: ['fleet', 'alerts'],
-    queryFn: () => api.get<{ items: VehicleAlert[]; total: number }>('/vehicles/alerts'),
+    queryKey: ['fleet', 'alerts', stateFilter],
+    queryFn: () =>
+      api.get<{ items: VehicleAlert[]; total: number }>(
+        `/vehicles/alerts${qs({ state: stateFilter })}`,
+      ),
   });
 
   const alertsByVehicle = useMemo(() => {
@@ -95,6 +111,13 @@ export function VehiclesListPage() {
         header: 'Location',
         sortKey: 'assignedLocation',
         render: (row) => row.assignedLocation ?? '—',
+      },
+      // The vehicle's CHAPTER (§7.2), not a postal address.
+      {
+        key: 'chapterState',
+        header: 'Chapter',
+        sortKey: 'chapterState',
+        render: (row) => row.chapterState,
       },
       {
         key: 'active',
@@ -184,6 +207,15 @@ export function VehiclesListPage() {
           <option value="true">Active</option>
           <option value="false">Inactive</option>
         </Select>
+        {/* Chapter filter (§7.2) — sent as the `state` query param; hidden for
+            scoped users (the API forces their chapter). */}
+        <ChapterFilterSelect
+          value={stateFilter}
+          onChange={(value) => {
+            setStateFilter(value);
+            resetPage();
+          }}
+        />
       </ListToolbar>
 
       {query.isError ? (
