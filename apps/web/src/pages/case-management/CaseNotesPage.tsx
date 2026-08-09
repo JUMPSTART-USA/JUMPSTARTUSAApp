@@ -428,6 +428,7 @@ export function CaseNotesPage() {
           />
         </div>
         <Select
+          aria-label="Category"
           className="w-full sm:w-44"
           value={category}
           onChange={(e) => {

@@ -174,7 +174,11 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
                     <StatusBadge status={enrollment.completionStatus} />
                   </TableCell>
                   <TableCell className="align-top">
-                    <Select className="h-8" {...register(`rows.${index}.status`)}>
+                    <Select
+                      aria-label="Completion status"
+                      className="h-8"
+                      {...register(`rows.${index}.status`)}
+                    >
                       {CLOSE_OUT_STATUSES.map((s) => (
                         <option key={s} value={s}>
                           {humanize(s)}
@@ -220,7 +224,11 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
                     ) : null}
                   </TableCell>
                   <TableCell className="align-top">
-                    <Select className="h-8" {...register(`rows.${index}.finalAssessment`)}>
+                    <Select
+                      aria-label="Final assessment"
+                      className="h-8"
+                      {...register(`rows.${index}.finalAssessment`)}
+                    >
                       <option value="">None yet</option>
                       {FINAL_ASSESSMENTS.map((a) => (
                         <option key={a} value={a}>

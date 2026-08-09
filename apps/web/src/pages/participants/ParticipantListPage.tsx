@@ -165,6 +165,7 @@ export function ParticipantListPage() {
           onChange={(e) => filter(() => setSearch(e.target.value))}
         />
         <Select
+          aria-label="Inside status"
           value={insideStatus}
           onChange={(e) => filter(() => setInsideStatus(e.target.value))}
           className="w-full sm:w-44"
@@ -177,6 +178,7 @@ export function ParticipantListPage() {
           ))}
         </Select>
         <Select
+          aria-label="Outside status"
           value={outsideStatus}
           onChange={(e) => filter(() => setOutsideStatus(e.target.value))}
           className="w-full sm:w-44"
@@ -189,6 +191,7 @@ export function ParticipantListPage() {
           ))}
         </Select>
         <Select
+          aria-label="Alumni status"
           value={alumniStatus}
           onChange={(e) => filter(() => setAlumniStatus(e.target.value))}
           className="w-full sm:w-44"
@@ -205,6 +208,7 @@ export function ParticipantListPage() {
         <ChapterFilterSelect value={state} onChange={(v) => filter(() => setState(v))} />
         {can('institutions.read') ? (
           <Select
+            aria-label="Location"
             value={institutionId}
             onChange={(e) => filter(() => setInstitutionId(e.target.value))}
             className="w-full sm:w-56"

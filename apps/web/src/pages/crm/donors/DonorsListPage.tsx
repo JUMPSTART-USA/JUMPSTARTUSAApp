@@ -103,6 +103,7 @@ export function DonorsListPage() {
           placeholder="Search name or email…"
         />
         <Select
+          aria-label="Donor type"
           value={donorType}
           onChange={(e) => {
             setDonorType(e.target.value);
@@ -118,6 +119,7 @@ export function DonorsListPage() {
           ))}
         </Select>
         <Select
+          aria-label="Status"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);

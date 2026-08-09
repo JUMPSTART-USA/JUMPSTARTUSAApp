@@ -323,6 +323,7 @@ export function HomeDetailPage() {
               onChange={(e) => setHistorySearch(e.target.value)}
             />
             <Select
+              aria-label="Enrollment status"
               value={historyStatus}
               onChange={(e) => setHistoryStatus(e.target.value)}
               className="w-full sm:w-44"

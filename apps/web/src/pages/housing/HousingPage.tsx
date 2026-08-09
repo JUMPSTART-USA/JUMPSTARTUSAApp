@@ -233,6 +233,7 @@ function HomesTab() {
         {/* Home state IS the chapter (§7.2) — hidden for scoped users. */}
         <ChapterFilterSelect value={state} onChange={setState} />
         <Select
+          aria-label="Home status"
           value={active}
           onChange={(e) => setActive(e.target.value)}
           className="w-full sm:w-44"
@@ -339,6 +340,7 @@ function ResidentsTab() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <Select
+          aria-label="Residency status"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           className="w-full sm:w-44"

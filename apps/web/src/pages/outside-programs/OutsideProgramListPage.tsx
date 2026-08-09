@@ -131,6 +131,7 @@ export function OutsideProgramListPage() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <Select
+          aria-label="Program type"
           value={programType}
           onChange={(e) => setProgramType(e.target.value)}
           className="w-full sm:w-44"
@@ -143,6 +144,7 @@ export function OutsideProgramListPage() {
           ))}
         </Select>
         <Select
+          aria-label="Status"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           className="w-full sm:w-44"

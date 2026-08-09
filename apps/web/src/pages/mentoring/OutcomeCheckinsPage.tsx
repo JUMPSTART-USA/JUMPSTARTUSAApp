@@ -380,6 +380,7 @@ export function OutcomeCheckinsPage() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <Select
+          aria-label="Due status"
           className="w-full sm:w-44"
           value={due}
           onChange={(e) => {
@@ -392,6 +393,7 @@ export function OutcomeCheckinsPage() {
           <option value="">All</option>
         </Select>
         <Select
+          aria-label="Wave"
           className="w-full sm:w-44"
           value={wave}
           onChange={(e) => {

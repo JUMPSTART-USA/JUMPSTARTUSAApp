@@ -132,6 +132,7 @@ export function PledgesListPage() {
           }}
         />
         <Select
+          aria-label="Status"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);

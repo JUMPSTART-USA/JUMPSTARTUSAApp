@@ -189,6 +189,7 @@ export function IncidentReportsPage() {
           />
         </div>
         <Select
+          aria-label="Severity"
           className="w-full sm:w-44"
           value={severity}
           onChange={(e) => {
@@ -204,6 +205,7 @@ export function IncidentReportsPage() {
           ))}
         </Select>
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {

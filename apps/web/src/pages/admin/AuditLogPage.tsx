@@ -149,6 +149,7 @@ export function AuditLogPage() {
           <div className="w-full space-y-1 sm:w-56">
             <Label className="text-xs text-muted-foreground">User</Label>
             <Select
+              aria-label="User"
               className="w-full"
               value={userId}
               onChange={(e) => {
@@ -192,6 +193,7 @@ export function AuditLogPage() {
         <div className="w-full space-y-1 sm:w-44">
           <Label className="text-xs text-muted-foreground">Action</Label>
           <Select
+            aria-label="Action"
             className="w-full"
             value={action}
             onChange={(e) => {

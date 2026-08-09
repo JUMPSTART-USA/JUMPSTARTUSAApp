@@ -213,6 +213,7 @@ export function ReferralsTab() {
           }}
         />
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {

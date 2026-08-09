@@ -294,6 +294,7 @@ export function TasksPage() {
           }}
         />
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {

@@ -86,6 +86,7 @@ export function SupportPage() {
           </Tabs>
           {tab === 'all' ? (
             <Select
+              aria-label="Status"
               className="w-full sm:w-44"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}

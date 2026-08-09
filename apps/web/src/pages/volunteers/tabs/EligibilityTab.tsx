@@ -45,6 +45,7 @@ export function EligibilityTab({ volunteerProfileId }: { volunteerProfileId: str
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <Select
+          aria-label="Institution"
           className="w-full sm:w-72"
           value={institutionId}
           onChange={(e) => setInstitutionId(e.target.value)}

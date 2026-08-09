@@ -224,6 +224,7 @@ export function OutsideSessionDetailPage() {
                     </TableCell>
                     <TableCell>
                       <Select
+                        aria-label="Attendance"
                         value={rows[e.id]?.status ?? ''}
                         onChange={(ev) =>
                           setRow(e.id, { status: ev.target.value as '' | AttendanceStatus })

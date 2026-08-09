@@ -293,6 +293,7 @@ export function AlumniUpdatesTab() {
     <div className="space-y-3">
       <ListToolbar>
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {

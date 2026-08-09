@@ -134,6 +134,7 @@ export function HistoryPage() {
           />
         </div>
         <Select
+          aria-label="Channel"
           className="w-full sm:w-44"
           value={channel}
           onChange={(e) => {
@@ -149,6 +150,7 @@ export function HistoryPage() {
           ))}
         </Select>
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={status}
           onChange={(e) => {

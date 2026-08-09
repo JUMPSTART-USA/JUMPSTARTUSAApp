@@ -146,6 +146,7 @@ export function FacilityRequirementsPage() {
           }}
         />
         <Select
+          aria-label="Institution"
           className="w-full sm:w-56"
           value={institutionId}
           onChange={(e) => {
@@ -161,6 +162,7 @@ export function FacilityRequirementsPage() {
           ))}
         </Select>
         <Select
+          aria-label="Active status"
           className="w-full sm:w-44"
           value={active}
           onChange={(e) => {

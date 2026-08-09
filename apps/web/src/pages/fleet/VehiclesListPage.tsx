@@ -196,6 +196,7 @@ export function VehiclesListPage() {
           }}
         />
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={active}
           onChange={(e) => {

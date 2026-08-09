@@ -122,6 +122,7 @@ export function InstitutionListPage() {
           }}
         />
         <Select
+          aria-label="Status"
           className="w-full sm:w-44"
           value={activeFilter}
           onChange={(e) => {

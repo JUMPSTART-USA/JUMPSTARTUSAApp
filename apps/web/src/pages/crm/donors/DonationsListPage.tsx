@@ -211,6 +211,7 @@ export function DonationsListPage() {
         {dateFilter('From', from, setFrom)}
         {dateFilter('To', to, setTo)}
         <Select
+          aria-label="Campaign"
           value={campaignId}
           onChange={(e) => {
             setCampaignId(e.target.value);
@@ -226,6 +227,7 @@ export function DonationsListPage() {
           ))}
         </Select>
         <Select
+          aria-label="Fund"
           value={fundId}
           onChange={(e) => {
             setFundId(e.target.value);
@@ -241,6 +243,7 @@ export function DonationsListPage() {
           ))}
         </Select>
         <Select
+          aria-label="Appeal"
           value={appealId}
           onChange={(e) => {
             setAppealId(e.target.value);
@@ -256,6 +259,7 @@ export function DonationsListPage() {
           ))}
         </Select>
         <Select
+          aria-label="Acknowledgment"
           value={acknowledged}
           onChange={(e) => {
             setAcknowledged(e.target.value);
@@ -268,6 +272,7 @@ export function DonationsListPage() {
           <option value="false">Not acknowledged</option>
         </Select>
         <Select
+          aria-label="Gift type"
           value={recurring}
           onChange={(e) => {
             setRecurring(e.target.value);

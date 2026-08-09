@@ -112,6 +112,7 @@ export function VendorsListPage() {
           placeholder="Search name, contact, or services…"
         />
         <Select
+          aria-label="Status"
           value={active}
           onChange={(e) => {
             setActive(e.target.value);
@@ -124,6 +125,7 @@ export function VendorsListPage() {
           <option value="false">Inactive</option>
         </Select>
         <Select
+          aria-label="Partner type"
           value={referralPartner}
           onChange={(e) => {
             setReferralPartner(e.target.value);

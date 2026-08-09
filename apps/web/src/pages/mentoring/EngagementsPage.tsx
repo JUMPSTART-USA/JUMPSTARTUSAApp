@@ -211,6 +211,7 @@ export function EngagementsPage() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <Select
+          aria-label="Engagement type"
           className="w-full sm:w-44"
           value={type}
           onChange={(e) => {

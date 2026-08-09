@@ -275,6 +275,7 @@ export function ScreeningsPage() {
       <Card>
         <CardHeaderRow title="Decided screenings">
           <Select
+            aria-label="Outcome"
             className="w-full sm:w-44"
             value={decidedStage}
             onChange={(e) => {
