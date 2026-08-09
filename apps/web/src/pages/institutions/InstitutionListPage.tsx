@@ -1,8 +1,8 @@
-import { US_STATES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -112,21 +112,15 @@ export function InstitutionListPage() {
             resetPage();
           }}
         />
-        <Select
-          className="w-full sm:w-44"
+        {/* Facility state IS the chapter (§7.2) — the 50-state list offered
+            states no institution can be in. */}
+        <ChapterFilterSelect
           value={stateFilter}
-          onChange={(e) => {
-            setStateFilter(e.target.value);
+          onChange={(value) => {
+            setStateFilter(value);
             resetPage();
           }}
-        >
-          <option value="">All states</option>
-          {US_STATES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </Select>
+        />
         <Select
           className="w-full sm:w-44"
           value={activeFilter}

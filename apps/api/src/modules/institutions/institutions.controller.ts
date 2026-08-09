@@ -13,7 +13,7 @@ import {
   institutionContactSchema,
   institutionSchema,
   listQuerySchema,
-  US_STATES,
+  CHAPTER_STATES,
   type InstitutionContactInput,
   type InstitutionInput,
   type ListQuery,
@@ -25,7 +25,7 @@ import type { AuthenticatedUser } from '../../common/types';
 import { InstitutionsService } from './institutions.service';
 
 const listFiltersSchema = listQuerySchema.extend({
-  state: z.enum(US_STATES).optional(),
+  state: z.enum(CHAPTER_STATES).optional(), // facility state IS the chapter (§7.2)
   active: z
     .enum(['true', 'false'])
     .transform((v) => v === 'true')

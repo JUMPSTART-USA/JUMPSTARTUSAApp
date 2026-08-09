@@ -51,15 +51,23 @@ export function ChapterFilterSelect({
   value,
   onChange,
   className = 'w-full sm:w-44',
+  label = 'Chapter',
 }: {
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  /** Accessible name — toolbar filters carry no visible <label>. */
+  label?: string;
 }) {
   const { user } = useAuth();
   if (user?.chapter) return null;
   return (
-    <Select value={value} onChange={(e) => onChange(e.target.value)} className={className}>
+    <Select
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={className}
+    >
       <option value="">All chapters</option>
       {CHAPTER_STATES.map((s) => (
         <option key={s} value={s}>
