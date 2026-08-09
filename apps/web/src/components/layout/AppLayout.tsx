@@ -30,7 +30,7 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
 import { useRecordScreenHistory } from '@/components/BackLink';
@@ -108,6 +108,37 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
 const DARK_SELECT =
   'border-white/20 bg-white/10 text-white [&>option]:bg-navy-deep [&>option]:text-white';
 
+/**
+ * Applying a view-as change reloads the whole SPA, so it must happen on the
+ * value the user SETTLES on — not on the first change event.
+ *
+ * macOS Safari steps a closed <select> with the arrow keys and with trackpad
+ * scroll, firing `change` for EVERY option it passes. Navigating on the first
+ * one meant stepping from the bottom option (Texas) only ever moved one place
+ * before the reload threw the rest away, so anything further up was
+ * unreachable. Keep the pending value locally so the control still responds
+ * instantly, and commit once the user pauses.
+ */
+const VIEW_AS_COMMIT_MS = 450;
+
+function usePendingSelect(committed: string, commit: (value: string) => void) {
+  const [value, setValue] = useState(committed);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Re-sync when the server-side value changes (reload, or a failed apply).
+  useEffect(() => setValue(committed), [committed]);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  return {
+    value,
+    onChange: (next: string) => {
+      setValue(next);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => commit(next), VIEW_AS_COMMIT_MS);
+    },
+  };
+}
+
 /** Admin "view as role" switcher (§7.1) — the API applies and enforces the choice. */
 function RoleSwitcher({
   user,
@@ -121,11 +152,14 @@ function RoleSwitcher({
   className?: string;
   dark?: boolean;
 }) {
+  const select = usePendingSelect(user.viewAsRole ?? '', (next) =>
+    viewAs({ role: (next || null) as RoleKey | null }),
+  );
   return (
     <Select
       aria-label="View as role"
-      value={user.viewAsRole ?? ''}
-      onChange={(e) => viewAs({ role: (e.target.value || null) as RoleKey | null })}
+      value={select.value}
+      onChange={(e) => select.onChange(e.target.value)}
       className={cn(dark && DARK_SELECT, className)}
     >
       <option value="">My access (Administrator)</option>
@@ -151,11 +185,14 @@ function ChapterSwitcher({
   className?: string;
   dark?: boolean;
 }) {
+  const select = usePendingSelect(user.viewChapter ?? '', (next) =>
+    viewAs({ chapter: (next || null) as ChapterState | null }),
+  );
   return (
     <Select
       aria-label="Viewing chapter"
-      value={user.viewChapter ?? ''}
-      onChange={(e) => viewAs({ chapter: (e.target.value || null) as ChapterState | null })}
+      value={select.value}
+      onChange={(e) => select.onChange(e.target.value)}
       className={cn(dark && DARK_SELECT, className)}
     >
       <option value="">
@@ -358,7 +395,11 @@ export function AppLayout() {
               </button>
             </div>
           ) : null}
-          <header className="flex h-14 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur sm:px-6">
+          {/* Opaque, NOT backdrop-blur: a backdrop-filter ancestor composites
+              its subtree and WebKit then mis-hit-tests the native <select>
+              popups this header holds (the role/chapter switchers), so the
+              control only responded near its arrow. */}
+          <header className="flex h-14 items-center gap-3 border-b bg-background px-4 sm:px-6">
             <button
               type="button"
               className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
