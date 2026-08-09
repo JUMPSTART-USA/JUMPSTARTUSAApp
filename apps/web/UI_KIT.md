@@ -58,6 +58,7 @@ ring, login CTA), real status tokens, mobile-first.
 | `EntityPicker` | `@/components/ui/entity-picker` | Generic debounced search-and-pick. |
 | `ChapterSelect` | `@/components/ChapterSelect` | Chapter (state) field on create/edit forms (§7.2): REQUIRED select over the six chapter states, rendered ONLY for all-chapters users — scoped users' records are stamped server-side. Spread `register('chapterState')` into it. |
 | `ChapterFilterSelect` | `@/components/ChapterSelect` | Chapter filter in `ListToolbar`: "All chapters" + the six states, hidden for chapter-scoped users (the API force-filters them). Controlled `value`/`onChange`. |
+| `SelectMenu` | `@/components/ui/select-menu` | Dropdown that renders its menu IN THE PAGE. Use ONLY where a native `<select>` popup would be clipped — controls pinned near the top of the window, like the header's role/chapter switchers: macOS anchors the popup to the selected row, so a low selection opens it off-screen and strands the options above. Native `<Select>` remains correct for form fields in dialogs. |
 | `ParticipantPicker, VolunteerPicker` | `@/components/pickers` | Standard pickers (`value`/`onChange` with `{id,label,sublabel?}`). Replace all module-local pickers. |
 
 Form grids: `grid gap-4 sm:grid-cols-2` (never 2 columns on mobile).

@@ -30,12 +30,12 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
 import { useRecordScreenHistory } from '@/components/BackLink';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { SelectMenu } from '@/components/ui/select-menu';
 import { ApiError } from '@/lib/api';
 import { useAuth, type Me, type ViewAsChange } from '@/lib/auth';
 import { usePortalRequestsPending } from '@/lib/portal-requests';
@@ -105,40 +105,6 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
   },
 ];
 
-const DARK_SELECT =
-  'border-white/20 bg-white/10 text-white [&>option]:bg-navy-deep [&>option]:text-white';
-
-/**
- * Applying a view-as change reloads the whole SPA, so it must happen on the
- * value the user SETTLES on — not on the first change event.
- *
- * macOS Safari steps a closed <select> with the arrow keys and with trackpad
- * scroll, firing `change` for EVERY option it passes. Navigating on the first
- * one meant stepping from the bottom option (Texas) only ever moved one place
- * before the reload threw the rest away, so anything further up was
- * unreachable. Keep the pending value locally so the control still responds
- * instantly, and commit once the user pauses.
- */
-const VIEW_AS_COMMIT_MS = 450;
-
-function usePendingSelect(committed: string, commit: (value: string) => void) {
-  const [value, setValue] = useState(committed);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Re-sync when the server-side value changes (reload, or a failed apply).
-  useEffect(() => setValue(committed), [committed]);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-
-  return {
-    value,
-    onChange: (next: string) => {
-      setValue(next);
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => commit(next), VIEW_AS_COMMIT_MS);
-    },
-  };
-}
-
 /** Admin "view as role" switcher (§7.1) — the API applies and enforces the choice. */
 function RoleSwitcher({
   user,
@@ -152,27 +118,31 @@ function RoleSwitcher({
   className?: string;
   dark?: boolean;
 }) {
-  const select = usePendingSelect(user.viewAsRole ?? '', (next) =>
-    viewAs({ role: (next || null) as RoleKey | null }),
-  );
   return (
-    <Select
+    <SelectMenu
       aria-label="View as role"
-      value={select.value}
-      onChange={(e) => select.onChange(e.target.value)}
-      className={cn(dark && DARK_SELECT, className)}
-    >
-      <option value="">My access (Administrator)</option>
-      {ROLE_KEYS.filter((role) => role !== 'admin').map((role) => (
-        <option key={role} value={role}>
-          {ROLE_NAMES[role]}
-        </option>
-      ))}
-    </Select>
+      value={user.viewAsRole ?? ''}
+      onChange={(next) => viewAs({ role: (next || null) as RoleKey | null })}
+      className={className}
+      dark={dark}
+      options={[
+        { value: '', label: 'My access (Administrator)' },
+        ...ROLE_KEYS.filter((role) => role !== 'admin').map((role) => ({
+          value: role,
+          label: ROLE_NAMES[role],
+        })),
+      ]}
+    />
   );
 }
 
-/** Chapter switcher (§7.2) — shown only when the account may view more than one. */
+/**
+ * Chapter switcher (§7.2) — shown only when the account may view more than one.
+ *
+ * Uses SelectMenu rather than a native <select>: pinned ~10px below the top of
+ * the window, a native popup opens upward off-screen once a low option is
+ * selected, stranding the options above it (see components/ui/select-menu.tsx).
+ */
 function ChapterSwitcher({
   user,
   viewAs,
@@ -185,29 +155,26 @@ function ChapterSwitcher({
   className?: string;
   dark?: boolean;
 }) {
-  const select = usePendingSelect(user.viewChapter ?? '', (next) =>
-    viewAs({ chapter: (next || null) as ChapterState | null }),
-  );
+  const defaultLabel = user.actualChapter
+    ? `${CHAPTER_NAMES[user.actualChapter as ChapterState] ?? user.actualChapter} (default)`
+    : 'All chapters';
   return (
-    <Select
+    <SelectMenu
       aria-label="Viewing chapter"
-      value={select.value}
-      onChange={(e) => select.onChange(e.target.value)}
-      className={cn(dark && DARK_SELECT, className)}
-    >
-      <option value="">
-        {user.actualChapter
-          ? `${CHAPTER_NAMES[user.actualChapter as ChapterState] ?? user.actualChapter} (default)`
-          : 'All chapters'}
-      </option>
-      {(user.allowedChapters ?? CHAPTER_STATES)
-        .filter((state) => state !== user.actualChapter)
-        .map((state) => (
-          <option key={state} value={state}>
-            {CHAPTER_NAMES[state as ChapterState] ?? state}
-          </option>
-        ))}
-    </Select>
+      value={user.viewChapter ?? ''}
+      onChange={(next) => viewAs({ chapter: (next || null) as ChapterState | null })}
+      className={className}
+      dark={dark}
+      options={[
+        { value: '', label: defaultLabel },
+        ...(user.allowedChapters ?? CHAPTER_STATES)
+          .filter((state) => state !== user.actualChapter)
+          .map((state) => ({
+            value: state,
+            label: CHAPTER_NAMES[state as ChapterState] ?? state,
+          })),
+      ]}
+    />
   );
 }
 
