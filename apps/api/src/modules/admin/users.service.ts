@@ -193,20 +193,33 @@ export class AdminUsersService {
       if (emailTaken) throw new ConflictException('A user with this email already exists');
     }
 
-    const { roles: newRoleKeys, ...fields } = input;
+    // `chapter` is a scope, not a user column — pull it out of the row update.
+    const { roles: newRoleKeys, chapter, ...userFields } = input;
     const roles = newRoleKeys ? await this.resolveRoles(newRoleKeys) : undefined;
 
+    // Effective admin status after this edit (new roles if changing, else the
+    // account's current roles). Admins are always all-chapters (§7.2).
+    const willHoldAdmin = roles
+      ? roles.some((r) => r.key === 'admin')
+      : existing.userRoles.some((ur) => ur.role.key === 'admin');
+    if (chapter && willHoldAdmin) {
+      throw new BadRequestException(
+        'Administrators always see all chapters and cannot be chapter-scoped',
+      );
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
-      // `chapter` is a scope, not a user column — strip it from the row update.
-      const { chapter, ...userFields } = fields;
       await tx.user.update({ where: { id }, data: { ...userFields, updatedById: userId } });
       if (roles) {
         await tx.userRole.deleteMany({ where: { userId: id } });
         await tx.userRole.createMany({ data: roles.map((r) => ({ userId: id, roleId: r.id })) });
-        // Granting admin makes the account all-chapters (§7.2) — drop any
-        // now-contradictory scope rows in the same transaction.
-        if (roles.some((r) => r.key === 'admin')) {
-          await tx.userRegionScope.deleteMany({ where: { userId: id } });
+      }
+      // Apply an explicit chapter change; `undefined` leaves scopes untouched.
+      // Granting admin always clears scopes (all-chapters) regardless.
+      if (chapter !== undefined || willHoldAdmin) {
+        await tx.userRegionScope.deleteMany({ where: { userId: id } });
+        if (chapter && !willHoldAdmin) {
+          await tx.userRegionScope.create({ data: { userId: id, state: chapter } });
         }
       }
       return tx.user.findUniqueOrThrow({ where: { id }, include: USER_ROLES_INCLUDE });

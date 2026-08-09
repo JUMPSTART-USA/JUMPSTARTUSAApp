@@ -576,7 +576,15 @@ export class ReportsService {
           _count: {
             select: {
               insideClasses: { where: { deletedAt: null } },
-              volunteerAssignments: { where: { deletedAt: null, status: 'active' } },
+              // Chapter scoping (§7.2): count only assignments whose volunteer
+              // is in the viewer's chapter, matching every other subquery.
+              volunteerAssignments: {
+                where: {
+                  deletedAt: null,
+                  status: 'active',
+                  ...(p.state ? { volunteerProfile: { chapterState: p.state } } : {}),
+                },
+              },
             },
           },
         },

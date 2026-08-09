@@ -107,7 +107,10 @@ export class HouseholdsService {
     const household = await this.get(id, user);
 
     const members = await this.prisma.donor.findMany({
-      where: { householdId: id, deletedAt: null },
+      // A household never spans chapters (addMember enforces it); pinning the
+      // query to the household's chapter also closes any donor-chapter drift
+      // so detail can never surface a foreign-chapter member (§7.2).
+      where: { householdId: id, deletedAt: null, chapterState: household.chapterState },
       orderBy: [{ isHeadOfHousehold: 'desc' }, { name: 'asc' }],
       select: {
         id: true,
@@ -263,6 +266,9 @@ export class HouseholdsService {
       where: { id: donorId, deletedAt: null },
     });
     if (!donor) throw new BadRequestException('Donor not found');
+    // Chapter scoping (§7.2): never mutate a donor outside the user's chapter,
+    // even one that drifted into this household's roster.
+    assertChapterAccess(user.chapter, donor.chapterState);
     if (donor.householdId !== id) {
       throw new BadRequestException('Donor is not a member of this household');
     }

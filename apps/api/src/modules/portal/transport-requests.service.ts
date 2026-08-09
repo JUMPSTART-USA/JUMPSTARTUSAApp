@@ -141,8 +141,12 @@ export class TransportRequestsService {
       }
       const vehicle = await this.prisma.vehicle.findFirst({
         where: { id: input.assignedVehicleId, deletedAt: null },
+        select: { id: true, chapterState: true },
       });
       if (!vehicle) throw new BadRequestException('Unknown vehicle');
+      // Chapter scoping (§7.2): a scoped user can only assign a vehicle from
+      // their own chapter (assigning also reads the plate back on the request).
+      assertChapterAccess(user.chapter, vehicle.chapterState);
     }
 
     const updated = await this.prisma.transportRequest.update({

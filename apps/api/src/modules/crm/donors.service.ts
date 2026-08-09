@@ -171,18 +171,36 @@ export class DonorsService {
             appeal: { select: { id: true, name: true } },
           },
         }),
+        // Related/soft-crediting donors are separate records that may live in
+        // other chapters; a scoped viewer only sees the same-chapter ones so
+        // no foreign donor name/id leaks through the subject's detail (§7.2).
         this.prisma.donorRelationship.findMany({
-          where: { donorId: id, relatedDonor: { deletedAt: null } },
+          where: {
+            donorId: id,
+            relatedDonor: {
+              deletedAt: null,
+              ...(user.chapter ? { chapterState: user.chapter } : {}),
+            },
+          },
           include: { relatedDonor: { select: { id: true, name: true } } },
           orderBy: { createdAt: 'asc' },
         }),
         this.prisma.donorRelationship.findMany({
-          where: { relatedDonorId: id, donor: { deletedAt: null } },
+          where: {
+            relatedDonorId: id,
+            donor: { deletedAt: null, ...(user.chapter ? { chapterState: user.chapter } : {}) },
+          },
           include: { donor: { select: { id: true, name: true } } },
           orderBy: { createdAt: 'asc' },
         }),
         this.prisma.softCredit.findMany({
-          where: { donorId: id, donation: { deletedAt: null } },
+          where: {
+            donorId: id,
+            donation: {
+              deletedAt: null,
+              ...(user.chapter ? { donor: { chapterState: user.chapter } } : {}),
+            },
+          },
           include: {
             donation: {
               select: {

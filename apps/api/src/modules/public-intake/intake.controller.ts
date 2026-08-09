@@ -49,6 +49,7 @@ export class IntakeController {
     return this.review.listVolunteerApplications(listQuery as ListQuery, {
       status,
       state: user.chapter ?? state,
+      userChapter: user.chapter,
     });
   }
 
@@ -63,6 +64,7 @@ export class IntakeController {
     return this.review.listReferrals(listQuery as ListQuery, {
       status,
       state: user.chapter ?? state,
+      userChapter: user.chapter,
     });
   }
 

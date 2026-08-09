@@ -89,15 +89,21 @@ export class ReferralsService {
     return referral;
   }
 
-  private async assertVendor(vendorId: string) {
-    const vendor = await this.prisma.vendor.findFirst({ where: { id: vendorId, deletedAt: null } });
+  private async assertVendor(vendorId: string, user: AuthenticatedUser) {
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id: vendorId, deletedAt: null },
+      select: { chapterState: true },
+    });
     if (!vendor) throw new BadRequestException('Unknown partner organization');
+    // Chapter scoping (§7.2): no linking a referral to another chapter's
+    // vendor (its name is echoed back on the referral).
+    assertChapterAccess(user.chapter, vendor.chapterState);
   }
 
   async create(input: OutboundReferralInput, user: AuthenticatedUser) {
     const userId = user.id;
     await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
-    if (input.vendorId) await this.assertVendor(input.vendorId);
+    if (input.vendorId) await this.assertVendor(input.vendorId, user);
     const referral = await this.prisma.outboundReferral.create({
       data: { ...input, createdById: userId, updatedById: userId },
       include: { vendor: { select: { name: true } } },
@@ -112,7 +118,7 @@ export class ReferralsService {
     if (input.participantProfileId) {
       await assertParticipant(this.prisma, input.participantProfileId, user.chapter);
     }
-    if (input.vendorId) await this.assertVendor(input.vendorId);
+    if (input.vendorId) await this.assertVendor(input.vendorId, user);
     const updated = await this.prisma.outboundReferral.update({
       where: { id },
       data: { ...input, updatedById: userId },

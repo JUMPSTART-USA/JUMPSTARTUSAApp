@@ -1,15 +1,18 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { CommStatus, Prisma } from '@jumpstart/database';
 import {
   communicationTemplateSchema,
-  isChapterState,
   type CommChannel,
   type CommunicationTemplateInput,
   type ListQuery,
   type SendCommunicationInput,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
-import { assertChapterAccess } from '../../common/chapter.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 import { renderMergeFields } from './merge-fields.util';
@@ -136,20 +139,33 @@ export class CommunicationsService {
           },
         },
         volunteerProfile: { select: { chapterState: true } },
+        donors: { where: { deletedAt: null }, select: { chapterState: true } },
       },
     });
     if (!person) throw new NotFoundException('Person not found');
 
-    // Chapter scoping (§7.2): a scoped user cannot message another chapter's
-    // participant/volunteer; the row is stamped with the sender's chapter, the
-    // recipient's derived chapter, or an explicit pick — never left blank.
-    const profileChapter =
-      person.participantProfile?.chapterState ?? person.volunteerProfile?.chapterState ?? null;
-    assertChapterAccess(user.chapter, profileChapter);
+    // Chapter scoping (§7.2): the recipient's chapters come from EVERY chapter
+    // association — participant, volunteer, AND donor. person.state is a
+    // mailing address and is deliberately NOT a chapter source (rule 2).
+    const recipientChapters = [
+      person.participantProfile?.chapterState,
+      person.volunteerProfile?.chapterState,
+      ...person.donors.map((d) => d.chapterState),
+    ].filter((c): c is string => !!c);
+
+    // A scoped user may only message someone reachable in their own chapter (or
+    // a person with no chapter association yet). Belonging to other chapters
+    // only → 403, same contract as assertChapterAccess.
+    if (user.chapter && recipientChapters.length && !recipientChapters.includes(user.chapter)) {
+      throw new ForbiddenException('Record belongs to another chapter');
+    }
+
+    // Stamp: scoped sender → their chapter; all-chapters sender → the
+    // recipient's single chapter when unambiguous, else an explicit pick.
+    const distinctChapters = [...new Set(recipientChapters)];
     const chapterState =
       user.chapter ??
-      profileChapter ??
-      (person.state && isChapterState(person.state) ? person.state : null) ??
+      (distinctChapters.length === 1 ? distinctChapters[0] : undefined) ??
       input.chapterState ??
       null;
     if (!chapterState) throw new BadRequestException('Select a chapter');

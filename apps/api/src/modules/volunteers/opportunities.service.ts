@@ -200,7 +200,7 @@ export class OpportunitiesService {
     // Chapter scoping (§7.2): stamp the creator's chapter — all-chapters users
     // must pick one explicitly, so no opportunity is ever stateless.
     const state = resolveCreateChapter(user.chapter, input.state);
-    await this.assertOpportunityRefs(input);
+    await this.assertOpportunityRefs(input, user);
 
     const opportunity = await this.prisma.volunteerOpportunity.create({
       data: {
@@ -224,7 +224,7 @@ export class OpportunitiesService {
     // scoped user cannot move it to another chapter either.
     assertChapterAccess(user.chapter, existing.state);
     assertChapterAccess(user.chapter, input.state);
-    await this.assertOpportunityRefs(input);
+    await this.assertOpportunityRefs(input, user);
 
     // state is a REQUIRED chapter column — a null from the client means "no
     // change", never a clear (the schema still allows null for legacy payloads).
@@ -671,28 +671,39 @@ export class OpportunitiesService {
     return promotions;
   }
 
-  private async assertOpportunityRefs(input: {
-    institutionId?: string | null;
-    outsideProgramId?: string | null;
-    eventId?: string | null;
-  }) {
+  private async assertOpportunityRefs(
+    input: {
+      institutionId?: string | null;
+      outsideProgramId?: string | null;
+      eventId?: string | null;
+    },
+    user: AuthenticatedUser,
+  ) {
+    // Chapter scoping (§7.2): a linked institution/program/event must be in the
+    // user's chapter — otherwise its name leaks on the opportunity's GET.
     if (input.institutionId) {
       const institution = await this.prisma.institution.findFirst({
         where: { id: input.institutionId, deletedAt: null },
+        select: { state: true },
       });
       if (!institution) throw new NotFoundException('Institution not found');
+      assertChapterAccess(user.chapter, institution.state);
     }
     if (input.outsideProgramId) {
       const program = await this.prisma.outsideProgram.findFirst({
         where: { id: input.outsideProgramId, deletedAt: null },
+        select: { state: true },
       });
       if (!program) throw new NotFoundException('Outside program not found');
+      assertChapterAccess(user.chapter, program.state);
     }
     if (input.eventId) {
       const event = await this.prisma.event.findFirst({
         where: { id: input.eventId, deletedAt: null },
+        select: { chapterState: true },
       });
       if (!event) throw new NotFoundException('Event not found');
+      assertChapterAccess(user.chapter, event.chapterState);
     }
   }
 }

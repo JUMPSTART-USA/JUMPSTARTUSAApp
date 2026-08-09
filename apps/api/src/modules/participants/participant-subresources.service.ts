@@ -296,7 +296,7 @@ export class ParticipantSubresourcesService {
   ) {
     const userId = user.id;
     await this.personIdFor(participantId, user);
-    await this.assertInstitutionExists(input.institutionId);
+    await this.assertInstitutionExists(input.institutionId, user);
     const location = await this.prisma.$transaction(async (tx) => {
       if (input.status === 'active') {
         await this.closeActiveLocations(tx, participantId, input.startDate ?? new Date(), userId);
@@ -323,7 +323,7 @@ export class ParticipantSubresourcesService {
   ) {
     const userId = user.id;
     await this.personIdFor(participantId, user);
-    await this.assertInstitutionExists(input.institutionId);
+    await this.assertInstitutionExists(input.institutionId, user);
     const existing = await this.prisma.participantInsideLocation.findFirst({
       where: { id: locationId, participantProfileId: participantId, deletedAt: null },
     });
@@ -393,12 +393,15 @@ export class ParticipantSubresourcesService {
     };
   }
 
-  private async assertInstitutionExists(institutionId: string) {
+  private async assertInstitutionExists(institutionId: string, user: AuthenticatedUser) {
     const institution = await this.prisma.institution.findFirst({
       where: { id: institutionId, deletedAt: null },
-      select: { id: true },
+      select: { state: true },
     });
     if (!institution) throw new BadRequestException('Institution does not exist');
+    // Chapter scoping (§7.2): a scoped user cannot pin a participant to another
+    // chapter's facility (GET echoes the institution name back).
+    assertChapterAccess(user.chapter, institution.state);
   }
 
   // ── Most serious offenses (§7.2 justice field class, like DOC IDs) ────────

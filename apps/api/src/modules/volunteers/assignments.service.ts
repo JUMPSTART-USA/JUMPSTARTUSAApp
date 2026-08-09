@@ -116,6 +116,9 @@ export class AssignmentsService {
     if (!existing) throw new NotFoundException('Assignment not found');
     // Chapter scoping (§7.2): derived through the volunteer's chapterState.
     assertChapterAccess(user.chapter, existing.volunteerProfile.chapterState);
+    // ...and no re-parenting to another chapter: any volunteer/institution/
+    // program/event the update supplies must also be in the user's chapter.
+    await this.assertLinkedRefsInChapter(input, user);
     const { volunteerProfile: _volunteerProfile, ...assignmentOnly } = existing;
 
     const updated = await this.prisma.volunteerAssignment.update({
@@ -124,6 +127,58 @@ export class AssignmentsService {
     });
     await this.audit.logUpdate(userId, 'volunteer_assignment', id, assignmentOnly, updated);
     return updated;
+  }
+
+  /**
+   * Assert every chapter-bearing reference present in the input is in the
+   * user's chapter (§7.2) — used by update() to block cross-chapter
+   * re-parenting. create() checks the same refs inline.
+   */
+  private async assertLinkedRefsInChapter(
+    input: Partial<VolunteerAssignmentInput>,
+    user: AuthenticatedUser,
+  ) {
+    if (input.volunteerProfileId) {
+      const profile = await this.prisma.volunteerProfile.findFirst({
+        where: { id: input.volunteerProfileId, deletedAt: null },
+        select: { chapterState: true },
+      });
+      if (!profile) throw new NotFoundException('Volunteer not found');
+      assertChapterAccess(user.chapter, profile.chapterState);
+    }
+    let institutionId = input.institutionId;
+    if (!institutionId && input.insideClassId) {
+      const insideClass = await this.prisma.insideClass.findFirst({
+        where: { id: input.insideClassId, deletedAt: null },
+        select: { institutionId: true },
+      });
+      if (!insideClass) throw new NotFoundException('Inside class not found');
+      institutionId = insideClass.institutionId;
+    }
+    if (institutionId) {
+      const institution = await this.prisma.institution.findFirst({
+        where: { id: institutionId, deletedAt: null },
+        select: { state: true },
+      });
+      if (!institution) throw new NotFoundException('Institution not found');
+      assertChapterAccess(user.chapter, institution.state);
+    }
+    if (input.outsideProgramId) {
+      const program = await this.prisma.outsideProgram.findFirst({
+        where: { id: input.outsideProgramId, deletedAt: null },
+        select: { state: true },
+      });
+      if (!program) throw new NotFoundException('Outside program not found');
+      assertChapterAccess(user.chapter, program.state);
+    }
+    if (input.eventId) {
+      const event = await this.prisma.event.findFirst({
+        where: { id: input.eventId, deletedAt: null },
+        select: { chapterState: true },
+      });
+      if (!event) throw new NotFoundException('Event not found');
+      assertChapterAccess(user.chapter, event.chapterState);
+    }
   }
 
   async softDelete(id: string, user: AuthenticatedUser) {

@@ -270,6 +270,9 @@ export class HousingService {
       where: { id: input.participantProfileId, deletedAt: null },
     });
     if (!participant) throw new NotFoundException('Participant not found');
+    // ...and only their OWN chapter's participants — no enrolling a foreign
+    // participant into a home (which would also read their name back). (§7.2)
+    assertChapterAccess(user.chapter, participant.chapterState);
     await this.assertUmbrellaEnrollment(input.outsideProgramEnrollmentId);
 
     const warnings: string[] = [];

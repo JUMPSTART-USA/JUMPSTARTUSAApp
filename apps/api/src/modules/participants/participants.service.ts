@@ -397,6 +397,34 @@ export class ParticipantsService {
     assertChapterAccess(user.chapter, existing.chapterState);
     assertChapterAccess(user.chapter, input.profile?.chapterState);
 
+    // Chapter move (§7.2): case-management children move with the profile
+    // (they derive via chapterState), but facility-derived records — housing,
+    // inside/outside enrollments, inside locations — keep their facility's
+    // chapter and would be orphaned in the OLD chapter, leaving the participant
+    // visible there. Block the move until those are closed/transferred.
+    const movingChapter =
+      input.profile?.chapterState !== undefined &&
+      input.profile.chapterState !== existing.chapterState;
+    if (movingChapter) {
+      const [housing, inside, outside, locations] = await this.prisma.$transaction([
+        this.prisma.housingEnrollment.count({ where: { participantProfileId: id, deletedAt: null } }),
+        this.prisma.insideClassEnrollment.count({
+          where: { participantProfileId: id, deletedAt: null },
+        }),
+        this.prisma.outsideProgramEnrollment.count({
+          where: { participantProfileId: id, deletedAt: null },
+        }),
+        this.prisma.participantInsideLocation.count({
+          where: { participantProfileId: id, deletedAt: null },
+        }),
+      ]);
+      if (housing + inside + outside + locations > 0) {
+        throw new BadRequestException(
+          'Close or transfer this participant’s housing, class, program, and facility-location records before moving them to another chapter',
+        );
+      }
+    }
+
     const { statusEffectiveDate, statusChangeReason, ...profileData } = input.profile ?? {};
 
     if (profileData.assignedCaseManagerId) {

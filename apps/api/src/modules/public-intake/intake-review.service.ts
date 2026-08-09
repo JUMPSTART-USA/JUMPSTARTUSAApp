@@ -23,6 +23,11 @@ import { findDuplicateCandidates } from './duplicate-candidates.util';
 export interface QueueListFilters {
   status?: IntakeStatus;
   state?: string;
+  // The viewer's OWN chapter (null = all chapters), distinct from `state`
+  // (which is user.chapter ?? requested). Dedupe candidates are restricted to
+  // this — an all-chapters user filtering the queue to one state must still
+  // get global dedupe (§7.2 docs/chapter-scoping.md).
+  userChapter?: string | null;
 }
 
 /**
@@ -79,12 +84,16 @@ export class IntakeReviewService {
     const items = await Promise.all(
       rows.map(async (item) => ({
         ...item,
-        duplicateCandidates: await findDuplicateCandidates(this.prisma, {
-          firstName: item.firstName,
-          lastName: item.lastName,
-          phone: item.phone,
-          email: item.email,
-        }),
+        duplicateCandidates: await findDuplicateCandidates(
+          this.prisma,
+          {
+            firstName: item.firstName,
+            lastName: item.lastName,
+            phone: item.phone,
+            email: item.email,
+          },
+          filters.userChapter ?? null,
+        ),
       })),
     );
     return { items, total, page: query.page, pageSize: query.pageSize };
@@ -119,11 +128,15 @@ export class IntakeReviewService {
     const items = await Promise.all(
       rows.map(async (item) => ({
         ...item,
-        duplicateCandidates: await findDuplicateCandidates(this.prisma, {
-          firstName: item.subjectFirstName,
-          lastName: item.subjectLastName,
-          phone: item.subjectPhone,
-        }),
+        duplicateCandidates: await findDuplicateCandidates(
+          this.prisma,
+          {
+            firstName: item.subjectFirstName,
+            lastName: item.subjectLastName,
+            phone: item.subjectPhone,
+          },
+          filters.userChapter ?? null,
+        ),
       })),
     );
     return { items, total, page: query.page, pageSize: query.pageSize };
@@ -188,9 +201,11 @@ export class IntakeReviewService {
   ) {
     const app = await this.prisma.volunteerApplication.findUnique({ where: { id } });
     if (!app) throw new NotFoundException('Volunteer application not found');
-    this.assertReviewable(app.status);
-    // Chapter scoping (§7.2): own column, or the reviewer's pick for legacy rows.
+    // Chapter scoping (§7.2): own column, or the reviewer's pick for legacy
+    // rows. Resolved BEFORE the reviewable check so a scoped user probing a
+    // foreign item's id gets a 403/400, never its review status.
     const chapterState = this.resolveQueueChapter(app.state, input.state, user);
+    this.assertReviewable(app.status);
 
     if (input.action !== 'approve') {
       const updated = await this.prisma.volunteerApplication.update({
@@ -292,9 +307,10 @@ export class IntakeReviewService {
   async reviewReferral(id: string, input: ReviewWithChapterInput, user: AuthenticatedUser) {
     const referral = await this.prisma.referralInboxItem.findUnique({ where: { id } });
     if (!referral) throw new NotFoundException('Referral not found');
-    this.assertReviewable(referral.status);
-    // Chapter scoping (§7.2): own column, or the reviewer's pick for legacy rows.
+    // Chapter check before the reviewable check (§7.2) — no status oracle for
+    // a scoped user probing another chapter's referral by id.
     const chapterState = this.resolveQueueChapter(referral.state, input.state, user);
+    this.assertReviewable(referral.status);
 
     if (input.action !== 'approve') {
       const updated = await this.prisma.referralInboxItem.update({

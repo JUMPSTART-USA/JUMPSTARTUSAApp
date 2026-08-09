@@ -536,12 +536,16 @@ export class ScreeningService {
       }),
       this.prisma.facilityClearanceRequirement.findUnique({
         where: { id: input.requirementId },
+        include: { institution: { select: { state: true } } },
       }),
     ]);
     if (!profile) throw new NotFoundException('Volunteer not found');
     if (!requirement) throw new NotFoundException('Clearance requirement not found');
-    // Chapter scoping (§7.2): derived through the volunteer's chapterState.
+    // Chapter scoping (§7.2): both the volunteer AND the requirement's facility
+    // must be in the user's chapter — no clearing a volunteer against another
+    // chapter's facility requirement.
     assertChapterAccess(user.chapter, profile.chapterState);
+    assertChapterAccess(user.chapter, requirement.institution.state);
 
     const existing = await this.prisma.volunteerClearance.findUnique({
       where: {

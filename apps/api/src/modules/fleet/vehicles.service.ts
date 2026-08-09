@@ -301,7 +301,7 @@ export class VehiclesService {
     if (!vehicle) throw new BadRequestException('Vehicle not found');
     // Chapter scoping (§7.2): the record inherits chapter through its vehicle.
     assertChapterAccess(user.chapter, vehicle.chapterState);
-    if (input.vendorId) await this.assertVendorExists(input.vendorId);
+    if (input.vendorId) await this.assertVendorExists(input.vendorId, user);
 
     const record = await this.prisma.vehicleMaintenanceRecord.create({
       data: { ...input, createdById: userId, updatedById: userId },
@@ -343,7 +343,7 @@ export class VehiclesService {
       assertChapterAccess(user.chapter, vehicle.chapterState);
     }
     if (input.vendorId && input.vendorId !== existing.vendorId) {
-      await this.assertVendorExists(input.vendorId);
+      await this.assertVendorExists(input.vendorId, user);
     }
     const updated = await this.prisma.vehicleMaintenanceRecord.update({
       where: { id },
@@ -416,11 +416,14 @@ export class VehiclesService {
     };
   }
 
-  private async assertVendorExists(vendorId: string) {
+  private async assertVendorExists(vendorId: string, user: AuthenticatedUser) {
     const vendor = await this.prisma.vendor.findFirst({
       where: { id: vendorId, deletedAt: null },
-      select: { id: true },
+      select: { chapterState: true },
     });
     if (!vendor) throw new BadRequestException('Vendor not found');
+    // Chapter scoping (§7.2): no linking a maintenance record to another
+    // chapter's vendor (its name surfaces on the vehicle profile).
+    assertChapterAccess(user.chapter, vendor.chapterState);
   }
 }

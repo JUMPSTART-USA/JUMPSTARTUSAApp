@@ -232,8 +232,11 @@ export class HoursService {
     if (input.shiftId) {
       const shift = await this.prisma.volunteerShift.findFirst({
         where: { id: input.shiftId, deletedAt: null },
+        select: { opportunity: { select: { state: true } } },
       });
       if (!shift) throw new NotFoundException('Shift not found');
+      // Chapter scoping (§7.2): derived through the shift's opportunity.
+      assertChapterAccess(chapter, shift.opportunity.state);
     }
     if (input.institutionId) {
       const institution = await this.prisma.institution.findFirst({
@@ -247,8 +250,11 @@ export class HoursService {
     if (input.assignmentId) {
       const assignment = await this.prisma.volunteerAssignment.findFirst({
         where: { id: input.assignmentId, deletedAt: null },
+        select: { volunteerProfile: { select: { chapterState: true } } },
       });
       if (!assignment) throw new NotFoundException('Assignment not found');
+      // Chapter scoping (§7.2): derived through the assignment's volunteer.
+      assertChapterAccess(chapter, assignment.volunteerProfile.chapterState);
     }
   }
 }
