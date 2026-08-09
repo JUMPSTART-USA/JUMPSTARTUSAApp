@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react';
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
 export interface SelectMenuOption {
@@ -21,9 +22,12 @@ export interface SelectMenuOption {
  * add slack above the page), fine on iOS (which uses a sheet) and fine on
  * Windows (which clamps popups on screen).
  *
- * This menu opens downward into the page — where there is a full viewport of
- * room — and flips up only when it genuinely does not fit, so placement never
- * depends on OS popup behaviour. Native <select> stays the right choice for
+ * The list is PORTALLED to <body> and positioned in viewport coordinates, so no
+ * ancestor can clip, mis-stack or mis-composite it — the header it belongs to is
+ * inside a sticky, stacking-context container, and an installed (Dock) web app
+ * proved to behave differently there than a normal Safari tab. It opens downward
+ * when there is room, flips up otherwise, and is clamped on-screen, so placement
+ * never depends on OS popup behaviour either. Native <select> stays the right choice for
  * form fields inside dialogs: they sit mid-screen with room in both directions.
  *
  * Keyboard: Enter/Space/Arrow opens, Arrows/Home/End move the highlight,
@@ -50,7 +54,8 @@ export function SelectMenu({
 }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [flipUp, setFlipUp] = useState(false);
+  // Fixed viewport coordinates for the portalled menu.
+  const [pos, setPos] = useState<{ top: number; left: number; minWidth: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -66,25 +71,51 @@ export function SelectMenu({
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      // The list is portalled to <body>, so it is not inside containerRef.
+      if (containerRef.current?.contains(target) || listRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [open]);
 
-  // Prefer downward; flip only when the menu truly does not fit below.
+  /**
+   * Place the menu in viewport coordinates: below the trigger when there is
+   * room, above it otherwise, and clamped so it can never sit off-screen.
+   */
+  const place = useCallback(() => {
+    const trigger = triggerRef.current?.getBoundingClientRect();
+    if (!trigger) return;
+    const height = listRef.current?.offsetHeight ?? 0;
+    const gap = 4;
+    const roomBelow = window.innerHeight - trigger.bottom;
+    const above = roomBelow < height + gap && trigger.top > roomBelow;
+    const top = above
+      ? Math.max(gap, trigger.top - height - gap)
+      : Math.min(trigger.bottom + gap, window.innerHeight - height - gap);
+    const width = Math.max(trigger.width, listRef.current?.offsetWidth ?? 0);
+    const left = Math.min(Math.max(gap, trigger.left), window.innerWidth - width - gap);
+    setPos({ top, left, minWidth: trigger.width });
+  }, []);
+
   useLayoutEffect(() => {
     if (!open) return;
-    const trigger = triggerRef.current?.getBoundingClientRect();
-    const height = listRef.current?.offsetHeight ?? 0;
-    if (trigger) {
-      const roomBelow = window.innerHeight - trigger.bottom;
-      setFlipUp(roomBelow < height + 8 && trigger.top > roomBelow);
-    }
-    listRef.current
-      ?.querySelector('[data-active="true"]')
-      ?.scrollIntoView({ block: 'nearest' });
-  }, [open, activeIndex]);
+    place();
+    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [open, activeIndex, place]);
+
+  // Keep it anchored if the page scrolls or the window resizes while open.
+  useEffect(() => {
+    if (!open) return;
+    const onMove = () => place();
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [open, place]);
 
   const commit = (next: string) => {
     setOpen(false);
@@ -160,15 +191,22 @@ export function SelectMenu({
         <span className="truncate">{current?.label ?? ''}</span>
         <ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden="true" />
       </button>
-      {open ? (
+      {open
+        ? createPortal(
         <ul
           ref={listRef}
           id={listId}
           role="listbox"
           aria-label={ariaLabel}
+          style={{
+            position: 'fixed',
+            top: pos?.top ?? -9999,
+            left: pos?.left ?? -9999,
+            minWidth: pos?.minWidth,
+            visibility: pos ? 'visible' : 'hidden',
+          }}
           className={cn(
-            'absolute z-50 max-h-72 w-full min-w-max overflow-y-auto rounded-md border bg-card py-1 shadow-lg',
-            flipUp ? 'bottom-full mb-1' : 'top-full mt-1',
+            'z-[100] max-h-72 min-w-max overflow-y-auto rounded-md border bg-card py-1 shadow-lg',
             dark && 'border-white/20 bg-navy-deep text-white',
           )}
         >
@@ -190,8 +228,10 @@ export function SelectMenu({
               {option.label}
             </li>
           ))}
-        </ul>
-      ) : null}
+        </ul>,
+        document.body,
+          )
+        : null}
     </div>
   );
 }
