@@ -26,6 +26,7 @@ export function EntityPicker({
   minChars = 2,
   disabled,
   className,
+  id,
 }: {
   value: PickerOption | null;
   onChange: (option: PickerOption | null) => void;
@@ -36,6 +37,12 @@ export function EntityPicker({
   minChars?: number;
   disabled?: boolean;
   className?: string;
+  /**
+   * Lands on whichever control is showing so a FormField label's htmlFor
+   * resolves: the search box while empty, the Change button once a value is
+   * picked (both are labelable elements).
+   */
+  id?: string;
 }) {
   const [q, setQ] = useState('');
   const term = useDebounced(q.trim());
@@ -62,6 +69,7 @@ export function EntityPicker({
         </span>
         {!disabled ? (
           <Button
+            id={id}
             variant="ghost"
             size="sm"
             className="-mr-2 shrink-0"
@@ -77,6 +85,7 @@ export function EntityPicker({
   return (
     <div className={cn('space-y-1.5', className)}>
       <Input
+        id={id}
         placeholder={placeholder}
         value={q}
         disabled={disabled}
