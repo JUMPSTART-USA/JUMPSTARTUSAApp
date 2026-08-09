@@ -98,14 +98,18 @@ export function DonorPicker({
   onChange,
   placeholder,
   disabled,
+  id,
 }: {
   value: PickerOption | null;
   onChange: (option: PickerOption | null) => void;
   placeholder?: string;
   disabled?: boolean;
+  /** Forwarded to the inner control so a FormField label can target it. */
+  id?: string;
 }) {
   return (
     <EntityPicker
+      id={id}
       value={value}
       onChange={onChange}
       queryKey="crm-donor-picker"
@@ -139,10 +143,13 @@ export function PersonSearch({
   selected,
   onSelect,
   placeholder,
+  id,
 }: {
   selected: PersonHit | null;
   onSelect: (hit: PersonHit | null) => void;
   placeholder?: string;
+  /** Forwarded to the inner control so a FormField label can target it. */
+  id?: string;
 }) {
   const { can } = useAuth();
   const canParticipants = can('participants.read');
@@ -158,6 +165,7 @@ export function PersonSearch({
 
   return (
     <EntityPicker
+      id={id}
       value={
         selected
           ? { id: selected.personId, label: selected.name, sublabel: selected.source }

@@ -18,13 +18,17 @@ export function ParticipantPicker({
   value,
   onChange,
   disabled,
+  id,
 }: {
   value: PickerOption | null;
   onChange: (option: PickerOption | null) => void;
   disabled?: boolean;
+  /** Forwarded to the inner control so a FormField label can target it. */
+  id?: string;
 }) {
   return (
     <EntityPicker
+      id={id}
       value={value}
       onChange={onChange}
       disabled={disabled}
@@ -53,14 +57,18 @@ export function VolunteerPicker({
   onChange,
   mentorsOnly = false,
   disabled,
+  id,
 }: {
   value: PickerOption | null;
   onChange: (option: PickerOption | null) => void;
   mentorsOnly?: boolean;
   disabled?: boolean;
+  /** Forwarded to the inner control so a FormField label can target it. */
+  id?: string;
 }) {
   return (
     <EntityPicker
+      id={id}
       value={value}
       onChange={onChange}
       disabled={disabled}
