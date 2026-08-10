@@ -1,0 +1,176 @@
+<!doctype html>
+<!--
+  App icon generator — regenerates every PNG in apps/web/public from one source
+  of truth, so the icon set can never drift apart by hand-editing.
+
+  There is no rasterizer in this toolchain (no ImageMagick, no librsvg, no
+  sharp), so the icon is drawn on a canvas and exported as PNG. It needs a
+  server because the font is loaded from node_modules:
+
+      cd apps/web && python3 -m http.server 8080
+      open http://localhost:8080/scripts/make-app-icons.html
+
+  Click "Download all", then move the files into apps/web/public/.
+
+  Design: IBM Plex Sans Bold "JS" in brand gold on the navy gradient, over the
+  underline bar. Geometry is expressed as fractions of the tile so every size is
+  identical, and the constants below were measured off the original single-letter
+  icon so this stays visually continuous with it.
+-->
+<meta charset="utf-8" />
+<title>JUMPSTART app icon generator</title>
+<style>
+  @font-face {
+    font-family: 'Plex';
+    src: url('../node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-700-normal.woff2') format('woff2');
+    font-weight: 700;
+  }
+  body { background: #1b1b1b; color: #ddd; font: 14px -apple-system, system-ui, sans-serif; padding: 24px; }
+  button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #555; background: #2a2a2a; color: #eee; cursor: pointer; }
+  #previews { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 20px; align-items: flex-end; }
+  figure { margin: 0; text-align: center; }
+  figcaption { font-size: 12px; color: #999; margin-top: 6px; }
+  img { background: #000; }
+</style>
+
+<h1>JUMPSTART app icon</h1>
+<p id="status">loading font…</p>
+<button id="all" disabled>Download all</button>
+<div id="previews"></div>
+
+<script type="module">
+  // Measured off the original icon so the two-letter mark keeps the same
+  // proportions, gradient and underline gap.
+  const BASE = {
+    top: '#0e2245',
+    bottom: '#07101f',
+    gold: '#fdb835',
+    font: 'Plex',
+    text: 'JS',
+    tracking: -0.02,
+    capFrac: 0.34,
+    barHFrac: 22 / 512,
+    barWFrac: 0.64,
+  };
+  const GAP = (410 - 373) / 512; // baseline -> top of bar, from the original
+  const LOCKUP_CENTER = 0.559;   // the original sits slightly below centre
+
+  // The assets the app actually references. The small favicons drop the bar and
+  // enlarge the letters: the full lockup is unreadable at 16px.
+  const ASSETS = [
+    { file: 'icon-512.png', size: 512 },
+    { file: 'icon-192.png', size: 192 },
+    { file: 'apple-touch-icon.png', size: 180 },
+    { file: 'favicon-32.png', size: 32, variant: 'small' },
+    { file: 'favicon-16.png', size: 16, variant: 'small' },
+    { file: 'JUMPSTART-icon-1024.png', size: 1024, note: 'master, not shipped' },
+  ];
+
+  const SMALL = { capFrac: 0.44, baselineFrac: 0.72, barWFrac: 0 };
+
+  function place(o) {
+    if (o.baselineFrac !== undefined) return o;
+    const height = o.capFrac + GAP + o.barHFrac;
+    const top = LOCKUP_CENTER - height / 2;
+    return { ...o, baselineFrac: top + o.capFrac, barYFrac: top + o.capFrac + GAP };
+  }
+
+  function draw(size, variant) {
+    const o = place({ ...BASE, ...(variant === 'small' ? SMALL : {}) });
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 0, size);
+    g.addColorStop(0, o.top);
+    g.addColorStop(1, o.bottom);
+    x.fillStyle = g;
+    x.fillRect(0, 0, size, size);
+
+    // Scale by measured cap height, not em size, so the letters fill the same
+    // fraction of the tile regardless of the font's internal metrics.
+    let em = size * o.capFrac * 1.4;
+    x.font = `700 ${em}px ${o.font}`;
+    em *= (size * o.capFrac) / x.measureText('H').actualBoundingBoxAscent;
+    x.font = `700 ${em}px ${o.font}`;
+
+    const baseline = size * o.baselineFrac;
+    const chars = [...o.text];
+    const widths = chars.map((ch) => x.measureText(ch).width);
+    const track = em * o.tracking;
+    const total = widths.reduce((a, b) => a + b, 0) + track * (chars.length - 1);
+    const lay = (ctx, offset) => {
+      let cx = size / 2 - total / 2 + offset;
+      chars.forEach((ch, i) => {
+        ctx.fillText(ch, cx, baseline);
+        cx += widths[i] + track;
+      });
+    };
+
+    // Centre on the ink, not on advance widths: J and S carry different
+    // sidebearings, which pushed the pair visibly right of the underline.
+    const probe = document.createElement('canvas');
+    probe.width = probe.height = size;
+    const p = probe.getContext('2d');
+    Object.assign(p, { font: x.font, textAlign: 'left', textBaseline: 'alphabetic', fillStyle: '#fff' });
+    lay(p, 0);
+    const d = p.getImageData(0, 0, size, size).data;
+    let minX = size, maxX = -1;
+    for (let py = 0; py < size; py++) {
+      for (let px = 0; px < size; px++) {
+        if (d[(py * size + px) * 4 + 3] > 40) {
+          if (px < minX) minX = px;
+          if (px > maxX) maxX = px;
+        }
+      }
+    }
+    const shift = maxX >= 0 ? size / 2 - (minX + maxX + 1) / 2 : 0;
+
+    x.fillStyle = o.gold;
+    x.textAlign = 'left';
+    x.textBaseline = 'alphabetic';
+    lay(x, shift);
+
+    if (o.barWFrac > 0) {
+      const barW = size * o.barWFrac;
+      const barH = Math.max(1, Math.round(size * o.barHFrac));
+      x.fillRect(Math.round(size / 2 - barW / 2), Math.round(size * o.barYFrac), Math.round(barW), barH);
+    }
+    return c;
+  }
+
+  await document.fonts.load('700 100px Plex', 'JSH');
+  document.getElementById('status').textContent = 'Font loaded. Download, then move the files into apps/web/public/.';
+
+  const previews = document.getElementById('previews');
+  const built = ASSETS.map((a) => {
+    const canvas = draw(a.size, a.variant);
+    const url = canvas.toDataURL('image/png');
+    const fig = document.createElement('figure');
+    const img = new Image();
+    img.src = url;
+    img.width = Math.min(a.size, 160);
+    const cap = document.createElement('figcaption');
+    cap.textContent = `${a.file} (${a.size}px)${a.note ? ' — ' + a.note : ''}`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = a.file;
+    link.append(img);
+    fig.append(link, cap);
+    previews.append(fig);
+    return { ...a, url };
+  });
+
+  const btn = document.getElementById('all');
+  btn.disabled = false;
+  btn.addEventListener('click', () => {
+    built.forEach(({ file, url }, i) => {
+      // Stagger: browsers drop simultaneous programmatic downloads.
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file;
+        a.click();
+      }, i * 350);
+    });
+  });
+</script>
