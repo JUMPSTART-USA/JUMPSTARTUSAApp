@@ -51,7 +51,7 @@ export function HistoryPage() {
     search: debouncedSearch,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['communications', 'history', params],
     queryFn: () => api.get<Paged<CommunicationRow>>(`/communications${params}`),
   });
@@ -174,7 +174,7 @@ export function HistoryPage() {
         />
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       <DataTable
         columns={columns}
         data={data}

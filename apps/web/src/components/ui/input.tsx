@@ -1,8 +1,19 @@
 import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
+/**
+ * `text-base sm:text-sm`: iOS Safari zooms the whole page whenever a focused
+ * control computes under 16px, and it does not zoom back out on blur — which
+ * pushed a bottom sheet's Save button off screen after tapping any field. 16px
+ * below the `sm` breakpoint stops that; desktop keeps 14px.
+ *
+ * The focus ring is ADDITIVE — it no longer clears the border. Previously
+ * `focus-visible:border-transparent` swapped a 1.68:1 border for a 2.32:1 ring,
+ * so focusing a field changed almost nothing visible. Both tokens are now above
+ * the 3:1 floor and both stay on screen.
+ */
 const controlClasses =
-  'flex w-full rounded-md border border-input bg-card text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent disabled:cursor-not-allowed disabled:opacity-50';
+  'flex w-full rounded-md border border-input bg-card text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => (

@@ -59,7 +59,7 @@ export function IncidentReportsPage() {
     to,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['case-management', 'incident-reports', params],
     queryFn: () => api.get<Paged<IncidentReportRow>>(`/incident-reports${params}`),
   });
@@ -247,7 +247,7 @@ export function IncidentReportsPage() {
         />
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       <DataTable
         columns={columns}
         data={data}
@@ -324,7 +324,7 @@ export function IncidentReportsCard({ participantId }: { participantId: string }
             <Spinner />
           </div>
         ) : query.error ? (
-          <ErrorState error={query.error} />
+          <ErrorState error={query.error} onRetry={query.refetch} />
         ) : reports.length === 0 ? (
           <EmptyState title="No incidents reported" />
         ) : (

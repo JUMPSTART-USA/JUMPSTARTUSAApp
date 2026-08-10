@@ -78,7 +78,7 @@ export function AuditLogPage() {
     to,
   };
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['admin', 'audit', params],
     queryFn: () => api.get<Paged<AuditLogEntry>>(`/admin/audit-logs${qs(params)}`),
     enabled: can('audit.read'),
@@ -236,7 +236,7 @@ export function AuditLogPage() {
         </div>
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
 
       <DataTable
         columns={columns}

@@ -225,6 +225,19 @@ export function AppLayout() {
 
   return (
     <div className="flex min-h-screen">
+      {/*
+        First control in the document, so a keyboard user can reach page content
+        in one keystroke. Without it, ~24 focusable controls — the whole sidebar,
+        repeated identically on every route — sit in front of <main> on all 173
+        pages, which is hundreds of wasted keystrokes over a shift of data entry.
+      */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Skip to main content
+      </a>
+
       {/* Backdrop for the mobile nav drawer */}
       {navOpen ? (
         <div
@@ -234,10 +247,26 @@ export function AppLayout() {
         />
       ) : null}
 
+      {/*
+        `invisible` when closed is load-bearing, not decoration. A transform
+        alone left the drawer's ~24 controls — every module link, both switchers
+        and Sign out — focusable and in the accessibility tree while painted off
+        the left edge, so on a phone or iPad a keyboard user tabbed straight into
+        an invisible menu and could hit Sign out without ever seeing focus.
+        visibility:hidden removes the subtree from both. `lg:visible` keeps the
+        permanent desktop sidebar unaffected.
+
+        visibility is transitioned alongside transform on purpose: as a discrete
+        property it flips at the START when becoming visible and at the END when
+        becoming hidden, so the slide-in and slide-out animations both survive.
+        Done in CSS rather than the `inert` attribute because this is React 18,
+        where `inert={false}` still renders the attribute — and its mere presence
+        makes an element inert, which would have hidden the desktop sidebar.
+      */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-navy-deep text-white transition-transform duration-200 lg:translate-x-0',
-          navOpen ? 'translate-x-0' : '-translate-x-full',
+          'fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-navy-deep text-white transition-[transform,visibility] duration-200 lg:visible lg:translate-x-0',
+          navOpen ? 'visible translate-x-0' : 'invisible -translate-x-full',
         )}
       >
         <div className="flex h-20 flex-col justify-center border-b border-white/10 px-4">
@@ -402,7 +431,9 @@ export function AppLayout() {
             </div>
           ) : null}
         </div>
-        <main className="flex-1 p-4 sm:p-6">
+        {/* tabIndex={-1} so the skip link can move focus here without making
+            <main> itself a tab stop. */}
+        <main id="main-content" tabIndex={-1} className="flex-1 p-4 outline-none sm:p-6">
           <Outlet />
         </main>
       </div>

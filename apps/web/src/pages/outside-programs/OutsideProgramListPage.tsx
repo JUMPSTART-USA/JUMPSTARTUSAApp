@@ -160,7 +160,7 @@ export function OutsideProgramListPage() {
         <ChapterFilterSelect value={state} onChange={setState} />
       </ListToolbar>
 
-      {query.error ? <ErrorState error={query.error} /> : null}
+      {query.error ? <ErrorState error={query.error} onRetry={query.refetch} /> : null}
 
       <DataTable
         columns={columns}

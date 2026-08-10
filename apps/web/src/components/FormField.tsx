@@ -8,6 +8,7 @@ interface ControlProps {
   id?: string;
   'aria-describedby'?: string;
   'aria-invalid'?: boolean;
+  'aria-required'?: boolean;
 }
 
 /**
@@ -55,6 +56,11 @@ export function FormField({
         id: controlId,
         'aria-describedby': single.props['aria-describedby'] ?? describedBy,
         ...(message ? { 'aria-invalid': true } : {}),
+        // The asterisk was the only signal that a field was mandatory, so
+        // assistive tech never learned it. aria-required carries it properly,
+        // which lets the visual marker be hidden from the accessibility tree
+        // instead of being announced as "star".
+        ...(required ? { 'aria-required': true } : {}),
       })
     : children;
 
@@ -62,7 +68,11 @@ export function FormField({
     <div className={cn('space-y-1.5', className)}>
       <Label htmlFor={controlId}>
         {label}
-        {required ? <span className="ml-0.5 text-destructive">*</span> : null}
+        {required ? (
+          <span aria-hidden="true" className="ml-0.5 text-destructive">
+            *
+          </span>
+        ) : null}
       </Label>
       {control}
       {hint && !message ? (

@@ -1,9 +1,23 @@
 import { clsx, type ClassValue } from 'clsx';
 import { format } from 'date-fns';
+import { isValidElement, type ReactNode } from 'react';
 import { twMerge } from 'tailwind-merge';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+/**
+ * Flatten a node tree to its text, so a composed label like
+ * `<>{humanize(status)} participants</>` still yields a usable string.
+ * Canonical home for this — FilterSelect and PageHeader both read it.
+ */
+export function nodeText(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join('');
+  if (isValidElement<{ children?: ReactNode }>(node)) return nodeText(node.props.children);
+  return '';
 }
 
 export function formatDate(value: string | Date | null | undefined): string {

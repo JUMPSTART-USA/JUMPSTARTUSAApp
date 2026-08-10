@@ -237,9 +237,15 @@ export class BatchesService {
       else failed += 1;
     }
 
+    // The batch status has to reflect what actually happened. It was previously
+    // set to 'sent' unconditionally, so a year-end appeal where every single
+    // message failed still read "Sent" — a development director could report a
+    // successful send to the board on the strength of that badge.
+    const status = failed === 0 ? 'sent' : sent === 0 ? 'failed' : 'partially_sent';
+
     const updated = await this.prisma.communicationBatch.update({
       where: { id },
-      data: { status: 'sent', sentAt: batch.sentAt ?? new Date(), updatedById: user.id },
+      data: { status, sentAt: batch.sentAt ?? new Date(), updatedById: user.id },
     });
 
     await this.audit.log({

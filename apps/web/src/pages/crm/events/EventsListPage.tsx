@@ -172,7 +172,7 @@ export function EventsListPage() {
         />
       </ListToolbar>
 
-      {query.isError ? <ErrorState error={query.error} /> : null}
+      {query.isError ? <ErrorState error={query.error} onRetry={query.refetch} /> : null}
       <DataTable
         columns={columns}
         data={query.data}

@@ -105,7 +105,7 @@ export function FleetAlertsPage() {
       )}
 
       {query.isError ? (
-        <ErrorState error={query.error} />
+        <ErrorState error={query.error} onRetry={query.refetch} />
       ) : !query.data || query.data.items.length === 0 ? (
         <EmptyState
           title="No fleet alerts"

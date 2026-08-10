@@ -59,7 +59,7 @@ export function TicketDetailPage() {
   });
 
   if (query.isLoading) return <PageLoader />;
-  if (query.isError) return <ErrorState error={query.error} />;
+  if (query.isError) return <ErrorState error={query.error} onRetry={query.refetch} />;
   const ticket = query.data;
   if (!ticket) return null;
 

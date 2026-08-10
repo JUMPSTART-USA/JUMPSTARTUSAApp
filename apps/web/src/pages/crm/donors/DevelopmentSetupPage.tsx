@@ -175,7 +175,7 @@ function FundsCard() {
             <Spinner />
           </div>
         ) : query.isError ? (
-          <ErrorState error={query.error} />
+          <ErrorState error={query.error} onRetry={query.refetch} />
         ) : (query.data?.items.length ?? 0) === 0 ? (
           <p className="text-sm text-muted-foreground">No funds yet.</p>
         ) : (
@@ -425,7 +425,7 @@ function AppealsCard() {
             <Spinner />
           </div>
         ) : query.isError ? (
-          <ErrorState error={query.error} />
+          <ErrorState error={query.error} onRetry={query.refetch} />
         ) : (query.data?.items.length ?? 0) === 0 ? (
           <p className="text-sm text-muted-foreground">No appeals yet.</p>
         ) : (

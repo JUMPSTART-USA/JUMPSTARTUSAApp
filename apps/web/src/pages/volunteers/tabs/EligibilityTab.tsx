@@ -72,7 +72,7 @@ export function EligibilityTab({ volunteerProfileId }: { volunteerProfileId: str
       ) : eligibility.isLoading || requirements.isLoading ? (
         <PageLoader />
       ) : eligibility.error ? (
-        <ErrorState error={eligibility.error} />
+        <ErrorState error={eligibility.error} onRetry={eligibility.refetch} />
       ) : eligibility.data ? (
         <div className="space-y-3">
           {eligibility.data.eligible ? (

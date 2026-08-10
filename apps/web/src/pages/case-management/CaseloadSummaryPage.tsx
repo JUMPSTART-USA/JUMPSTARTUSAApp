@@ -15,13 +15,13 @@ import type { CaseloadSummaryRow } from './shared';
 
 /** Supervisor caseload dashboard — activity counts only, no note content (§7.3). */
 export function CaseloadSummaryPage() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['case-management', 'caseload-summary'],
     queryFn: () => api.get<CaseloadSummaryRow[]>('/caseload-summary'),
   });
 
   if (isLoading) return <PageLoader />;
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   return (
     <Card>

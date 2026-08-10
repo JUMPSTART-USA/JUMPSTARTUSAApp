@@ -2960,7 +2960,7 @@ model CommunicationBatch {
   audienceFilter Json? // the filter used to build the audience, for the record
   // Chapter column (§7.2) — the audience filter is forced to this chapter.
   chapterState   String
-  status         String      @default("draft") // draft | queued | sent
+  status         String      @default("draft") // draft | queued | sent | partially_sent | failed
   sentAt         DateTime?
 
   createdAt   DateTime @default(now())

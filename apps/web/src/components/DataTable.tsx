@@ -66,30 +66,49 @@ export function DataTable<T extends { id: string }>({
       <Table>
         <TableHeader>
           <TableRow>
-            {columns.map((col) => (
-              <TableHead key={col.key} className={col.className}>
-                {col.sortKey ? (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 hover:text-foreground"
-                    onClick={() => toggleSort(col.sortKey!)}
-                  >
-                    {col.header}
-                    {state.sortBy === col.sortKey ? (
-                      state.sortDir === 'asc' ? (
-                        <ArrowUp className="h-3 w-3" />
+            {columns.map((col) => {
+              const sorted = col.sortKey && state.sortBy === col.sortKey;
+              return (
+                <TableHead
+                  key={col.key}
+                  className={col.className}
+                  /* Without aria-sort a screen-reader user is told a column is
+                     sortable but never which column is sorted, or which way. */
+                  aria-sort={
+                    !col.sortKey
+                      ? undefined
+                      : sorted
+                        ? state.sortDir === 'asc'
+                          ? 'ascending'
+                          : 'descending'
+                        : 'none'
+                  }
+                >
+                  {col.sortKey ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => toggleSort(col.sortKey!)}
+                    >
+                      {col.header}
+                      {sorted ? (
+                        state.sortDir === 'asc' ? (
+                          <ArrowUp className="h-3 w-3" />
+                        ) : (
+                          <ArrowDown className="h-3 w-3" />
+                        )
                       ) : (
-                        <ArrowDown className="h-3 w-3" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="h-3 w-3 opacity-40" />
-                    )}
-                  </button>
-                ) : (
-                  col.header
-                )}
-              </TableHead>
-            ))}
+                        // Was opacity-40, which measured 1.79:1 — the affordance
+                        // telling you a column can be sorted was near-invisible.
+                        <ArrowUpDown className="h-3 w-3 opacity-70" />
+                      )}
+                    </button>
+                  ) : (
+                    col.header
+                  )}
+                </TableHead>
+              );
+            })}
           </TableRow>
         </TableHeader>
         <TableBody>

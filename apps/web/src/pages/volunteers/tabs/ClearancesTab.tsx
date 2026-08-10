@@ -41,7 +41,7 @@ export function ClearancesTab({ volunteerProfileId }: { volunteerProfileId: stri
   const [dialogOpen, setDialogOpen] = useState(false);
   const [evidenceRow, setEvidenceRow] = useState<ClearanceRow | null>(null);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['volunteers', 'clearances', volunteerProfileId],
     queryFn: () =>
       api.get<Paged<ClearanceRow>>(
@@ -50,7 +50,7 @@ export function ClearancesTab({ volunteerProfileId }: { volunteerProfileId: stri
   });
 
   if (isLoading) return <PageLoader />;
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   const clearances = data?.items ?? [];
 

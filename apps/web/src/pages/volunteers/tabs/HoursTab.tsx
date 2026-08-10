@@ -32,7 +32,7 @@ export function HoursTab({
   const [logOpen, setLogOpen] = useState(false);
 
   const params = { ...listState, volunteerProfileId };
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['volunteers', 'hours', 'by-volunteer', params],
     queryFn: () => api.get<Paged<HoursEntryRow>>(`/volunteers/hours${qs(params)}`),
   });
@@ -114,7 +114,7 @@ export function HoursTab({
         ) : null}
       </div>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
 
       <DataTable
         columns={columns}

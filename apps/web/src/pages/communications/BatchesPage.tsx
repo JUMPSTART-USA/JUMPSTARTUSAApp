@@ -6,6 +6,7 @@ import { DataTable, initialListState, type Column, type ListState } from '@/comp
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { SectionHeader } from '@/components/ui/page-header';
+import { Notice } from '@/components/ui/notice';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
@@ -30,6 +31,7 @@ export function BatchesPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [dispatchTarget, setDispatchTarget] = useState<BatchRow | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
+  const [dispatchResult, setDispatchResult] = useState<string | null>(null);
   const debouncedSearch = useDebounced(search);
   const canCreate = can('communications.create');
   const canDispatch = can('communications.update');
@@ -43,18 +45,34 @@ export function BatchesPage() {
     state: chapter,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['communications', 'batches', params],
     queryFn: () => api.get<Paged<BatchRow>>(`/communications/batches${params}`),
   });
 
+  /**
+   * The API already returns per-message outcomes; this used to throw them away
+   * and close the dialog, so a 3,000-recipient send where every message failed
+   * looked identical to a clean one. Report the counts the way NewBatchDialog
+   * already reports its match/queue/suppress numbers.
+   */
   const dispatch = useMutation({
     mutationFn: (batch: BatchRow) =>
-      api.post<unknown>(`/communications/batches/${batch.id}/dispatch`),
-    onSuccess: () => {
+      api.post<{ counts: { processed: number; sent: number; failed: number } }>(
+        `/communications/batches/${batch.id}/dispatch`,
+      ),
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['communications'] });
       setDispatchTarget(null);
       setDispatchError(null);
+      const { processed, sent, failed } = result.counts;
+      setDispatchResult(
+        failed === 0
+          ? `Sent ${sent} of ${processed}.`
+          : sent === 0
+            ? `All ${failed} messages failed to send. Nothing was delivered.`
+            : `Sent ${sent} of ${processed} — ${failed} failed.`,
+      );
     },
     onError: (err) => setDispatchError(applyApiError(err)),
   });
@@ -149,6 +167,12 @@ export function BatchesPage() {
         }
       />
 
+      {dispatchResult ? (
+        <Notice variant={dispatchResult.includes('failed') ? 'warning' : 'success'}>
+          {dispatchResult}
+        </Notice>
+      ) : null}
+
       <ListToolbar>
         <SearchInput
           value={search}
@@ -167,7 +191,7 @@ export function BatchesPage() {
         />
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       <DataTable
         columns={columns}
         data={data}

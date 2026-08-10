@@ -65,7 +65,7 @@ export function TravelRequestsPage() {
     to,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['case-management', 'travel-requests', params],
     queryFn: () => api.get<Paged<TravelRequestRow>>(`/travel-requests${params}`),
   });
@@ -262,7 +262,7 @@ export function TravelRequestsPage() {
         />
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       <DataTable
         columns={columns}
         data={data}
@@ -334,7 +334,7 @@ export function TravelRequestsCard({ participantId }: { participantId: string })
             <Spinner />
           </div>
         ) : query.error ? (
-          <ErrorState error={query.error} />
+          <ErrorState error={query.error} onRetry={query.refetch} />
         ) : (
           <Table>
             <TableHeader>

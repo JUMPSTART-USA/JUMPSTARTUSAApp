@@ -26,9 +26,15 @@ export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowEle
   );
 }
 
-export function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
+/**
+ * `scope="col"` by default: without it a screen reader has to guess which header
+ * describes a cell, and in a 10-column donor table it guesses badly. Callers can
+ * still override scope for a row header.
+ */
+export function TableHead({ className, scope, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
+      scope={scope ?? 'col'}
       className={cn(
         'h-10 whitespace-nowrap px-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-muted-foreground',
         className,

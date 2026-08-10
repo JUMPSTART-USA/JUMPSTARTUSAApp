@@ -222,7 +222,7 @@ export function BudgetsPage() {
                   <Spinner />
                 </div>
               ) : itemsQuery.error ? (
-                <ErrorState error={itemsQuery.error} />
+                <ErrorState error={itemsQuery.error} onRetry={itemsQuery.refetch} />
               ) : (
                 <Table>
                   <TableHeader>
@@ -316,7 +316,7 @@ export function BudgetsPage() {
           <Card>
             <CardHeaderRow title="Payments" />
             <CardContent>
-              {paymentsQuery.error ? <ErrorState error={paymentsQuery.error} /> : null}
+              {paymentsQuery.error ? <ErrorState error={paymentsQuery.error} onRetry={paymentsQuery.refetch} /> : null}
               <DataTable
                 columns={paymentColumns}
                 data={paymentsQuery.data}
@@ -405,9 +405,9 @@ export function BudgetCard({ participantId }: { participantId: string }) {
             <Spinner />
           </div>
         ) : itemsQuery.error ? (
-          <ErrorState error={itemsQuery.error} />
+          <ErrorState error={itemsQuery.error} onRetry={itemsQuery.refetch} />
         ) : paymentsQuery.error ? (
-          <ErrorState error={paymentsQuery.error} />
+          <ErrorState error={paymentsQuery.error} onRetry={paymentsQuery.refetch} />
         ) : (
           <>
             {activeItems.length === 0 ? (

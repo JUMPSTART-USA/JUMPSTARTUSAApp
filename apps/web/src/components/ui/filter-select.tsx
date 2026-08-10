@@ -1,14 +1,6 @@
 import { Children, isValidElement, useMemo, type ReactNode } from 'react';
 import { SelectMenu, type SelectMenuOption } from '@/components/ui/select-menu';
-
-/** Flatten a node tree to its text, so `{humanize(s)}` style labels come through. */
-function textOf(node: ReactNode): string {
-  if (node === null || node === undefined || typeof node === 'boolean') return '';
-  if (typeof node === 'string' || typeof node === 'number') return String(node);
-  if (Array.isArray(node)) return node.map(textOf).join('');
-  if (isValidElement<{ children?: ReactNode }>(node)) return textOf(node.props.children);
-  return '';
-}
+import { nodeText } from '@/lib/utils';
 
 /** Read <option> children (including the arrays .map() produces) into options. */
 function optionsFromChildren(children: ReactNode): SelectMenuOption[] {
@@ -16,7 +8,7 @@ function optionsFromChildren(children: ReactNode): SelectMenuOption[] {
   Children.toArray(children).forEach((child) => {
     if (!isValidElement<{ value?: string | number; children?: ReactNode }>(child)) return;
     if (child.type === 'option') {
-      const label = textOf(child.props.children);
+      const label = nodeText(child.props.children);
       out.push({ value: child.props.value !== undefined ? String(child.props.value) : label, label });
     } else if (child.props.children) {
       out.push(...optionsFromChildren(child.props.children));

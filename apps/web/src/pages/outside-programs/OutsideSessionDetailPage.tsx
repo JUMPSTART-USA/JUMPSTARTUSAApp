@@ -94,7 +94,7 @@ export function OutsideSessionDetailPage() {
   });
 
   if (sessionQuery.isLoading) return <PageLoader />;
-  if (sessionQuery.error) return <ErrorState error={sessionQuery.error} />;
+  if (sessionQuery.error) return <ErrorState error={sessionQuery.error} onRetry={sessionQuery.refetch} />;
   if (!session) return <ErrorState error={new Error('Session not found')} />;
 
   const roster = programQuery.data?.enrollments ?? [];

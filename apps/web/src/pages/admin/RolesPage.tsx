@@ -50,7 +50,7 @@ export function RolesPage() {
   // null draft = mirror the server; a Set means unsaved local edits exist.
   const [draft, setDraft] = useState<Set<string> | null>(null);
 
-  const { data: roles, isLoading, error } = useQuery({
+  const { data: roles, isLoading, error, refetch } = useQuery({
     queryKey: ['admin', 'roles'],
     queryFn: () => api.get<RoleView[]>('/admin/roles'),
     enabled: can('admin.roles'),
@@ -69,7 +69,7 @@ export function RolesPage() {
     return <EmptyState title="No access" hint="Requires the admin.roles permission." />;
   }
   if (isLoading) return <PageLoader />;
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
   if (!roles || roles.length === 0) return <EmptyState title="No roles found" />;
 
   const selected = roles.find((r) => r.id === selectedId) ?? roles[0];
