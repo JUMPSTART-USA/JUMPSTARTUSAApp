@@ -112,7 +112,18 @@ export function SelectMenu({
   useLayoutEffect(() => {
     if (!open) return;
     place();
-    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+    // Scroll the highlighted option into view by adjusting the list's own
+    // scrollTop. Deliberately NOT scrollIntoView: that walks up to the nearest
+    // scrollable ancestor, so for a menu portalled to <body> it can scroll the
+    // PAGE — which both moves the menu away from its trigger and trips the
+    // close-on-scroll handler below, shutting the menu as it opens.
+    const list = listRef.current;
+    const active = list?.querySelector<HTMLElement>('[data-active="true"]');
+    if (!list || !active) return;
+    const top = active.offsetTop;
+    const bottom = top + active.offsetHeight;
+    if (top < list.scrollTop) list.scrollTop = top;
+    else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight;
   }, [open, activeIndex, place]);
 
   /**
@@ -122,7 +133,12 @@ export function SelectMenu({
    */
   useEffect(() => {
     if (!open) return;
-    const onScroll = () => setOpen(false);
+    const onScroll = (e: Event) => {
+      // Scrolling within the option list is not a dismissal.
+      const target = e.target as Node | null;
+      if (target && listRef.current?.contains(target)) return;
+      setOpen(false);
+    };
     const onResize = () => place();
     window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', onResize);
