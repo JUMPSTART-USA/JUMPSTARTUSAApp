@@ -79,8 +79,15 @@ done
 
 ### 3. GitHub environments
 
-Create `staging` and `production` environments in the repo settings
-(**production: add a required reviewer** — that's the deploy gate).
+Create `staging` and `production` environments in the repo settings. Set
+`production` to accept deployments from **protected branches only**, so prod can
+never be shipped from a feature branch.
+
+A required reviewer on `production` would be the natural deploy gate, but on a
+private repo that rule needs GitHub Enterprise — Team only unlocks deployment
+branch policies. The gate is therefore the workflow itself: the `production` job
+runs on `workflow_dispatch` only, so merging to `main` deploys staging and
+nothing else. See `.github/workflows/deploy.yml`.
 
 Variables for each environment (from the Bicep outputs):
 
@@ -104,8 +111,15 @@ Secret for each environment:
 
 ### 4. First deploy
 
-Push to `main` (or run the **Deploy** workflow manually). Staging deploys,
-then production waits for approval.
+Push to `main`: CI runs, then staging deploys. Production does **not** follow
+automatically — review staging, then release it:
+
+```bash
+gh workflow run deploy.yml --ref main
+```
+
+or use **Run workflow** on the Deploy workflow in the Actions tab. Either way the
+run re-checks that CI passed for that commit before touching prod.
 
 ### 5. Production go-live (once)
 
