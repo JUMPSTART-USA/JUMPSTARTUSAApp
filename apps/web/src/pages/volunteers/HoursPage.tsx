@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { api, qs, type Paged } from '@/lib/api';
+import { todayInput } from '@/lib/form';
 import { useAuth } from '@/lib/auth';
 import { formatDate, fullName } from '@/lib/utils';
 import { LogHoursDialog } from './LogHoursDialog';
@@ -48,7 +49,10 @@ export function HoursPage() {
 
   // ── Summary tiles ─────────────────────────────────────────────────────────
   const year = new Date().getFullYear();
-  const month = new Date().toISOString().slice(0, 7);
+  // yyyy-MM from the LOCAL date. Taken off the UTC date, this rolled to the
+  // next month at 8pm Eastern on the last evening of a month, so the tile
+  // reported the wrong month's hours.
+  const month = todayInput().slice(0, 7);
   // No dedicated summary endpoint: page through ALL approved YTD entries
   // (the API caps pageSize at 200) and sum client-side. The 50-page safety
   // valve bounds this at 10,000 entries — beyond that the tiles undercount.

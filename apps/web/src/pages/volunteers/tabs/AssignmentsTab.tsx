@@ -58,7 +58,10 @@ export function AssignmentsTab({ volunteer }: { volunteer: VolunteerDetail }) {
     mutationFn: (assignmentId: string) =>
       api.patch(`/volunteers/assignments/${assignmentId}`, {
         status: 'ended',
-        endDate: new Date().toISOString().slice(0, 10),
+        // todayInput(), not toISOString(): the UTC date rolls over at 8pm
+        // Eastern, so an assignment ended during an evening shift was stored as
+        // ending tomorrow.
+        endDate: todayInput(),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['volunteers'] }),
   });

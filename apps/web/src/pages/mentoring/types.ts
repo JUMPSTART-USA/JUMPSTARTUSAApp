@@ -145,6 +145,13 @@ export const emptyToUndefined = (v: unknown) => (v === '' ? undefined : v);
 /**
  * Overdue matches the server rule (dueDate < UTC today), so compare date
  * strings — a check-in due today is not yet overdue.
+ *
+ * The UTC date here is intentional and is the ONE place that still uses it:
+ * everywhere else builds a date-only value from the local calendar via
+ * todayInput(). Do not "fix" this one on its own. It mirrors the server's
+ * overdue query, so changing only the client would make the badge disagree with
+ * the server's own list of overdue check-ins. Both sides move together, or
+ * neither does — and between 8pm and midnight Eastern both are a day ahead.
  */
 export function isOverdue(c: Pick<CheckinView, 'dueDate' | 'completedDate'>): boolean {
   if (c.completedDate) return false;
