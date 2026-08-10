@@ -205,7 +205,7 @@ export function HoursPage() {
         <CardContent className="p-0 pb-2">
           {pendingQuery.error ? (
             <div className="px-5 pb-3">
-              <ErrorState error={pendingQuery.error} />
+              <ErrorState error={pendingQuery.error} onRetry={pendingQuery.refetch} />
             </div>
           ) : pending.length === 0 ? (
             <p className="px-5 pb-3 text-sm text-muted-foreground">
@@ -325,7 +325,7 @@ export function HoursPage() {
             />
           </ListToolbar>
 
-          {entries.error ? <ErrorState error={entries.error} /> : null}
+          {entries.error ? <ErrorState error={entries.error} onRetry={entries.refetch} /> : null}
 
           <DataTable
             columns={columns}

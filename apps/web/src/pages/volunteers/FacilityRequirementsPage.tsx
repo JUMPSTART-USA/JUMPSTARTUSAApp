@@ -57,7 +57,7 @@ export function FacilityRequirementsPage() {
     institutionId,
     active,
   };
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['volunteers', 'requirements', 'list', params],
     queryFn: () =>
       api.get<Paged<RequirementRow>>(`/volunteers/facility-requirements${qs(params)}`),
@@ -177,7 +177,7 @@ export function FacilityRequirementsPage() {
         </FilterSelect>
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
 
       <DataTable
         columns={columns}

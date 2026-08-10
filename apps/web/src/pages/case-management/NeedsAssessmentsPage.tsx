@@ -225,7 +225,7 @@ export function NeedsAssessmentsPage() {
     state,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['case-management', 'needs-assessments', params],
     queryFn: () => api.get<Paged<NeedsAssessmentRow>>(`/needs-assessments${params}`),
   });
@@ -338,7 +338,7 @@ export function NeedsAssessmentsPage() {
         />
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       <DataTable
         columns={columns}
         data={data}

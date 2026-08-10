@@ -62,7 +62,7 @@ export function UsersPage() {
     status,
   };
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['admin', 'users', 'list', params],
     queryFn: () => api.get<Paged<AdminUser>>(`/admin/users${qs(params)}`),
     enabled: canWrite,
@@ -258,7 +258,7 @@ export function UsersPage() {
         </FilterSelect>
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       {reactivate.error ? <ErrorState error={reactivate.error} /> : null}
       {resendInvite.error ? <ErrorState error={resendInvite.error} /> : null}
       {setChapter.error ? <ErrorState error={setChapter.error} /> : null}

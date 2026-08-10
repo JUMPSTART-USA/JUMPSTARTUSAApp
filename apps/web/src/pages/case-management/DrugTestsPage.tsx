@@ -43,7 +43,7 @@ export function DrugTestsPage() {
     to,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['case-management', 'drug-tests', params],
     queryFn: () => api.get<Paged<DrugTestRow>>(`/drug-tests${params}`),
   });
@@ -197,7 +197,7 @@ export function DrugTestsPage() {
         />
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       <DataTable
         columns={columns}
         data={data}

@@ -109,7 +109,7 @@ export function CaseManagementHome() {
   const { user, can } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['case-management', 'follow-ups'],
     queryFn: () => api.get<FollowUpQueue>('/follow-ups'),
   });
@@ -123,7 +123,7 @@ export function CaseManagementHome() {
   });
 
   if (isLoading) return <PageLoader />;
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
   if (!data) return null;
 
   const total = data.overdue.length + data.today.length + data.upcoming.length;

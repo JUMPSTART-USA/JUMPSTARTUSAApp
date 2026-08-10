@@ -110,7 +110,7 @@ export function CampaignDetailPage() {
   });
 
   if (query.isLoading) return <PageLoader />;
-  if (query.isError) return <ErrorState error={query.error} />;
+  if (query.isError) return <ErrorState error={query.error} onRetry={query.refetch} />;
   if (!query.data) return null;
 
   const { campaign, raisedToDate, donationCount, progressPct, events, appeals } = query.data;
@@ -246,7 +246,7 @@ export function CampaignDetailPage() {
 
         {canViewDonations ? (
           <TabsContent value="donations">
-            {donationsQuery.isError ? <ErrorState error={donationsQuery.error} /> : null}
+            {donationsQuery.isError ? <ErrorState error={donationsQuery.error} onRetry={donationsQuery.refetch} /> : null}
             <DataTable
               columns={donationColumns}
               data={donationsQuery.data}

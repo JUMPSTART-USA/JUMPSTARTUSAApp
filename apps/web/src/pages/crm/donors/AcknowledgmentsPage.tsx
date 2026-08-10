@@ -207,7 +207,7 @@ export function AcknowledgmentsPage() {
 
       <DonorsNav />
 
-      {query.isError ? <ErrorState error={query.error} /> : null}
+      {query.isError ? <ErrorState error={query.error} onRetry={query.refetch} /> : null}
       {isEmpty ? (
         <EmptyState
           title="All caught up"

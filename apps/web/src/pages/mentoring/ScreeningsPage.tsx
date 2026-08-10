@@ -242,7 +242,7 @@ export function ScreeningsPage() {
       {pipeline.isLoading ? (
         <PageLoader />
       ) : pipeline.isError ? (
-        <ErrorState error={pipeline.error} />
+        <ErrorState error={pipeline.error} onRetry={pipeline.refetch} />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {ACTIVE_STAGES.map((stage) => {
@@ -293,7 +293,7 @@ export function ScreeningsPage() {
         </CardHeaderRow>
         <CardContent>
           {decided.isError ? (
-            <ErrorState error={decided.error} />
+            <ErrorState error={decided.error} onRetry={decided.refetch} />
           ) : (
             <DataTable
               columns={decidedColumns}

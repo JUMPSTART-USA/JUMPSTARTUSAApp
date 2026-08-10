@@ -312,7 +312,7 @@ export function AssignmentDetailPage() {
   });
 
   if (query.isLoading) return <PageLoader />;
-  if (query.isError) return <ErrorState error={query.error} />;
+  if (query.isError) return <ErrorState error={query.error} onRetry={query.refetch} />;
   const assignment = query.data!;
 
   const sessionColumns: Column<SessionLogView>[] = [
@@ -471,7 +471,7 @@ export function AssignmentDetailPage() {
         </CardHeader>
         <CardContent>
           {sessions.isError ? (
-            <ErrorState error={sessions.error} />
+            <ErrorState error={sessions.error} onRetry={sessions.refetch} />
           ) : (
             <DataTable
               columns={sessionColumns}

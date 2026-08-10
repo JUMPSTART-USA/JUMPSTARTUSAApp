@@ -52,7 +52,7 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
   const [evidenceRow, setEvidenceRow] = useState<TrainingRow | null>(null);
 
   const params = { ...listState, volunteerProfileId };
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['volunteers', 'trainings', params],
     queryFn: () => api.get<Paged<TrainingRow>>(`/volunteers/trainings${qs(params)}`),
   });
@@ -154,7 +154,7 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
         ) : null}
       </div>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
 
       <DataTable
         columns={columns}

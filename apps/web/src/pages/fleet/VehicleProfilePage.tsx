@@ -81,7 +81,7 @@ export function VehicleProfilePage() {
     return (
       <div className="space-y-4">
         <BackLink fallbackTo="/vehicles" fallbackLabel="Vehicles" />
-        <ErrorState error={query.error} />
+        <ErrorState error={query.error} onRetry={query.refetch} />
       </div>
     );
   }
@@ -287,7 +287,7 @@ export function VehicleProfilePage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {summaryQuery.isError ? (
-              <ErrorState error={summaryQuery.error} />
+              <ErrorState error={summaryQuery.error} onRetry={summaryQuery.refetch} />
             ) : (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-md border bg-muted/30 p-3 text-center">

@@ -83,7 +83,7 @@ export function VolunteerListPage() {
     state: chapter,
   };
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['volunteers', 'list', params],
     queryFn: () => api.get<Paged<VolunteerListItem>>(`/volunteers${qs(params)}`),
   });
@@ -214,7 +214,7 @@ export function VolunteerListPage() {
         />
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
 
       <DataTable
         columns={columns}

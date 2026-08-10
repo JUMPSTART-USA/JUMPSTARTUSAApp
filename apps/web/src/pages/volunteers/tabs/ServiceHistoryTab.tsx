@@ -16,14 +16,14 @@ import type { ServiceHistoryResult } from '../types';
 
 /** §6.6 volunteer service report: where, when, in what role. */
 export function ServiceHistoryTab({ volunteerProfileId }: { volunteerProfileId: string }) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['volunteers', 'service-history', volunteerProfileId],
     queryFn: () =>
       api.get<ServiceHistoryResult>(`/volunteers/${volunteerProfileId}/service-history`),
   });
 
   if (isLoading) return <PageLoader />;
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   const assignments = data?.assignments ?? [];
 

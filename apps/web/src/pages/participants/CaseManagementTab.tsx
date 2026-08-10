@@ -148,7 +148,7 @@ function DrugTestsCard({ participantId }: { participantId: string }) {
             <Spinner />
           </div>
         ) : query.error ? (
-          <ErrorState error={query.error} />
+          <ErrorState error={query.error} onRetry={query.refetch} />
         ) : (
           <Table>
             <TableHeader>
@@ -303,8 +303,8 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
     );
   }
   if (checklists.isLoading || plans.isLoading) return <PageLoader />;
-  if (checklists.error) return <ErrorState error={checklists.error} />;
-  if (plans.error) return <ErrorState error={plans.error} />;
+  if (checklists.error) return <ErrorState error={checklists.error} onRetry={checklists.refetch} />;
+  if (plans.error) return <ErrorState error={plans.error} onRetry={plans.refetch} />;
 
   return (
     <div className="space-y-4">

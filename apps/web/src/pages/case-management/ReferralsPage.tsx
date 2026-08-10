@@ -216,7 +216,7 @@ export function ReferralsPage() {
     state,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['case-management', 'referrals', params],
     queryFn: () => api.get<Paged<ReferralRow>>(`/referrals${params}`),
   });
@@ -313,7 +313,7 @@ export function ReferralsPage() {
         ) : null}
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       <DataTable
         columns={columns}
         data={data}

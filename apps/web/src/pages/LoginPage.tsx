@@ -88,11 +88,10 @@ export function LoginPage() {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Password</Label>
-                    <Link
-                      to="/forgot-password"
-                      className="text-xs text-primary hover:underline"
-                      tabIndex={-1}
-                    >
+                    {/* Not tabIndex={-1}: this is the only link to password
+                        recovery in the app, and removing it from the tab order
+                        left a locked-out keyboard user with no way to reach it. */}
+                    <Link to="/forgot-password" className="text-xs text-primary hover:underline">
                       Forgot password?
                     </Link>
                   </div>

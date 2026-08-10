@@ -39,7 +39,7 @@ export function ExpirationsPage() {
   const [days, setDays] = useState<(typeof WINDOWS)[number]>(30);
   const canReadChecks = can('fields.background_checks.read');
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['volunteers', 'expirations', days],
     queryFn: () => api.get<ExpirationsResult>(`/volunteers/expirations${qs({ days })}`),
   });
@@ -68,7 +68,7 @@ export function ExpirationsPage() {
       />
 
       {isLoading ? <PageLoader /> : null}
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
 
       {data ? (
         <div className="space-y-4">

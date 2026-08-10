@@ -119,7 +119,7 @@ export function PortalAccessCard({ participantId }: { participantId: string }) {
             <Spinner />
           </div>
         ) : tokensQuery.error ? (
-          <ErrorState error={tokensQuery.error} />
+          <ErrorState error={tokensQuery.error} onRetry={tokensQuery.refetch} />
         ) : activeToken && portalUrl ? (
           <div className="space-y-3">
             <div className="space-y-1.5">

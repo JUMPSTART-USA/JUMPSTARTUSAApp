@@ -47,7 +47,7 @@ export function EntityPicker({
   const [q, setQ] = useState('');
   const term = useDebounced(q.trim());
   const enabled = !value && term.length >= minChars;
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ['entity-picker', queryKey, term],
     queryFn: () => search(term),
     enabled,
@@ -95,6 +95,17 @@ export function EntityPicker({
         <div className="max-h-44 divide-y overflow-y-auto rounded-md border bg-card shadow-card">
           {isFetching ? (
             <div className="px-3 py-2 text-sm text-muted-foreground">Searching…</div>
+          ) : isError ? (
+            /* A failed search must never render as a negative result. Reporting
+               "No matches" when the request errored told staff a person was not
+               in the system, so they created a second record for them — exactly
+               the duplicate the create flow works to prevent. */
+            <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+              <span className="text-destructive">Search failed</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => refetch()}>
+                Retry
+              </Button>
+            </div>
           ) : !data || data.length === 0 ? (
             <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
           ) : (

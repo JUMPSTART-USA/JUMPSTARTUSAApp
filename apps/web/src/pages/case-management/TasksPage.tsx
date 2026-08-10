@@ -202,7 +202,7 @@ export function TasksPage() {
     assignedToId: mineOnly ? user?.id : undefined,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['case-management', 'case-tasks', params],
     queryFn: () => api.get<Paged<CaseTaskRow>>(`/case-tasks${params}`),
   });
@@ -333,7 +333,7 @@ export function TasksPage() {
         </div>
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       {complete.error ? <ErrorState error={complete.error} /> : null}
       <DataTable
         columns={columns}

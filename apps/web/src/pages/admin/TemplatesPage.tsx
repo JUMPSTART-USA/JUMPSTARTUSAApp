@@ -102,7 +102,7 @@ function TemplateSection({ kind }: { kind: TemplateKind }) {
   const [editing, setEditing] = useState<TemplateRecord | 'new' | null>(null);
   const [confirming, setConfirming] = useState<TemplateRecord | null>(null);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: kind.queryKey,
     queryFn: () => api.get<TemplateRecord[]>(kind.basePath),
   });
@@ -116,7 +116,7 @@ function TemplateSection({ kind }: { kind: TemplateKind }) {
   });
 
   if (isLoading) return <PageLoader />;
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   const templates = data ?? [];
 

@@ -290,7 +290,7 @@ export function InsideClassCloseOutPage() {
   });
 
   if (query.isLoading) return <PageLoader />;
-  if (query.isError) return <ErrorState error={query.error} />;
+  if (query.isError) return <ErrorState error={query.error} onRetry={query.refetch} />;
   if (!query.data) return null;
 
   const insideClass = query.data;

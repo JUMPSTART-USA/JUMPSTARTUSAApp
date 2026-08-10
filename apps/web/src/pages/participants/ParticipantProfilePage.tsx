@@ -73,7 +73,7 @@ export function ParticipantProfilePage() {
   });
 
   if (query.isLoading) return <PageLoader />;
-  if (query.isError) return <ErrorState error={query.error} />;
+  if (query.isError) return <ErrorState error={query.error} onRetry={query.refetch} />;
   const participant = query.data;
   if (!participant) return <ErrorState error={new Error('Participant not found')} />;
 

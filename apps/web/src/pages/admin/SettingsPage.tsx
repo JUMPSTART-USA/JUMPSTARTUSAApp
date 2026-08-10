@@ -65,7 +65,7 @@ export function SettingsPage() {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppSetting | null>(null);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['admin', 'settings'],
     queryFn: () => api.get<AppSetting[]>('/admin/settings'),
     enabled: can('admin.settings'),
@@ -80,7 +80,7 @@ export function SettingsPage() {
     return <EmptyState title="No access" hint="Requires the admin.settings permission." />;
   }
   if (isLoading) return <PageLoader />;
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   const settings = data ?? [];
   const existingKeys = new Set(settings.map((s) => s.key));

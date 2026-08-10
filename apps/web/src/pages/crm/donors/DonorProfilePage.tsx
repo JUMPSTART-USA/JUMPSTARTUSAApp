@@ -374,7 +374,7 @@ function SoftCreditsDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          {detailQuery.isError ? <ErrorState error={detailQuery.error} /> : null}
+          {detailQuery.isError ? <ErrorState error={detailQuery.error} onRetry={detailQuery.refetch} /> : null}
           {softCredits.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {detailQuery.isLoading ? 'Loading…' : 'No soft credits on this gift.'}
@@ -553,7 +553,7 @@ export function DonorProfilePage() {
   });
 
   if (query.isLoading) return <PageLoader />;
-  if (query.isError) return <ErrorState error={query.error} />;
+  if (query.isError) return <ErrorState error={query.error} onRetry={query.refetch} />;
   if (!query.data || !id) return null;
 
   const {

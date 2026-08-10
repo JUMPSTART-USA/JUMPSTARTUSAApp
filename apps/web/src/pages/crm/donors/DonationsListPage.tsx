@@ -317,7 +317,7 @@ export function DonationsListPage() {
         </CardContent>
       </Card>
 
-      {listQuery.isError ? <ErrorState error={listQuery.error} /> : null}
+      {listQuery.isError ? <ErrorState error={listQuery.error} onRetry={listQuery.refetch} /> : null}
       <DataTable
         columns={columns}
         data={listQuery.data}

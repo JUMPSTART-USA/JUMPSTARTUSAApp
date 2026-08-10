@@ -57,7 +57,7 @@ export function ChecksTab({ personId }: { personId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const params = { ...listState, personId };
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['volunteers', 'checks', params],
     queryFn: () => api.get<Paged<BackgroundCheckRow>>(`/volunteers/background-checks${qs(params)}`),
   });
@@ -148,7 +148,7 @@ export function ChecksTab({ personId }: { personId: string }) {
         ) : null}
       </div>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
 
       <DataTable
         columns={columns}

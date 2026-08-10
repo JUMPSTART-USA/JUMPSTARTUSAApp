@@ -52,14 +52,14 @@ export function VolunteerDetailPage() {
   const { can } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['volunteers', 'detail', id],
     queryFn: () => api.get<VolunteerDetail>(`/volunteers/${id}`),
     enabled: Boolean(id),
   });
 
   if (isLoading) return <PageLoader />;
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
   if (!data) return null;
 
   const { person } = data;

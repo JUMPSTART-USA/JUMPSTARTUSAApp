@@ -335,7 +335,7 @@ export function SessionsTab({
   });
 
   if (sessionsQuery.isLoading) return <PageLoader />;
-  if (sessionsQuery.isError) return <ErrorState error={sessionsQuery.error} />;
+  if (sessionsQuery.isError) return <ErrorState error={sessionsQuery.error} onRetry={sessionsQuery.refetch} />;
 
   const sessions = sessionsQuery.data ?? [];
   const selected = sessions.find((s) => s.id === selectedId) ?? sessions[sessions.length - 1] ?? null;

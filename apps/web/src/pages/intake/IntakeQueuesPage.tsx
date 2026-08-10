@@ -69,7 +69,7 @@ export function IntakeQueuesPage() {
       <PageHeader title="Intake Queues" />
 
       {summary.isError ? (
-        <ErrorState error={summary.error} />
+        <ErrorState error={summary.error} onRetry={summary.refetch} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-3">
           <SummaryCard

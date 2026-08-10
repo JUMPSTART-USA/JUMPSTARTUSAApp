@@ -282,7 +282,7 @@ export function DashboardPage() {
       ) : query.isPending ? (
         <PageLoader />
       ) : query.isError ? (
-        <ErrorState error={query.error} />
+        <ErrorState error={query.error} onRetry={query.refetch} />
       ) : data ? (
         <div className={cn('space-y-4 transition-opacity', query.isFetching && 'opacity-60')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">

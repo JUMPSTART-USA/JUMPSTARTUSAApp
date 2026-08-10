@@ -70,7 +70,7 @@ export function OutsideProgramDetailPage() {
   });
 
   if (programQuery.isLoading) return <PageLoader />;
-  if (programQuery.error) return <ErrorState error={programQuery.error} />;
+  if (programQuery.error) return <ErrorState error={programQuery.error} onRetry={programQuery.refetch} />;
   const program = programQuery.data;
   if (!program) return <ErrorState error={new Error('Outside program not found')} />;
 
@@ -259,7 +259,7 @@ export function OutsideProgramDetailPage() {
               </Button>
             ) : null}
           </div>
-          {sessionsQuery.error ? <ErrorState error={sessionsQuery.error} /> : null}
+          {sessionsQuery.error ? <ErrorState error={sessionsQuery.error} onRetry={sessionsQuery.refetch} /> : null}
           {sessionsQuery.data && sessionsQuery.data.length === 0 ? (
             <EmptyState title="No sessions yet" hint="Add a session to record attendance" />
           ) : sessionsQuery.data ? (

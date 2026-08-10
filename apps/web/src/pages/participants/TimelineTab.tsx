@@ -50,7 +50,7 @@ export function TimelineTab({ participantId }: { participantId: string }) {
   });
 
   if (query.isLoading) return <PageLoader />;
-  if (query.error) return <ErrorState error={query.error} />;
+  if (query.error) return <ErrorState error={query.error} onRetry={query.refetch} />;
   const data = query.data;
   if (!data || data.items.length === 0) return <EmptyState title="No activity recorded yet" />;
 

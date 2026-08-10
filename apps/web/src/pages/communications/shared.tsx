@@ -22,6 +22,8 @@ const COMM_STATUS_VARIANTS: Record<string, BadgeProps['variant']> = {
   queued: 'secondary',
   sent: 'info',
   delivered: 'success',
+  // A dispatch where some or all messages failed no longer reports "Sent".
+  partially_sent: 'warning',
   failed: 'destructive',
   returned: 'warning',
 };

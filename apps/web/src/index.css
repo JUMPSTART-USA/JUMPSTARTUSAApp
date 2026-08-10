@@ -36,8 +36,18 @@
     --gold: 39 98% 60%;                /* #FDB835 — brand accent */
     --gold-foreground: 209 60% 7%;
     --border: 40 22% 86%;
-    --input: 40 18% 76%;
-    --ring: 39 92% 47%;                /* gold focus ring */
+    /* Control boundary, 3.39:1 on --card. WCAG 1.4.11 asks 3:1 for the edge of
+       a control; the previous 40 18% 76% measured 1.68:1, so an empty field was
+       hard to locate at all before it had focus. */
+    --input: 40 12% 52%;
+    /* Focus ring — deliberately darker than the brand gold. This is the value
+       that clears 3:1 on EVERY surface the ring actually lands on: 3.83:1 on
+       card, 3.61:1 on the page, 3.32:1 on the muted tab/sub-nav bar, 4.01:1 on
+       navy and 4.90:1 on navy-deep. The previous 39 92% 47% managed 2.32 / 2.19
+       / 2.01 on light surfaces — the indicator the entire keyboard experience
+       depends on was the least visible thing in the interface. Brand gold is
+       untouched everywhere else; this token is only the ring. */
+    --ring: 39 92% 36%;
     --radius: 0.5rem;
   }
 

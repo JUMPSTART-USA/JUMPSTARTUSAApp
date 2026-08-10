@@ -80,7 +80,7 @@ export function AttachmentsCard({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [deleting, setDeleting] = useState<AttachmentItem | null>(null);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey,
     queryFn: () => api.get<AttachmentItem[]>(`/attachments${qs({ entityType, entityId })}`),
   });
@@ -103,7 +103,7 @@ export function AttachmentsCard({
 
   const body = (
     <>
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       {isLoading ? (
         <div className="flex justify-center py-6">
           <Spinner />

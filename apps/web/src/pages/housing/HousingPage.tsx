@@ -48,7 +48,7 @@ function OccupancyDashboard() {
   });
 
   if (query.isLoading) return <PageLoader />;
-  if (query.error) return <ErrorState error={query.error} />;
+  if (query.error) return <ErrorState error={query.error} onRetry={query.refetch} />;
   const entries = query.data ?? [];
   if (entries.length === 0) {
     return <EmptyState title="No active homes" hint="Add a transitional home to see occupancy" />;
@@ -243,7 +243,7 @@ function HomesTab() {
           <option value="false">Inactive only</option>
         </FilterSelect>
       </ListToolbar>
-      {query.error ? <ErrorState error={query.error} /> : null}
+      {query.error ? <ErrorState error={query.error} onRetry={query.refetch} /> : null}
       <DataTable
         columns={homeColumns}
         data={query.data}
@@ -353,7 +353,7 @@ function ResidentsTab() {
           ))}
         </FilterSelect>
       </ListToolbar>
-      {query.error ? <ErrorState error={query.error} /> : null}
+      {query.error ? <ErrorState error={query.error} onRetry={query.refetch} /> : null}
       <DataTable
         columns={residentColumns}
         data={query.data}

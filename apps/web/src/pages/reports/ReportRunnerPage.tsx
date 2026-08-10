@@ -300,7 +300,7 @@ function RunnerInner({ report }: { report: ReportSummary }) {
         </Card>
       ) : null}
 
-      {runQuery.error ? <ErrorState error={runQuery.error} /> : null}
+      {runQuery.error ? <ErrorState error={runQuery.error} onRetry={runQuery.refetch} /> : null}
       {runQuery.isFetching && !result ? <PageLoader /> : null}
 
       {result ? (

@@ -7,6 +7,7 @@ import {
   type ShiftSignupStatus,
 } from '@jumpstart/shared';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { compareToToday, todayInput } from '@/lib/form';
 import { formatDate } from '@/lib/utils';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -25,11 +26,17 @@ export function ExpiryBadge({
   emptyLabel?: string;
 }) {
   if (!date) return <span className="text-muted-foreground">{emptyLabel}</span>;
-  const d = new Date(date);
+  // Expiry dates are date-only, so both sides of the comparison must be read on
+  // the local calendar. `new Date('2026-08-10')` is UTC midnight, which put the
+  // "expired" boundary at 8pm Eastern the day before and flipped these badges a
+  // day early. compareToToday works on 'yyyy-MM-dd' strings and has no timezone.
+  const elapsed = compareToToday(date);
+  if (Number.isNaN(elapsed)) return <span className="text-muted-foreground">—</span>;
+  if (elapsed < 0) return <Badge variant="destructive">Expired {formatDate(date)}</Badge>;
+  const d = new Date(`${date.slice(0, 10)}T00:00:00`);
   if (Number.isNaN(d.getTime())) return <span className="text-muted-foreground">—</span>;
-  const now = Date.now();
-  if (d.getTime() < now) return <Badge variant="destructive">Expired {formatDate(date)}</Badge>;
-  if (d.getTime() - now <= warnDays * DAY_MS)
+  const startOfToday = new Date(`${todayInput()}T00:00:00`).getTime();
+  if (d.getTime() - startOfToday <= warnDays * DAY_MS)
     return <Badge variant="warning">Expires {formatDate(date)}</Badge>;
   return <span>{formatDate(date)}</span>;
 }

@@ -75,7 +75,7 @@ export function MentoringHomePage() {
   });
 
   if (oversight.isLoading) return <PageLoader />;
-  if (oversight.isError) return <ErrorState error={oversight.error} />;
+  if (oversight.isError) return <ErrorState error={oversight.error} onRetry={oversight.refetch} />;
   const data = oversight.data!;
 
   const pipelineTotal = Object.values(data.screeningsInPipeline).reduce((a, b) => a + b, 0);
@@ -197,7 +197,7 @@ export function MentoringHomePage() {
           </CardHeaderRow>
           <CardContent>
             {overdue.isError ? (
-              <ErrorState error={overdue.error} />
+              <ErrorState error={overdue.error} onRetry={overdue.refetch} />
             ) : !overdue.data || overdue.data.items.length === 0 ? (
               <EmptyState title="No overdue check-ins" />
             ) : (

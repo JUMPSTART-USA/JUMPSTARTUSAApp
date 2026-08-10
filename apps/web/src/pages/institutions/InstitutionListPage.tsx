@@ -137,7 +137,7 @@ export function InstitutionListPage() {
       </ListToolbar>
 
       {query.isError ? (
-        <ErrorState error={query.error} />
+        <ErrorState error={query.error} onRetry={query.refetch} />
       ) : (
         <DataTable
           columns={columns}

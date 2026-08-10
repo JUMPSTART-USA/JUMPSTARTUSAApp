@@ -100,7 +100,7 @@ export function HomeDetailPage() {
   });
 
   if (homeQuery.isLoading) return <PageLoader />;
-  if (homeQuery.error) return <ErrorState error={homeQuery.error} />;
+  if (homeQuery.error) return <ErrorState error={homeQuery.error} onRetry={homeQuery.refetch} />;
   const home = homeQuery.data;
   if (!home) return <ErrorState error={new Error('Transitional home not found')} />;
 
@@ -336,7 +336,7 @@ export function HomeDetailPage() {
               ))}
             </FilterSelect>
           </ListToolbar>
-          {historyQuery.error ? <ErrorState error={historyQuery.error} /> : null}
+          {historyQuery.error ? <ErrorState error={historyQuery.error} onRetry={historyQuery.refetch} /> : null}
           <DataTable
             columns={historyColumns}
             data={historyQuery.data}

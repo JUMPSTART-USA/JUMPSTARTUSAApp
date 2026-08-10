@@ -221,7 +221,7 @@ export function VehiclesListPage() {
       </ListToolbar>
 
       {query.isError ? (
-        <ErrorState error={query.error} />
+        <ErrorState error={query.error} onRetry={query.refetch} />
       ) : (
         <DataTable
           columns={columns}

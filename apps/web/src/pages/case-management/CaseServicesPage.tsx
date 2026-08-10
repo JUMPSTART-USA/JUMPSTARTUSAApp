@@ -185,7 +185,7 @@ export function CaseServicesPage() {
     to,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['case-management', 'case-services', params],
     queryFn: () => api.get<Paged<CaseServiceRow>>(`/case-services${params}`),
   });
@@ -315,7 +315,7 @@ export function CaseServicesPage() {
         />
       </ListToolbar>
 
-      {error ? <ErrorState error={error} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       <DataTable
         columns={columns}
         data={data}

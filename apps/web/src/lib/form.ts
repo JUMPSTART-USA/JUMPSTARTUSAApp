@@ -68,7 +68,35 @@ export function toDateInput(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : '';
 }
 
-/** Today as 'yyyy-MM-dd' for date-input defaults. */
+/**
+ * Today as 'yyyy-MM-dd' for date-input defaults, in the USER'S timezone.
+ *
+ * Deliberately not `toISOString().slice(0, 10)`: that yields the UTC date, so
+ * from 8pm Eastern (5pm Pacific — during working hours on the west coast) it
+ * returns TOMORROW. A case manager logging a service at 9pm Monday got Tuesday
+ * pre-filled and saved it, and the record was permanently misdated. A date-only
+ * field has no timezone, so "today" has to be read off the local clock.
+ */
 export function todayInput(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * Compare a date-only 'yyyy-MM-dd' value against today without going through
+ * Date at all. `new Date('2026-08-10')` parses as UTC midnight, so comparing it
+ * to `Date.now()` puts the boundary at 8pm Eastern rather than midnight local —
+ * which made expiry badges flip a day early or late. Lexical comparison of two
+ * 'yyyy-MM-dd' strings is exact and timezone-free.
+ *
+ * Returns a negative number if `value` is before today, 0 if it is today, and a
+ * positive number if it is after.
+ */
+export function compareToToday(value: string | null | undefined): number {
+  if (!value) return NaN;
+  const date = value.slice(0, 10);
+  const today = todayInput();
+  return date < today ? -1 : date > today ? 1 : 0;
 }

@@ -50,7 +50,7 @@ export function OpportunityDetailPage() {
   const [deletingShift, setDeletingShift] = useState<ShiftRow | null>(null);
   const [rosterShiftId, setRosterShiftId] = useState<string | null>(null);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['volunteers', 'opportunity', id],
     queryFn: () => api.get<OpportunityDetail>(`/volunteers/opportunities/${id}`),
     enabled: Boolean(id),
@@ -73,7 +73,7 @@ export function OpportunityDetailPage() {
   });
 
   if (isLoading) return <PageLoader />;
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
   if (!data) return null;
 
   const today = todayInput();

@@ -26,7 +26,10 @@ export function Notice({
   const { box, Icon } = NOTICE_STYLES[variant];
   return (
     <div
-      role={variant === 'error' ? 'alert' : undefined}
+      /* Errors interrupt (assertive); success/warning/info announce politely.
+         Previously only the error variant had any live semantics, so every
+         confirmation in the app completed in silence. */
+      role={variant === 'error' ? 'alert' : 'status'}
       className={cn('flex gap-2.5 rounded-lg border px-4 py-3 text-sm', box, className)}
       {...props}
     >
