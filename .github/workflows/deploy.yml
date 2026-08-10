@@ -1,7 +1,16 @@
 name: Deploy
 
-# Staging deploys on every push to main; production requires approval on the
-# GitHub "production" environment, then deploys via slot swap.
+# Staging deploys on every push to main. Production NEVER deploys automatically:
+# it runs only when this workflow is dispatched manually, which is the approval
+# step. GitHub's own required-reviewers rule would be the natural way to express
+# that, but on a private repo it needs Enterprise ("If you are on a GitHub Free,
+# GitHub Pro, or GitHub Team plan, required reviewers are only available for
+# public repositories"), so the manual trigger stands in for the approval button.
+# The production environment additionally accepts deployments only from
+# protected branches, so prod can never be shipped from a feature branch.
+#
+# To release: merge to main, check staging, then run this workflow from the
+# Actions tab (or `gh workflow run deploy.yml --ref main`).
 #
 # Each GitHub environment (staging, production) must define:
 #   vars:    AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
@@ -14,6 +23,14 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      skip_ci_gate:
+        description: >-
+          Emergency only: deploy without a green CI run for this commit. Needed
+          when rolling back to a commit whose CI run has aged out of retention,
+          since the gate cannot tell "never tested" from "logs expired".
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -26,16 +43,17 @@ concurrency:
 
 jobs:
   # Deploy is triggered by the same push as CI, so without this it races ahead
-  # and can ship a commit whose tests failed. A branch-protection required
-  # check is the usual way to enforce that, but it needs a paid plan on a
-  # private repo — this gate is the equivalent for the step that matters, and
-  # it fails CLOSED: no CI run, a red run, or a timeout all stop the deploy.
-  # Manual runs (workflow_dispatch) skip it so a rollback is never blocked.
+  # and can ship a commit whose tests failed. `main` now has a required status
+  # check, so a red PR cannot merge — but that does not cover a manual dispatch
+  # or an admin bypass, and this is the only gate in front of production. It
+  # fails CLOSED: no CI run, a red run, or a timeout all stop the deploy.
+  # Manual runs are gated too (production is dispatch-only, so exempting them
+  # would exempt every production deploy); `skip_ci_gate` is the escape hatch.
   ci-gate:
     runs-on: ubuntu-latest
     steps:
       - name: Require CI to have passed for this commit
-        if: github.event_name == 'push'
+        if: ${{ !inputs.skip_ci_gate }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -60,6 +78,9 @@ jobs:
   staging:
     runs-on: ubuntu-latest
     needs: ci-gate
+    # A merge to main lands on staging; a manual dispatch is a production
+    # release, and staging already has that commit.
+    if: github.event_name == 'push'
     environment: staging
     env:
       TAG: ${{ github.sha }}
@@ -148,7 +169,11 @@ jobs:
 
   production:
     runs-on: ubuntu-latest
-    needs: staging
+    needs: ci-gate
+    # Dispatch-only: this `if` IS the approval gate. The job is self-contained
+    # (it builds its own images and runs its own migrations), so it does not
+    # need the staging job — only a green CI run for the commit.
+    if: github.event_name == 'workflow_dispatch'
     environment: production
     env:
       TAG: ${{ github.sha }}
