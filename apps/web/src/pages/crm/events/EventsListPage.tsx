@@ -14,7 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { todayInput, useDebounced } from '@/lib/form';
 import { formatDate } from '@/lib/utils';
 import { useCampaignOptions } from '../shared';
 import type { EventRecord } from '../types';
@@ -81,7 +81,10 @@ export function EventsListPage() {
     setState((s) => ({ ...s, page: 1 }));
   }, [debouncedSearch, debouncedType]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Local calendar date, not the UTC one: after 8pm Eastern the UTC date is
+  // already tomorrow, so this filter asked the server for events starting
+  // tomorrow and today's remaining events dropped off the upcoming list.
+  const today = todayInput();
   const params = qs({
     page: state.page,
     pageSize: state.pageSize,
