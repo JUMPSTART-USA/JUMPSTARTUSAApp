@@ -2,7 +2,7 @@ import { OPPORTUNITY_STATUSES, OPPORTUNITY_STATUS_LABELS } from '@jumpstart/shar
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { BackLink } from '@/components/BackLink';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
@@ -28,7 +28,6 @@ function linkedTo(row: OpportunityListItem) {
 
 export function OpportunitiesListPage() {
   const { can } = useAuth();
-  const navigate = useNavigate();
 
   const [listState, setListState] = useState<ListState>({ ...initialListState, sortBy: 'name' });
   const [search, setSearch] = useState('');
@@ -164,7 +163,7 @@ export function OpportunitiesListPage() {
         isLoading={isLoading}
         state={listState}
         onStateChange={setListState}
-        onRowClick={(row) => navigate(`/volunteers/opportunities/${row.id}`)}
+        rowHref={(row) => `/volunteers/opportunities/${row.id}`}
         emptyMessage="No opportunities found"
       />
 

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
@@ -50,7 +50,6 @@ const columns: Column<CampaignListItem>[] = [
 
 export function CampaignsListPage() {
   const { can } = useAuth();
-  const navigate = useNavigate();
   const [state, setState] = useState<ListState>(initialListState);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
@@ -132,7 +131,7 @@ export function CampaignsListPage() {
         isLoading={query.isLoading}
         state={state}
         onStateChange={setState}
-        onRowClick={(row) => navigate(`/campaigns/${row.id}`)}
+        rowHref={(row) => `/campaigns/${row.id}`}
         emptyMessage="No campaigns found"
       />
 

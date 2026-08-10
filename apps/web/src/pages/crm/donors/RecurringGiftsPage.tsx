@@ -6,7 +6,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
@@ -66,7 +66,6 @@ const columns: Column<RecurringGiftListItem>[] = [
 
 export function RecurringGiftsPage() {
   const { can } = useAuth();
-  const navigate = useNavigate();
   const [state, setState] = useState<ListState>({
     page: 1,
     pageSize: 25,
@@ -152,7 +151,7 @@ export function RecurringGiftsPage() {
         isLoading={query.isLoading}
         state={state}
         onStateChange={setState}
-        onRowClick={(row) => navigate(`/donors/recurring/${row.id}`)}
+        rowHref={(row) => `/donors/recurring/${row.id}`}
         emptyMessage="No recurring gifts found"
       />
 

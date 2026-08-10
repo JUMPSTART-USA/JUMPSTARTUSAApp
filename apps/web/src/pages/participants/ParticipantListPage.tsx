@@ -240,7 +240,11 @@ export function ParticipantListPage() {
           isLoading={query.isLoading}
           state={listState}
           onStateChange={setListState}
-          onRowClick={(row) => navigate(row.id)}
+          rowHref={(row) => row.id}
+          // The link carries the participant's NAME, not the case number:
+          // a screen-reader user hears the link text as the row's identity,
+          // and "P-2026-00011" is not an identity.
+          linkColumnKey="name"
           emptyMessage="No participants match these filters"
         />
       )}

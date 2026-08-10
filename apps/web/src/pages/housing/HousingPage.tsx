@@ -250,7 +250,7 @@ function HomesTab() {
         isLoading={query.isLoading}
         state={listState}
         onStateChange={setListState}
-        onRowClick={(row) => navigate(`homes/${row.id}`)}
+        rowHref={(row) => `homes/${row.id}`}
         emptyMessage="No transitional homes found"
       />
     </div>
@@ -360,7 +360,7 @@ function ResidentsTab() {
         isLoading={query.isLoading}
         state={listState}
         onStateChange={setListState}
-        onRowClick={(row) => navigate(`homes/${row.homeId}`)}
+        rowHref={(row) => `homes/${row.homeId}`}
         emptyMessage="No housing enrollments found"
       />
     </div>

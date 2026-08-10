@@ -301,7 +301,7 @@ export function ScreeningsPage() {
               isLoading={decided.isLoading}
               state={decidedState}
               onStateChange={setDecidedState}
-              onRowClick={(row) => navigate(row.id)}
+              rowHref={(row) => row.id}
               emptyMessage={`No ${humanize(decidedStage).toLowerCase()} screenings`}
             />
           )}

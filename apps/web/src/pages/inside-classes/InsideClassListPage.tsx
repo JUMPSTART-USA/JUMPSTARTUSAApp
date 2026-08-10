@@ -2,7 +2,7 @@ import { CLASS_STATUSES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
@@ -61,7 +61,6 @@ const columns: Column<InsideClassListItem>[] = [
 
 export function InsideClassListPage() {
   const { can } = useAuth();
-  const navigate = useNavigate();
   const [listState, setListState] = useState<ListState>(initialListState);
   const [search, setSearch] = useState('');
   const [institutionFilter, setInstitutionFilter] = useState('');
@@ -174,7 +173,7 @@ export function InsideClassListPage() {
           isLoading={query.isLoading}
           state={listState}
           onStateChange={setListState}
-          onRowClick={(row) => navigate(row.id)}
+          rowHref={(row) => row.id}
           emptyMessage="No classes found"
         />
       )}

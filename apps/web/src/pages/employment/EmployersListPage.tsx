@@ -166,7 +166,7 @@ export function EmployersListPage() {
           isLoading={query.isLoading}
           state={listState}
           onStateChange={setListState}
-          onRowClick={(row) => navigate(row.id)}
+          rowHref={(row) => row.id}
           emptyMessage="No employers found"
         />
       )}

@@ -229,7 +229,7 @@ export function VehiclesListPage() {
           isLoading={query.isLoading}
           state={listState}
           onStateChange={setListState}
-          onRowClick={(row) => navigate(row.id)}
+          rowHref={(row) => row.id}
           emptyMessage="No vehicles found"
         />
       )}
