@@ -92,7 +92,7 @@ export function GraduateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent unsavedChanges={form.formState.isDirty}>
         <DialogHeader>
           <DialogTitle>Graduate {fullName(participant.person)}</DialogTitle>
           <DialogDescription>

@@ -274,7 +274,7 @@ function TemplateEditorDialog({
 
   return (
     <Dialog open onOpenChange={(next) => (!next ? onClose() : undefined)}>
-      <DialogContent size="xl">
+      <DialogContent unsavedChanges={form.formState.isDirty} size="xl">
         <DialogHeader>
           <DialogTitle>
             {template ? `Edit ${kind.noun}` : `New ${kind.noun}`}

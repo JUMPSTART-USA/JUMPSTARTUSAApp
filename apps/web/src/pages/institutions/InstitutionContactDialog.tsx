@@ -94,7 +94,7 @@ export function InstitutionContactDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent unsavedChanges={form.formState.isDirty}>
         <DialogHeader>
           <DialogTitle>{existing ? 'Edit contact' : 'Add contact'}</DialogTitle>
           <DialogDescription>

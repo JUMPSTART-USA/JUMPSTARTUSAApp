@@ -443,7 +443,7 @@ function ShiftDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg">
+      <DialogContent unsavedChanges={form.formState.isDirty} size="lg">
         <DialogHeader>
           <DialogTitle>{shift ? 'Edit shift' : 'New shift'}</DialogTitle>
         </DialogHeader>

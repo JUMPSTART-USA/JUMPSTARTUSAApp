@@ -283,7 +283,7 @@ function RequirementDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent unsavedChanges={form.formState.isDirty}>
         <DialogHeader>
           <DialogTitle>{requirement ? 'Edit requirement' : 'New clearance requirement'}</DialogTitle>
           <DialogDescription>

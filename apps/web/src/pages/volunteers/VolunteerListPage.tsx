@@ -345,7 +345,7 @@ function CreateVolunteerDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent size="xl">
+      <DialogContent unsavedChanges={form.formState.isDirty} size="xl">
         <DialogHeader>
           <DialogTitle>New volunteer</DialogTitle>
           <DialogDescription>

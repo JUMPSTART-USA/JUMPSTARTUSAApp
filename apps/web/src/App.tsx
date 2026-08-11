@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageLoader } from '@/components/ui/spinner';
 import { useAuth } from '@/lib/auth';
+import { postLoginTarget } from '@/lib/session-return';
 import { useBuildVersionWatch } from '@/lib/build-version';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { LoginPage } from '@/pages/LoginPage';
@@ -12,6 +13,13 @@ import { moduleRoutes } from '@/routes';
 
 export default function App() {
   const { user, isLoading } = useAuth();
+  /**
+   * Where a signed-in user gets sent from /login. Read once on mount: this
+   * redirect fires the moment `user` appears, and it beats any imperative
+   * navigate() the login form could make, so the interrupted path has to be
+   * resolved here.
+   */
+  const returnTarget = postLoginTarget();
   // Pick up a deploy without the user having to know to reload (pinned web
   // apps otherwise keep an old bundle alive for days).
   useBuildVersionWatch();
@@ -20,7 +28,10 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route
+        path="/login"
+        element={user ? <Navigate to={returnTarget} replace /> : <LoginPage />}
+      />
       {/* Self-service password reset (§3.1) — public, like /login. */}
       <Route
         path="/forgot-password"

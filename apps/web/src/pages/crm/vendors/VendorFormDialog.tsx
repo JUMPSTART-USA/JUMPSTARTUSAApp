@@ -124,7 +124,7 @@ export function VendorFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent unsavedChanges={form.formState.isDirty}>
         <DialogHeader>
           <DialogTitle>{vendor ? 'Edit vendor' : 'New vendor'}</DialogTitle>
           {vendor ? (
