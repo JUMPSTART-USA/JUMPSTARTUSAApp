@@ -207,6 +207,7 @@ export function EmploymentsListPage() {
           columns={columns}
           data={query.data}
           isLoading={query.isLoading}
+          isFetching={query.isFetching}
           state={listState}
           onStateChange={setListState}
           emptyMessage="No employment records found"

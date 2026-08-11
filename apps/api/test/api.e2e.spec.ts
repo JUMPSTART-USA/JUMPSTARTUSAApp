@@ -33,6 +33,83 @@ async function login(credentials: { email: string; password: string }): Promise<
   return cookie!;
 }
 
+interface PortalTestLink {
+  participantProfileId: string;
+  tokenId: string;
+  token: string;
+}
+
+/**
+ * A throwaway participant plus a portal link for them.
+ *
+ * The public portal caps submissions per PARTICIPANT per calendar day
+ * (DAILY_SUBMISSION_CAP in portal-public.service.ts), counting rows that
+ * already exist — so a test that submits has to own its participant. Borrowing
+ * a seeded one made these tests fail with 429 against a persistent local
+ * database as soon as a day's runs had spent that participant's cap; issuing a
+ * fresh token does NOT reset it, because the count is keyed on the profile, not
+ * the token. A brand-new participant starts at zero on every run, and no
+ * manually-issued link is ever revoked.
+ */
+async function createPortalTestParticipant(cookie: string): Promise<PortalTestLink> {
+  const participant = await request(server)
+    .post('/api/participants')
+    .set('Cookie', cookie)
+    .set('Origin', ORIGIN)
+    .send({
+      person: { firstName: 'Api', lastName: 'PortalTest', state: 'SC' },
+      profile: { insideStatus: 'active' },
+      // Admin is all-chapters — §7.2 requires an explicit chapter at create.
+      chapterState: 'SC',
+      confirmNotDuplicate: true,
+    })
+    .expect(201);
+
+  const issued = await request(server)
+    .post('/api/portal-tokens')
+    .set('Cookie', cookie)
+    .set('Origin', ORIGIN)
+    .send({ participantProfileId: participant.body.id })
+    .expect(201);
+
+  return {
+    participantProfileId: participant.body.id,
+    tokenId: issued.body.id,
+    token: issued.body.token,
+  };
+}
+
+/** Undoes createPortalTestParticipant, leaving no residue for the next run. */
+async function cleanUpPortalTestParticipant(cookie: string, link: PortalTestLink) {
+  await request(server)
+    .post(`/api/portal-tokens/${link.tokenId}/revoke`)
+    .set('Cookie', cookie)
+    .set('Origin', ORIGIN)
+    .expect(201);
+
+  // Submissions outlive the participant's soft delete in the dashboard's
+  // pending count (it keys on the message's own status), so move them off
+  // "new" too — otherwise every local run inflates "awaiting review" forever.
+  const messages = await request(server)
+    .get(`/api/portal-messages?participantProfileId=${link.participantProfileId}`)
+    .set('Cookie', cookie)
+    .expect(200);
+  for (const message of messages.body.items) {
+    await request(server)
+      .patch(`/api/portal-messages/${message.id}`)
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ status: 'read' })
+      .expect(200);
+  }
+
+  await request(server)
+    .delete(`/api/participants/${link.participantProfileId}`)
+    .set('Cookie', cookie)
+    .set('Origin', ORIGIN)
+    .expect(200);
+}
+
 beforeAll(async () => {
   // NestFactory (not Test.createTestingModule) so configureApp middleware
   // (session store, prefix, origin check) is identical to production.
@@ -301,54 +378,28 @@ describe('dashboard (acceptance criterion 19: metrics summarize the database)', 
 describe('portal requests surface on the dashboard', () => {
   it('pending submissions appear under attention needed', async () => {
     const cookie = await login(ADMIN);
+    const link = await createPortalTestParticipant(cookie);
 
-    // Use a participant with no active portal link so this test never revokes
-    // a manually-issued one (issuing replaces the participant's active token).
-    const participants = await request(server)
-      .get('/api/participants?pageSize=5')
-      .set('Cookie', cookie)
-      .expect(200);
-    let participantProfileId = participants.body.items[0].id;
-    for (const p of participants.body.items) {
-      const tokens = await request(server)
-        .get(`/api/portal-tokens?participantProfileId=${p.id}`)
+    try {
+      await request(server)
+        .post(`/api/public/portal/${link.token}/messages`)
+        .send({ body: 'Automated dashboard test message — safe to ignore' })
+        .expect(201);
+
+      // A unique from-date busts the dashboard's in-process cache; date filters
+      // never affect attention items.
+      const dash = await request(server)
+        .get('/api/dashboard?from=1999-01-02')
         .set('Cookie', cookie)
         .expect(200);
-      if (tokens.body.items.length === 0) {
-        participantProfileId = p.id;
-        break;
-      }
+      const item = dash.body.attentionNeeded.find(
+        (a: { key: string }) => a.key === 'portal_requests_pending',
+      );
+      expect(item).toBeTruthy();
+      expect(item.count).toBeGreaterThan(0);
+    } finally {
+      await cleanUpPortalTestParticipant(cookie, link);
     }
-
-    const issued = await request(server)
-      .post('/api/portal-tokens')
-      .set('Cookie', cookie)
-      .set('Origin', ORIGIN)
-      .send({ participantProfileId })
-      .expect(201);
-
-    await request(server)
-      .post(`/api/public/portal/${issued.body.token}/messages`)
-      .send({ body: 'Automated dashboard test message — safe to ignore' })
-      .expect(201);
-
-    // A unique from-date busts the dashboard's in-process cache; date filters
-    // never affect attention items.
-    const dash = await request(server)
-      .get('/api/dashboard?from=1999-01-02')
-      .set('Cookie', cookie)
-      .expect(200);
-    const item = dash.body.attentionNeeded.find(
-      (a: { key: string }) => a.key === 'portal_requests_pending',
-    );
-    expect(item).toBeTruthy();
-    expect(item.count).toBeGreaterThan(0);
-
-    await request(server)
-      .post(`/api/portal-tokens/${issued.body.id}/revoke`)
-      .set('Cookie', cookie)
-      .set('Origin', ORIGIN)
-      .expect(201);
   });
 });
 
@@ -810,42 +861,19 @@ describe('portal notification designation', () => {
       .send({ value: { messages: me.body.id, meetings: null, transport: null } })
       .expect(200);
 
-    // Same care as the dashboard test: never revoke a manually-issued link.
-    const participants = await request(server)
-      .get('/api/participants?pageSize=5')
-      .set('Cookie', cookie)
-      .expect(200);
-    let participantProfileId = participants.body.items[0].id;
-    for (const p of participants.body.items) {
-      const tokens = await request(server)
-        .get(`/api/portal-tokens?participantProfileId=${p.id}`)
-        .set('Cookie', cookie)
-        .expect(200);
-      if (tokens.body.items.length === 0) {
-        participantProfileId = p.id;
-        break;
-      }
-    }
-    const issued = await request(server)
-      .post('/api/portal-tokens')
-      .set('Cookie', cookie)
-      .set('Origin', ORIGIN)
-      .send({ participantProfileId })
-      .expect(201);
+    // Same care as the dashboard test: its own participant, so the portal's
+    // per-participant daily cap is never already spent.
+    const link = await createPortalTestParticipant(cookie);
 
     try {
       // The notification is best-effort (mail is unconfigured under test) and
       // must never affect the participant's submission result.
       await request(server)
-        .post(`/api/public/portal/${issued.body.token}/messages`)
+        .post(`/api/public/portal/${link.token}/messages`)
         .send({ body: 'Automated notification test message — safe to ignore' })
         .expect(201);
     } finally {
-      await request(server)
-        .post(`/api/portal-tokens/${issued.body.id}/revoke`)
-        .set('Cookie', cookie)
-        .set('Origin', ORIGIN)
-        .expect(201);
+      await cleanUpPortalTestParticipant(cookie, link);
       await request(server)
         .put('/api/admin/settings/portal.notifications')
         .set('Cookie', cookie)
