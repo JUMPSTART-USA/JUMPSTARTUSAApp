@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
@@ -230,15 +230,29 @@ export function InstitutionProfilePage() {
                     <TableRow
                       key={row.id}
                       className="cursor-pointer transition-colors hover:bg-muted/60"
-                      onClick={() =>
+                      onClick={(e) => {
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                        if (
+                          (e.target as HTMLElement).closest(
+                            'a,button,input,select,textarea,[role="button"]',
+                          )
+                        )
+                          return;
                         navigate(
                           `/participants/${row.participantProfile.id}`,
                           backTo(`/institutions/${institution.id}`, 'Institution profile'),
-                        )
-                      }
+                        );
+                      }}
                     >
                       <TableCell className="font-medium text-primary">
-                        {fullName(row.participantProfile.person)}
+                        {/* The row click is mouse-only; this link is the keyboard path in. */}
+                        <Link
+                          to={`/participants/${row.participantProfile.id}`}
+                          {...backTo(`/institutions/${institution.id}`, 'Institution profile')}
+                          className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          {fullName(row.participantProfile.person)}
+                        </Link>
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {row.participantProfile.participantNumber}
@@ -280,9 +294,26 @@ export function InstitutionProfilePage() {
                   <TableRow
                     key={row.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`/inside-classes/${row.id}`)}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                      if (
+                        (e.target as HTMLElement).closest(
+                          'a,button,input,select,textarea,[role="button"]',
+                        )
+                      )
+                        return;
+                      navigate(`/inside-classes/${row.id}`);
+                    }}
                   >
-                    <TableCell className="font-medium">{row.name}</TableCell>
+                    <TableCell className="font-medium">
+                      {/* The row click is mouse-only; this link is the keyboard path in. */}
+                      <Link
+                        to={`/inside-classes/${row.id}`}
+                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {row.name}
+                      </Link>
+                    </TableCell>
                     <TableCell>{row.classType ?? '—'}</TableCell>
                     <TableCell>{formatDate(row.startDate)}</TableCell>
                     <TableCell>{formatDate(row.endDate)}</TableCell>
@@ -331,16 +362,40 @@ export function InstitutionProfilePage() {
                     )}
                     onClick={
                       canOpenVolunteer
-                        ? () =>
+                        ? (e) => {
+                            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)
+                              return;
+                            if (
+                              (e.target as HTMLElement).closest(
+                                'a,button,input,select,textarea,[role="button"]',
+                              )
+                            )
+                              return;
                             navigate(
                               `/volunteers/${row.volunteerProfile.id}`,
                               backTo(`/institutions/${institution.id}`, 'Institution profile'),
-                            )
+                            );
+                          }
                         : undefined
                     }
                   >
                     <TableCell className={cn('font-medium', canOpenVolunteer && 'text-primary')}>
-                      {row.volunteerProfile.person.firstName} {row.volunteerProfile.person.lastName}
+                      {/* Keyboard path in, only where the row is actually openable. */}
+                      {canOpenVolunteer ? (
+                        <Link
+                          to={`/volunteers/${row.volunteerProfile.id}`}
+                          {...backTo(`/institutions/${institution.id}`, 'Institution profile')}
+                          className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          {row.volunteerProfile.person.firstName}{' '}
+                          {row.volunteerProfile.person.lastName}
+                        </Link>
+                      ) : (
+                        <>
+                          {row.volunteerProfile.person.firstName}{' '}
+                          {row.volunteerProfile.person.lastName}
+                        </>
+                      )}
                     </TableCell>
                     <TableCell>{humanize(row.assignmentType)}</TableCell>
                     <TableCell>{row.role ?? '—'}</TableCell>

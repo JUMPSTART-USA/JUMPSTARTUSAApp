@@ -52,7 +52,15 @@ interface DataTableProps<T> {
    * donor, a home or an event from any list at all.
    */
   rowHref?: (row: T) => string;
-  /** Accessible name for the row link, when the linked cell's text is not identifying. */
+  /**
+   * The dialog-opening counterpart of `rowHref`, for lists whose rows open a
+   * panel rather than navigate. Renders the identifying cell as a button, so the
+   * accessible name is the row's own text — no per-page label to write and
+   * nothing to drift. Pass `undefined` (e.g. from a permission check) and no
+   * button renders.
+   */
+  onRowOpen?: (row: T) => void;
+  /** Accessible name for the row link/button, when the cell's text is not identifying. */
   rowLabel?: (row: T) => string;
   /** Column carrying the row link. Defaults to the first — override when that one is a date. */
   linkColumnKey?: string;
@@ -67,6 +75,7 @@ export function DataTable<T extends { id: string }>({
   onRowClick,
   emptyMessage = 'No records found',
   rowHref,
+  onRowOpen,
   rowLabel,
   linkColumnKey,
 }: DataTableProps<T>) {
@@ -164,8 +173,16 @@ export function DataTable<T extends { id: string }>({
             data.items.map((row) => (
               <TableRow
                 key={row.id}
-                className={onRowClick || rowHref ? 'cursor-pointer' : undefined}
-                onClick={rowHref ? onRowPointer(row) : onRowClick ? () => onRowClick(row) : undefined}
+                className={onRowClick || rowHref || onRowOpen ? 'cursor-pointer' : undefined}
+                onClick={
+                  rowHref
+                    ? onRowPointer(row)
+                    : onRowOpen
+                      ? () => onRowOpen(row)
+                      : onRowClick
+                        ? () => onRowClick(row)
+                        : undefined
+                }
               >
                 {columns.map((col) => (
                   <TableCell key={col.key} className={col.className}>
@@ -177,6 +194,19 @@ export function DataTable<T extends { id: string }>({
                       >
                         {col.render(row)}
                       </Link>
+                    ) : onRowOpen && col.key === linkKey ? (
+                      <button
+                        type="button"
+                        aria-label={rowLabel?.(row)}
+                        // stopPropagation so the row handler does not fire a second time
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRowOpen(row);
+                        }}
+                        className="rounded-sm text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {col.render(row)}
+                      </button>
                     ) : (
                       col.render(row)
                     )}

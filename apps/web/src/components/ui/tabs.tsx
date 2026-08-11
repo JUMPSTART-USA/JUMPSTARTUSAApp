@@ -1,6 +1,7 @@
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import type { ComponentPropsWithoutRef } from 'react';
 import { cn } from '@/lib/utils';
+import { PillOverflow, usePillOverflow } from '@/components/ui/pill-overflow';
 
 export const Tabs = TabsPrimitive.Root;
 
@@ -11,11 +12,21 @@ export const tabsTriggerClasses =
   'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 export const tabsTriggerActiveClasses = 'bg-card text-foreground shadow-sm';
 
+/**
+ * Same overflow treatment as SubNav: an edge fade so a scrolling tab strip looks
+ * scrollable, and the active tab scrolled into view. Thirteen TabsList mounts in
+ * the app, several of which overflow well before phone widths.
+ */
 export function TabsList({
   className,
   ...props
 }: ComponentPropsWithoutRef<typeof TabsPrimitive.List>) {
-  return <TabsPrimitive.List className={cn(tabsListClasses, className)} {...props} />;
+  const { ref, edges } = usePillOverflow<HTMLDivElement>();
+  return (
+    <PillOverflow edges={edges} className="w-fit max-w-full">
+      <TabsPrimitive.List ref={ref} className={cn(tabsListClasses, className)} {...props} />
+    </PillOverflow>
+  );
 }
 
 export function TabsTrigger({

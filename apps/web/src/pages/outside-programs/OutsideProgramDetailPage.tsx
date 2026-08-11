@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BackLink } from '@/components/BackLink';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -276,9 +276,21 @@ export function OutsideProgramDetailPage() {
                   <TableRow
                     key={s.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`/outside-programs/sessions/${s.id}`)}
+                    onClick={(ev) => {
+                      if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return;
+                      if ((ev.target as HTMLElement).closest('a,button,input,select,textarea,[role="button"]')) return;
+                      navigate(`/outside-programs/sessions/${s.id}`);
+                    }}
                   >
-                    <TableCell className="font-medium">{formatDate(s.sessionDate)}</TableCell>
+                    <TableCell className="font-medium">
+                      {/* Link, not just the row onClick, so the session is reachable by keyboard */}
+                      <Link
+                        to={`/outside-programs/sessions/${s.id}`}
+                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {formatDate(s.sessionDate)}
+                      </Link>
+                    </TableCell>
                     <TableCell>{s.topic ?? '—'}</TableCell>
                     <TableCell>{s._count?.attendance ?? 0}</TableCell>
                   </TableRow>

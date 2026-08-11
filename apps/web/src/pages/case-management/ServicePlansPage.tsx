@@ -498,7 +498,21 @@ function PlansOverview({
                   className="cursor-pointer"
                   onClick={() => onOpen({ id: plan.participantProfileId, label: name })}
                 >
-                  <TableCell className="font-medium">{name}</TableCell>
+                  <TableCell className="font-medium">
+                    {/* The row's click-anywhere is mouse-only; this button is the
+                        keyboard and screen-reader path into the plan. */}
+                    <button
+                      type="button"
+                      // stopPropagation so the row handler does not fire a second time
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpen({ id: plan.participantProfileId, label: name });
+                      }}
+                      className="rounded-sm text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {name}
+                    </button>
+                  </TableCell>
                   <TableCell>{plan.title}</TableCell>
                   <TableCell>
                     <StatusBadge status={plan.status} />

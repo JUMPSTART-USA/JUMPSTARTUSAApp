@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Lock, Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -113,14 +113,44 @@ function EnrollmentTable({
       <TableBody>
         {events.map((e) => {
           const href = rowHref(e);
+          const label = e.title.replace(titlePrefix, '');
           return (
             <TableRow
               key={e.entityId}
               className={cn(href && clickableRow)}
-              onClick={href ? () => navigate(href, backState) : undefined}
+              onClick={
+                href
+                  ? // Ignore modified clicks and clicks that started on a link or
+                    // button, so cmd-click still opens a new tab.
+                    (ev) => {
+                      if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0)
+                        return;
+                      if (
+                        (ev.target as HTMLElement).closest(
+                          'a,button,input,select,textarea,[role="button"]',
+                        )
+                      )
+                        return;
+                      navigate(href, backState);
+                    }
+                  : undefined
+              }
             >
               <TableCell className={cn('font-medium', href && 'text-primary')}>
-                {e.title.replace(titlePrefix, '')}
+                {href ? (
+                  /* Link, not just the row onClick, so keyboard users can open the
+                     enrollment. Not clickable at all without the parent's read
+                     permission, so the plain label is the whole cell. */
+                  <Link
+                    to={href}
+                    state={backState.state}
+                    className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {label}
+                  </Link>
+                ) : (
+                  label
+                )}
               </TableCell>
               <TableCell>{formatDate(e.date)}</TableCell>
               <TableCell>
@@ -178,6 +208,7 @@ export function HousingTab({ participantId }: { participantId: string }) {
   const { can } = useAuth();
   const navigate = useNavigate();
   const canRead = can('housing.read');
+  const backState = fromParticipantTab(participantId, 'housing');
   const query = useQuery({
     queryKey: ['participants', participantId, 'housing'],
     queryFn: () =>
@@ -210,12 +241,29 @@ export function HousingTab({ participantId }: { participantId: string }) {
                 <TableRow
                   key={h.id}
                   className={clickableRow}
-                  onClick={() =>
-                    navigate(`/housing/homes/${h.home.id}`, fromParticipantTab(participantId, 'housing'))
-                  }
+                  // Ignore modified clicks and clicks that started on a link or
+                  // button, so cmd-click still opens a new tab.
+                  onClick={(ev) => {
+                    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0)
+                      return;
+                    if (
+                      (ev.target as HTMLElement).closest(
+                        'a,button,input,select,textarea,[role="button"]',
+                      )
+                    )
+                      return;
+                    navigate(`/housing/homes/${h.home.id}`, backState);
+                  }}
                 >
                   <TableCell className="font-medium text-primary">
-                    {h.home.name}{' '}
+                    {/* Link, not just the row onClick, so keyboard users can open the home. */}
+                    <Link
+                      to={`/housing/homes/${h.home.id}`}
+                      state={backState.state}
+                      className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {h.home.name}
+                    </Link>{' '}
                     <span className="text-xs text-muted-foreground">({h.home.state})</span>
                   </TableCell>
                   <TableCell>{formatDate(h.moveInDate)}</TableCell>
@@ -252,6 +300,7 @@ export function EmploymentTab({ participantId }: { participantId: string }) {
   const canPay = can('fields.pay.read');
   const canEdit = can('employment.update');
   const canOpenEmployer = can('employers.read');
+  const backState = fromParticipantTab(participantId, 'employment');
   const [editRow, setEditRow] = useState<EmploymentRow | null>(null);
   const query = useQuery({
     queryKey: ['participants', participantId, 'employment'],
@@ -289,18 +338,46 @@ export function EmploymentTab({ participantId }: { participantId: string }) {
                   className={cn(canOpenEmployer && clickableRow)}
                   onClick={
                     canOpenEmployer
-                      ? () =>
-                          navigate(
-                            `/employers/${e.employer.id}`,
-                            fromParticipantTab(participantId, 'employment'),
+                      ? // Ignore modified clicks and clicks that started on a link or
+                        // button, so cmd-click still opens a new tab and the row's
+                        // Edit button is not hijacked.
+                        (ev) => {
+                          if (
+                            ev.metaKey ||
+                            ev.ctrlKey ||
+                            ev.shiftKey ||
+                            ev.altKey ||
+                            ev.button !== 0
                           )
+                            return;
+                          if (
+                            (ev.target as HTMLElement).closest(
+                              'a,button,input,select,textarea,[role="button"]',
+                            )
+                          )
+                            return;
+                          navigate(`/employers/${e.employer.id}`, backState);
+                        }
                       : undefined
                   }
                 >
                   <TableCell
                     className={cn('font-medium', canOpenEmployer && 'text-primary')}
                   >
-                    {e.employer.name}
+                    {canOpenEmployer ? (
+                      /* Link, not just the row onClick, so keyboard users can open the
+                         employer. Plain text without employers.read — the row is not
+                         clickable then either. */
+                      <Link
+                        to={`/employers/${e.employer.id}`}
+                        state={backState.state}
+                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {e.employer.name}
+                      </Link>
+                    ) : (
+                      e.employer.name
+                    )}
                   </TableCell>
                   <TableCell>{e.jobTitle}</TableCell>
                   <TableCell>{formatDate(e.startDate)}</TableCell>

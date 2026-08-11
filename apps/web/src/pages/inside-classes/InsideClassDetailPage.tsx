@@ -238,17 +238,37 @@ export function InsideClassDetailPage() {
                     )}
                     onClick={
                       canOpenVolunteer
-                        ? () =>
+                        ? (e) => {
+                            // The name cell is a real link now, so ignore clicks that started
+                            // there — otherwise the row navigates too and Back needs two presses.
+                            if ((e.target as HTMLElement).closest('a,button')) return;
+                            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                             navigate(
                               `/volunteers/${assignment.volunteerProfile.id}`,
                               backTo(`/inside-classes/${insideClass.id}`, 'Class record'),
-                            )
+                            );
+                          }
                         : undefined
                     }
                   >
                     <TableCell className={cn('font-medium', canOpenVolunteer && 'text-primary')}>
-                      {assignment.volunteerProfile.person.firstName}{' '}
-                      {assignment.volunteerProfile.person.lastName}
+                      {/* The row click was the only way to the volunteer record; this is the
+                          keyboard path. Plain text when the user cannot open volunteers. */}
+                      {canOpenVolunteer ? (
+                        <Link
+                          to={`/volunteers/${assignment.volunteerProfile.id}`}
+                          {...backTo(`/inside-classes/${insideClass.id}`, 'Class record')}
+                          className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          {assignment.volunteerProfile.person.firstName}{' '}
+                          {assignment.volunteerProfile.person.lastName}
+                        </Link>
+                      ) : (
+                        <>
+                          {assignment.volunteerProfile.person.firstName}{' '}
+                          {assignment.volunteerProfile.person.lastName}
+                        </>
+                      )}
                     </TableCell>
                     <TableCell>{assignment.role ? humanize(assignment.role) : '—'}</TableCell>
                     <TableCell>{formatDate(assignment.startDate)}</TableCell>

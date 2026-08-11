@@ -30,8 +30,8 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
 import { useRecordScreenHistory } from '@/components/BackLink';
 import { Button } from '@/components/ui/button';
@@ -182,6 +182,34 @@ export function AppLayout() {
   const { user, can, logout, viewAs } = useAuth();
   const navigate = useNavigate();
   const [navOpen, setNavOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const { pathname } = useLocation();
+  const [routeAnnouncement, setRouteAnnouncement] = useState('');
+  const isFirstRender = useRef(true);
+
+  /**
+   * Move focus to <main> and announce the new page after a client-side
+   * navigation. Without this, changing route left focus on <body> — a keyboard
+   * user's next Tab restarted from the top of the sidebar, and a screen-reader
+   * user got no indication anything had happened, because an SPA route change
+   * fires none of the page-load events assistive tech listens for.
+   *
+   * Skipped on first render: stealing focus on initial load is its own problem,
+   * and the document title is already correct there.
+   *
+   * The title is read from document.title, which PageHeader sets. Effects run
+   * child-first, so by the time this layout effect runs the new page's
+   * PageHeader has already published its title.
+   */
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    mainRef.current?.focus();
+    setRouteAnnouncement(document.title.replace(/ · JUMPSTART USA$/, ''));
+  }, [pathname]);
+
   const [viewAsError, setViewAsError] = useState<string | null>(null);
   useRecordScreenHistory();
   // Fetches only for users holding case_management.read (hook is self-gating).
@@ -237,6 +265,12 @@ export function AppLayout() {
       >
         Skip to main content
       </a>
+
+      {/* Route changes are announced here. Polite, so it waits for a pause
+          rather than cutting across whatever is being read. */}
+      <div aria-live="polite" role="status" className="sr-only">
+        {routeAnnouncement}
+      </div>
 
       {/* Backdrop for the mobile nav drawer */}
       {navOpen ? (
@@ -433,7 +467,7 @@ export function AppLayout() {
         </div>
         {/* tabIndex={-1} so the skip link can move focus here without making
             <main> itself a tab stop. */}
-        <main id="main-content" tabIndex={-1} className="flex-1 p-4 outline-none sm:p-6">
+        <main ref={mainRef} id="main-content" tabIndex={-1} className="flex-1 p-4 outline-none sm:p-6">
           <Outlet />
         </main>
       </div>

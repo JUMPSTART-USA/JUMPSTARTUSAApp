@@ -277,9 +277,21 @@ export function CampaignDetailPage() {
                   <TableRow
                     key={event.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`/events/${event.id}`)}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                      if ((e.target as HTMLElement).closest('a,button,input,select,textarea,[role="button"]')) return;
+                      navigate(`/events/${event.id}`);
+                    }}
                   >
-                    <TableCell className="font-medium">{event.name}</TableCell>
+                    <TableCell className="font-medium">
+                      {/* The row click alone left no keyboard path to the event. */}
+                      <Link
+                        to={`/events/${event.id}`}
+                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {event.name}
+                      </Link>
+                    </TableCell>
                     <TableCell>{formatDate(event.eventDate)}</TableCell>
                     <TableCell>{event.location ?? '—'}</TableCell>
                     <TableCell className="text-right tabular-nums">
