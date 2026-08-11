@@ -17,7 +17,8 @@
     "seed:production": "tsx prisma/seed-production.ts",
     "seed:institutions": "tsx prisma/seed-institutions.ts",
     "db:local": "tsx scripts/dev-db.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:db": "tsx scripts/test-db.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
