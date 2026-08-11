@@ -238,6 +238,7 @@ export function ParticipantListPage() {
           columns={columns}
           data={query.data}
           isLoading={query.isLoading}
+          isFetching={query.isFetching}
           state={listState}
           onStateChange={setListState}
           rowHref={(row) => row.id}

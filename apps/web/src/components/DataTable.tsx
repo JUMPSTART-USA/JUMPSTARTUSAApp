@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { Paged } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 /**
  * Server-driven data table: every list screen uses server-side sorting,
@@ -64,6 +65,17 @@ interface DataTableProps<T> {
   rowLabel?: (row: T) => string;
   /** Column carrying the row link. Defaults to the first — override when that one is a date. */
   linkColumnKey?: string;
+  /**
+   * True while a refetch for NEW list state is in flight and `data` still holds
+   * the previous page — i.e. the rows on screen are stale but readable. Pass a
+   * query's `isFetching` alongside `placeholderData: keepPreviousData`.
+   *
+   * Without it, changing page threw the rows away: ~1,200px of table collapsed to
+   * a 128px spinner and back, a ~1,000px layout shift each way that also discarded
+   * the user's scroll position, while the footer briefly reported the wrong page
+   * count. Keeping the previous page on screen removes all of that.
+   */
+  isFetching?: boolean;
 }
 
 export function DataTable<T extends { id: string }>({
@@ -78,10 +90,19 @@ export function DataTable<T extends { id: string }>({
   onRowOpen,
   rowLabel,
   linkColumnKey,
+  isFetching,
 }: DataTableProps<T>) {
   const navigate = useNavigate();
   const totalPages = data ? Math.max(1, Math.ceil(data.total / state.pageSize)) : 1;
   const linkKey = linkColumnKey ?? columns[0]?.key;
+
+  /**
+   * Rows are on screen but no longer current. The caller's `isFetching` is the
+   * accurate signal; the fallback compares the page the server echoed against the
+   * page the user asked for, so a list that has not been migrated yet still
+   * behaves correctly rather than silently showing stale rows as authoritative.
+   */
+  const stale = !isLoading && !!data && (isFetching ?? data.page !== state.page);
 
   /**
    * Row-level pointer navigation, so `rowHref` fully replaces `onRowClick`
@@ -105,7 +126,9 @@ export function DataTable<T extends { id: string }>({
 
   return (
     <div className="space-y-3">
-      <Table>
+      {/* aria-busy is the only loading signal this table has ever had for
+          assistive tech — the bare <Spinner> below carries no role="status". */}
+      <Table aria-busy={isLoading || stale}>
         <TableHeader>
           <TableRow>
             {columns.map((col) => {
@@ -153,7 +176,18 @@ export function DataTable<T extends { id: string }>({
             })}
           </TableRow>
         </TableHeader>
-        <TableBody>
+        {/**
+         * Dimmed to 90%, NOT the 70% first proposed. Measured on these tokens:
+         * --muted-foreground over --card is 6.11:1 at full opacity, 4.85:1 at 90%,
+         * and 3.16:1 at 70% — below the 4.5:1 AA floor for body text. This repo
+         * just raised --input (1.68:1) and --ring (2.32:1) to clear exactly that
+         * threshold, so a transient sub-AA state would be undoing that work a few
+         * weeks later. Row text itself (--foreground) has room to spare (7.05:1 at
+         * 70%); it is the secondary/muted cells and the footer that fail, and they
+         * are the ones a user squints at. The footer spinner below carries the
+         * signal that the 10% cannot.
+         */}
+        <TableBody className={cn('transition-opacity', stale && 'opacity-90')}>
           {isLoading ? (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-32 text-center">
@@ -219,14 +253,17 @@ export function DataTable<T extends { id: string }>({
       </Table>
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-        <span>
+        {/* A spinner here, not only the dim: opacity is a contrast-only signal, and
+            at the 90% the AA floor allows it is too quiet to be the whole cue. */}
+        <span className="flex items-center gap-2">
+          {stale ? <Spinner className="h-3.5 w-3.5" /> : null}
           {data ? `${data.total} record${data.total === 1 ? '' : 's'}` : ''}
         </span>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            disabled={state.page <= 1}
+            disabled={stale || state.page <= 1}
             aria-label="Previous page"
             onClick={() => onStateChange({ ...state, page: state.page - 1 })}
           >
@@ -235,10 +272,18 @@ export function DataTable<T extends { id: string }>({
           <span className="whitespace-nowrap">
             Page {state.page} of {totalPages}
           </span>
+          {/**
+           * Both pagers are disabled while stale, because `totalPages` is derived
+           * from the PREVIOUS result set's total. After a filter change that
+           * narrows the results, Next would otherwise stay enabled into a page the
+           * new set does not have. (Until now the blanking hid this: data went
+           * undefined, totalPages collapsed to 1, and Next disabled itself by
+           * accident.)
+           */}
           <Button
             variant="outline"
             size="sm"
-            disabled={state.page >= totalPages}
+            disabled={stale || state.page >= totalPages}
             aria-label="Next page"
             onClick={() => onStateChange({ ...state, page: state.page + 1 })}
           >
