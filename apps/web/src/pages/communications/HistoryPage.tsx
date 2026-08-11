@@ -98,6 +98,27 @@ export function HistoryPage() {
           '—'
         ),
     },
+    {
+      // The row click was the only opener for the message detail, so the sent
+      // message itself was unreadable without a mouse. The label names the
+      // recipient so the buttons are distinguishable from one another.
+      key: 'actions',
+      header: '',
+      className: 'w-20 text-right',
+      render: (c) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`View message to ${fullName(c.person)}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setDetail(c);
+          }}
+        >
+          View
+        </Button>
+      ),
+    },
   ];
 
   return (
