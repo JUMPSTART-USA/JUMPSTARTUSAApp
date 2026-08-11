@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
+
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
@@ -127,7 +127,6 @@ function ProposeAssignmentDialog({ onClose }: { onClose: () => void }) {
 
 export function AssignmentsPage() {
   const { can } = useAuth();
-  const navigate = useNavigate();
   const [state, setState] = useState<ListState>({
     ...initialListState,
     sortBy: 'createdAt',
@@ -234,7 +233,7 @@ export function AssignmentsPage() {
           isLoading={query.isLoading}
           state={state}
           onStateChange={setState}
-          onRowClick={(row) => navigate(row.id)}
+          rowHref={(row) => row.id}
           emptyMessage="No assignments match these filters"
         />
       )}

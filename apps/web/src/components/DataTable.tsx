@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -40,6 +41,21 @@ interface DataTableProps<T> {
   onStateChange: (next: ListState) => void;
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
+  /**
+   * Where a row leads. Prefer this over `onRowClick` for any list whose rows
+   * open a record: it renders the row's identifying cell as a real <Link>, so a
+   * keyboard or screen-reader user gets one tab stop per row with the record's
+   * name as the link text — and clicking anywhere in the row still works.
+   *
+   * `onRowClick` alone leaves rows reachable by pointer only. There was nothing
+   * focusable inside them, so keyboard users could not open a participant, a
+   * donor, a home or an event from any list at all.
+   */
+  rowHref?: (row: T) => string;
+  /** Accessible name for the row link, when the linked cell's text is not identifying. */
+  rowLabel?: (row: T) => string;
+  /** Column carrying the row link. Defaults to the first — override when that one is a date. */
+  linkColumnKey?: string;
 }
 
 export function DataTable<T extends { id: string }>({
@@ -50,8 +66,25 @@ export function DataTable<T extends { id: string }>({
   onStateChange,
   onRowClick,
   emptyMessage = 'No records found',
+  rowHref,
+  rowLabel,
+  linkColumnKey,
 }: DataTableProps<T>) {
+  const navigate = useNavigate();
   const totalPages = data ? Math.max(1, Math.ceil(data.total / state.pageSize)) : 1;
+  const linkKey = linkColumnKey ?? columns[0]?.key;
+
+  /**
+   * Row-level pointer navigation, so `rowHref` fully replaces `onRowClick`
+   * without taking away click-anywhere. Deliberately ignores modified clicks and
+   * clicks that started on a link or button, so cmd-click still opens a new tab
+   * and a row's own action buttons are not hijacked.
+   */
+  const onRowPointer = (row: T) => (e: MouseEvent<HTMLTableRowElement>) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('a,button,input,select,textarea,[role="button"]')) return;
+    navigate(rowHref!(row));
+  };
 
   const toggleSort = (sortKey: string) => {
     if (state.sortBy === sortKey) {
@@ -131,12 +164,22 @@ export function DataTable<T extends { id: string }>({
             data.items.map((row) => (
               <TableRow
                 key={row.id}
-                className={onRowClick ? 'cursor-pointer' : undefined}
-                onClick={() => onRowClick?.(row)}
+                className={onRowClick || rowHref ? 'cursor-pointer' : undefined}
+                onClick={rowHref ? onRowPointer(row) : onRowClick ? () => onRowClick(row) : undefined}
               >
                 {columns.map((col) => (
                   <TableCell key={col.key} className={col.className}>
-                    {col.render(row)}
+                    {rowHref && col.key === linkKey ? (
+                      <Link
+                        to={rowHref(row)}
+                        aria-label={rowLabel?.(row)}
+                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {col.render(row)}
+                      </Link>
+                    ) : (
+                      col.render(row)
+                    )}
                   </TableCell>
                 ))}
               </TableRow>

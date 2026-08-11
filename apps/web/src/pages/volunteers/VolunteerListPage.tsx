@@ -222,7 +222,7 @@ export function VolunteerListPage() {
         isLoading={isLoading}
         state={listState}
         onStateChange={setListState}
-        onRowClick={(row) => navigate(`/volunteers/${row.id}`)}
+        rowHref={(row) => `/volunteers/${row.id}`}
         emptyMessage="No volunteers found"
       />
 

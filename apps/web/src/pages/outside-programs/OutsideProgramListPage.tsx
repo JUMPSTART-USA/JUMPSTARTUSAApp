@@ -2,7 +2,7 @@ import { PROGRAM_TYPES } from '@jumpstart/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
@@ -78,7 +78,6 @@ const columns: Column<OutsideProgramRow>[] = [
 ];
 
 export function OutsideProgramListPage() {
-  const navigate = useNavigate();
   const { can } = useAuth();
   const [listState, setListState] = useState<ListState>(initialListState);
   const [search, setSearch] = useState('');
@@ -168,7 +167,7 @@ export function OutsideProgramListPage() {
         isLoading={query.isLoading}
         state={listState}
         onStateChange={setListState}
-        onRowClick={(row) => navigate(row.id)}
+        rowHref={(row) => row.id}
         emptyMessage="No outside programs found"
       />
 

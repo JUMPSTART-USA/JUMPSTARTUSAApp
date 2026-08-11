@@ -2,7 +2,7 @@ import { PLEDGE_STATUSES, PLEDGE_STATUS_LABELS } from '@jumpstart/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
@@ -70,7 +70,6 @@ const columns: Column<PledgeListItem>[] = [
 
 export function PledgesListPage() {
   const { can } = useAuth();
-  const navigate = useNavigate();
   const [state, setState] = useState<ListState>({
     page: 1,
     pageSize: 25,
@@ -156,7 +155,7 @@ export function PledgesListPage() {
         isLoading={query.isLoading}
         state={state}
         onStateChange={setState}
-        onRowClick={(row) => navigate(`/donors/pledges/${row.id}`)}
+        rowHref={(row) => `/donors/pledges/${row.id}`}
         emptyMessage="No pledges found"
       />
 

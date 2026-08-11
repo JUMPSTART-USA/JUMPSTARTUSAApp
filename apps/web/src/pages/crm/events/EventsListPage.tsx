@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, type Column, type ListState } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
@@ -60,7 +60,6 @@ type EventTab = 'upcoming' | 'past';
 
 export function EventsListPage() {
   const { can } = useAuth();
-  const navigate = useNavigate();
   const [tab, setTab] = useState<EventTab>('upcoming');
   const [state, setState] = useState<ListState>({
     page: 1,
@@ -182,7 +181,7 @@ export function EventsListPage() {
         isLoading={query.isLoading}
         state={state}
         onStateChange={setState}
-        onRowClick={(row) => navigate(`/events/${row.id}`)}
+        rowHref={(row) => `/events/${row.id}`}
         emptyMessage={tab === 'upcoming' ? 'No upcoming events' : 'No past events'}
       />
 
