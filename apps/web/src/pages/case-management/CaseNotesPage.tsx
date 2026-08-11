@@ -380,6 +380,27 @@ export function CaseNotesPage() {
           '—'
         ),
     },
+    {
+      // Always present, unlike the Edit column below which is gated on canEdit:
+      // the row click was the only opener for the note detail, so a read-only
+      // user with a keyboard could not read a case note at all.
+      key: 'view',
+      header: '',
+      className: 'w-16 text-right',
+      render: (n) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`View case note${n.participantName ? ` for ${n.participantName}` : ''} from ${formatDate(n.noteDate)}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setViewId(n.id);
+          }}
+        >
+          View
+        </Button>
+      ),
+    },
     ...(canEdit
       ? [
           {

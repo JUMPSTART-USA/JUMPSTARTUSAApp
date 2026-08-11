@@ -139,6 +139,28 @@ export function AuditLogPage() {
       header: 'Changes',
       render: (row) => <span className="text-sm text-muted-foreground">{changeSummary(row)}</span>,
     },
+    {
+      // The row click was the ONLY way to open the entry detail, so a keyboard or
+      // screen-reader user could not read an audit entry at all. The label names
+      // the entry: 25 buttons all reading "View" tell a screen-reader user
+      // nothing about which row they are on.
+      key: 'actions',
+      header: '',
+      className: 'w-20 text-right',
+      render: (row) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`View audit entry: ${humanize(row.action)} ${humanize(row.entityType)} on ${formatDateTime(row.createdAt)}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelected(row);
+          }}
+        >
+          View
+        </Button>
+      ),
+    },
   ];
 
   return (

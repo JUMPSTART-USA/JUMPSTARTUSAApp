@@ -280,6 +280,27 @@ export function NeedsAssessmentsPage() {
       className: 'max-w-sm',
       render: (a) => <span className="line-clamp-2">{a.summary ?? '—'}</span>,
     },
+    {
+      // Always present, unlike the Edit column below which is gated on canEdit:
+      // the row click was the only opener for the assessment detail, so a
+      // read-only user with a keyboard could not read an assessment at all.
+      key: 'view',
+      header: '',
+      className: 'w-16 text-right',
+      render: (a) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`View ${a.instrumentName} assessment for ${fullName(a.participantProfile.person)}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setViewing(a);
+          }}
+        >
+          View
+        </Button>
+      ),
+    },
     ...(canEdit
       ? [
           {
