@@ -2,7 +2,7 @@ import { HIRING_STATUSES } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BackLink, backTo } from '@/components/BackLink';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -204,19 +204,37 @@ export function EmployerProfilePage() {
                   <TableRow
                     key={row.id}
                     className="cursor-pointer transition-colors hover:bg-muted/60"
-                    onClick={() =>
+                    // Click-anywhere is kept, but skips modified clicks and clicks
+                    // that started on the name link so cmd-click still opens a tab.
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)
+                        return;
+                      if (
+                        (e.target as HTMLElement).closest(
+                          'a,button,input,select,textarea,[role="button"]',
+                        )
+                      )
+                        return;
                       navigate(
                         `/participants/${row.participantProfile.id}`,
                         backTo(`/employers/${employer.id}`, 'Employer record'),
-                      )
-                    }
+                      );
+                    }}
                   >
                     <TableCell className="font-medium">
-                      {row.participantProfile.person.firstName}{' '}
-                      {row.participantProfile.person.lastName}{' '}
-                      <span className="font-normal text-muted-foreground">
-                        · {row.participantProfile.participantNumber}
-                      </span>
+                      {/* Link, not just the row onClick, so keyboard and screen-reader
+                          users can open the participant record. */}
+                      <Link
+                        to={`/participants/${row.participantProfile.id}`}
+                        {...backTo(`/employers/${employer.id}`, 'Employer record')}
+                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {row.participantProfile.person.firstName}{' '}
+                        {row.participantProfile.person.lastName}{' '}
+                        <span className="font-normal text-muted-foreground">
+                          · {row.participantProfile.participantNumber}
+                        </span>
+                      </Link>
                     </TableCell>
                     <TableCell>{row.jobTitle}</TableCell>
                     <TableCell>{formatDate(row.startDate)}</TableCell>

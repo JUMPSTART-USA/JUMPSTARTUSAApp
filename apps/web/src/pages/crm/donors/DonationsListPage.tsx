@@ -324,7 +324,7 @@ export function DonationsListPage() {
         isLoading={listQuery.isLoading}
         state={state}
         onStateChange={setState}
-        onRowClick={can('donors.update') ? (row) => setEditing(row) : undefined}
+        onRowOpen={can('donors.update') ? (row) => setEditing(row) : undefined}
         emptyMessage="No donations match these filters"
       />
 

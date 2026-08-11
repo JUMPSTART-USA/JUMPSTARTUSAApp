@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
@@ -28,7 +28,8 @@ const GROUPS: { severity: AlertSeverity; title: string; hint: string }[] = [
   { severity: 'upcoming', title: 'Upcoming', hint: 'Expirations within 60 days' },
 ];
 
-function AlertsTable({ items, onRowClick }: { items: VehicleAlert[]; onRowClick: (a: VehicleAlert) => void }) {
+function AlertsTable({ items, rowHref }: { items: VehicleAlert[]; rowHref: (a: VehicleAlert) => string }) {
+  const navigate = useNavigate();
   return (
     <Table>
       <TableHeader>
@@ -45,13 +46,23 @@ function AlertsTable({ items, onRowClick }: { items: VehicleAlert[]; onRowClick:
           <TableRow
             key={`${alert.vehicleId}-${alert.type}-${i}`}
             className="cursor-pointer"
-            onClick={() => onRowClick(alert)}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              if ((e.target as HTMLElement).closest('a,button,input,select,textarea,[role="button"]')) return;
+              navigate(rowHref(alert));
+            }}
           >
             <TableCell className="font-medium">
-              {vehicleLabel(alert.vehicle)}
-              {alert.vehicle.licensePlate ? (
-                <span className="font-normal text-muted-foreground"> · {alert.vehicle.licensePlate}</span>
-              ) : null}
+              {/* Link, not just a row onClick, so the vehicle is reachable by keyboard. */}
+              <Link
+                to={rowHref(alert)}
+                className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {vehicleLabel(alert.vehicle)}
+                {alert.vehicle.licensePlate ? (
+                  <span className="font-normal text-muted-foreground"> · {alert.vehicle.licensePlate}</span>
+                ) : null}
+              </Link>
             </TableCell>
             {/* The vehicle's chapter (§7.2). */}
             <TableCell>{alert.vehicle.chapterState}</TableCell>
@@ -72,7 +83,6 @@ function AlertsTable({ items, onRowClick }: { items: VehicleAlert[]; onRowClick:
 }
 
 export function FleetAlertsPage() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [stateFilter, setStateFilter] = useState('');
   const query = useQuery({
@@ -131,7 +141,7 @@ export function FleetAlertsPage() {
                 <p className="text-sm text-muted-foreground">{hint}</p>
               </CardHeaderRow>
               <CardContent>
-                <AlertsTable items={items} onRowClick={(a) => navigate(`/vehicles/${a.vehicleId}`)} />
+                <AlertsTable items={items} rowHref={(a) => `/vehicles/${a.vehicleId}`} />
               </CardContent>
             </Card>
           );

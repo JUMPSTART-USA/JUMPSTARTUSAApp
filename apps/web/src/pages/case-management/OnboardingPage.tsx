@@ -182,7 +182,21 @@ function OnboardingOverview({
                   className="cursor-pointer"
                   onClick={() => onOpen({ id: checklist.participantProfileId, label: name })}
                 >
-                  <TableCell className="font-medium">{name}</TableCell>
+                  <TableCell className="font-medium">
+                    {/* Focusable name so the row is reachable by keyboard, not
+                        mouse only; stopPropagation keeps the row handler from
+                        firing twice. */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpen({ id: checklist.participantProfileId, label: name });
+                      }}
+                      className="rounded-sm text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {name}
+                    </button>
+                  </TableCell>
                   <TableCell>{checklist.template?.name ?? 'Onboarding checklist'}</TableCell>
                   <TableCell>{formatDate(checklist.startedAt)}</TableCell>
                   <TableCell>

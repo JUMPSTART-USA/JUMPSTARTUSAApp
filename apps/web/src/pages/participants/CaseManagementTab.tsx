@@ -347,10 +347,30 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
                 <TableRow
                   key={p.id}
                   className="cursor-pointer transition-colors hover:bg-muted/60"
-                  onClick={() => navigate('/case-management/plans', back)}
+                  // Ignore modified clicks and clicks that started on a link or
+                  // button, so cmd-click still opens a new tab.
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    if (
+                      (e.target as HTMLElement).closest(
+                        'a,button,input,select,textarea,[role="button"]',
+                      )
+                    )
+                      return;
+                    navigate('/case-management/plans', back);
+                  }}
                 >
                   <TableCell>
-                    <div className="font-medium text-primary">{p.title}</div>
+                    {/* Link, not just the row onClick, so keyboard users can open the plan. */}
+                    <div className="font-medium text-primary">
+                      <Link
+                        to="/case-management/plans"
+                        state={back.state}
+                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {p.title}
+                      </Link>
+                    </div>
                     {p.notes ? (
                       <div className="max-w-md truncate text-xs text-muted-foreground">
                         {p.notes}

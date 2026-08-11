@@ -248,7 +248,7 @@ export function ReferralsTab() {
           isLoading={query.isLoading}
           state={state}
           onStateChange={setState}
-          onRowClick={(row) => setSelectedId(row.id)}
+          onRowOpen={(row) => setSelectedId(row.id)}
           emptyMessage="No referrals in this view"
         />
       )}

@@ -165,9 +165,28 @@ export function MentoringHomePage() {
                   <TableRow
                     key={m.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`assignments/${m.id}`)}
+                    // Ignores modified clicks and clicks that started on a link or
+                    // button, so cmd-click still opens a new tab.
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                      if (
+                        (e.target as HTMLElement).closest(
+                          'a,button,input,select,textarea,[role="button"]',
+                        )
+                      )
+                        return;
+                      navigate(`assignments/${m.id}`);
+                    }}
                   >
-                    <TableCell>{m.mentorName}</TableCell>
+                    <TableCell>
+                      {/* The row was click-only; this link is the keyboard path to the match. */}
+                      <Link
+                        to={`assignments/${m.id}`}
+                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {m.mentorName}
+                      </Link>
+                    </TableCell>
                     <TableCell>
                       {m.participantName}{' '}
                       <span className="text-muted-foreground">· {m.participantNumber}</span>

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   TICKET_CATEGORY_LABELS,
   TICKET_STATUSES,
@@ -130,10 +130,23 @@ export function SupportPage() {
               <TableRow
                 key={t.id}
                 className="cursor-pointer transition-colors hover:bg-muted/60"
-                onClick={() => navigate(`/support/${t.id}`)}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  if ((e.target as HTMLElement).closest('a,button,input,select,textarea,[role="button"]'))
+                    return;
+                  navigate(`/support/${t.id}`);
+                }}
               >
                 <TableCell className="font-mono text-xs">#{t.number}</TableCell>
-                <TableCell className="font-medium">{t.subject}</TableCell>
+                <TableCell className="font-medium">
+                  {/* Subject is a real link so the ticket is reachable by keyboard. */}
+                  <Link
+                    to={`/support/${t.id}`}
+                    className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {t.subject}
+                  </Link>
+                </TableCell>
                 <TableCell>{TICKET_CATEGORY_LABELS[t.category] ?? humanize(t.category)}</TableCell>
                 {tab === 'all' ? (
                   <TableCell>

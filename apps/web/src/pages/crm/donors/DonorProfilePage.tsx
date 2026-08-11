@@ -807,7 +807,25 @@ export function DonorProfilePage() {
                         : undefined
                     }
                   >
-                    <TableCell>{formatDate(d.donationDate)}</TableCell>
+                    <TableCell>
+                      {/* Keyboard path to the edit dialog: the row click alone left these
+                          rows reachable by pointer only. */}
+                      {canUpdate ? (
+                        <button
+                          type="button"
+                          aria-label={`Edit ${formatMoney(d.amount)} donation of ${formatDate(d.donationDate)}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingDonation({ ...d, donor: donorRef });
+                          }}
+                          className="rounded-sm text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          {formatDate(d.donationDate)}
+                        </button>
+                      ) : (
+                        formatDate(d.donationDate)
+                      )}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatMoney(d.amount)}
                     </TableCell>
@@ -945,9 +963,22 @@ export function DonorProfilePage() {
                   <TableRow
                     key={p.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`/donors/pledges/${p.id}`)}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                      if ((e.target as HTMLElement).closest('a,button')) return;
+                      navigate(`/donors/pledges/${p.id}`);
+                    }}
                   >
-                    <TableCell>{formatDate(p.pledgeDate)}</TableCell>
+                    <TableCell>
+                      {/* Real link, so a pledge is keyboard-reachable and can open in a new tab. */}
+                      <Link
+                        to={`/donors/pledges/${p.id}`}
+                        aria-label={`Pledge of ${formatMoney(p.totalAmount)} from ${formatDate(p.pledgeDate)}`}
+                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {formatDate(p.pledgeDate)}
+                      </Link>
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatMoney(p.totalAmount)}
                     </TableCell>
@@ -1020,10 +1051,21 @@ export function DonorProfilePage() {
                   <TableRow
                     key={g.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`/donors/recurring/${g.id}`)}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                      if ((e.target as HTMLElement).closest('a,button')) return;
+                      navigate(`/donors/recurring/${g.id}`);
+                    }}
                   >
                     <TableCell className="text-right tabular-nums">
-                      {formatMoney(g.amount)}
+                      {/* Real link — the row click was the only way into a recurring gift. */}
+                      <Link
+                        to={`/donors/recurring/${g.id}`}
+                        aria-label={`Recurring gift of ${formatMoney(g.amount)}, ${humanize(g.frequency)}`}
+                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {formatMoney(g.amount)}
+                      </Link>
                     </TableCell>
                     <TableCell>{humanize(g.frequency)}</TableCell>
                     <TableCell>
