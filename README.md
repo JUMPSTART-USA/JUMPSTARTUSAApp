@@ -44,6 +44,7 @@ pnpm --filter @jumpstart/database db:local  # no Docker: embedded Postgres (keep
 
 pnpm db:migrate                           # apply migrations
 pnpm db:seed                              # demo data (no real PII)
+pnpm db:test-db                           # separate database for the test suite
 
 pnpm dev                                  # api on :3001, web on :5173
 ```
@@ -68,6 +69,22 @@ Full Docker stack instead: `docker compose up` → web on
 | `pnpm db:migrate` | `prisma migrate dev` against `DATABASE_URL` |
 | `pnpm db:seed` | Idempotent demo seed |
 | `pnpm db:reset` | Drop, re-migrate, re-seed (dev only) |
+| `pnpm db:test-db` | Create + migrate + seed the test database (`TEST_DATABASE_URL`) |
+
+### Tests use their own database
+
+The API suite runs the real app against real Postgres, so it needs a database of
+its own. `TEST_DATABASE_URL` in `.env` names it (same server and credentials as
+`DATABASE_URL`, different database), `pnpm db:test-db` builds it, and
+`apps/api/test/setup.ts` points the suite at it.
+
+Without that, tests share the dev database — and then anything else using the
+app changes what they see. Signing in through the browser writes an audit row;
+clicking through a list changes counts that assertions compare. That produced a
+one-off failure that then passed five runs in a row, which is the worst kind of
+test failure to chase. If `TEST_DATABASE_URL` is missing the suite still runs
+(CI has its own throwaway database and needs no override) but prints a warning
+locally.
 
 ## Documentation
 

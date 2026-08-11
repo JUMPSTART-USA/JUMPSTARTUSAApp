@@ -8,6 +8,9 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.spec.ts', 'test/**/*.spec.ts'],
+    // Redirects DATABASE_URL to TEST_DATABASE_URL before AppModule — and with it
+    // PrismaService — is imported. See test/setup.ts for why.
+    setupFiles: ['./test/setup.ts'],
     hookTimeout: 60_000,
     testTimeout: 60_000,
   },
