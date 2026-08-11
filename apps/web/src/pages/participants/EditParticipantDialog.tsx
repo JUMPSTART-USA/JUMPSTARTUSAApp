@@ -125,7 +125,7 @@ export function EditParticipantDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="2xl">
+      <DialogContent unsavedChanges={form.formState.isDirty} size="2xl">
         <DialogHeader>
           <DialogTitle>Edit participant</DialogTitle>
           <DialogDescription>

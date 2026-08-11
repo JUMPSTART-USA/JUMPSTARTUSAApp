@@ -156,7 +156,7 @@ function CompleteCheckinDialog({
 
   return (
     <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
-      <DialogContent size="xl">
+      <DialogContent unsavedChanges={form.formState.isDirty} size="xl">
         <DialogHeader>
           <DialogTitle>
             {checkin.completedDate ? 'Revise' : 'Complete'} {humanize(checkin.wave)} check-in

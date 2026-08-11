@@ -99,7 +99,7 @@ export function LogHoursDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent size="lg">
+      <DialogContent unsavedChanges={form.formState.isDirty} size="lg">
         <DialogHeader>
           <DialogTitle>Log hours</DialogTitle>
           <DialogDescription>

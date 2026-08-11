@@ -30,7 +30,25 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
 
   if (res.status === 401 && !path.startsWith('/auth/')) {
-    // Session expired mid-use: hard redirect keeps state consistent.
+    /**
+     * Session expired mid-use. The hard redirect stays — it guarantees no stale
+     * authenticated state survives — but it no longer throws away WHERE the user
+     * was. They previously landed on the Dashboard with no explanation and had to
+     * navigate back to whatever record they had been reading.
+     *
+     * sessionStorage rather than a ?next= query param: these paths carry record
+     * ids, and a same-tab handoff does the job without putting one in a URL that
+     * might be logged or pasted somewhere.
+     */
+    try {
+      const here = window.location.pathname + window.location.search;
+      if (here && !here.startsWith('/login')) {
+        sessionStorage.setItem('jumpstart.returnTo', here);
+      }
+      sessionStorage.setItem('jumpstart.signedOutReason', 'expired');
+    } catch {
+      // Private mode or quota — the redirect still has to happen.
+    }
     window.location.assign('/login');
     throw new ApiError(401, 'Session expired');
   }

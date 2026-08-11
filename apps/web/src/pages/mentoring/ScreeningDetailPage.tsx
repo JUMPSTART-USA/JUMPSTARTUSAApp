@@ -78,7 +78,7 @@ function AddStepDialog({
 
   return (
     <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
-      <DialogContent>
+      <DialogContent unsavedChanges={form.formState.isDirty}>
         <DialogHeader>
           <DialogTitle>Record screening step</DialogTitle>
         </DialogHeader>

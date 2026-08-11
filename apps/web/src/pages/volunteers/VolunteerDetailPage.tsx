@@ -341,7 +341,7 @@ function EditVolunteerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl">
+      <DialogContent unsavedChanges={form.formState.isDirty} size="xl">
         <DialogHeader>
           <DialogTitle>Edit volunteer</DialogTitle>
         </DialogHeader>

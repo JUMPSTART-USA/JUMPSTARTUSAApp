@@ -98,7 +98,7 @@ export function CampaignFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent unsavedChanges={form.formState.isDirty}>
         <DialogHeader>
           <DialogTitle>{campaign ? 'Edit campaign' : 'New campaign'}</DialogTitle>
         </DialogHeader>

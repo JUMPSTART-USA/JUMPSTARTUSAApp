@@ -6,8 +6,9 @@ import logoTaglineWhite from '@/assets/brand/jumpstart-usa-tagline-white.png';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
-import { FormError } from '@/components/ui/notice';
+import { FormError, Notice } from '@/components/ui/notice';
 import { api, ApiError } from '@/lib/api';
+import { signedOutReason } from '@/lib/session-return';
 import { useAuth } from '@/lib/auth';
 
 export function LoginPage() {
@@ -19,6 +20,12 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const { refresh } = useAuth();
   const navigate = useNavigate();
+  /**
+   * Say why they are looking at a login screen. An expired session used to bounce
+   * the user here with no explanation, which reads as "the app signed me out" or
+   * even "my account is gone" rather than "your session timed out".
+   */
+  const expired = signedOutReason() === 'expired';
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -35,6 +42,8 @@ export function LoginPage() {
         return;
       }
       await refresh();
+      // No navigate() here: App's /login redirect fires as soon as `user` lands
+      // and sends the user to the interrupted path. Racing it only lost.
       navigate('/');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Sign-in failed');
@@ -124,6 +133,11 @@ export function LoginPage() {
                 </p>
               </div>
             )}
+            {expired && !error ? (
+              <Notice variant="info">
+                Your session timed out. Sign in and we will take you back to where you were.
+              </Notice>
+            ) : null}
             <FormError message={error} />
             <Button type="submit" variant="accent" size="lg" className="w-full" disabled={busy}>
               {busy ? 'Signing in…' : totpRequired ? 'Verify' : 'Sign in'}

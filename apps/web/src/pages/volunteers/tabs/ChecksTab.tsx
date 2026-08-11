@@ -222,7 +222,7 @@ function CheckDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent unsavedChanges={form.formState.isDirty}>
         <DialogHeader>
           <DialogTitle>{check ? 'Update background check' : 'Record background check'}</DialogTitle>
           <DialogDescription>

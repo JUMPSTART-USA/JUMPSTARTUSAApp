@@ -73,7 +73,7 @@ export function ReleaseDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent unsavedChanges={form.formState.isDirty}>
         <DialogHeader>
           <DialogTitle>Record release — {fullName(participant.person)}</DialogTitle>
           <DialogDescription>

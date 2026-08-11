@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { hasUnsavedWork } from '@/components/ui/unsaved-changes';
 
 declare const __BUILD_ID__: string;
 
@@ -29,6 +30,13 @@ export function useBuildVersionWatch(): void {
         const served = (await res.text()).trim();
         // An empty or HTML body means the file is missing — never reload on that.
         if (cancelled || !served || served.includes('<') || served === __BUILD_ID__) return;
+        /**
+         * Never reload over unsaved work. The comment below says this hook avoids
+         * reloading someone mid-form — but focus return is EXACTLY when a user
+         * comes back to a half-filled form, so the check has to be explicit.
+         * The next focus or visibility change will try again.
+         */
+        if (hasUnsavedWork()) return;
         window.location.reload();
       } catch {
         // Offline or a blip: the next focus will try again.

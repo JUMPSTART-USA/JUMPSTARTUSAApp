@@ -118,7 +118,7 @@ export function RegistrationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent unsavedChanges={form.formState.isDirty}>
         <DialogHeader>
           <DialogTitle>Add registration</DialogTitle>
           <DialogDescription>

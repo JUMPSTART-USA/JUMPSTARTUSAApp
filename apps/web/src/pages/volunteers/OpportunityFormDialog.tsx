@@ -108,7 +108,7 @@ export function OpportunityFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl">
+      <DialogContent unsavedChanges={form.formState.isDirty} size="xl">
         <DialogHeader>
           <DialogTitle>{opportunity ? 'Edit opportunity' : 'New opportunity'}</DialogTitle>
           <DialogDescription>
