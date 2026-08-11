@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useUnsavedNavigationGuard } from '@/components/ui/unsaved-navigation';
 import { api } from '@/lib/api';
 import { applyApiError, formResolver, toDateInput } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
@@ -78,7 +79,7 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
     handleSubmit,
     setError,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CloseOutFormValues>({
     // formResolver's '' → undefined cleaning normalizes the "None yet"
     // assessment select before the shared schema's enum sees it.
@@ -88,11 +89,19 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
 
   const rowValues = watch('rows');
 
+  // A close-out carries one assessment per enrolled student; leaving mid-way
+  // throws away the whole set.
+  const guard = useUnsavedNavigationGuard(isDirty);
+
   const mutation = useMutation({
     mutationFn: (values: CloseOutFormValues) =>
       api.post<CloseOutResult>(`/inside-classes/${insideClass.id}/close-out`, values),
     onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: ['inside-classes'] });
+      // Saved. The form is replaced by the summary below, but this hook outlives
+      // it, so release the guard or "Back to class" offers to discard the work
+      // the server already has.
+      guard.allowNavigation();
       setResult(res);
     },
     onError: (err) => setTopError(applyApiError(err, setError)),
@@ -132,6 +141,7 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
 
   return (
     <form
+      {...guard.formProps}
       onSubmit={handleSubmit((values) => {
         setTopError(null);
         mutation.mutate(values);
@@ -275,6 +285,8 @@ function CloseOutForm({ insideClass }: { insideClass: InsideClassDetail }) {
           {mutation.isPending ? 'Saving…' : 'Save'}
         </Button>
       </div>
+
+      {guard.prompt}
     </form>
   );
 }

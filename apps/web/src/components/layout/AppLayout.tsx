@@ -13,6 +13,7 @@ import {
   Building2,
   Bus,
   CalendarDays,
+  Clock,
   Eye,
   GraduationCap,
   HandHeart,
@@ -34,9 +35,10 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
 import { useRecordScreenHistory } from '@/components/BackLink';
+import { useIdleExpiryWarning } from '@/lib/session-activity';
 import { Button } from '@/components/ui/button';
 import { SelectMenu } from '@/components/ui/select-menu';
-import { ApiError } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useAuth, type Me, type ViewAsChange } from '@/lib/auth';
 import { usePortalRequestsPending } from '@/lib/portal-requests';
 import { cn } from '@/lib/utils';
@@ -185,6 +187,24 @@ export function AppLayout() {
   const mainRef = useRef<HTMLElement>(null);
   const { pathname } = useLocation();
   const [routeAnnouncement, setRouteAnnouncement] = useState('');
+  /**
+   * Warn before an idle session expires. The API's clock only resets on a
+   * REQUEST, so someone filling in a long form is idle as far as the server is
+   * concerned — they used to find out when Save returned 401. "Stay signed in"
+   * issues one request, which is exactly what extends the rolling cookie.
+   */
+  const idleSecondsLeft = useIdleExpiryWarning(true);
+  const [keepingAlive, setKeepingAlive] = useState(false);
+  const keepAlive = async () => {
+    setKeepingAlive(true);
+    try {
+      await api.get('/auth/me');
+    } catch {
+      // If it has already expired, the wrapper's 401 handling takes over.
+    } finally {
+      setKeepingAlive(false);
+    }
+  };
   const isFirstRender = useRef(true);
 
   /**
@@ -399,6 +419,34 @@ export function AppLayout() {
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:ml-60">
         <div className="sticky top-0 z-20">
+          {/* In the sticky stack rather than fixed over it: a fixed banner
+              covered the header's own controls. Solid warning fill, because
+              amber text on a 10% amber tint measures 3.97:1 — below AA. */}
+          {idleSecondsLeft !== null ? (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center gap-2.5 border-b border-warning-foreground/30 bg-warning px-4 py-2 text-sm text-warning-foreground sm:px-6"
+            >
+              <Clock className="h-4 w-4 shrink-0" />
+              <span className="min-w-0">
+                <span className="font-semibold">
+                  Your session expires in about {Math.max(1, Math.ceil(idleSecondsLeft / 60))}{' '}
+                  minute{Math.ceil(idleSecondsLeft / 60) === 1 ? '' : 's'}.
+                </span>{' '}
+                <span className="hidden sm:inline">Anything unsaved would be lost.</span>
+              </span>
+              <button
+                type="button"
+                onClick={keepAlive}
+                disabled={keepingAlive}
+                /* Ring in the light foreground, not --ring: the gold ring is
+                   itself amber and would vanish against this fill. */
+                className="ml-auto shrink-0 rounded-md border border-warning-foreground/40 px-2.5 py-1 text-xs font-semibold hover:bg-warning-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-warning disabled:opacity-70"
+              >
+                {keepingAlive ? 'Staying signed in…' : 'Stay signed in'}
+              </button>
+            </div>
+          ) : null}
           {user.viewAsRole || chapterPreview ? (
             <div className="flex items-center gap-2.5 border-b border-gold-dark/40 bg-gold px-4 py-2 text-sm text-navy-ink sm:px-6">
               <Eye className="h-4 w-4 shrink-0" />

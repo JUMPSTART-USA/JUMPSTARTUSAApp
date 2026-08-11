@@ -8,7 +8,7 @@ import '@fontsource/ibm-plex-sans-condensed/700.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './lib/auth';
 import './index.css';
@@ -23,14 +23,28 @@ const queryClient = new QueryClient({
   },
 });
 
+/**
+ * A data router, not <BrowserRouter> — `useBlocker` is only available under one,
+ * and stopping a half-filled form from being thrown away by a sidebar click is
+ * the only thing it is here for (see components/ui/unsaved-navigation.tsx).
+ *
+ * Deliberately ONE catch-all route holding the existing <App /> tree, rather
+ * than a route-object translation of it: App's routes are permission-gated per
+ * module and its module routes are descendant <Routes>, which keep working
+ * unchanged under a data router. Loaders and actions are not adopted — the app
+ * fetches through React Query, and mixing the two ways of loading is how a
+ * codebase ends up with data arriving from two places at once.
+ */
+const router = createBrowserRouter([{ path: '*', element: <App /> }]);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </BrowserRouter>
+      {/* AuthProvider sits ABOVE the router (it uses no router hooks) so a
+          navigation can never remount it and re-fetch the session. */}
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 );
