@@ -85,6 +85,29 @@ export function todayInput(): string {
 }
 
 /**
+ * Last day of a 'yyyy-MM' month, as 'yyyy-MM-dd' — an inclusive upper bound for
+ * a date range.
+ *
+ * Do NOT shortcut this to `${month}-31`. The API's date params go through
+ * z.coerce.date(), and '2026-02-31' coerces forward to March 3 rather than
+ * failing, so a February total would quietly absorb the first days of March.
+ *
+ * `new Date(y, m, 0)` is the last day of the 1-based month m, and only
+ * .getDate() is read off it, so no timezone applies.
+ */
+export function endOfMonthInput(month: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match) throw new Error(`endOfMonthInput expects 'yyyy-MM', received '${month}'`);
+  const year = Number(match[1]);
+  const monthNumber = Number(match[2]);
+  if (monthNumber < 1 || monthNumber > 12) {
+    throw new Error(`endOfMonthInput received month ${monthNumber} in '${month}'`);
+  }
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+  return `${month}-${String(lastDay).padStart(2, '0')}`;
+}
+
+/**
  * Compare a date-only 'yyyy-MM-dd' value against today without going through
  * Date at all. `new Date('2026-08-10')` parses as UTC midnight, so comparing it
  * to `Date.now()` puts the boundary at 8pm Eastern rather than midnight local —

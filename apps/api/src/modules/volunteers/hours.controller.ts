@@ -24,19 +24,52 @@ import { zodBody, zodQuery } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser } from '../../common/types';
 import { HoursService } from './hours.service';
 
-const hoursQuerySchema = listQuerySchema.extend({
+/**
+ * Hoisted so the list and the summary cannot drift apart on which filters they
+ * accept — a total is only trustworthy if it answers for exactly the rows the
+ * list would return. donations.controller.ts is shaped the same way.
+ */
+const hoursFilterShape = {
   volunteerProfileId: uuid.optional(),
   status: z.enum(HOURS_STATUSES).optional(),
   opportunityId: uuid.optional(),
   institutionId: uuid.optional(),
   from: optionalDate,
   to: optionalDate,
-});
+};
+
+const hoursQuerySchema = listQuerySchema.extend(hoursFilterShape);
 type HoursQuery = z.infer<typeof hoursQuerySchema>;
+
+/** The same filters minus paging and sorting — an aggregate has no page. */
+const hoursSummaryQuerySchema = z.object({
+  ...hoursFilterShape,
+  search: z.string().trim().max(200).optional(),
+});
+type HoursSummaryQuery = z.infer<typeof hoursSummaryQuerySchema>;
 
 @Controller('volunteers/hours')
 export class HoursController {
   constructor(private readonly hours: HoursService) {}
+
+  /**
+   * Declared before any parameterized sibling. Nothing shadows it today — this
+   * controller has no GET-by-id route — but adding one later would send
+   * /volunteers/hours/summary through ParseUUIDPipe and answer 400.
+   */
+  @Get('summary')
+  @RequirePermission('volunteers.read')
+  summary(
+    @Query(zodQuery(hoursSummaryQuerySchema)) query: HoursSummaryQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { search, ...filters } = query;
+    // Chapter scoping (§7.2) is derived in the service from user.chapter, by the
+    // same buildWhere the list uses. Deliberately NO `state` param: this module
+    // has never accepted one, and honouring a client-supplied chapter here would
+    // be a scoped-user bypass.
+    return this.hours.summary(filters, user, search);
+  }
 
   @Get()
   @RequirePermission('volunteers.read')

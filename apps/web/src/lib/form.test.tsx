@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useDebounced, todayInput } from './form';
+import { endOfMonthInput, useDebounced, todayInput } from './form';
 
 /**
  * `useDebounced` is what stops a search box issuing a request per keystroke. It
@@ -50,6 +50,39 @@ describe('useDebounced', () => {
       vi.advanceTimersByTime(299);
     });
     expect(screen.getByTestId('debounced').textContent).toBe('');
+  });
+});
+
+describe('endOfMonthInput', () => {
+  /**
+   * This is an upper bound sent to an API param that runs through
+   * z.coerce.date(). A naive `${month}-31` does not fail on '2026-02-31' — it
+   * coerces forward to March 3 — so February's hours total would quietly absorb
+   * the first days of March. Every month length is worth pinning.
+   */
+  it.each([
+    ['2026-01', '2026-01-31'],
+    ['2026-02', '2026-02-28'],
+    ['2024-02', '2024-02-29'], // leap year
+    ['2026-04', '2026-04-30'],
+    ['2026-12', '2026-12-31'],
+  ])('%s ends on %s', (month, expected) => {
+    expect(endOfMonthInput(month)).toBe(expected);
+  });
+
+  it('never returns a day that does not exist in the month', () => {
+    for (let m = 1; m <= 12; m++) {
+      const month = `2026-${String(m).padStart(2, '0')}`;
+      const day = Number(endOfMonthInput(month).slice(-2));
+      // A real calendar day: re-reading it must land in the same month.
+      expect(new Date(2026, m - 1, day).getMonth()).toBe(m - 1);
+    }
+  });
+
+  it('rejects a malformed month rather than inventing a date', () => {
+    expect(() => endOfMonthInput('2026-13')).toThrow();
+    expect(() => endOfMonthInput('2026')).toThrow();
+    expect(() => endOfMonthInput('2026-06-15')).toThrow();
   });
 });
 
