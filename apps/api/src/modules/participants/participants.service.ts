@@ -123,7 +123,32 @@ export class ParticipantsService {
         orderBy,
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
-        include: {
+        /**
+         * An explicit projection, NOT `include` (§7.2 field classes).
+         *
+         * `include` without a top-level `select` returns every scalar column on
+         * the model, so this list was shipping `sexOffenderRegistry` — a justice
+         * field that get() strips for viewers without fields.justice.read — to
+         * every role holding plain participants.read. Six of the ten roles are
+         * in that position, and the global-search box calls this endpoint as you
+         * type, so it went out on a keystroke.
+         *
+         * These are exactly the fields the clients declare (ParticipantListItem,
+         * ParticipantHit, ParticipantPickerItem): no justice field, no notes, no
+         * audit columns. If a list row ever needs a §7.2 field, it has to be
+         * gated on the viewer's permission the way get() does — not restored by
+         * widening this back to `include`.
+         */
+        select: {
+          id: true,
+          participantNumber: true,
+          insideStatus: true,
+          outsideStatus: true,
+          alumniStatus: true,
+          phase: true,
+          intakeDate: true,
+          releaseDate: true,
+          graduationDate: true,
           person: {
             select: {
               id: true,
