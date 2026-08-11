@@ -40,6 +40,11 @@ describe('every domain route declares RequirePermission or Public', () => {
       const unprotected: string[] = [];
       lines.forEach((line, i) => {
         if (!HTTP_DECORATOR.test(line)) return;
+        // A decorator named in prose is not a route. Documenting route ordering
+        // ("this controller has no @Get(':id')") failed this scan, and the message
+        // pointed at the comment — which reads as a real unprotected handler.
+        // Safe to skip: a live decorator never begins a line with * or //.
+        if (/^\s*(\*|\/\/|\/\*)/.test(line)) return;
         // Walk the contiguous decorator stack around this line (decorators sit
         // on consecutive lines between the previous member and the method).
         let start = i;
@@ -49,7 +54,22 @@ describe('every domain route declares RequirePermission or Public', () => {
           end++;
           if (/\w+\s*\(.*\)\s*{|\basync\b/.test(lines[end] ?? '')) break;
         }
-        const stack = lines.slice(start, Math.min(end + 3, lines.length)).join('\n');
+        /**
+         * Comments are stripped from the window too, not just from the route
+         * detection above. Otherwise a COMMENTED-OUT permission decorator counted
+         * as protection — the substring match cannot tell code from prose, so
+         *
+         *   @Get('export')
+         *   // @RequirePermission('volunteers.export')
+         *
+         * passed while deleting that same line was correctly flagged. Commenting
+         * a decorator out mid-refactor is exactly how a route loses its guard, so
+         * that was the one case this scan most needed to catch.
+         */
+        const stack = lines
+          .slice(start, Math.min(end + 3, lines.length))
+          .filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l))
+          .join('\n');
         const protectedRoute =
           stack.includes('@RequirePermission(') || stack.includes('@Public()');
         if (!protectedRoute && !classLevelGuard) {

@@ -299,6 +299,16 @@ export interface VolunteerHoursSummary {
   pendingCount: number;
 }
 
+/**
+ * GET /volunteers/hours/summary — a server aggregate over the same filters the
+ * hours list accepts. Distinct from VolunteerHoursSummary above, which is the
+ * per-volunteer shape on the volunteer detail tab.
+ */
+export interface HoursSummary {
+  count: number;
+  totalHours: number;
+}
+
 export interface UpcomingSignupRow {
   id: string;
   status: ShiftSignupStatus;

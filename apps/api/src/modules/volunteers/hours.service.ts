@@ -28,8 +28,19 @@ export class HoursService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(query: ListQuery, filters: HoursListFilters, user: AuthenticatedUser) {
-    const where: Prisma.VolunteerHoursEntryWhereInput = {
+  /**
+   * The one filter definition for this model. list() and summary() MUST share it:
+   * a second `where` literal is how a chapter-scoped coordinator ends up reading
+   * org-wide totals with nothing visibly wrong (§7.2). Chapter is derived here
+   * from user.chapter — entries reach it through their required volunteerProfile
+   * (chapterState) — so one clause covers list and summary alike.
+   */
+  private buildWhere(
+    filters: HoursListFilters,
+    user: AuthenticatedUser,
+    search?: string,
+  ): Prisma.VolunteerHoursEntryWhereInput {
+    return {
       deletedAt: null,
       // Chapter scoping (§7.2): same derivation as the volunteers list
       // (chapterState) — a scoped user only sees their chapter's entries.
@@ -46,25 +57,29 @@ export class HoursService {
             },
           }
         : {}),
-      ...(query.search
+      ...(search
         ? {
             OR: [
-              { description: { contains: query.search, mode: 'insensitive' } },
-              { opportunity: { name: { contains: query.search, mode: 'insensitive' } } },
+              { description: { contains: search, mode: 'insensitive' } },
+              { opportunity: { name: { contains: search, mode: 'insensitive' } } },
               {
                 volunteerProfile: {
-                  person: { firstName: { contains: query.search, mode: 'insensitive' } },
+                  person: { firstName: { contains: search, mode: 'insensitive' } },
                 },
               },
               {
                 volunteerProfile: {
-                  person: { lastName: { contains: query.search, mode: 'insensitive' } },
+                  person: { lastName: { contains: search, mode: 'insensitive' } },
                 },
               },
             ],
           }
         : {}),
     };
+  }
+
+  async list(query: ListQuery, filters: HoursListFilters, user: AuthenticatedUser) {
+    const where = this.buildWhere(filters, user, query.search);
 
     const orderBy: Prisma.VolunteerHoursEntryOrderByWithRelationInput =
       query.sortBy && SORTABLE.has(query.sortBy)
@@ -88,6 +103,25 @@ export class HoursService {
     ]);
 
     return { items, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  /**
+   * Hours totals over the same filter set the list accepts.
+   *
+   * The Hours screen used to compute these in the browser by paging the whole
+   * result set — 15 serial requests and ~1.5 MB of JSON for a chapter with 3,000
+   * approved entries, to render two numbers, and it stopped at 50 pages so
+   * anything past 10,000 entries silently undercounted.
+   */
+  async summary(filters: HoursListFilters, user: AuthenticatedUser, search?: string) {
+    const agg = await this.prisma.volunteerHoursEntry.aggregate({
+      where: this.buildWhere(filters, user, search),
+      _count: true,
+      _sum: { hours: true },
+    });
+    // `hours` is Decimal, so _sum is Prisma.Decimal | null — returned raw it
+    // would serialize as a string and format differently from the other tiles.
+    return { count: agg._count, totalHours: Number(agg._sum.hours ?? 0) };
   }
 
   /**

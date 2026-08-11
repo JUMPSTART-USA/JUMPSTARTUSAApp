@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { CHAPTER_STATES } from '@jumpstart/shared';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
@@ -893,5 +894,149 @@ describe('confidential case notes (§7.3)', () => {
     expect(confidential.some((n: { content: string }) => n.content !== '[Confidential note]')).toBe(
       true,
     );
+  });
+});
+
+describe('volunteer hours summary (server aggregate)', () => {
+  /**
+   * The Hours screen used to compute its tiles in the browser by paging the whole
+   * approved set — up to 50 serial requests, and it stopped there, so a chapter
+   * past 10,000 entries silently undercounted. These three tests are what make the
+   * server aggregate trustworthy enough to replace that.
+   */
+  it('equals a client-side sum of the same filtered list', async () => {
+    const cookie = await login(ADMIN);
+    const filter = 'status=approved';
+
+    // Page the list to exhaustion exactly as the old client loop did.
+    const rows: { hours: string | number }[] = [];
+    let page = 1;
+    let total = 0;
+    for (;;) {
+      const res = await request(server)
+        .get(`/api/volunteers/hours?${filter}&page=${page}&pageSize=200`)
+        .set('Cookie', cookie)
+        .expect(200);
+      total = res.body.total;
+      rows.push(...res.body.items);
+      if (rows.length >= total || res.body.items.length === 0) break;
+      page += 1;
+    }
+    const clientSum = rows.reduce((sum, r) => sum + Number(r.hours), 0);
+
+    const summary = await request(server)
+      .get(`/api/volunteers/hours/summary?${filter}`)
+      .set('Cookie', cookie)
+      .expect(200);
+
+    // The oracle: the aggregate must equal what the loop produced.
+    expect(summary.body.count).toBe(total);
+    expect(summary.body.totalHours).toBeCloseTo(clientSum, 2);
+    // A number, not a Decimal serialized as a string.
+    expect(typeof summary.body.totalHours).toBe('number');
+  });
+
+  it('partitions across chapters, so the scoping clause cannot be dropped', async () => {
+    /**
+     * Deliberately NOT "the scoped summary agrees with the scoped list". Both now
+     * run through the same buildWhere(), so agreement is true by construction:
+     * delete the chapter clause and BOTH go org-wide, still agreeing, and such a
+     * test stays green through the exact §7.2 regression it was written to catch.
+     *
+     * A partition is chapter-independent and cannot be satisfied that way. Every
+     * entry belongs to exactly one chapter, so the per-chapter counts must sum to
+     * the org-wide count. Unscoped, each chapter would return the full set and the
+     * sum would overshoot by a multiple of the chapter count.
+     */
+    const cookie = await login(ADMIN);
+    const unscoped = await request(server)
+      .get('/api/volunteers/hours/summary?status=approved')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(unscoped.body.count).toBeGreaterThan(0);
+
+    let countSum = 0;
+    let hoursSum = 0;
+    try {
+      for (const chapter of CHAPTER_STATES) {
+        await request(server)
+          .post('/api/auth/view-as')
+          .set('Cookie', cookie)
+          .set('Origin', ORIGIN)
+          .send({ chapter })
+          .expect(200);
+        const scoped = await request(server)
+          .get('/api/volunteers/hours/summary?status=approved')
+          .set('Cookie', cookie)
+          .expect(200);
+        // No chapter may exceed the whole.
+        expect(scoped.body.count).toBeLessThanOrEqual(unscoped.body.count);
+        countSum += scoped.body.count;
+        hoursSum += scoped.body.totalHours;
+      }
+      expect(countSum).toBe(unscoped.body.count);
+      expect(hoursSum).toBeCloseTo(unscoped.body.totalHours, 2);
+    } finally {
+      await request(server)
+        .post('/api/auth/view-as')
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ chapter: null })
+        .expect(200);
+    }
+  });
+
+  it('requires volunteers.read', async () => {
+    // The fleet manager reads vehicles, not volunteers.
+    const cookie = await login(FLEET);
+    await request(server)
+      .get('/api/volunteers/hours/summary?status=approved')
+      .set('Cookie', cookie)
+      .expect(403);
+  });
+
+  it('treats both date bounds as inclusive, which the month tile relies on', async () => {
+    /**
+     * An empty window proving zero is far too weak: it survives gte→gt, lte→lt,
+     * and even swapping the two bounds. Those are not hypothetical — the month
+     * tile asks for from=<1st> and to=<last day>, so `from` exclusive would drop
+     * every entry dated the 1st (on the seeded data that is the whole tile), and
+     * `to` exclusive would drop the last day, which is exactly the inclusivity
+     * endOfMonthInput() was written to depend on.
+     *
+     * A single-day window from=D&to=D pins both edges at once: it can only return
+     * D's entries if `from` is inclusive AND `to` is inclusive AND both read the
+     * activityDate column.
+     */
+    const cookie = await login(ADMIN);
+    const list = await request(server)
+      .get('/api/volunteers/hours?status=approved&pageSize=200')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(list.body.items.length).toBeGreaterThan(0);
+
+    const day = String(list.body.items[0].activityDate).slice(0, 10);
+    const sameDay = list.body.items.filter(
+      (r: { activityDate: string }) => String(r.activityDate).slice(0, 10) === day,
+    );
+    const expectedHours = sameDay.reduce(
+      (sum: number, r: { hours: string | number }) => sum + Number(r.hours),
+      0,
+    );
+
+    const oneDay = await request(server)
+      .get(`/api/volunteers/hours/summary?status=approved&from=${day}&to=${day}`)
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(oneDay.body.count).toBe(sameDay.length);
+    expect(oneDay.body.totalHours).toBeCloseTo(expectedHours, 2);
+
+    // And a window that cannot contain anything still aggregates to zero.
+    const none = await request(server)
+      .get('/api/volunteers/hours/summary?status=approved&from=1990-01-01&to=1990-01-31')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(none.body.count).toBe(0);
+    expect(none.body.totalHours).toBe(0);
   });
 });

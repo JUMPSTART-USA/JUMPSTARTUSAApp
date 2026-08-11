@@ -22,12 +22,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { api, qs, type Paged } from '@/lib/api';
-import { todayInput } from '@/lib/form';
+import { endOfMonthInput, todayInput } from '@/lib/form';
 import { useAuth } from '@/lib/auth';
 import { formatDate, fullName } from '@/lib/utils';
 import { LogHoursDialog } from './LogHoursDialog';
 import { HoursSourceBadge, formatHours } from './shared';
-import type { HoursEntryRow } from './types';
+import type { HoursEntryRow, HoursSummary } from './types';
 
 function volunteerCell(row: HoursEntryRow) {
   if (!row.volunteerProfile) return <span className="text-muted-foreground">—</span>;
@@ -53,23 +53,29 @@ export function HoursPage() {
   // next month at 8pm Eastern on the last evening of a month, so the tile
   // reported the wrong month's hours.
   const month = todayInput().slice(0, 7);
-  // No dedicated summary endpoint: page through ALL approved YTD entries
-  // (the API caps pageSize at 200) and sum client-side. The 50-page safety
-  // valve bounds this at 10,000 entries — beyond that the tiles undercount.
-  const ytdQuery = useQuery({
-    queryKey: ['volunteers', 'hours', 'ytd-summary', year],
-    queryFn: async () => {
-      const items: HoursEntryRow[] = [];
-      const maxPages = 50;
-      for (let page = 1; page <= maxPages; page += 1) {
-        const res = await api.get<Paged<HoursEntryRow>>(
-          `/volunteers/hours${qs({ status: 'approved', from: `${year}-01-01`, page, pageSize: 200, sortBy: 'activityDate', sortDir: 'desc' })}`,
-        );
-        items.push(...res.items);
-        if (items.length >= res.total || res.items.length === 0) break;
-      }
-      return items;
-    },
+  /**
+   * Two server aggregates, one request each, in parallel.
+   *
+   * These tiles were computed in the browser: page through every approved YTD
+   * entry (pageSize caps at 200) and sum. For a chapter with 3,000 entries that
+   * was 15 strictly serial round trips and megabytes of JSON to render two
+   * numbers — and it stopped at 50 pages, so past 10,000 entries the tiles
+   * undercounted silently. GET /volunteers/hours/summary answers from one Prisma
+   * aggregate over the same filters (and the same chapter scoping) as the list.
+   */
+  const monthParams = qs({
+    status: 'approved',
+    from: `${month}-01`,
+    to: endOfMonthInput(month),
+  });
+  const ytdParams = qs({ status: 'approved', from: `${year}-01-01` });
+  const monthSummary = useQuery({
+    queryKey: ['volunteers', 'hours', 'summary', monthParams],
+    queryFn: () => api.get<HoursSummary>(`/volunteers/hours/summary${monthParams}`),
+  });
+  const ytdSummary = useQuery({
+    queryKey: ['volunteers', 'hours', 'summary', ytdParams],
+    queryFn: () => api.get<HoursSummary>(`/volunteers/hours/summary${ytdParams}`),
   });
   const pendingQuery = useQuery({
     queryKey: ['volunteers', 'hours', 'pending-queue'],
@@ -78,11 +84,8 @@ export function HoursPage() {
         `/volunteers/hours${qs({ status: 'pending', pageSize: 100, sortBy: 'activityDate', sortDir: 'asc' })}`,
       ),
   });
-  const ytdItems = ytdQuery.data ?? [];
-  const ytdTotal = ytdItems.reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
-  const monthTotal = ytdItems
-    .filter((e) => e.activityDate.slice(0, 7) === month)
-    .reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
+  const monthTotal = monthSummary.data?.totalHours ?? 0;
+  const ytdTotal = ytdSummary.data?.totalHours ?? 0;
 
   // ── Approve / reject ──────────────────────────────────────────────────────
   const review = useMutation({
