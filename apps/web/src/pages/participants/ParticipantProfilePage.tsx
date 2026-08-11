@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { DoorOpen, GraduationCap, Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -59,11 +59,28 @@ export function ParticipantProfilePage() {
   const [releaseOpen, setReleaseOpen] = useState(false);
   // The active tab lives in ?tab= so deep links out of the tabs (class,
   // home, employer…) can offer a Back that restores this exact view.
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const tabParam = searchParams.get('tab') ?? 'overview';
   const activeTab = (TAB_VALUES as readonly string[]).includes(tabParam) ? tabParam : 'overview';
   const setActiveTab = (value: string) => {
-    setSearchParams(value === 'overview' ? {} : { tab: value }, { replace: true });
+    /**
+     * Edit the params that are already there, and carry location.state.
+     *
+     * `setSearchParams({ tab })` replaced the ENTIRE query string, and
+     * setSearchParams navigates with no `state` at all — so a tab click dropped
+     * any other param and the router back-state with it. BackLink reads that
+     * state for its label, so arriving here from a dashboard card and then
+     * switching tabs quietly downgraded "← Dashboard" to a generic back link.
+     * It also blocks list state from living in the URL, which is the next thing
+     * this app needs.
+     */
+    const next = new URLSearchParams(searchParams);
+    if (value === 'overview') next.delete('tab');
+    else next.set('tab', value);
+    const search = next.toString();
+    navigate({ search: search ? `?${search}` : '' }, { replace: true, state: location.state });
   };
 
   const query = useQuery({

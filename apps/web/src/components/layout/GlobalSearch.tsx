@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/form';
 import { fullName } from '@/lib/utils';
 
 interface ParticipantHit {
@@ -23,11 +24,17 @@ export function GlobalSearch() {
   const { can } = useAuth();
   const boxRef = useRef<HTMLDivElement>(null);
 
-  const enabled = can('participants.read') && term.trim().length >= 2;
+  /**
+   * Debounced like every other search box in the app (35 files use this helper).
+   * This one queried on the raw value, so the highest-traffic field in the
+   * product fired a request per keystroke — "Casteel" was seven.
+   */
+  const debouncedTerm = useDebounced(term);
+  const enabled = can('participants.read') && debouncedTerm.trim().length >= 2;
   const { data } = useQuery({
-    queryKey: ['global-search', term],
+    queryKey: ['global-search', debouncedTerm],
     queryFn: () =>
-      api.get<Paged<ParticipantHit>>(`/participants${qs({ search: term, pageSize: 8 })}`),
+      api.get<Paged<ParticipantHit>>(`/participants${qs({ search: debouncedTerm, pageSize: 8 })}`),
     enabled,
     staleTime: 10_000,
   });

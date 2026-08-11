@@ -35,6 +35,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
 import { useRecordScreenHistory } from '@/components/BackLink';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useIdleExpiryWarning } from '@/lib/session-activity';
 import { Button } from '@/components/ui/button';
 import { SelectMenu } from '@/components/ui/select-menu';
@@ -516,7 +517,12 @@ export function AppLayout() {
         {/* tabIndex={-1} so the skip link can move focus here without making
             <main> itself a tab stop. */}
         <main ref={mainRef} id="main-content" tabIndex={-1} className="flex-1 p-4 outline-none sm:p-6">
-          <Outlet />
+          {/* Inside <main>, so a failed screen leaves the sidebar, header and
+              chapter switcher alive — a user can navigate out instead of
+              reloading. It resets itself on pathname change. */}
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>
