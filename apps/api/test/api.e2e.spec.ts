@@ -639,6 +639,42 @@ describe('sex offender registry flag (§7.2 justice field class)', () => {
         .set('Cookie', housingCookie)
         .expect(200);
       expect(asHousing.body.sexOffenderRegistry).toBeUndefined();
+
+      /**
+       * The LIST endpoint too — the gap this assertion was missing. list() used
+       * `include` with no top-level `select`, so every scalar column went out and
+       * the flag reached any role holding plain participants.read (six of the ten
+       * roles). The global-search box queries this endpoint as the user types, so
+       * it shipped on a keystroke.
+       *
+       * Asserted for the holder as well: a projection that dropped the field for
+       * everyone would satisfy a one-sided test while quietly breaking the detail
+       * view, so the round-trip above is re-checked after the list.
+       */
+      const listAsHousing = await request(server)
+        .get('/api/participants?pageSize=25')
+        .set('Cookie', housingCookie)
+        .expect(200);
+      expect(listAsHousing.body.items.length).toBeGreaterThan(0);
+      for (const row of listAsHousing.body.items) {
+        expect(row).not.toHaveProperty('sexOffenderRegistry');
+        expect(row).not.toHaveProperty('offenses');
+      }
+
+      const listAsAdmin = await request(server)
+        .get('/api/participants?pageSize=25')
+        .set('Cookie', adminCookie)
+        .expect(200);
+      // No list row carries a justice field for anyone; the detail view is where
+      // a holder reads it.
+      for (const row of listAsAdmin.body.items) {
+        expect(row).not.toHaveProperty('sexOffenderRegistry');
+      }
+      const holderDetail = await request(server)
+        .get(`/api/participants/${id}`)
+        .set('Cookie', adminCookie)
+        .expect(200);
+      expect(holderDetail.body.sexOffenderRegistry).toBe(true);
     } finally {
       await request(server)
         .patch(`/api/participants/${id}`)
