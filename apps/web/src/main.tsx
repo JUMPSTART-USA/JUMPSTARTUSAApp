@@ -10,6 +10,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
+import { RootErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider } from './lib/auth';
 import './index.css';
 
@@ -39,13 +40,22 @@ const router = createBrowserRouter([{ path: '*', element: <App /> }]);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      {/* AuthProvider sits ABOVE the router (it uses no router hooks) so a
-          navigation can never remount it and re-fetch the session. */}
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
-    </QueryClientProvider>
+    {/**
+     * The outermost boundary. AppLayout has its own, which keeps the sidebar
+     * alive for an authenticated screen — but by construction that one cannot
+     * catch a failure in the public tree (login, the tokenized portal, password
+     * reset) or a failure in AppLayout itself, and those are exactly the screens
+     * a blank window is worst on: no navigation to escape with.
+     */}
+    <RootErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        {/* AuthProvider sits ABOVE the router (it uses no router hooks) so a
+            navigation can never remount it and re-fetch the session. */}
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
+      </QueryClientProvider>
+    </RootErrorBoundary>
   </StrictMode>,
 );
 
