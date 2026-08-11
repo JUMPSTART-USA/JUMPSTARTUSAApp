@@ -2,7 +2,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { useState, type ComponentPropsWithoutRef, type HTMLAttributes } from 'react';
 import { Button } from '@/components/ui/button';
-import { useDialogDirtyState } from '@/components/ui/unsaved-changes';
+import { useTouchedDirtyState } from '@/components/ui/unsaved-changes';
 import { cn } from '@/lib/utils';
 
 export const Dialog = DialogPrimitive.Root;
@@ -42,7 +42,7 @@ export function DialogContent({
    */
   unsavedChanges?: boolean;
 }) {
-  const { isDirty, markTouched, reset } = useDialogDirtyState(unsavedChanges);
+  const { isDirty, markTouched, reset } = useTouchedDirtyState(unsavedChanges);
   const [confirming, setConfirming] = useState(false);
   const guard = guardUnsaved && isDirty;
 

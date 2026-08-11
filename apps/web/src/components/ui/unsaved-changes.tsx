@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /**
- * Unsaved-changes protection for dialogs.
+ * Unsaved-changes protection for dialogs and full-page forms.
  *
  * The audit's most-agreed finding, raised independently by three dimension
  * audits: Escape or a backdrop click discarded everything typed into any of ~58
@@ -64,18 +64,31 @@ export function subscribeUnsaved(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** Resolves whether a dialog is holding unsaved work. See the note above. */
-export function useDialogDirtyState(explicit: boolean | undefined) {
-  const [touched, setTouched] = useState(false);
-  // Something was edited AND, where the form tells us, it still differs from
-  // where it started. `explicit` can only ever clear the flag, never raise it.
-  const isDirty = touched && (explicit ?? true);
-
+/**
+ * Counts a form as unsaved work for as long as it stays dirty, which is what
+ * arms beforeunload and defers the deploy watcher's reload.
+ */
+export function useDirtyRegistration(isDirty: boolean) {
   useEffect(() => {
     if (!isDirty) return;
     adjustDirty(1);
     return () => adjustDirty(-1);
   }, [isDirty]);
+}
+
+/**
+ * Resolves whether a form is holding unsaved work, per the two-signal rule
+ * above. Used by dialogs (dialog.tsx) and by full-page forms, which have no
+ * dismissal to intercept but the same navigation to survive
+ * (unsaved-navigation.tsx).
+ */
+export function useTouchedDirtyState(explicit: boolean | undefined) {
+  const [touched, setTouched] = useState(false);
+  // Something was edited AND, where the form tells us, it still differs from
+  // where it started. `explicit` can only ever clear the flag, never raise it.
+  const isDirty = touched && (explicit ?? true);
+
+  useDirtyRegistration(isDirty);
 
   const markTouched = useCallback(() => setTouched(true), []);
   const reset = useCallback(() => setTouched(false), []);

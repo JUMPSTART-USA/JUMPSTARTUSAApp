@@ -5,8 +5,11 @@ import session from 'express-session';
 import helmet from 'helmet';
 import { Pool } from 'pg';
 import { isProduction, loadEnv } from './config/env';
+import { SESSION_IDLE_TIMEOUT_MS } from '@jumpstart/shared';
 
-export const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 min idle (§7.1)
+// Re-exported from @jumpstart/shared so the browser's expiry warning counts
+// down against the same number this enforces (§7.1).
+export const IDLE_TIMEOUT_MS = SESSION_IDLE_TIMEOUT_MS;
 export const ABSOLUTE_TIMEOUT_MS = 12 * 60 * 60 * 1000; // 12 h absolute (§7.1)
 
 /**

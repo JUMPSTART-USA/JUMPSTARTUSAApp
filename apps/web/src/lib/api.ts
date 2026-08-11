@@ -3,6 +3,8 @@
  * carries credentials; 401 anywhere bounces to the login screen.
  */
 
+import { noteApiActivity } from '@/lib/session-activity';
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -18,6 +20,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   // FormData bodies (file uploads) go through as multipart — the browser sets
   // the Content-Type boundary itself.
   const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+  // Every request resets the API's rolling session clock, so this is the honest
+  // place to record activity for the expiry warning.
+  noteApiActivity();
   const res = await fetch(`/api${path}`, {
     method,
     credentials: 'include',

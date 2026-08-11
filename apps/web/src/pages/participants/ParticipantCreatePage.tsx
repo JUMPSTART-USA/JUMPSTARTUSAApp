@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormError, Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
+import { useUnsavedNavigationGuard } from '@/components/ui/unsaved-navigation';
 import { api, ApiError } from '@/lib/api';
 import { applyApiError, formResolver } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
@@ -32,6 +33,10 @@ export function ParticipantCreatePage() {
     defaultValues: emptyParticipantFormValues(),
   });
 
+  // 59 fields, often filled over half an hour on the phone to a facility — a
+  // sidebar click must not take them.
+  const guard = useUnsavedNavigationGuard(form.formState.isDirty);
+
   const [candidates, setCandidates] = useState<DuplicateCandidate[] | null>(null);
   const [topError, setTopError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,6 +45,9 @@ export function ParticipantCreatePage() {
     mutationFn: (body: ParticipantCreateInput) => api.post<ParticipantDetail>('/participants', body),
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ['participants'] });
+      // The form is still dirty here — the record just went to the server, so
+      // say so before navigating or the guard offers to discard it.
+      guard.allowNavigation();
       navigate(`/participants/${created.id}`, { replace: true });
     },
   });
@@ -159,6 +167,7 @@ export function ParticipantCreatePage() {
       <FormError message={topError} />
 
       <form
+        {...guard.formProps}
         onSubmit={(e) => {
           e.preventDefault();
           void submit(false);
@@ -199,6 +208,8 @@ export function ParticipantCreatePage() {
           </Button>
         </div>
       </form>
+
+      {guard.prompt}
     </div>
   );
 }

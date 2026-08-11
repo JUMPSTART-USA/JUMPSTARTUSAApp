@@ -9,6 +9,7 @@ import {
   CardHeaderRow,
   CardTitle,
 } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import {
   Table,
@@ -82,6 +83,9 @@ export function MentoringHomePage() {
 
   return (
     <div className="space-y-6">
+      {/* The only module home with no PageHeader, so it had no h1 and kept the
+          previous route's document title — the sub-nav is not a page heading. */}
+      <PageHeader title="Mentoring" />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Active matches" value={data.activeMatches} to="assignments" />
         <StatCard
