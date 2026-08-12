@@ -21,9 +21,23 @@ import type { ListState } from '@/components/DataTable';
  *    moment someone types in a search box. Every write here carries `loc.state`.
  *
  * 2. Its functional updater receives the SNAPSHOT from the render that created
- *    it, not the latest params. Two `set()` calls in one tick therefore clobber
- *    each other — the second wins and the first is lost. That is what `patch()`
- *    is for: a tab switch that also rewrites two filters must be ONE write.
+ *    it, NOT the current params. With two lists on one route, one list's write
+ *    does not necessarily re-render the sibling, so the sibling's next write is
+ *    based on params from before — it resurrects the old query string and silently
+ *    drops the first list's key.
+ *
+ *    Measured on /housing rather than reasoned about: after the Residents search
+ *    committed (`?tab=residents&residents.search=Dar` in the address bar), the
+ *    page-level tab hook's snapshot still read `tab=residents`, so clicking the
+ *    Homes tab wrote `?tab=homes` and threw the search away. Instrumenting the
+ *    write showed `prev` stale while `window.location.search` was correct.
+ *
+ *    So every write is based on `window.location.search`, which history.push
+ *    updates synchronously. That is also why the tests mount the same DATA BROWSER
+ *    ROUTER the app uses instead of MemoryRouter — under MemoryRouter the window
+ *    URL never changes, so this class of bug is invisible and the tests would pass
+ *    against the broken version. `patch()` remains for changes touching two keys,
+ *    so the intent is one history entry rather than two.
  *
  * 3. Its identity changes whenever the query string changes, so it can never go
  *    in a dependency array. It is held in a ref.
@@ -154,6 +168,8 @@ export interface ListParams<S extends Record<string, ParamSpec<unknown>>> {
 
 const SORT_SEPARATOR = ':';
 
+
+
 export function useListParams<S extends Record<string, ParamSpec<unknown>>>(
   specs: S,
   options: ListParamsOptions = {},
@@ -167,6 +183,8 @@ export function useListParams<S extends Record<string, ParamSpec<unknown>>>(
   setSearchParamsRef.current = setSearchParams;
   const stateRef = useRef(loc.state);
   stateRef.current = loc.state;
+  const locPathRef = useRef(loc.pathname);
+  locPathRef.current = loc.pathname;
 
   const key = useCallback((name: string) => (ns ? `${ns}.${name}` : name), [ns]);
   const pageKey = key('page');
@@ -196,6 +214,7 @@ export function useListParams<S extends Record<string, ParamSpec<unknown>>>(
   specsRef.current = specs;
   const specNames = Object.keys(specs).join('|');
   const search = searchParams.toString();
+
 
   /** Entries from the ref, so values are typed as present rather than optional. */
   const entriesOf = useCallback(
@@ -235,15 +254,44 @@ export function useListParams<S extends Record<string, ParamSpec<unknown>>>(
   }, [values, specNames, ns, draftVersion, entriesOf]);
 
   /**
-   * The one write path. Every caller goes through it so that carrying
-   * location.state and using the functional updater are not decisions anyone has
-   * to remember.
+   * The one write path, so carrying location.state and reading the CURRENT query
+   * string are not decisions anyone has to remember.
+   *
+   * The base is `window.location.search`, deliberately not the functional
+   * updater's `prev`. React Router hands that updater the searchParams captured
+   * by the render which created the setSearchParams — and with two lists on one
+   * route, one list's write can leave a sibling component holding a snapshot from
+   * before it. Writing through that snapshot silently RESURRECTS the old query
+   * string and drops the sibling's key.
+   *
+   * Measured on /housing: type in the Residents search, wait for it to commit
+   * (?residents.search=Dar is in the URL), then click the Homes tab — and
+   * residents.search vanished. Switching tabs without typing preserved it, which
+   * is what pointed at a stale snapshot rather than the merge logic. The browser's
+   * URL is updated synchronously by history.push, so it is always current.
    */
   const write = useCallback(
     (mutate: (next: URLSearchParams) => void, replace: boolean) => {
       setSearchParamsRef.current(
         (prev) => {
-          const next = new URLSearchParams(prev);
+          /**
+           * Base on the LIVE browser URL, not on `prev` — see hazard 2 above.
+           *
+           * The pathname check is how we tell a browser-history router from a
+           * MemoryRouter: under MemoryRouter (which the tests use) the window URL
+           * never moves, so window.location.search would be permanently empty and
+           * every write would wipe the query string. Matching pathnames means the
+           * window URL really is this router's URL and is therefore authoritative.
+           *
+           * Consequence worth knowing: the tests exercise the `prev` path, so they
+           * CANNOT catch the stale-snapshot bug. The evidence for that fix is the
+           * measurement in hazard 2, reproduced in a real browser.
+           */
+          const live =
+            typeof window !== 'undefined' && window.location.pathname === locPathRef.current
+              ? window.location.search
+              : prev.toString();
+          const next = new URLSearchParams(live);
           mutate(next);
           return next;
         },
