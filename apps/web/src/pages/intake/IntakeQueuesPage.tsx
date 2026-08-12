@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
@@ -7,6 +6,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { P, useListParams } from '@/lib/list-params';
 import { AlumniUpdatesTab } from './AlumniUpdatesTab';
 import { ReferralsTab } from './ReferralsTab';
 import { VolunteerApplicationsTab } from './VolunteerApplicationsTab';
@@ -56,7 +56,23 @@ function SummaryCard({
 export function IntakeQueuesPage() {
   const { can } = useAuth();
   const canSeeReferrals = can('referral_inbox.read');
-  const [tab, setTab] = useState('volunteer-applications');
+  /**
+   * ?tab= drives it, and it has to: the three queues below keep their filters and
+   * page in the URL under their own namespaces, so a restored ?refs.page=2 on a
+   * strip that silently reset would hold page 2 of a queue Radix has not mounted.
+   *
+   * Both the values and the default are permission-dependent — a user without
+   * referral_inbox.read never renders that trigger — so the allowed SET narrows
+   * too. A ?tab=referrals link shared by a colleague who can see it falls back to
+   * volunteer-applications rather than selecting a trigger that is not on the page.
+   */
+  const tabValues = canSeeReferrals
+    ? (['volunteer-applications', 'referrals', 'alumni-updates'] as const)
+    : (['volunteer-applications', 'alumni-updates'] as const);
+  const { values: tabParam, set: setTabParam } = useListParams({
+    tab: P.choice(tabValues, 'volunteer-applications'),
+  });
+  const tab = tabParam.tab || 'volunteer-applications';
 
   const summary = useQuery({
     queryKey: ['intake', 'summary'],
@@ -81,7 +97,10 @@ export function IntakeQueuesPage() {
         </div>
       )}
 
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs
+        value={tab}
+        onValueChange={(next) => setTabParam('tab', next as (typeof tabValues)[number])}
+      >
         <TabsList>
           <TabsTrigger value="volunteer-applications">Volunteer Applications</TabsTrigger>
           {canSeeReferrals ? <TabsTrigger value="referrals">Referrals</TabsTrigger> : null}
