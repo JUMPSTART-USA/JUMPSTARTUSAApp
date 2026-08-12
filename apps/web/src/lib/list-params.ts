@@ -77,6 +77,9 @@ export interface ParamSpec<T> {
 
 const DEBOUNCE_MS = 300;
 
+/** Matches the `uuid` shape every id param in this API uses. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const P = {
   /** Free text (a search box). Bind the input to `draft`, the query to `values`. */
   text: (def = '', debounceMs: number = DEBOUNCE_MS): ParamSpec<string> => ({
@@ -102,10 +105,18 @@ export const P = {
     serialize: (value) => value,
   }),
 
-  /** An id from a fetched option list or a picker; the caller rehydrates the label. */
+  /**
+   * An id from a fetched option list or a picker; the caller rehydrates the label.
+   *
+   * Validated as a UUID, because an identity parse here broke the promise the
+   * doc above makes: `?campaignId=abc` reached the API and 400'd the WHOLE list
+   * ("Validation failed (uuid is expected)"), so one bad character in a pasted
+   * link took out the screen instead of degrading to no filter. There is no
+   * closed set to check an id against, but there is a shape.
+   */
   id: (): ParamSpec<string> => ({
     default: '',
-    parse: (raw) => raw,
+    parse: (raw) => (UUID.test(raw) ? raw : ''),
     serialize: (value) => value,
   }),
 
