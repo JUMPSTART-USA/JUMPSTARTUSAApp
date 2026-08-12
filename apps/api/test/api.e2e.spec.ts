@@ -1068,3 +1068,99 @@ describe('volunteer hours summary (server aggregate)', () => {
     expect(none.body.totalHours).toBe(0);
   });
 });
+
+describe('budget items do not reveal that a record exists in another chapter (§7.2)', () => {
+  /**
+   * listItems used to call assertParticipant, which answers 403 "Record belongs to
+   * another chapter" for a participant the caller cannot see but 400 "Unknown
+   * participant" for an id that does not exist. That difference is an existence
+   * oracle, and the message states the conclusion outright.
+   *
+   * The assertion is INDISTINGUISHABILITY — the two answers must match each other.
+   * Asserting only that the cross-chapter case returns 200 would still pass if the
+   * nonexistent case started returning 404.
+   */
+  const NONEXISTENT = '11111111-2222-3333-4444-555555555555';
+
+  it('answers a cross-chapter id exactly as it answers a nonexistent one', async () => {
+    const cookie = await login(ADMIN);
+
+    // A participant outside the chapter we are about to preview.
+    const scoped = await request(server)
+      .get('/api/participants?pageSize=1&state=SC')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(scoped.body.items.length).toBeGreaterThan(0);
+    const foreignId = scoped.body.items[0].id;
+
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ chapter: 'GA' })
+      .expect(200);
+    try {
+      const foreign = await request(server)
+        .get(`/api/budget-items?participantProfileId=${foreignId}`)
+        .set('Cookie', cookie);
+      const missing = await request(server)
+        .get(`/api/budget-items?participantProfileId=${NONEXISTENT}`)
+        .set('Cookie', cookie);
+
+      // Same status, same body: nothing distinguishes "exists elsewhere" from
+      // "does not exist".
+      expect(foreign.status).toBe(missing.status);
+      expect(foreign.body).toEqual(missing.body);
+      // And specifically not the old pair.
+      expect(foreign.status).toBe(200);
+      expect(foreign.body.items).toEqual([]);
+      // The API's own wording must never reach a scoped caller here.
+      expect(JSON.stringify(foreign.body)).not.toContain('another chapter');
+    } finally {
+      await request(server)
+        .post('/api/auth/view-as')
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ chapter: null })
+        .expect(200);
+    }
+  });
+
+  it('still returns the caller own chapter items, so the filter was not simply broken', async () => {
+    const cookie = await login(ADMIN);
+    const ga = await request(server)
+      .get('/api/participants?pageSize=25&state=GA')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(ga.body.items.length).toBeGreaterThan(0);
+
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ chapter: 'GA' })
+      .expect(200);
+    try {
+      // At least one GA participant has budget items; assert we can see some.
+      let sawItems = false;
+      for (const p of ga.body.items) {
+        const res = await request(server)
+          .get(`/api/budget-items?participantProfileId=${p.id}`)
+          .set('Cookie', cookie)
+          .expect(200);
+        if (res.body.items.length > 0) {
+          sawItems = true;
+          break;
+        }
+      }
+      expect(sawItems).toBe(true);
+    } finally {
+      await request(server)
+        .post('/api/auth/view-as')
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ chapter: null })
+        .expect(200);
+    }
+  });
+});
