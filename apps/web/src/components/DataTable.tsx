@@ -68,7 +68,8 @@ interface DataTableProps<T> {
   /**
    * True while a refetch for NEW list state is in flight and `data` still holds
    * the previous page — i.e. the rows on screen are stale but readable. Pass a
-   * query's `isFetching` alongside `placeholderData: keepPreviousData`.
+   * query's `isFetching` alongside `placeholderData: keepPreviousData`. Omitting
+   * it means this table never reports staleness; nothing is inferred.
    *
    * Without it, changing page threw the rows away: ~1,200px of table collapsed to
    * a 128px spinner and back, a ~1,000px layout shift each way that also discarded
@@ -97,12 +98,24 @@ export function DataTable<T extends { id: string }>({
   const linkKey = linkColumnKey ?? columns[0]?.key;
 
   /**
-   * Rows are on screen but no longer current. The caller's `isFetching` is the
-   * accurate signal; the fallback compares the page the server echoed against the
-   * page the user asked for, so a list that has not been migrated yet still
-   * behaves correctly rather than silently showing stale rows as authoritative.
+   * Rows are on screen but no longer current. Driven ONLY by the caller's
+   * `isFetching` — deliberately no inference.
+   *
+   * This used to fall back to `data.page !== state.page` when no `isFetching` was
+   * passed, on the theory that it protected lists not yet migrated. It protected
+   * nothing: an unmigrated list has no placeholderData, so on a page change its
+   * data goes undefined, `isLoading` is true, and the expression short-circuits
+   * before ever reaching the comparison. No code path in the app reached it.
+   *
+   * And it could brick a screen. `stale` disables BOTH pagers, so if a list ever
+   * changed `state.page` without changing its query key — which is exactly what a
+   * migration to useListParams does if it forgets to pass the page through to the
+   * request — no refetch happens, `data.page` stays behind `state.page`, and the
+   * comparison latches true forever: a permanently dimmed table whose only escape
+   * controls are disabled. A forgotten `isFetching` now costs a missing dim
+   * instead of a dead screen.
    */
-  const stale = !isLoading && !!data && (isFetching ?? data.page !== state.page);
+  const stale = !isLoading && !!data && isFetching === true;
 
   /**
    * Row-level pointer navigation, so `rowHref` fully replaces `onRowClick`

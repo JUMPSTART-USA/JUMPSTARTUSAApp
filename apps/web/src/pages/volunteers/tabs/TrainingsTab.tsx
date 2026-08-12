@@ -1,11 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { volunteerTrainingSchema } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Paperclip, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { AttachmentsCard } from '@/components/AttachmentsCard';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -21,6 +21,7 @@ import { Input, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { ErrorState } from '@/components/ui/spinner';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
+import { useListParams } from '@/lib/list-params';
 import { useAuth } from '@/lib/auth';
 import { applyApiError, toDateInput, todayInput } from '@/lib/form';
 import { formatDate } from '@/lib/utils';
@@ -41,20 +42,25 @@ const trainingResolver =
 export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: string }) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const [listState, setListState] = useState<ListState>({
-    ...initialListState,
-    sortBy: 'completedAt',
-    sortDir: 'desc',
-  });
+  /**
+   * Namespaced 'trainings': all three volunteer tabs mount on /volunteers/:id, so
+   * an un-namespaced ?page= would page whichever tab the user opens next.
+   */
+  const { listState, onListStateChange } = useListParams(
+    {},
+    { ns: 'trainings', sort: { by: 'completedAt', dir: 'desc' } },
+  );
   const [editing, setEditing] = useState<TrainingRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState<TrainingRow | null>(null);
   const [evidenceRow, setEvidenceRow] = useState<TrainingRow | null>(null);
 
   const params = { ...listState, volunteerProfileId };
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['volunteers', 'trainings', params],
     queryFn: () => api.get<Paged<TrainingRow>>(`/volunteers/trainings${qs(params)}`),
+    // Keeps the rows on screen through a page change (DataTable dims them).
+    placeholderData: keepPreviousData,
   });
 
   const remove = useMutation({
@@ -160,8 +166,9 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         emptyMessage="No trainings recorded"
       />
 

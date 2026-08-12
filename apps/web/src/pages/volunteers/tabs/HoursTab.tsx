@@ -1,12 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/spinner';
 import { api, qs, type Paged } from '@/lib/api';
+import { useListParams } from '@/lib/list-params';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
 import { LogHoursDialog } from '../LogHoursDialog';
@@ -24,17 +25,22 @@ export function HoursTab({
   summary?: VolunteerHoursSummary;
 }) {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>({
-    ...initialListState,
-    sortBy: 'activityDate',
-    sortDir: 'desc',
-  });
+  /**
+   * Namespaced 'hours': all three volunteer tabs mount on /volunteers/:id, so
+   * an un-namespaced ?page= would page whichever tab the user opens next.
+   */
+  const { listState, onListStateChange } = useListParams(
+    {},
+    { ns: 'hours', sort: { by: 'activityDate', dir: 'desc' } },
+  );
   const [logOpen, setLogOpen] = useState(false);
 
   const params = { ...listState, volunteerProfileId };
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['volunteers', 'hours', 'by-volunteer', params],
     queryFn: () => api.get<Paged<HoursEntryRow>>(`/volunteers/hours${qs(params)}`),
+    // Keeps the rows on screen through a page change (DataTable dims them).
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<HoursEntryRow>[] = [
@@ -120,8 +126,9 @@ export function HoursTab({
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         emptyMessage="No hours recorded yet"
       />
 

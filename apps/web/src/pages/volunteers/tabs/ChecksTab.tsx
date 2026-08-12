@@ -1,10 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { BACKGROUND_CHECK_RESULTS, backgroundCheckSchema, type BackgroundCheckResult } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { ErrorState } from '@/components/ui/spinner';
 import { api, qs, type Paged } from '@/lib/api';
+import { useListParams } from '@/lib/list-params';
 import { useAuth } from '@/lib/auth';
 import { applyApiError, toDateInput, todayInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
@@ -48,18 +49,23 @@ export function ChecksTab({ personId }: { personId: string }) {
   const canRecord = can('volunteers.create') && canReadResults;
   const canEdit = can('volunteers.update') && canReadResults;
 
-  const [listState, setListState] = useState<ListState>({
-    ...initialListState,
-    sortBy: 'orderedAt',
-    sortDir: 'desc',
-  });
+  /**
+   * Namespaced 'checks': all three volunteer tabs mount on /volunteers/:id, so
+   * an un-namespaced ?page= would page whichever tab the user opens next.
+   */
+  const { listState, onListStateChange } = useListParams(
+    {},
+    { ns: 'checks', sort: { by: 'orderedAt', dir: 'desc' } },
+  );
   const [editing, setEditing] = useState<BackgroundCheckRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const params = { ...listState, personId };
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['volunteers', 'checks', params],
     queryFn: () => api.get<Paged<BackgroundCheckRow>>(`/volunteers/background-checks${qs(params)}`),
+    // Keeps the rows on screen through a page change (DataTable dims them).
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<BackgroundCheckRow>[] = [
@@ -154,8 +160,9 @@ export function ChecksTab({ personId }: { personId: string }) {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         emptyMessage="No background checks recorded"
       />
 

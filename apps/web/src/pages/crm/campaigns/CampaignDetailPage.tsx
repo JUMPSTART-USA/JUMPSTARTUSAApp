@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { P, useListParams } from '@/lib/list-params';
 import { DataTable, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -72,12 +73,11 @@ export function CampaignDetailPage() {
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [donationState, setDonationState] = useState<ListState>({
-    page: 1,
-    pageSize: 25,
-    sortBy: 'donationDate',
-    sortDir: 'desc',
-  });
+  /** ns 'donations': a second list could join this route behind the tab strip. */
+  const { listState: donationState, onListStateChange: onDonationStateChange } = useListParams(
+    {},
+    { ns: 'donations', sort: { by: 'donationDate', dir: 'desc' } },
+  );
 
   const query = useQuery({
     queryKey: ['crm', 'campaigns', 'detail', id],
@@ -95,9 +95,17 @@ export function CampaignDetailPage() {
   // GET /donations requires donors.read — a campaigns-only role (e.g. the
   // seeded read_only) must not fire the query or see the tab at all.
   const canViewDonations = can('donors.read');
+  const tabValues = canViewDonations ? (['donations', 'events'] as const) : (['events'] as const);
+  const defaultTab = canViewDonations ? 'donations' : 'events';
+  const { values: tabValue, set: setTab } = useListParams({
+    tab: P.choice(tabValues, defaultTab),
+  });
+  const tab = tabValue.tab || defaultTab;
   const donationsQuery = useQuery({
     queryKey: ['crm', 'donations', 'list', donationParams],
     queryFn: () => api.get<Paged<Donation>>(`/donations${donationParams}`),
+    // Rows stay put through a page change; DataTable dims them instead.
+    placeholderData: keepPreviousData,
     enabled: Boolean(id) && canViewDonations,
   });
 
@@ -238,7 +246,14 @@ export function CampaignDetailPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue={canViewDonations ? 'donations' : 'events'}>
+      {/**
+        * Controlled from ?tab=, and BOTH the values and the default depend on the
+        * viewer's permissions: a campaigns-only role never renders the donations
+        * trigger. So the allowed set is narrowed too, not just the default — a
+        * ?tab=donations link shared by a donors.read colleague must fall back to
+        * events rather than select a trigger that is not on the page.
+        */}
+      <Tabs value={tab} onValueChange={(next) => setTab('tab', next as (typeof tabValues)[number])}>
         <TabsList>
           {canViewDonations ? <TabsTrigger value="donations">Donations</TabsTrigger> : null}
           <TabsTrigger value="events">Events ({events.length})</TabsTrigger>
@@ -251,8 +266,9 @@ export function CampaignDetailPage() {
               columns={donationColumns}
               data={donationsQuery.data}
               isLoading={donationsQuery.isLoading}
+              isFetching={donationsQuery.isFetching}
               state={donationState}
-              onStateChange={setDonationState}
+              onStateChange={onDonationStateChange}
               emptyMessage="No donations linked to this campaign"
             />
           </TabsContent>

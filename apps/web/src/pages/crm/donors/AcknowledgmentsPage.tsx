@@ -3,7 +3,7 @@ import {
   INTERACTION_CHANNELS,
   INTERACTION_CHANNEL_LABELS,
 } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MailCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -24,6 +24,7 @@ import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState } from '@/components/ui/spinner';
 import { api, qs, type Paged } from '@/lib/api';
+import { useListParams } from '@/lib/list-params';
 import { useAuth } from '@/lib/auth';
 import { applyApiError, formResolver } from '@/lib/form';
 import { formatDate, formatMoney } from '@/lib/utils';
@@ -122,12 +123,10 @@ function AcknowledgeDialog({
 
 export function AcknowledgmentsPage() {
   const { can } = useAuth();
-  const [state, setState] = useState<ListState>({
-    page: 1,
-    pageSize: 25,
-    sortBy: 'donationDate',
-    sortDir: 'asc',
-  });
+  const { listState: state, onListStateChange } = useListParams(
+    {},
+    { sort: { by: 'donationDate', dir: 'asc' } },
+  );
   const [acknowledging, setAcknowledging] = useState<Donation | null>(null);
   const canUpdate = can('donors.update');
 
@@ -141,6 +140,8 @@ export function AcknowledgmentsPage() {
   const query = useQuery({
     queryKey: ['crm', 'donations', 'ack-queue', params],
     queryFn: () => api.get<Paged<Donation>>(`/donations${params}`),
+    // Rows stay put through a page change; DataTable dims them instead.
+    placeholderData: keepPreviousData,
   });
 
   const columns = useMemo<Column<Donation>[]>(() => {
@@ -195,7 +196,14 @@ export function AcknowledgmentsPage() {
     return cols;
   }, [canUpdate]);
 
-  const isEmpty = !query.isLoading && (query.data?.total ?? 0) === 0;
+  /**
+   * `state.page === 1` is load-bearing now that the page lives in the URL. This
+   * branch replaces the whole table with a card, pager included — so a shared or
+   * bookmarked ?page=3 whose result set has since emptied would strand the user
+   * on "All caught up" with no control to get back to page 1. Out of range, show
+   * the table and let its own empty state and pager handle it.
+   */
+  const isEmpty = !query.isLoading && (query.data?.total ?? 0) === 0 && state.page === 1;
 
   return (
     <div className="space-y-4">
@@ -218,8 +226,9 @@ export function AcknowledgmentsPage() {
           columns={columns}
           data={query.data}
           isLoading={query.isLoading}
+          isFetching={query.isFetching}
           state={state}
-          onStateChange={setState}
+          onStateChange={onListStateChange}
           emptyMessage="All caught up"
         />
       )}
