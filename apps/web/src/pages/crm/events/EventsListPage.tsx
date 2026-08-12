@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -14,7 +14,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { todayInput, useDebounced } from '@/lib/form';
+import { CHAPTER_STATES } from '@jumpstart/shared';
+import { todayInput } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate } from '@/lib/utils';
 import { useCampaignOptions } from '../shared';
 import type { EventRecord } from '../types';
@@ -57,61 +59,63 @@ const columns: Column<EventRecord>[] = [
 ];
 
 type EventTab = 'upcoming' | 'past';
+const EVENT_TABS = ['upcoming', 'past'] as const;
 
 export function EventsListPage() {
   const { can } = useAuth();
-  const [tab, setTab] = useState<EventTab>('upcoming');
-  const [state, setState] = useState<ListState>({
-    page: 1,
-    pageSize: 25,
-    sortBy: 'eventDate',
-    sortDir: 'asc',
+  /** Read first, in its own instance: the LIST's default sort depends on it. */
+  const { values: tabValues, set: setTabParam } = useListParams({
+    tab: P.choice(EVENT_TABS, 'upcoming'),
   });
-  const [search, setSearch] = useState('');
-  const [eventType, setEventType] = useState('');
-  const [campaignId, setCampaignId] = useState('');
-  const [chapter, setChapter] = useState('');
+  const tab: EventTab = tabValues.tab || 'upcoming';
+  /**
+   * The tab drives the SORT DIRECTION — upcoming reads soonest-first, past reads
+   * most-recent-first — and it does so through the sort DEFAULT rather than by
+   * writing a second key. Defaults are never written to the URL, so switching tabs
+   * stays ONE write and no `?sort=` appears unless the user sorts a column himself;
+   * if he has, that choice survives the switch, which is the right precedence.
+   *
+   * So this is not a patch() case after all, even though the tab changes more than
+   * itself: nothing needs to land atomically because only one key moves.
+   */
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      eventType: P.text(),
+      campaignId: P.id(),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { sort: { by: 'eventDate', dir: tab === 'past' ? 'desc' : 'asc' } },
+  );
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
-  const debouncedType = useDebounced(eventType);
   const campaignOptions = useCampaignOptions();
-
-  useEffect(() => {
-    setState((s) => ({ ...s, page: 1 }));
-  }, [debouncedSearch, debouncedType]);
 
   // Local calendar date, not the UTC one: after 8pm Eastern the UTC date is
   // already tomorrow, so this filter asked the server for events starting
   // tomorrow and today's remaining events dropped off the upcoming list.
   const today = todayInput();
   const params = qs({
-    page: state.page,
-    pageSize: state.pageSize,
-    sortBy: state.sortBy,
-    sortDir: state.sortDir,
-    search: debouncedSearch,
-    eventType: debouncedType,
-    campaignId,
+    page: listState.page,
+    pageSize: listState.pageSize,
+    sortBy: listState.sortBy,
+    sortDir: listState.sortDir,
+    search: values.search,
+    eventType: values.eventType,
+    campaignId: values.campaignId,
     // Chapter filter (§7.2) — still sent as the `state` query param.
-    state: chapter,
+    state: values.state,
     from: tab === 'upcoming' ? today : undefined,
     to: tab === 'past' ? today : undefined,
   });
   const query = useQuery({
     queryKey: ['crm', 'events', 'list', params],
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
     queryFn: () => api.get<Paged<EventRecord>>(`/events${params}`),
   });
 
-  const switchTab = (next: string) => {
-    const value = next as EventTab;
-    setTab(value);
-    setState((s) => ({
-      ...s,
-      page: 1,
-      sortBy: 'eventDate',
-      sortDir: value === 'upcoming' ? 'asc' : 'desc',
-    }));
-  };
+  /** One write: the tab. The sort follows from it through the default above. */
+  const switchTab = (next: string) => setTabParam('tab', next as EventTab);
 
   return (
     <div className="space-y-4">
@@ -137,23 +141,20 @@ export function EventsListPage() {
 
       <ListToolbar>
         <SearchInput
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
           placeholder="Search name or location…"
         />
         <Input
-          value={eventType}
-          onChange={(e) => setEventType(e.target.value)}
+          value={draft.eventType}
+          onChange={(e) => set('eventType', e.target.value)}
           placeholder="Type…"
           className="w-full sm:w-36"
         />
         <FilterSelect
           aria-label="Campaign"
-          value={campaignId}
-          onChange={(value) => {
-            setCampaignId(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.campaignId}
+          onChange={(value) => set('campaignId', value)}
           className="w-full sm:w-56"
         >
           <option value="">All campaigns</option>
@@ -166,11 +167,8 @@ export function EventsListPage() {
         {/* Chapter filter (§7.2) — hidden for scoped users (the API forces
             their chapter). */}
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -179,8 +177,9 @@ export function EventsListPage() {
         columns={columns}
         data={query.data}
         isLoading={query.isLoading}
-        state={state}
-        onStateChange={setState}
+        isFetching={query.isFetching}
+        state={listState}
+        onStateChange={onListStateChange}
         rowHref={(row) => `/events/${row.id}`}
         emptyMessage={tab === 'upcoming' ? 'No upcoming events' : 'No past events'}
       />
