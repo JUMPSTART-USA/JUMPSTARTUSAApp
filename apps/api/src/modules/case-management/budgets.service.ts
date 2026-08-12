@@ -82,11 +82,30 @@ export class BudgetsService {
     participantProfileId: string,
     user: AuthenticatedUser,
   ): Promise<{ items: BudgetItemView[] }> {
-    // Chapter scoping (§7.2): the list is participant-keyed — assert that
-    // participant's chapter instead of filtering.
-    await assertParticipant(this.prisma, participantProfileId, user.chapter);
     const rows = await this.prisma.budgetItem.findMany({
-      where: { participantProfileId, deletedAt: null },
+      where: {
+        participantProfileId,
+        deletedAt: null,
+        /**
+         * Chapter scoping (§7.2) as a FILTER, not an assertion.
+         *
+         * This used to call assertParticipant, which answers 403 "Record belongs
+         * to another chapter" for a participant in a chapter the caller cannot
+         * see, but 400 "Unknown participant" for an id that does not exist. That
+         * difference is an existence oracle: it tells a scoped user whether a
+         * record exists in another chapter, and the message says so outright.
+         *
+         * It was the only list read path in the app that asserted. Every sibling
+         * — including listPayments right below — folds the chapter into the where
+         * and returns an empty page, so a cross-chapter id and a nonexistent one
+         * are indistinguishable. Now this one does too.
+         *
+         * assertParticipant stays on the WRITE paths: refusing to create a record
+         * against another chapter's participant is the correct answer there, and
+         * that choke point is what keeps the module's records in one chapter.
+         */
+        ...(user.chapter ? { participantProfile: { chapterState: user.chapter } } : {}),
+      },
       orderBy: [{ active: 'desc' }, { category: 'asc' }],
       select: ITEM_SELECT,
     });
