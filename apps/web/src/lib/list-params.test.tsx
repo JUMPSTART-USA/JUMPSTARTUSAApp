@@ -213,6 +213,23 @@ describe('useListParams — a URL is untrusted input', () => {
     expect(values().q).toBe('fine');
   });
 
+  it('drops an id that is not a uuid, instead of 400ing the whole list', () => {
+    /**
+     * P.id() used to be an identity parse, so ?campaignId=abc reached the API and
+     * came back "Validation failed (uuid is expected)" — one bad character in a
+     * pasted link took out the screen rather than degrading to no filter. Four
+     * shipped filters were in that state (donations campaign/fund/appeal, events
+     * campaign) before this guard.
+     */
+    const spec = P.id();
+    expect(spec.parse('abc')).toBe('');
+    expect(spec.parse('')).toBe('');
+    expect(spec.parse('5001624e-3f78-4853-9003')).toBe('');
+    const real = '5001624e-3f78-4853-9003-776bda333da7';
+    expect(spec.parse(real)).toBe(real);
+    expect(spec.parse(real.toUpperCase())).toBe(real.toUpperCase());
+  });
+
   it('ignores a non-numeric page', () => {
     mount('/list?page=abc');
     expect(listState().page).toBe(1);
