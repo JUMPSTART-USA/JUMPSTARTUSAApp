@@ -18,7 +18,7 @@ import { CHAPTER_STATES } from '@jumpstart/shared';
 import { todayInput } from '@/lib/form';
 import { P, useListParams } from '@/lib/list-params';
 import { formatDate } from '@/lib/utils';
-import { useCampaignOptions } from '../shared';
+import { unresolvedOptionLabel, useCampaignOptions } from '../shared';
 import type { EventRecord } from '../types';
 import { EventFormDialog } from './EventFormDialog';
 import { BackLink } from '@/components/BackLink';
@@ -158,6 +158,15 @@ export function EventsListPage() {
           className="w-full sm:w-56"
         >
           <option value="">All campaigns</option>
+          {unresolvedOptionLabel(values.campaignId, campaignOptions.data?.items, campaignOptions.isLoading) ? (
+            <option value={values.campaignId}>
+              {unresolvedOptionLabel(
+                values.campaignId,
+                campaignOptions.data?.items,
+                campaignOptions.isLoading,
+              )}
+            </option>
+          ) : null}
           {campaignOptions.data?.items.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}

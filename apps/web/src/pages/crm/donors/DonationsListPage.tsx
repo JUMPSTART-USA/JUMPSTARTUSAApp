@@ -17,7 +17,7 @@ import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { P, useListParams } from '@/lib/list-params';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
-import { useAppealOptions, useCampaignOptions, useFundOptions } from '../shared';
+import { unresolvedOptionLabel, useAppealOptions, useCampaignOptions, useFundOptions } from '../shared';
 import type { Donation, DonationSummary } from '../types';
 import { DonationFormDialog } from './DonationFormDialog';
 import { DonorsNav } from './DonorsNav';
@@ -212,6 +212,11 @@ export function DonationsListPage() {
           className="w-full sm:w-56"
         >
           <option value="">All campaigns</option>
+          {unresolvedOptionLabel(values.campaignId, campaignOptions.data?.items, campaignOptions.isLoading) ? (
+            <option value={values.campaignId}>
+              {unresolvedOptionLabel(values.campaignId, campaignOptions.data?.items, campaignOptions.isLoading)}
+            </option>
+          ) : null}
           {campaignOptions.data?.items.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -225,6 +230,11 @@ export function DonationsListPage() {
           className="w-full sm:w-44"
         >
           <option value="">All funds</option>
+          {unresolvedOptionLabel(values.fundId, fundOptions.data?.items, fundOptions.isLoading) ? (
+            <option value={values.fundId}>
+              {unresolvedOptionLabel(values.fundId, fundOptions.data?.items, fundOptions.isLoading)}
+            </option>
+          ) : null}
           {fundOptions.data?.items.map((f) => (
             <option key={f.id} value={f.id}>
               {f.name}
@@ -238,6 +248,11 @@ export function DonationsListPage() {
           className="w-full sm:w-44"
         >
           <option value="">All appeals</option>
+          {unresolvedOptionLabel(values.appealId, appealOptions.data?.items, appealOptions.isLoading) ? (
+            <option value={values.appealId}>
+              {unresolvedOptionLabel(values.appealId, appealOptions.data?.items, appealOptions.isLoading)}
+            </option>
+          ) : null}
           {appealOptions.data?.items.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
