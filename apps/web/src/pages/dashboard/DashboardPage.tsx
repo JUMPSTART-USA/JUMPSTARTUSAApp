@@ -19,7 +19,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { backTo } from '@/components/BackLink';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
@@ -33,7 +33,21 @@ import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import { ListToolbar, ToolbarDateField, ToolbarSpacer } from '@/components/ui/toolbar';
 import { api, qs } from '@/lib/api';
 import { cn, formatDate, formatMoney, humanize } from '@/lib/utils';
-import { CampaignProgressChart, type DashboardCampaign } from './CampaignProgressChart';
+/**
+ * recharts — with d3 and lodash behind it — is 383 KB, 23% of everything the app
+ * shipped, and it hangs off this ONE component, rendered once, below the fold.
+ *
+ * Lazy ROUTES do not help here, because the dashboard is the index route: its
+ * chunk is on the landing path by definition. So the chart splits separately and
+ * the rest of the dashboard paints without waiting for it.
+ *
+ * The type import stays static — it erases at build and pulls in nothing.
+ */
+import type { DashboardCampaign } from './CampaignProgressChart';
+
+const CampaignProgressChart = lazy(() =>
+  import('./CampaignProgressChart').then((m) => ({ default: m.CampaignProgressChart })),
+);
 
 // Mirrors the controller's PARTICIPANT_STATUS_FILTERS: statuses overlap between
 // the inside and outside domains, so the filter offers the deduplicated union.
@@ -524,7 +538,11 @@ export function DashboardPage() {
                   <CardDescription>Raised to date against goal — not period-filtered</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <CampaignProgressChart campaigns={data.activeCampaigns} />
+                  {/* Its own boundary, so the chart's 383 KB never holds up the
+                      cards around it. */}
+                  <Suspense fallback={<PageLoader label="Loading chart…" />}>
+                    <CampaignProgressChart campaigns={data.activeCampaigns} />
+                  </Suspense>
                 </CardContent>
               </NavCard>
             ) : null}

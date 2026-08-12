@@ -31,14 +31,16 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import logoWhite from '@/assets/brand/jumpstart-logo-white.png';
 import { useRecordScreenHistory } from '@/components/BackLink';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useIdleExpiryWarning } from '@/lib/session-activity';
 import { Button } from '@/components/ui/button';
+import { useCurrentPageTitle } from '@/components/ui/page-header';
 import { SelectMenu } from '@/components/ui/select-menu';
+import { PageLoader } from '@/components/ui/spinner';
 import { api, ApiError } from '@/lib/api';
 import { useAuth, type Me, type ViewAsChange } from '@/lib/auth';
 import { usePortalRequestsPending } from '@/lib/portal-requests';
@@ -209,18 +211,19 @@ export function AppLayout() {
   const isFirstRender = useRef(true);
 
   /**
-   * Move focus to <main> and announce the new page after a client-side
-   * navigation. Without this, changing route left focus on <body> — a keyboard
-   * user's next Tab restarted from the top of the sidebar, and a screen-reader
-   * user got no indication anything had happened, because an SPA route change
-   * fires none of the page-load events assistive tech listens for.
+   * Move focus to <main> after a client-side navigation. Without this, changing
+   * route left focus on <body> — a keyboard user's next Tab restarted from the
+   * top of the sidebar, and a screen-reader user got no indication anything had
+   * happened, because an SPA route change fires none of the page-load events
+   * assistive tech listens for.
    *
-   * Skipped on first render: stealing focus on initial load is its own problem,
-   * and the document title is already correct there.
+   * Focus moves on the PATHNAME, deliberately not when the page finishes
+   * loading: the skip-link contract is that focus follows the navigation, and a
+   * lazy route can take a moment. The Suspense fallback below is a role="status"
+   * carrying "Loading page…", so what lands under focus announces itself
+   * truthfully in the meantime.
    *
-   * The title is read from document.title, which PageHeader sets. Effects run
-   * child-first, so by the time this layout effect runs the new page's
-   * PageHeader has already published its title.
+   * Skipped on first render: stealing focus on initial load is its own problem.
    */
   useEffect(() => {
     if (isFirstRender.current) {
@@ -228,8 +231,31 @@ export function AppLayout() {
       return;
     }
     mainRef.current?.focus();
-    setRouteAnnouncement(document.title.replace(/ · JUMPSTART USA$/, ''));
   }, [pathname]);
+
+  /**
+   * Announce the page once its NAME exists, rather than when the URL changes.
+   *
+   * This used to read document.title inside the effect above, which was correct
+   * only while every route was statically imported. With the module routes lazy,
+   * the destination's PageHeader has not mounted on a first visit at pathname-
+   * change time, so that read returned — and announced — the page the user had
+   * just left. `useCurrentPageTitle` is published by PageHeader itself, so this
+   * fires when the real title arrives however long the chunk takes.
+   *
+   * The first title of the session is skipped for the same reason the focus move
+   * is: nothing has been navigated to yet.
+   */
+  const pageTitle = useCurrentPageTitle();
+  const isFirstTitle = useRef(true);
+  useEffect(() => {
+    if (!pageTitle) return;
+    if (isFirstTitle.current) {
+      isFirstTitle.current = false;
+      return;
+    }
+    setRouteAnnouncement(pageTitle);
+  }, [pageTitle]);
 
   const [viewAsError, setViewAsError] = useState<string | null>(null);
   useRecordScreenHistory();
@@ -519,9 +545,23 @@ export function AppLayout() {
         <main ref={mainRef} id="main-content" tabIndex={-1} className="flex-1 p-4 outline-none sm:p-6">
           {/* Inside <main>, so a failed screen leaves the sidebar, header and
               chapter switcher alive — a user can navigate out instead of
-              reloading. It resets itself on pathname change. */}
+              reloading. It resets itself on pathname change.
+
+              It sits OUTSIDE the Suspense on purpose: a lazy chunk that fails to
+              load (the stale-tab-after-deploy case this boundary already knows
+              how to recover from) throws where Suspense cannot help. */}
           <ErrorBoundary>
-            <Outlet />
+            {/* ONE boundary for all 20 module routes and the catch-all. It
+                cannot go around moduleRoutes, which is a fragment of <Route>
+                elements — react-router rejects any other child of <Routes>.
+
+                If react-router's v7_startTransition flag is ever enabled in
+                main.tsx, this fallback stops showing: React 18 keeps the OLD
+                screen up during the transition instead, which reads as a dead
+                click on a slow chunk. Re-measure the loading UX if that lands. */}
+            <Suspense fallback={<PageLoader label="Loading page…" />}>
+              <Outlet />
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>
