@@ -50,6 +50,18 @@ import { ParticipantTimelineService } from './participant-timeline.service';
 import { ParticipantsService } from './participants.service';
 
 const listFiltersSchema = listQuerySchema.extend({
+  /**
+   * Narrow to a single record, so a picker can turn an id from a URL back into
+   * a name (`?id=<uuid>&pageSize=1`).
+   *
+   * Deliberately here rather than on `GET /participants/:id`: this runs through
+   * the SAME where clause — chapter clause included — and the same §7.2
+   * projection the list already uses, so an id the viewer may not see returns an
+   * empty page instead of a 404 that would confirm the record exists. It also
+   * costs one list row rather than a full profile with offenses and contacts,
+   * which has no business being fetched to label a filter chip.
+   */
+  id: z.string().uuid().optional(),
   insideStatus: z.enum(INSIDE_STATUSES).optional(),
   outsideStatus: z.enum(OUTSIDE_STATUSES).optional(),
   alumniStatus: z.enum(ALUMNI_STATUSES).optional(),
@@ -85,6 +97,7 @@ export class ParticipantsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const {
+      id,
       insideStatus,
       outsideStatus,
       alumniStatus,
@@ -96,6 +109,7 @@ export class ParticipantsController {
     // Chapter scoping (§7.2): scoped users always see their own chapter.
     const state = (user.chapter ?? requestedState) as ListFilters['state'];
     return this.participants.list(listQuery as ListQuery, {
+      id,
       insideStatus,
       outsideStatus,
       alumniStatus,

@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
-import { EntityPicker, type PickerOption } from '@/components/ui/entity-picker';
+import {
+  EntityPicker,
+  useRehydratedValue,
+  useRememberOption,
+  type PickerOption,
+  type RehydratedValue,
+  type RehydrationStatus,
+} from '@/components/ui/entity-picker';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, fullName } from '@/lib/utils';
@@ -126,26 +133,49 @@ export function useAppealOptions(campaignId?: string, activeOnly = true) {
   });
 }
 
+/** Cache namespace an id resolves under — see the pickers module for why this
+ *  is separate from the search's namespace. */
+const DONOR = 'donor';
+
+/** Shared by the typeahead and the rehydration lookup, so a filter chip and a
+ *  search result can never spell the same donor differently. */
+const donorOption = (donor: DonorListItem): PickerOption => ({
+  id: donor.id,
+  label: donor.name,
+  sublabel: donor.email ?? undefined,
+});
+
 /** Debounced donor search-and-pick — the standard donor control (§6.8). */
 export function DonorPicker({
   value,
+  status,
+  onRetry,
   onChange,
   placeholder,
   disabled,
   id,
 }: {
   value: PickerOption | null;
+  /** Set by `useDonorOption` when the value came from the URL. */
+  status?: RehydrationStatus;
+  onRetry?: () => void;
   onChange: (option: PickerOption | null) => void;
   placeholder?: string;
   disabled?: boolean;
   /** Forwarded to the inner control so a FormField label can target it. */
   id?: string;
 }) {
+  const remember = useRememberOption(DONOR);
   return (
     <EntityPicker
       id={id}
       value={value}
-      onChange={onChange}
+      status={status}
+      onRetry={onRetry}
+      onChange={(option) => {
+        remember(option);
+        onChange(option);
+      }}
       queryKey="crm-donor-picker"
       placeholder={placeholder ?? 'Search donors…'}
       disabled={disabled}
@@ -153,14 +183,25 @@ export function DonorPicker({
         const page = await api.get<Paged<DonorListItem>>(
           `/donors${qs({ search: term, pageSize: 8 })}`,
         );
-        return page.items.map((donor) => ({
-          id: donor.id,
-          label: donor.name,
-          sublabel: donor.email ?? undefined,
-        }));
+        return page.items.map(donorOption);
       }}
     />
   );
+}
+
+/**
+ * The name behind a `?donorId=` in the URL. Spread into DonorPicker.
+ *
+ * Resolves through `/donors?id=`, the same chapter-scoped list the typeahead
+ * searches, so another chapter's donor comes back as an empty page rather than a
+ * 404 — see useRehydratedValue.
+ */
+export function useDonorOption(id: string): RehydratedValue {
+  return useRehydratedValue(DONOR, id, async (donorId) => {
+    const page = await api.get<Paged<DonorListItem>>(`/donors${qs({ id: donorId, pageSize: 1 })}`);
+    const donor = page.items[0];
+    return donor ? donorOption(donor) : null;
+  });
 }
 
 export interface PersonHit {

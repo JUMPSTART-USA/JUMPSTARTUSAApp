@@ -1164,3 +1164,130 @@ describe('budget items do not reveal that a record exists in another chapter (§
     }
   });
 });
+
+describe('the list `id` filter rehydrates a picker without leaking across chapters (§7.2)', () => {
+  /**
+   * The web pickers turn an id from a URL back into a name through
+   * `GET /<list>?id=<uuid>` rather than `GET /<list>/:id`, so that an id the
+   * caller may not see is an EMPTY PAGE and not a 404 — the same
+   * indistinguishability the budget-items tests above pin.
+   *
+   * Both halves matter. The empty-page half alone passes if the filter is
+   * ignored entirely and the whole list comes back (items.length > 0, just not
+   * what was asked for), which is why the second test asserts the filter really
+   * narrows to exactly one record — and the third asserts it is not simply
+   * dropped for a caller who CAN see the record.
+   */
+  const NONEXISTENT = '11111111-2222-3333-4444-555555555555';
+  const LISTS = [
+    { path: '/api/participants', chapterParam: 'state' },
+    { path: '/api/volunteers', chapterParam: 'state' },
+    { path: '/api/donors', chapterParam: 'state' },
+  ] as const;
+
+  it.each(LISTS)('$path answers a cross-chapter id as it answers a nonexistent one', async ({
+    path,
+    chapterParam,
+  }) => {
+    const cookie = await login(ADMIN);
+
+    // A record outside the chapter we are about to preview.
+    const scoped = await request(server)
+      .get(`${path}?pageSize=1&${chapterParam}=SC`)
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(scoped.body.items.length).toBeGreaterThan(0);
+    const foreignId = scoped.body.items[0].id;
+
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ chapter: 'GA' })
+      .expect(200);
+    try {
+      const foreign = await request(server)
+        .get(`${path}?id=${foreignId}&pageSize=1`)
+        .set('Cookie', cookie);
+      const missing = await request(server)
+        .get(`${path}?id=${NONEXISTENT}&pageSize=1`)
+        .set('Cookie', cookie);
+
+      // Same status, same body: nothing distinguishes "exists elsewhere" from
+      // "does not exist" — which is what lets the picker say one thing ("A
+      // record you can't view") for every cause.
+      expect(foreign.status).toBe(missing.status);
+      expect(foreign.body).toEqual(missing.body);
+      expect(foreign.status).toBe(200);
+      expect(foreign.body.items).toEqual([]);
+      expect(foreign.body.total).toBe(0);
+    } finally {
+      await request(server)
+        .post('/api/auth/view-as')
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ chapter: null })
+        .expect(200);
+    }
+  });
+
+  it.each(LISTS)('$path narrows to exactly the one record asked for', async ({ path }) => {
+    const cookie = await login(ADMIN);
+    const all = await request(server)
+      .get(`${path}?pageSize=5`)
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(all.body.total).toBeGreaterThan(1);
+    const wanted = all.body.items[1];
+
+    const one = await request(server)
+      .get(`${path}?id=${wanted.id}&pageSize=1`)
+      .set('Cookie', cookie)
+      .expect(200);
+    // total, not items.length — pageSize=1 would hide an ignored filter.
+    expect(one.body.total).toBe(1);
+    expect(one.body.items[0].id).toBe(wanted.id);
+  });
+
+  it.each(LISTS)('$path still resolves a record inside the caller own chapter', async ({
+    path,
+    chapterParam,
+  }) => {
+    const cookie = await login(ADMIN);
+    const ga = await request(server)
+      .get(`${path}?pageSize=1&${chapterParam}=GA`)
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(ga.body.items.length).toBeGreaterThan(0);
+    const ownId = ga.body.items[0].id;
+
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ chapter: 'GA' })
+      .expect(200);
+    try {
+      const own = await request(server)
+        .get(`${path}?id=${ownId}&pageSize=1`)
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(own.body.total).toBe(1);
+      expect(own.body.items[0].id).toBe(ownId);
+    } finally {
+      await request(server)
+        .post('/api/auth/view-as')
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ chapter: null })
+        .expect(200);
+    }
+  });
+
+  it('rejects an id that is not a uuid rather than filtering on it', async () => {
+    const cookie = await login(ADMIN);
+    // P.id() drops a malformed id before it is sent, but a hand-edited URL
+    // reaches the API — and a 400 is the honest answer, not a silent full list.
+    await request(server).get('/api/participants?id=not-a-uuid').set('Cookie', cookie).expect(400);
+  });
+});

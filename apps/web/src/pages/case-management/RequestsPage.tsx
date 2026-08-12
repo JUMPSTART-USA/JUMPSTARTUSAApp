@@ -21,7 +21,7 @@ import { SectionHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ListToolbar, ToolbarDateField } from '@/components/ui/toolbar';
-import { ParticipantPicker, type PickerOption } from '@/components/pickers';
+import { ParticipantPicker, useParticipantOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { usePortalRequestsPending } from '@/lib/portal-requests';
@@ -83,18 +83,14 @@ function MessagesTab() {
    */
   const { values, set, listState, onListStateChange } = useListParams(
     {
+      participantId: P.id(),
       status: P.choice(PORTAL_MESSAGE_STATUSES, ''),
       state: P.choice(CHAPTER_STATES, ''),
     },
     { ns: 'msg', sort: { dir: 'desc' } },
   );
-  /**
-   * The participant filter stays in useState on purpose. The URL can only
-   * carry the id, and the picker cannot yet turn an id back into a name — so a
-   * restored link would show a correctly filtered list beside an empty picker
-   * box, which reads as a bug. It moves when the pickers learn to rehydrate.
-   */
-  const [participant, setParticipant] = useState<PickerOption | null>(null);
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const participant = useParticipantOption(values.participantId);
   const [reviewTarget, setReviewTarget] = useState<PortalMessageRow | null>(null);
   const canUpdate = can('case_management.update');
 
@@ -103,7 +99,10 @@ function MessagesTab() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    participantProfileId: participant?.id,
+    // The URL value, not the resolved option: the list must filter on what the
+    // link asked for even while the name is still loading, or a restored link
+    // would flash the whole queue before narrowing.
+    participantProfileId: values.participantId,
     status: values.status,
     state: values.state,
   });
@@ -176,12 +175,11 @@ function MessagesTab() {
     <div className="space-y-4">
       <ListToolbar>
         <div className="w-full sm:w-72">
+          {/* `set` deletes the page key in the same write, so the explicit
+              page-1 reset the useState version needed is gone. */}
           <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              onListStateChange({ ...listState, page: 1 });
-            }}
+            {...participant}
+            onChange={(p) => set('participantId', p?.id ?? '')}
           />
         </div>
         <FilterSelect
@@ -232,18 +230,14 @@ function MeetingsTab() {
    */
   const { values, set, listState, onListStateChange } = useListParams(
     {
+      participantId: P.id(),
       status: P.choice(MEETING_REQUEST_STATUSES, ''),
       state: P.choice(CHAPTER_STATES, ''),
     },
     { ns: 'mtg', sort: { dir: 'desc' } },
   );
-  /**
-   * The participant filter stays in useState on purpose. The URL can only
-   * carry the id, and the picker cannot yet turn an id back into a name — so a
-   * restored link would show a correctly filtered list beside an empty picker
-   * box, which reads as a bug. It moves when the pickers learn to rehydrate.
-   */
-  const [participant, setParticipant] = useState<PickerOption | null>(null);
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const participant = useParticipantOption(values.participantId);
   const [decisionTarget, setDecisionTarget] = useState<MeetingRequestRow | null>(null);
   const canUpdate = can('case_management.update');
 
@@ -252,7 +246,8 @@ function MeetingsTab() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    participantProfileId: participant?.id,
+    // The URL value, not the resolved option — see MessagesTab.
+    participantProfileId: values.participantId,
     status: values.status,
     state: values.state,
   });
@@ -333,11 +328,8 @@ function MeetingsTab() {
       <ListToolbar>
         <div className="w-full sm:w-72">
           <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              onListStateChange({ ...listState, page: 1 });
-            }}
+            {...participant}
+            onChange={(p) => set('participantId', p?.id ?? '')}
           />
         </div>
         <FilterSelect
@@ -388,6 +380,7 @@ function TransportTab() {
    */
   const { values, set, listState, onListStateChange } = useListParams(
     {
+      participantId: P.id(),
       status: P.choice(TRANSPORT_REQUEST_STATUSES, ''),
       state: P.choice(CHAPTER_STATES, ''),
       from: P.date(),
@@ -395,13 +388,8 @@ function TransportTab() {
     },
     { ns: 'trn', sort: { dir: 'desc' } },
   );
-  /**
-   * The participant filter stays in useState on purpose. The URL can only
-   * carry the id, and the picker cannot yet turn an id back into a name — so a
-   * restored link would show a correctly filtered list beside an empty picker
-   * box, which reads as a bug. It moves when the pickers learn to rehydrate.
-   */
-  const [participant, setParticipant] = useState<PickerOption | null>(null);
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const participant = useParticipantOption(values.participantId);
   const [decisionTarget, setDecisionTarget] = useState<TransportRequestRow | null>(null);
   const canUpdate = can('case_management.update');
 
@@ -410,7 +398,8 @@ function TransportTab() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    participantProfileId: participant?.id,
+    // The URL value, not the resolved option — see MessagesTab.
+    participantProfileId: values.participantId,
     status: values.status,
     state: values.state,
     from: values.from,
@@ -508,11 +497,8 @@ function TransportTab() {
       <ListToolbar className="items-end">
         <div className="w-full sm:w-72">
           <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              onListStateChange({ ...listState, page: 1 });
-            }}
+            {...participant}
+            onChange={(p) => set('participantId', p?.id ?? '')}
           />
         </div>
         <FilterSelect

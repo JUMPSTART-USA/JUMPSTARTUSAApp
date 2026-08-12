@@ -25,6 +25,8 @@ import {
 } from './giving.util';
 
 export interface DonorListFilters {
+  /** A single record, for a picker turning an id from a URL back into a name. */
+  id?: string;
   donorType?: DonorType;
   status?: 'active' | 'lapsed' | 'inactive';
   householdId?: string;
@@ -71,6 +73,9 @@ export class DonorsService {
       // Chapter scoping (§7.2): donor chapter is the own chapterState column —
       // postal `state` is a mailing address, never a chapter.
       ...(filters.state ? { chapterState: filters.state } : {}),
+      // A picker rehydrating one id, INSIDE this where so the chapter clause
+      // above still applies: another chapter's id returns an empty page.
+      ...(filters.id ? { id: filters.id } : {}),
       ...(filters.hasEmail !== undefined
         ? { email: filters.hasEmail ? { not: null } : null }
         : {}),

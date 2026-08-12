@@ -28,6 +28,14 @@ import { ScreeningService } from './screening.service';
 import { VolunteersService } from './volunteers.service';
 
 const listFiltersSchema = listQuerySchema.extend({
+  /**
+   * Narrow to a single record, so a picker can turn an id from a URL back into a
+   * name (`?id=<uuid>&pageSize=1`). It runs through the list's own where clause,
+   * chapter clause included, so an id the viewer may not see returns an empty
+   * page rather than the 404 that `GET /volunteers/:id` would — see the
+   * participants controller for the full reasoning.
+   */
+  id: uuid.optional(),
   status: z.enum(VOLUNTEER_STATUSES).optional(),
   isMentor: z
     .enum(['true', 'false'])
@@ -60,11 +68,11 @@ export class VolunteersController {
     @Query(zodQuery(listFiltersSchema)) query: ListFilters,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const { status, isMentor, state, ...listQuery } = query;
+    const { id, status, isMentor, state, ...listQuery } = query;
     // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.volunteers.list(
       listQuery as ListQuery,
-      { status, isMentor, state: (user.chapter ?? state) as ListFilters['state'] },
+      { id, status, isMentor, state: (user.chapter ?? state) as ListFilters['state'] },
       canReadChecks(user),
     );
   }
