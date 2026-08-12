@@ -55,6 +55,40 @@ export function LifecycleBadge({ lifecycle }: { lifecycle: DonorLifecycle | null
 }
 
 /** All campaigns for select controls — small dataset, cached per session. */
+/**
+ * The label for an <option> standing in for a filter value the loaded option list
+ * does not contain — or null when no stand-in is needed.
+ *
+ * Returns a LABEL, not an element, and the caller must render the <option>
+ * itself as a DIRECT child of FilterSelect. That control reads its children with
+ * `child.type === 'option'` (filter-select.tsx), so an <option> wrapped in a
+ * component of your own is invisible to it: the menu silently omits the value and
+ * the button falls back to the first option. Measured — the first version of this
+ * was a component and the select still read "All campaigns".
+ *
+ * Why a stand-in is needed at all: these filters now come from the URL, and the
+ * option lists behind them are both capped (pageSize: 200) and CHAPTER-SCOPED. A
+ * scoped user opening an all-chapters colleague's link gets a campaign id the
+ * options query will never return, and a select whose value matches no option
+ * renders as its first — so the screen said "All campaigns" while showing one
+ * campaign's donations. That is the "filtered list beside an empty box" the entity
+ * pickers were kept out of the URL to avoid.
+ *
+ * ONE message for every cause — another chapter, deleted, past the cap. Naming the
+ * cause would make the control an existence oracle for other chapters' records,
+ * the §7.2 leak just closed on /budget-items. Clearing the filter instead is not an
+ * option either: it would silently widen the results beyond what the link asked for.
+ */
+export function unresolvedOptionLabel(
+  value: string,
+  options: { id: string }[] | undefined,
+  isLoading: boolean,
+): string | null {
+  if (!value) return null;
+  if (options?.some((o) => o.id === value)) return null;
+  return isLoading ? 'Loading…' : "A record you can't view";
+}
+
 export function useCampaignOptions() {
   return useQuery({
     queryKey: ['crm', 'campaigns', 'options'],
