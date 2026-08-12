@@ -1,10 +1,10 @@
-import { PLEDGE_STATUSES, PLEDGE_STATUS_LABELS } from '@jumpstart/shared';
-import { useQuery } from '@tanstack/react-query';
+import { CHAPTER_STATES, PLEDGE_STATUSES, PLEDGE_STATUS_LABELS } from '@jumpstart/shared';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { type PickerOption } from '@/components/ui/entity-picker';
@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
+import { P, useListParams } from '@/lib/list-params';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatMoney } from '@/lib/utils';
 import { DonorPicker } from '../shared';
@@ -70,28 +71,34 @@ const columns: Column<PledgeListItem>[] = [
 
 export function PledgesListPage() {
   const { can } = useAuth();
-  const [state, setState] = useState<ListState>({
-    page: 1,
-    pageSize: 25,
-    sortBy: 'pledgeDate',
-    sortDir: 'desc',
-  });
-  const [status, setStatus] = useState('');
-  const [chapter, setChapter] = useState('');
+  const { values, set, listState, onListStateChange } = useListParams(
+    {
+      status: P.choice(PLEDGE_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { sort: { by: 'pledgeDate', dir: 'desc' } },
+  );
+  /**
+   * The donor filter stays in useState: the URL can only carry the id and the
+   * picker cannot yet turn one back into a name, so a restored link would show a
+   * filtered list beside an empty picker box. It moves with picker rehydration.
+   */
   const [donor, setDonor] = useState<PickerOption | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
   const params = qs({
-    page: state.page,
-    pageSize: state.pageSize,
-    sortBy: state.sortBy,
-    sortDir: state.sortDir,
-    status,
-    state: chapter,
+    page: listState.page,
+    pageSize: listState.pageSize,
+    sortBy: listState.sortBy,
+    sortDir: listState.sortDir,
+    status: values.status,
+    state: values.state,
     donorId: donor?.id,
   });
   const query = useQuery({
     queryKey: ['crm', 'pledges', 'list', params],
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
     queryFn: () => api.get<Paged<PledgeListItem>>(`/pledges${params}`),
   });
 
@@ -118,25 +125,19 @@ export function PledgesListPage() {
             value={donor}
             onChange={(d) => {
               setDonor(d);
-              setState((s) => ({ ...s, page: 1 }));
+              onListStateChange({ ...listState, page: 1 });
             }}
             placeholder="Filter by donor…"
           />
         </div>
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
         <FilterSelect
           aria-label="Status"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof PLEDGE_STATUSES)[number] | '')}
           className="w-full sm:w-44"
         >
           <option value="">All statuses</option>
@@ -153,8 +154,9 @@ export function PledgesListPage() {
         columns={columns}
         data={query.data}
         isLoading={query.isLoading}
-        state={state}
-        onStateChange={setState}
+        isFetching={query.isFetching}
+        state={listState}
+        onStateChange={onListStateChange}
         rowHref={(row) => `/donors/pledges/${row.id}`}
         emptyMessage="No pledges found"
       />
