@@ -29,6 +29,14 @@ import type { AuthenticatedUser } from '../../common/types';
 import { DonorsService } from './donors.service';
 
 const listFiltersSchema = listQuerySchema.extend({
+  /**
+   * Narrow to a single record, so a picker can turn an id from a URL back into a
+   * name (`?id=<uuid>&pageSize=1`). It runs through the list's own where clause,
+   * chapter clause included, so an id the viewer may not see returns an empty
+   * page rather than the 404 that `GET /donors/:id` would — see the participants
+   * controller for the full reasoning.
+   */
+  id: uuid.optional(),
   donorType: z.enum(DONOR_TYPES).optional(),
   status: z.enum(['active', 'lapsed', 'inactive']).optional(),
   householdId: uuid.optional(),
@@ -52,9 +60,10 @@ export class DonorsController {
     @Query(zodQuery(listFiltersSchema)) query: ListFilters,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const { donorType, status, householdId, state, hasEmail, ...listQuery } = query;
+    const { id, donorType, status, householdId, state, hasEmail, ...listQuery } = query;
     // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.donors.list(listQuery as ListQuery, {
+      id,
       donorType,
       status,
       householdId,

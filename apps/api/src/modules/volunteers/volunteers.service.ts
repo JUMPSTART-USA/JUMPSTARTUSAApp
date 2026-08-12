@@ -14,6 +14,8 @@ import type { AuthenticatedUser } from '../../common/types';
 import { redactBackgroundCheck } from './screening.service';
 
 export interface VolunteerListFilters {
+  /** A single record, for a picker turning an id from a URL back into a name. */
+  id?: string;
   status?: VolunteerStatus;
   isMentor?: boolean;
   state?: string;
@@ -50,6 +52,9 @@ export class VolunteersService {
       // Chapter scoping (§7.2): own chapter column — person.state is a mailing
       // address, never the chapter.
       ...(filters.state ? { chapterState: filters.state } : {}),
+      // A picker rehydrating one id, INSIDE this where so the chapter clause
+      // above still applies: another chapter's id returns an empty page.
+      ...(filters.id ? { id: filters.id } : {}),
       person: {
         deletedAt: null,
         ...(query.search

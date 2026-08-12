@@ -7,7 +7,6 @@ import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { type PickerOption } from '@/components/ui/entity-picker';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
@@ -16,7 +15,7 @@ import { api, qs, type Paged } from '@/lib/api';
 import { P, useListParams } from '@/lib/list-params';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatMoney } from '@/lib/utils';
-import { DonorPicker } from '../shared';
+import { DonorPicker, useDonorOption } from '../shared';
 import type { PledgeListItem } from '../types';
 import { DonorsNav } from './DonorsNav';
 import { PledgeFormDialog } from './PledgeFormDialog';
@@ -73,17 +72,14 @@ export function PledgesListPage() {
   const { can } = useAuth();
   const { values, set, listState, onListStateChange } = useListParams(
     {
+      donorId: P.id(),
       status: P.choice(PLEDGE_STATUSES, ''),
       state: P.choice(CHAPTER_STATES, ''),
     },
     { sort: { by: 'pledgeDate', dir: 'desc' } },
   );
-  /**
-   * The donor filter stays in useState: the URL can only carry the id and the
-   * picker cannot yet turn one back into a name, so a restored link would show a
-   * filtered list beside an empty picker box. It moves with picker rehydration.
-   */
-  const [donor, setDonor] = useState<PickerOption | null>(null);
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const donor = useDonorOption(values.donorId);
   const [createOpen, setCreateOpen] = useState(false);
 
   const params = qs({
@@ -93,7 +89,10 @@ export function PledgesListPage() {
     sortDir: listState.sortDir,
     status: values.status,
     state: values.state,
-    donorId: donor?.id,
+    // The URL value, not the resolved option: the list filters on what the link
+    // asked for even while the name is still loading, so a restored link never
+    // flashes every pledge before narrowing.
+    donorId: values.donorId,
   });
   const query = useQuery({
     queryKey: ['crm', 'pledges', 'list', params],
@@ -121,12 +120,11 @@ export function PledgesListPage() {
 
       <ListToolbar>
         <div className="w-full sm:w-72">
+          {/* `set` deletes the page key in the same write, so the explicit
+              page-1 reset the useState version needed is gone. */}
           <DonorPicker
-            value={donor}
-            onChange={(d) => {
-              setDonor(d);
-              onListStateChange({ ...listState, page: 1 });
-            }}
+            {...donor}
+            onChange={(d) => set('donorId', d?.id ?? '')}
             placeholder="Filter by donor…"
           />
         </div>

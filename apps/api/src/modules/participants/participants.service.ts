@@ -21,6 +21,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
 export interface ParticipantListFilters {
+  /** A single record, for a picker turning an id from a URL back into a name. */
+  id?: string;
   insideStatus?: InsideStatus;
   outsideStatus?: OutsideStatus;
   alumniStatus?: AlumniStatus;
@@ -83,6 +85,10 @@ export class ParticipantsService {
       person: { deletedAt: null },
       // Chapter scoping (§7.2): own chapterState column — person.state is mail.
       ...(filters.state ? { chapterState: filters.state } : {}),
+      // A picker rehydrating one id. It sits INSIDE this where on purpose: the
+      // chapter clause above still applies, so an id from another chapter comes
+      // back as an empty page rather than a record.
+      ...(filters.id ? { id: filters.id } : {}),
       ...(filters.insideStatus ? { insideStatus: filters.insideStatus } : {}),
       ...(filters.outsideStatus ? { outsideStatus: filters.outsideStatus } : {}),
       ...(filters.alumniStatus ? { alumniStatus: filters.alumniStatus } : {}),
