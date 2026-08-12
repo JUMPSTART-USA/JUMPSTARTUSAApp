@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { CHAPTER_STATES } from '@jumpstart/shared';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FilterSelect } from '@/components/ui/filter-select';
@@ -11,7 +12,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import type { Vendor } from '../types';
 import { VendorFormDialog } from './VendorFormDialog';
 
@@ -55,32 +56,32 @@ const columns: Column<Vendor>[] = [
 
 export function VendorsListPage() {
   const { can } = useAuth();
-  const [state, setState] = useState<ListState>(initialListState);
-  const [search, setSearch] = useState('');
-  const [active, setActive] = useState('');
-  const [referralPartner, setReferralPartner] = useState('');
-  const [chapter, setChapter] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      active: P.choice(['true', 'false'] as const, ''),
+      referralPartner: P.choice(['true', 'false'] as const, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Vendor | null>(null);
-  const debouncedSearch = useDebounced(search);
-
-  useEffect(() => {
-    setState((s) => ({ ...s, page: 1 }));
-  }, [debouncedSearch]);
 
   const params = qs({
-    page: state.page,
-    pageSize: state.pageSize,
-    sortBy: state.sortBy,
-    sortDir: state.sortDir,
-    search: debouncedSearch,
-    active,
-    isReferralPartner: referralPartner,
+    page: listState.page,
+    pageSize: listState.pageSize,
+    sortBy: listState.sortBy,
+    sortDir: listState.sortDir,
+    search: values.search,
+    active: values.active,
+    isReferralPartner: values.referralPartner,
     // Chapter filter (§7.2) — still sent as the `state` query param.
-    state: chapter,
+    state: values.state,
   });
   const query = useQuery({
     queryKey: ['crm', 'vendors', 'list', params],
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
     queryFn: () => api.get<Paged<Vendor>>(`/vendors${params}`),
   });
 
@@ -107,17 +108,14 @@ export function VendorsListPage() {
 
       <ListToolbar>
         <SearchInput
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
           placeholder="Search name, contact, or services…"
         />
         <FilterSelect
           aria-label="Status"
-          value={active}
-          onChange={(value) => {
-            setActive(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.active}
+          onChange={(value) => set('active', value as 'true' | 'false' | '')}
           className="w-full sm:w-44"
         >
           <option value="">All vendors</option>
@@ -126,11 +124,8 @@ export function VendorsListPage() {
         </FilterSelect>
         <FilterSelect
           aria-label="Partner type"
-          value={referralPartner}
-          onChange={(value) => {
-            setReferralPartner(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.referralPartner}
+          onChange={(value) => set('referralPartner', value as 'true' | 'false' | '')}
           className="w-full sm:w-44"
         >
           <option value="">All partner types</option>
@@ -140,11 +135,8 @@ export function VendorsListPage() {
         {/* Chapter filter (§7.2) — hidden for scoped users (the API forces
             their chapter). */}
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -153,8 +145,9 @@ export function VendorsListPage() {
         columns={columns}
         data={query.data}
         isLoading={query.isLoading}
-        state={state}
-        onStateChange={setState}
+        isFetching={query.isFetching}
+        state={listState}
+        onStateChange={onListStateChange}
         onRowClick={
           canUpdate
             ? (row) => {

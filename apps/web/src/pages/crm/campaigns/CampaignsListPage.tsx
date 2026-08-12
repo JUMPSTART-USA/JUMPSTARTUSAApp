@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { CHAPTER_STATES } from '@jumpstart/shared';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FilterSelect } from '@/components/ui/filter-select';
@@ -12,7 +13,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
 import { ProgressBar } from '../shared';
 import type { CampaignListItem, CampaignStatus } from '../types';
@@ -50,29 +51,29 @@ const columns: Column<CampaignListItem>[] = [
 
 export function CampaignsListPage() {
   const { can } = useAuth();
-  const [state, setState] = useState<ListState>(initialListState);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const [chapter, setChapter] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      status: P.choice(CAMPAIGN_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+  );
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
-
-  useEffect(() => {
-    setState((s) => ({ ...s, page: 1 }));
-  }, [debouncedSearch]);
 
   const params = qs({
-    page: state.page,
-    pageSize: state.pageSize,
-    sortBy: state.sortBy,
-    sortDir: state.sortDir,
-    search: debouncedSearch,
-    status,
+    page: listState.page,
+    pageSize: listState.pageSize,
+    sortBy: listState.sortBy,
+    sortDir: listState.sortDir,
+    search: values.search,
+    status: values.status,
     // Chapter filter (§7.2) — still sent as the `state` query param.
-    state: chapter,
+    state: values.state,
   });
   const query = useQuery({
     queryKey: ['crm', 'campaigns', 'list', params],
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
     queryFn: () => api.get<Paged<CampaignListItem>>(`/campaigns${params}`),
   });
 
@@ -93,17 +94,14 @@ export function CampaignsListPage() {
 
       <ListToolbar>
         <SearchInput
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
           placeholder="Search campaigns…"
         />
         <FilterSelect
           aria-label="Status"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof CAMPAIGN_STATUSES)[number] | '')}
           className="w-full sm:w-44"
         >
           <option value="">All statuses</option>
@@ -116,11 +114,8 @@ export function CampaignsListPage() {
         {/* Chapter filter (§7.2) — hidden for scoped users (the API forces
             their chapter). */}
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -129,8 +124,9 @@ export function CampaignsListPage() {
         columns={columns}
         data={query.data}
         isLoading={query.isLoading}
-        state={state}
-        onStateChange={setState}
+        isFetching={query.isFetching}
+        state={listState}
+        onStateChange={onListStateChange}
         rowHref={(row) => `/campaigns/${row.id}`}
         emptyMessage="No campaigns found"
       />

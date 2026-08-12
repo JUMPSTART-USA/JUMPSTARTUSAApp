@@ -1,10 +1,10 @@
-import { DONOR_TYPES } from '@jumpstart/shared';
-import { useQuery } from '@tanstack/react-query';
+import { CHAPTER_STATES, DONOR_TYPES } from '@jumpstart/shared';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FilterSelect } from '@/components/ui/filter-select';
@@ -13,7 +13,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
 import { LifecycleBadge } from '../shared';
 import type { DonorListItem } from '../types';
@@ -52,30 +52,30 @@ const columns: Column<DonorListItem>[] = [
 
 export function DonorsListPage() {
   const { can } = useAuth();
-  const [state, setState] = useState<ListState>(initialListState);
-  const [search, setSearch] = useState('');
-  const [donorType, setDonorType] = useState('');
-  const [status, setStatus] = useState('');
-  const [chapter, setChapter] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      donorType: P.choice(DONOR_TYPES, ''),
+      status: P.choice(DONOR_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+  );
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
-
-  useEffect(() => {
-    setState((s) => ({ ...s, page: 1 }));
-  }, [debouncedSearch]);
 
   const params = qs({
-    page: state.page,
-    pageSize: state.pageSize,
-    sortBy: state.sortBy,
-    sortDir: state.sortDir,
-    search: debouncedSearch,
-    donorType,
-    status,
-    state: chapter,
+    page: listState.page,
+    pageSize: listState.pageSize,
+    sortBy: listState.sortBy,
+    sortDir: listState.sortDir,
+    search: values.search,
+    donorType: values.donorType,
+    status: values.status,
+    state: values.state,
   });
   const query = useQuery({
     queryKey: ['crm', 'donors', 'list', params],
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
     queryFn: () => api.get<Paged<DonorListItem>>(`/donors${params}`),
   });
 
@@ -97,17 +97,14 @@ export function DonorsListPage() {
 
       <ListToolbar>
         <SearchInput
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
           placeholder="Search name or email…"
         />
         <FilterSelect
           aria-label="Donor type"
-          value={donorType}
-          onChange={(value) => {
-            setDonorType(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.donorType}
+          onChange={(value) => set('donorType', value as (typeof DONOR_TYPES)[number] | '')}
           className="w-full sm:w-44"
         >
           <option value="">All types</option>
@@ -119,11 +116,8 @@ export function DonorsListPage() {
         </FilterSelect>
         <FilterSelect
           aria-label="Status"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof DONOR_STATUSES)[number] | '')}
           className="w-full sm:w-44"
         >
           <option value="">All statuses</option>
@@ -134,11 +128,8 @@ export function DonorsListPage() {
           ))}
         </FilterSelect>
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -147,8 +138,9 @@ export function DonorsListPage() {
         columns={columns}
         data={query.data}
         isLoading={query.isLoading}
-        state={state}
-        onStateChange={setState}
+        isFetching={query.isFetching}
+        state={listState}
+        onStateChange={onListStateChange}
         rowHref={(row) => `/donors/${row.id}`}
         emptyMessage="No donors found"
       />
