@@ -1,10 +1,10 @@
-import { INTAKE_STATUSES } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CHAPTER_STATES, INTAKE_STATUSES } from '@jumpstart/shared';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import { FormError } from '@/components/ui/notice';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, ToolbarSpacer } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
+import { P, useListParams } from '@/lib/list-params';
 import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/utils';
 import { ReviewControls, SubmittedAge } from './review';
@@ -219,25 +220,39 @@ function AlumniUpdateDialog({
 
 export function AlumniUpdatesTab() {
   const { can } = useAuth();
-  const [state, setState] = useState<ListState>({ ...initialListState, sortBy: 'submittedAt' });
-  const [status, setStatus] = useState('pending');
-  const [stateFilter, setStateFilter] = useState('');
+  /**
+   * ns 'alumni': the three intake queues share one route.
+   *
+   * The status default is 'pending', which is exactly why P.choice keeps '' as a
+   * REAL value distinct from absent: absent means pending (the queue's working
+   * view), and '' means the user explicitly asked for every status. Collapsing
+   * the two would make "All statuses" unreachable from a link.
+   */
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      status: P.choice(INTAKE_STATUSES, 'pending'),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { ns: 'alumni', sort: { by: 'submittedAt' } },
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
   const query = useQuery({
-    queryKey: ['intake', 'alumni-updates', state, status, stateFilter],
+    queryKey: ['intake', 'alumni-updates', listState, values],
     queryFn: () =>
       api.get<Paged<AlumniUpdateItem>>(
         `/intake/alumni-updates${qs({
-          page: state.page,
-          pageSize: state.pageSize,
-          sortBy: state.sortBy,
-          sortDir: state.sortDir,
-          status: status || undefined,
-          state: stateFilter,
+          page: listState.page,
+          pageSize: listState.pageSize,
+          sortBy: listState.sortBy,
+          sortDir: listState.sortDir,
+          status: values.status || undefined,
+          state: values.state,
         })}`,
       ),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const selected = query.data?.items.find((i) => i.id === selectedId) ?? null;
@@ -296,11 +311,8 @@ export function AlumniUpdatesTab() {
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof INTAKE_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {INTAKE_STATUSES.map((s) => (
@@ -312,11 +324,8 @@ export function AlumniUpdatesTab() {
         {/* Chapter filter (§7.2) — maps to the alum's chapter server-side;
             hidden for scoped users (the API forces their chapter). */}
         <ChapterFilterSelect
-          value={stateFilter}
-          onChange={(value) => {
-            setStateFilter(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
         <ToolbarSpacer />
         {can('alumni.update') ? (
@@ -333,8 +342,9 @@ export function AlumniUpdatesTab() {
           columns={columns}
           data={query.data}
           isLoading={query.isLoading}
-          state={state}
-          onStateChange={setState}
+          isFetching={query.isFetching}
+          state={listState}
+          onStateChange={onListStateChange}
           onRowOpen={(row) => setSelectedId(row.id)}
           emptyMessage="No alumni updates in this view"
         />

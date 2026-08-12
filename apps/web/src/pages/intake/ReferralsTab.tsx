@@ -1,8 +1,8 @@
-import { INTAKE_STATUSES } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CHAPTER_STATES, INTAKE_STATUSES } from '@jumpstart/shared';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ChapterFilterSelect, ChapterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import {
@@ -17,7 +17,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, humanize } from '@/lib/utils';
 import { DuplicateCandidatePicker, ReviewControls, SubmittedAge } from './review';
 import { apiErrorMessage, isReviewable, type ReferralItem, type ReviewPayload } from './types';
@@ -119,27 +119,40 @@ function ReferralDialog({ item, onClose }: { item: ReferralItem; onClose: () => 
 }
 
 export function ReferralsTab() {
-  const [state, setState] = useState<ListState>({ ...initialListState, sortBy: 'submittedAt' });
-  const [status, setStatus] = useState('pending');
-  const [search, setSearch] = useState('');
-  const [stateFilter, setStateFilter] = useState('');
+  /**
+   * ns 'refs': the three intake queues share one route.
+   *
+   * The status default is 'pending', which is exactly why P.choice keeps '' as a
+   * REAL value distinct from absent: absent means pending (the queue's working
+   * view), and '' means the user explicitly asked for every status. Collapsing
+   * the two would make "All statuses" unreachable from a link.
+   */
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      status: P.choice(INTAKE_STATUSES, 'pending'),
+      search: P.text(),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { ns: 'refs', sort: { by: 'submittedAt' } },
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const debounced = useDebounced(search);
 
   const query = useQuery({
-    queryKey: ['intake', 'referrals', state, status, debounced, stateFilter],
+    queryKey: ['intake', 'referrals', listState, values],
     queryFn: () =>
       api.get<Paged<ReferralItem>>(
         `/intake/referrals${qs({
-          page: state.page,
-          pageSize: state.pageSize,
-          sortBy: state.sortBy,
-          sortDir: state.sortDir,
-          status: status || undefined,
-          search: debounced,
-          state: stateFilter,
+          page: listState.page,
+          pageSize: listState.pageSize,
+          sortBy: listState.sortBy,
+          sortDir: listState.sortDir,
+          status: values.status || undefined,
+          search: values.search,
+          state: values.state,
         })}`,
       ),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const selected = query.data?.items.find((i) => i.id === selectedId) ?? null;
@@ -206,20 +219,14 @@ export function ReferralsTab() {
       <ListToolbar>
         <SearchInput
           placeholder="Search subject or referrer…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof INTAKE_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {INTAKE_STATUSES.map((s) => (
@@ -231,11 +238,8 @@ export function ReferralsTab() {
         {/* Chapter filter (§7.2) — the queue's own `state` column; hidden for
             scoped users (the API forces their chapter). */}
         <ChapterFilterSelect
-          value={stateFilter}
-          onChange={(value) => {
-            setStateFilter(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -246,8 +250,9 @@ export function ReferralsTab() {
           columns={columns}
           data={query.data}
           isLoading={query.isLoading}
-          state={state}
-          onStateChange={setState}
+          isFetching={query.isFetching}
+          state={listState}
+          onStateChange={onListStateChange}
           onRowOpen={(row) => setSelectedId(row.id)}
           emptyMessage="No referrals in this view"
         />
