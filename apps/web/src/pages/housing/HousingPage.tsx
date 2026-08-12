@@ -1,10 +1,10 @@
-import { HOME_GENDER_LABELS, HOUSING_STATUSES } from '@jumpstart/shared';
-import { useQuery } from '@tanstack/react-query';
+import { CHAPTER_STATES, HOME_GENDER_LABELS, HOUSING_STATUSES } from '@jumpstart/shared';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { BedDouble, Plus, UserPlus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { cn, formatDate, fullName, humanize } from '@/lib/utils';
 import { HomeFormDialog } from './HomeFormDialog';
 import { MoveInDialog } from './MoveInDialog';
@@ -196,18 +196,25 @@ const homeColumns: Column<HomeRow>[] = [
 
 function HomesTab() {
   const navigate = useNavigate();
-  const [listState, setListState] = useState<ListState>(initialListState);
-  const [search, setSearch] = useState('');
-  const [state, setState] = useState('');
-  const [active, setActive] = useState('');
-  const debouncedSearch = useDebounced(search);
-
-  useEffect(() => {
-    setListState((s) => (s.page === 1 ? s : { ...s, page: 1 }));
-  }, [debouncedSearch, state, active]);
+  /**
+   * ns 'homes': the Residents queue mounts on this same route and also filters by
+   * `search`, so un-namespaced keys would have each typing into the other's box.
+   *
+   * The useEffect that reset the page on every filter change is gone — the hook
+   * deletes the page key in the same URL write as the filter, so there is no
+   * second render pass and no window showing page 3 of a new result set.
+   */
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      state: P.choice(CHAPTER_STATES, ''),
+      active: P.choice(['true', 'false'] as const, ''),
+    },
+    { ns: 'homes' },
+  );
 
   const query = useQuery({
-    queryKey: ['housing', 'homes', listState, debouncedSearch, state, active],
+    queryKey: ['housing', 'homes', listState, values],
     queryFn: () =>
       api.get<Paged<HomeRow>>(
         `/transitional-homes${qs({
@@ -215,11 +222,13 @@ function HomesTab() {
           pageSize: listState.pageSize,
           sortBy: listState.sortBy,
           sortDir: listState.sortDir,
-          search: debouncedSearch,
-          state,
-          active,
+          search: values.search,
+          state: values.state,
+          active: values.active,
         })}`,
       ),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -227,15 +236,18 @@ function HomesTab() {
       <ListToolbar>
         <SearchInput
           placeholder="Search name, city, house manager…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         {/* Home state IS the chapter (§7.2) — hidden for scoped users. */}
-        <ChapterFilterSelect value={state} onChange={setState} />
+        <ChapterFilterSelect
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
+        />
         <FilterSelect
           aria-label="Home status"
-          value={active}
-          onChange={setActive}
+          value={values.active}
+          onChange={(v) => set('active', v as 'true' | 'false' | '')}
           className="w-full sm:w-44"
         >
           <option value="">All homes</option>
@@ -248,8 +260,9 @@ function HomesTab() {
         columns={homeColumns}
         data={query.data}
         isLoading={query.isLoading}
+        isFetching={query.isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         rowHref={(row) => `homes/${row.id}`}
         emptyMessage="No transitional homes found"
       />
@@ -303,21 +316,17 @@ const residentColumns: Column<HousingEnrollmentRow>[] = [
 
 function ResidentsTab() {
   const navigate = useNavigate();
-  const [listState, setListState] = useState<ListState>({
-    ...initialListState,
-    sortBy: 'moveInDate',
-    sortDir: 'desc',
-  });
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const debouncedSearch = useDebounced(search);
-
-  useEffect(() => {
-    setListState((s) => (s.page === 1 ? s : { ...s, page: 1 }));
-  }, [debouncedSearch, status]);
+  /** ns 'residents': shares this route, and a `search` key, with the Homes queue. */
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      status: P.choice(HOUSING_STATUSES, ''),
+    },
+    { ns: 'residents', sort: { by: 'moveInDate', dir: 'desc' } },
+  );
 
   const query = useQuery({
-    queryKey: ['housing', 'enrollments', listState, debouncedSearch, status],
+    queryKey: ['housing', 'enrollments', listState, values],
     queryFn: () =>
       api.get<Paged<HousingEnrollmentRow>>(
         `/housing-enrollments${qs({
@@ -325,10 +334,12 @@ function ResidentsTab() {
           pageSize: listState.pageSize,
           sortBy: listState.sortBy,
           sortDir: listState.sortDir,
-          search: debouncedSearch,
-          status,
+          search: values.search,
+          status: values.status,
         })}`,
       ),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -336,13 +347,13 @@ function ResidentsTab() {
       <ListToolbar>
         <SearchInput
           placeholder="Search participant name or number…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Residency status"
-          value={status}
-          onChange={setStatus}
+          value={values.status}
+          onChange={(v) => set('status', v as (typeof HOUSING_STATUSES)[number] | '')}
           className="w-full sm:w-44"
         >
           <option value="">All statuses</option>
@@ -358,8 +369,9 @@ function ResidentsTab() {
         columns={residentColumns}
         data={query.data}
         isLoading={query.isLoading}
+        isFetching={query.isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         rowHref={(row) => `homes/${row.homeId}`}
         emptyMessage="No housing enrollments found"
       />
@@ -367,7 +379,16 @@ function ResidentsTab() {
   );
 }
 
+/** The tab strip's values; anything else in ?tab= falls back to occupancy. */
+const HOUSING_TABS = ['occupancy', 'homes', 'residents'] as const;
+type HousingTab = (typeof HOUSING_TABS)[number];
+
 export function HousingPage() {
+  /** 'occupancy' is the default, so it is the value ABSENT from the URL. */
+  const { values: tabValues, set: setTab } = useListParams({
+    tab: P.choice(HOUSING_TABS, 'occupancy'),
+  });
+  const tab = tabValues.tab || 'occupancy';
   const { can } = useAuth();
   const [newHomeOpen, setNewHomeOpen] = useState(false);
   const [moveInOpen, setMoveInOpen] = useState(false);
@@ -392,7 +413,13 @@ export function HousingPage() {
         }
       />
 
-      <Tabs defaultValue="occupancy">
+      {/**
+        * Controlled from ?tab=: both queues below keep their page and filters in the
+        * URL under their own namespace, so a restored ?residents.page=2 on a strip
+        * that silently reset to Occupancy would hold page 2 of a list Radix has not
+        * even mounted.
+        */}
+      <Tabs value={tab} onValueChange={(next) => setTab('tab', next as HousingTab)}>
         <TabsList>
           <TabsTrigger value="occupancy">Occupancy</TabsTrigger>
           <TabsTrigger value="homes">Homes</TabsTrigger>
