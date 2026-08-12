@@ -61,6 +61,12 @@ function Harness({
       </button>
       <button
         type="button"
+        onClick={() => lp.onListStateChange({ ...lp.listState, page: 1 }, { replace: true })}
+      >
+        {prefix}snap-page-1
+      </button>
+      <button
+        type="button"
         onClick={() => lp.onListStateChange({ ...lp.listState, sortBy: 'date', sortDir: 'desc' })}
       >
         {prefix}sort-date
@@ -152,6 +158,16 @@ describe('useListParams — writes', () => {
     // Paging is the one movement a user expects Back to undo.
     expect(screen.getByTestId('navtype').textContent).toBe('PUSH');
     expect(search()).toBe('?status=approved&page=3');
+  });
+
+  it('lets the caller override the push, for a page change the user did not make', () => {
+    mount('/list?page=4');
+    click('snap-page-1');
+    // DataTable's out-of-range snap comes through here. Pushing would leave the
+    // page that does not exist sitting behind the Back button.
+    expect(screen.getByTestId('navtype').textContent).toBe('REPLACE');
+    expect(search()).toBe('');
+    expect(listState().page).toBe(1);
   });
 
   it('resets to page 1 in the SAME write as the filter change', () => {

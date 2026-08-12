@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { MouseEvent, ReactNode } from 'react';
+import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -34,12 +34,28 @@ export interface ListState {
   sortDir: 'asc' | 'desc';
 }
 
+/**
+ * How a state change should land in history, for the stores that HAVE a history
+ * — i.e. `useListParams`, which keeps list state in the URL.
+ *
+ * Optional, and second, so that the thirty-odd lists still holding their state
+ * in `useState` keep working untouched: their `onStateChange` is a bare setter
+ * that takes one argument and ignores anything after it.
+ */
+export interface ListStateChangeOptions {
+  /**
+   * Replace the current history entry instead of pushing a new one. For changes
+   * the USER did not make, so Back does not walk them through corrections.
+   */
+  replace?: boolean;
+}
+
 interface DataTableProps<T> {
   columns: Column<T>[];
   data: Paged<T> | undefined;
   isLoading: boolean;
   state: ListState;
-  onStateChange: (next: ListState) => void;
+  onStateChange: (next: ListState, options?: ListStateChangeOptions) => void;
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
   /**
@@ -116,6 +132,56 @@ export function DataTable<T extends { id: string }>({
    * instead of a dead screen.
    */
   const stale = !isLoading && !!data && isFetching === true;
+
+  /**
+   * Land on the last real page when the requested one is past the end.
+   *
+   * Page numbers live in the URL now (`useListParams`), so a shared or
+   * bookmarked link can point at a page its result set no longer has:
+   * /intake?apps.page=2 on the four-record application queue rendered "Page 2
+   * of 1" over an empty table. Prev got you out, so it was never a dead end —
+   * but it is a page nobody asked for, and the fix belongs here rather than in
+   * each of the fifty lists.
+   *
+   * Three conditions, each load-bearing:
+   *
+   * SETTLED ONLY. `totalPages` is derived from whatever `data` holds right now,
+   * and mid-request that is the PREVIOUS query's total — the same reason both
+   * pagers go dead while `stale`. Judging against it would snap on a count that
+   * is about to change and fight the request already in flight. `isLoading`
+   * covers the first load, when there is no total at all; `stale` covers a
+   * refetch that is keeping the previous page on screen.
+   *
+   * ONE ATTEMPT PER PAGE. The ref is what makes this a correction rather than a
+   * loop. Normally it converges on its own — the target is `totalPages`, always
+   * strictly below a page that is past the end, so even a result set shrinking
+   * under us walks down and stops. The ref is for the case where nothing moves:
+   * a parent that drops the change, or a server that keeps echoing a total the
+   * requested page is past. Cleared as soon as the page is in range again, so a
+   * page that becomes real later is not permanently unreachable.
+   *
+   * REPLACE, NOT PUSH. `onListStateChange` pushes for a page change, because
+   * paging is the one movement a user expects Back to undo. This is not that
+   * movement — the user never asked for it, and pushing would make Back return
+   * them to the page that does not exist.
+   */
+  const snappedFrom = useRef<number | null>(null);
+  /** Neither is a dependency: a list may pass a fresh object or arrow each render. */
+  const onStateChangeRef = useRef(onStateChange);
+  onStateChangeRef.current = onStateChange;
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  useEffect(() => {
+    if (isLoading || !data || stale) return;
+    if (state.page <= totalPages) {
+      snappedFrom.current = null;
+      return;
+    }
+    if (snappedFrom.current === state.page) return;
+    snappedFrom.current = state.page;
+    onStateChangeRef.current({ ...stateRef.current, page: totalPages }, { replace: true });
+  }, [isLoading, data, stale, state.page, totalPages]);
 
   /**
    * Row-level pointer navigation, so `rowHref` fully replaces `onRowClick`
