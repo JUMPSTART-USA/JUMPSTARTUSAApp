@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  CHAPTER_STATES,
   MEETING_REQUEST_STATUSES,
   MEETING_REQUEST_STATUS_LABELS,
   PORTAL_MESSAGE_STATUSES,
@@ -10,6 +11,7 @@ import {
   TRANSPORT_REQUEST_STATUS_LABELS,
 } from '@jumpstart/shared';
 import { backTo } from '@/components/BackLink';
+import { P, useListParams } from '@/lib/list-params';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
@@ -73,10 +75,26 @@ function TabCount({ count }: { count: number | undefined }) {
 
 function MessagesTab() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
+  /**
+   * ns 'msg': all three queues mount on this one route and their query bodies
+   * are otherwise identical, so an un-namespaced ?page= would page whichever
+   * queue the user opened next — the one place in this migration where a
+   * missing namespace is a silent data bug rather than a cosmetic one.
+   */
+  const { values, set, listState, onListStateChange } = useListParams(
+    {
+      status: P.choice(PORTAL_MESSAGE_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { ns: 'msg', sort: { dir: 'desc' } },
+  );
+  /**
+   * The participant filter stays in useState on purpose. The URL can only
+   * carry the id, and the picker cannot yet turn an id back into a name — so a
+   * restored link would show a correctly filtered list beside an empty picker
+   * box, which reads as a bug. It moves when the pickers learn to rehydrate.
+   */
   const [participant, setParticipant] = useState<PickerOption | null>(null);
-  const [status, setStatus] = useState('');
-  const [state, setState] = useState('');
   const [reviewTarget, setReviewTarget] = useState<PortalMessageRow | null>(null);
   const canUpdate = can('case_management.update');
 
@@ -86,13 +104,15 @@ function MessagesTab() {
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
     participantProfileId: participant?.id,
-    status,
-    state,
+    status: values.status,
+    state: values.state,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['case-management', 'portal-messages', params],
     queryFn: () => api.get<Paged<PortalMessageRow>>(`/portal-messages${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<PortalMessageRow>[] = [
@@ -160,18 +180,15 @@ function MessagesTab() {
             value={participant}
             onChange={(p) => {
               setParticipant(p);
-              setListState((s) => ({ ...s, page: 1 }));
+              onListStateChange({ ...listState, page: 1 });
             }}
           />
         </div>
         <FilterSelect
           aria-label="Message status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof PORTAL_MESSAGE_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {PORTAL_MESSAGE_STATUSES.map((s) => (
@@ -183,11 +200,8 @@ function MessagesTab() {
         {/* Chapter scoping (§7.2): portal queues derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -196,8 +210,9 @@ function MessagesTab() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         onRowClick={setReviewTarget}
         emptyMessage="No portal messages"
       />
@@ -209,10 +224,26 @@ function MessagesTab() {
 
 function MeetingsTab() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
+  /**
+   * ns 'mtg': all three queues mount on this one route and their query bodies
+   * are otherwise identical, so an un-namespaced ?page= would page whichever
+   * queue the user opened next — the one place in this migration where a
+   * missing namespace is a silent data bug rather than a cosmetic one.
+   */
+  const { values, set, listState, onListStateChange } = useListParams(
+    {
+      status: P.choice(MEETING_REQUEST_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { ns: 'mtg', sort: { dir: 'desc' } },
+  );
+  /**
+   * The participant filter stays in useState on purpose. The URL can only
+   * carry the id, and the picker cannot yet turn an id back into a name — so a
+   * restored link would show a correctly filtered list beside an empty picker
+   * box, which reads as a bug. It moves when the pickers learn to rehydrate.
+   */
   const [participant, setParticipant] = useState<PickerOption | null>(null);
-  const [status, setStatus] = useState('');
-  const [state, setState] = useState('');
   const [decisionTarget, setDecisionTarget] = useState<MeetingRequestRow | null>(null);
   const canUpdate = can('case_management.update');
 
@@ -222,13 +253,15 @@ function MeetingsTab() {
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
     participantProfileId: participant?.id,
-    status,
-    state,
+    status: values.status,
+    state: values.state,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['case-management', 'meeting-requests', params],
     queryFn: () => api.get<Paged<MeetingRequestRow>>(`/meeting-requests${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<MeetingRequestRow>[] = [
@@ -303,18 +336,15 @@ function MeetingsTab() {
             value={participant}
             onChange={(p) => {
               setParticipant(p);
-              setListState((s) => ({ ...s, page: 1 }));
+              onListStateChange({ ...listState, page: 1 });
             }}
           />
         </div>
         <FilterSelect
           aria-label="Meeting status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof MEETING_REQUEST_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {MEETING_REQUEST_STATUSES.map((s) => (
@@ -326,11 +356,8 @@ function MeetingsTab() {
         {/* Chapter scoping (§7.2): portal queues derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -339,8 +366,9 @@ function MeetingsTab() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         onRowClick={setDecisionTarget}
         emptyMessage="No meeting requests"
       />
@@ -352,12 +380,28 @@ function MeetingsTab() {
 
 function TransportTab() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
+  /**
+   * ns 'trn': all three queues mount on this one route and their query bodies
+   * are otherwise identical, so an un-namespaced ?page= would page whichever
+   * queue the user opened next — the one place in this migration where a
+   * missing namespace is a silent data bug rather than a cosmetic one.
+   */
+  const { values, set, listState, onListStateChange } = useListParams(
+    {
+      status: P.choice(TRANSPORT_REQUEST_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+      from: P.date(),
+      to: P.date(),
+    },
+    { ns: 'trn', sort: { dir: 'desc' } },
+  );
+  /**
+   * The participant filter stays in useState on purpose. The URL can only
+   * carry the id, and the picker cannot yet turn an id back into a name — so a
+   * restored link would show a correctly filtered list beside an empty picker
+   * box, which reads as a bug. It moves when the pickers learn to rehydrate.
+   */
   const [participant, setParticipant] = useState<PickerOption | null>(null);
-  const [status, setStatus] = useState('');
-  const [state, setState] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
   const [decisionTarget, setDecisionTarget] = useState<TransportRequestRow | null>(null);
   const canUpdate = can('case_management.update');
 
@@ -367,15 +411,17 @@ function TransportTab() {
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
     participantProfileId: participant?.id,
-    status,
-    state,
-    from,
-    to,
+    status: values.status,
+    state: values.state,
+    from: values.from,
+    to: values.to,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['case-management', 'transport-requests', params],
     queryFn: () => api.get<Paged<TransportRequestRow>>(`/transport-requests${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<TransportRequestRow>[] = [
@@ -465,18 +511,15 @@ function TransportTab() {
             value={participant}
             onChange={(p) => {
               setParticipant(p);
-              setListState((s) => ({ ...s, page: 1 }));
+              onListStateChange({ ...listState, page: 1 });
             }}
           />
         </div>
         <FilterSelect
           aria-label="Transportation status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof TRANSPORT_REQUEST_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {TRANSPORT_REQUEST_STATUSES.map((s) => (
@@ -488,27 +531,18 @@ function TransportTab() {
         {/* Chapter scoping (§7.2): portal queues derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
         />
         <ToolbarDateField
           label="From"
-          value={from}
-          onChange={(e) => {
-            setFrom(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.from}
+          onChange={(e) => set('from', e.target.value)}
         />
         <ToolbarDateField
           label="To"
-          value={to}
-          onChange={(e) => {
-            setTo(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.to}
+          onChange={(e) => set('to', e.target.value)}
         />
       </ListToolbar>
 
@@ -517,8 +551,9 @@ function TransportTab() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         onRowClick={setDecisionTarget}
         emptyMessage="No transportation requests"
       />
@@ -533,7 +568,16 @@ function TransportTab() {
  * links: messages, meeting requests, and transportation requests. The
  * case-management layout owns the h1; tabs badge their live pending counts.
  */
+/** The queue tabs; anything else in ?tab= falls back to messages. */
+const REQUEST_TABS = ['messages', 'meetings', 'transport'] as const;
+type RequestTab = (typeof REQUEST_TABS)[number];
+
 export function RequestsPage() {
+  /** 'messages' is the default, so it is the value ABSENT from the URL. */
+  const { values: tabValues, set: setTab } = useListParams({
+    tab: P.choice(REQUEST_TABS, 'messages'),
+  });
+  const tab = tabValues.tab || 'messages';
   const counts = usePortalRequestsPending();
 
   return (
@@ -542,7 +586,14 @@ export function RequestsPage() {
         title="Participant requests"
         description="Messages, meeting requests, and ride requests submitted through participant portal links."
       />
-      <Tabs defaultValue="messages">
+      {/**
+        * Controlled from ?tab=, and it has to move in the same change as the three
+        * queues inside it: each now keeps its page and filters in the URL under its
+        * own namespace, so a restored ?trn.page=2 on a tab strip that silently reset
+        * to Messages would hold page 2 of a queue the user cannot see. Radix
+        * unmounts inactive tabs, so it would not even be rendered.
+        */}
+      <Tabs value={tab} onValueChange={(next) => setTab('tab', next as RequestTab)}>
         <TabsList>
           <TabsTrigger value="messages">
             Messages
