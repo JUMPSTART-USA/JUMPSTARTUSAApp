@@ -83,4 +83,16 @@ export default defineConfig({
       '/api': { target: 'http://localhost:3001', changeOrigin: false },
     },
   },
+  /**
+   * `vite preview` serves the real dist — the only way to exercise the actual
+   * chunk graph locally, since the dev server hands out modules individually.
+   * It does NOT inherit `server.proxy`, so /api needs restating or a preview of
+   * the built app cannot even sign in.
+   */
+  preview: {
+    port: 4173,
+    proxy: {
+      '/api': { target: 'http://localhost:3001', changeOrigin: false },
+    },
+  },
 });
