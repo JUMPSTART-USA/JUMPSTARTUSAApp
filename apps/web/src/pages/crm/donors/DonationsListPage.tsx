@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { CHAPTER_STATES } from '@jumpstart/shared';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,7 +15,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
 import { useAppealOptions, useCampaignOptions, useFundOptions } from '../shared';
 import type { Donation, DonationSummary } from '../types';
@@ -107,52 +108,53 @@ const columns: Column<Donation>[] = [
 
 export function DonationsListPage() {
   const { can } = useAuth();
-  const [state, setState] = useState<ListState>({
-    page: 1,
-    pageSize: 25,
-    sortBy: 'donationDate',
-    sortDir: 'desc',
-  });
-  const [search, setSearch] = useState('');
-  const [chapter, setChapter] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [campaignId, setCampaignId] = useState('');
-  const [fundId, setFundId] = useState('');
-  const [appealId, setAppealId] = useState('');
-  const [recurring, setRecurring] = useState('');
-  const [acknowledged, setAcknowledged] = useState('');
+  /**
+   * The widest list in the app: nine filters. P.id() for the three option-list ids,
+   * because those are free-form values from a fetched list — there is no closed set
+   * to validate against, unlike the chapter and the two boolean selects.
+   */
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      state: P.choice(CHAPTER_STATES, ''),
+      from: P.date(),
+      to: P.date(),
+      campaignId: P.id(),
+      fundId: P.id(),
+      appealId: P.id(),
+      recurring: P.choice(['true', 'false'] as const, ''),
+      acknowledged: P.choice(['true', 'false'] as const, ''),
+    },
+    { sort: { by: 'donationDate', dir: 'desc' } },
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Donation | null>(null);
-  const debouncedSearch = useDebounced(search);
   const campaignOptions = useCampaignOptions();
   const fundOptions = useFundOptions(false);
   const appealOptions = useAppealOptions(undefined, false);
 
-  useEffect(() => {
-    setState((s) => ({ ...s, page: 1 }));
-  }, [debouncedSearch]);
-
   const filterParams = {
-    search: debouncedSearch,
-    state: chapter,
-    from,
-    to,
-    campaignId,
-    fundId,
-    appealId,
-    isRecurring: recurring,
-    acknowledged,
+    search: values.search,
+    state: values.state,
+    from: values.from,
+    to: values.to,
+    campaignId: values.campaignId,
+    fundId: values.fundId,
+    appealId: values.appealId,
+    isRecurring: values.recurring,
+    acknowledged: values.acknowledged,
   };
   const listParams = qs({
-    page: state.page,
-    pageSize: state.pageSize,
-    sortBy: state.sortBy,
-    sortDir: state.sortDir,
+    page: listState.page,
+    pageSize: listState.pageSize,
+    sortBy: listState.sortBy,
+    sortDir: listState.sortDir,
     ...filterParams,
   });
   const listQuery = useQuery({
     queryKey: ['crm', 'donations', 'list', listParams],
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
     queryFn: () => api.get<Paged<Donation>>(`/donations${listParams}`),
   });
 
@@ -162,18 +164,13 @@ export function DonationsListPage() {
     queryFn: () => api.get<DonationSummary>(`/donations/summary${summaryParams}`),
   });
 
-  const resetPage = () => setState((s) => ({ ...s, page: 1 }));
-
   const dateFilter = (label: string, value: string, setValue: (v: string) => void) => (
     <div className="flex items-center gap-1.5">
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <Input
         type="date"
         value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          resetPage();
-        }}
+        onChange={(e) => setValue(e.target.value)}
         className="w-40"
       />
     </div>
@@ -198,26 +195,20 @@ export function DonationsListPage() {
 
       <ListToolbar>
         <SearchInput
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
           placeholder="Search donor name…"
         />
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            resetPage();
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
-        {dateFilter('From', from, setFrom)}
-        {dateFilter('To', to, setTo)}
+        {dateFilter('From', values.from, (v) => set('from', v))}
+        {dateFilter('To', values.to, (v) => set('to', v))}
         <FilterSelect
           aria-label="Campaign"
-          value={campaignId}
-          onChange={(value) => {
-            setCampaignId(value);
-            resetPage();
-          }}
+          value={values.campaignId}
+          onChange={(value) => set('campaignId', value)}
           className="w-full sm:w-56"
         >
           <option value="">All campaigns</option>
@@ -229,11 +220,8 @@ export function DonationsListPage() {
         </FilterSelect>
         <FilterSelect
           aria-label="Fund"
-          value={fundId}
-          onChange={(value) => {
-            setFundId(value);
-            resetPage();
-          }}
+          value={values.fundId}
+          onChange={(value) => set('fundId', value)}
           className="w-full sm:w-44"
         >
           <option value="">All funds</option>
@@ -245,11 +233,8 @@ export function DonationsListPage() {
         </FilterSelect>
         <FilterSelect
           aria-label="Appeal"
-          value={appealId}
-          onChange={(value) => {
-            setAppealId(value);
-            resetPage();
-          }}
+          value={values.appealId}
+          onChange={(value) => set('appealId', value)}
           className="w-full sm:w-44"
         >
           <option value="">All appeals</option>
@@ -261,11 +246,8 @@ export function DonationsListPage() {
         </FilterSelect>
         <FilterSelect
           aria-label="Acknowledgment"
-          value={acknowledged}
-          onChange={(value) => {
-            setAcknowledged(value);
-            resetPage();
-          }}
+          value={values.acknowledged}
+          onChange={(value) => set('acknowledged', value as 'true' | 'false' | '')}
           className="w-full sm:w-44"
         >
           <option value="">All acknowledgments</option>
@@ -274,11 +256,8 @@ export function DonationsListPage() {
         </FilterSelect>
         <FilterSelect
           aria-label="Gift type"
-          value={recurring}
-          onChange={(value) => {
-            setRecurring(value);
-            resetPage();
-          }}
+          value={values.recurring}
+          onChange={(value) => set('recurring', value as 'true' | 'false' | '')}
           className="w-full sm:w-44"
         >
           <option value="">All gifts</option>
@@ -322,8 +301,9 @@ export function DonationsListPage() {
         columns={columns}
         data={listQuery.data}
         isLoading={listQuery.isLoading}
-        state={state}
-        onStateChange={setState}
+        isFetching={listQuery.isFetching}
+        state={listState}
+        onStateChange={onListStateChange}
         onRowOpen={can('donors.update') ? (row) => setEditing(row) : undefined}
         emptyMessage="No donations match these filters"
       />
