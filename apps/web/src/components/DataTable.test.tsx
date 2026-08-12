@@ -108,17 +108,21 @@ describe('DataTable loading and staleness', () => {
     expect(pager('Previous page').disabled).toBe(false);
   });
 
-  it('infers staleness from the echoed page when the caller passes no isFetching', () => {
-    // A list not yet migrated still must not present stale rows as current.
-    mount({ state: { ...initialListState, page: 3 }, data: page(rows, 60, 1) });
-    expect(body().className).toContain('opacity-90');
-    expect(table().getAttribute('aria-busy')).toBe('true');
-  });
-
-  it('does not report staleness when the echoed page matches the request', () => {
-    mount({ state: { ...initialListState, page: 2 }, data: page(rows, 60, 2) });
+  it('infers nothing when no isFetching is passed, even if the echoed page disagrees', () => {
+    /**
+     * There used to be a `data.page !== state.page` fallback here. It reached no
+     * code path in the app, and it could latch permanently: `stale` disables both
+     * pagers, so a list that moved state.page without changing its query key — a
+     * migration that forgets to send the page — would dim forever with no escape.
+     * A missing isFetching must cost a missing dim, never a dead screen.
+     */
+    // Page 2 of 3 (60 records / 25), so both pagers are legitimately live and a
+    // latch would be visible as them going dead.
+    mount({ state: { ...initialListState, page: 2 }, data: page(rows, 60, 1) });
     expect(body().className).not.toContain('opacity-90');
     expect(table().getAttribute('aria-busy')).toBe('false');
+    expect(pager('Next page').disabled).toBe(false);
+    expect(pager('Previous page').disabled).toBe(false);
   });
 
   it('still renders the empty state, and calls it empty rather than stale', () => {

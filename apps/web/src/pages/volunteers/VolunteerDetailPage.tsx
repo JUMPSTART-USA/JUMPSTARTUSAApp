@@ -13,6 +13,7 @@ import { Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { useParams } from 'react-router-dom';
+import { P, useListParams } from '@/lib/list-params';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,7 +48,22 @@ import type { VolunteerDetail } from './types';
 import { BackLink } from '@/components/BackLink';
 import { Link } from 'react-router-dom';
 
+/** The tab strip's values; anything else in ?tab= falls back to the default. */
+const VOLUNTEER_TABS = [
+  'assignments',
+  'trainings',
+  'checks',
+  'clearances',
+  'eligibility',
+  'hours',
+  'history',
+] as const;
+type VolunteerTab = (typeof VOLUNTEER_TABS)[number];
+
 export function VolunteerDetailPage() {
+  /** 'assignments' is the default, so it is the value ABSENT from the URL. */
+  const { values, set: setTab } = useListParams({ tab: P.choice(VOLUNTEER_TABS, 'assignments') });
+  const tab = values.tab || 'assignments';
   const { id = '' } = useParams();
   const { can } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
@@ -199,7 +215,14 @@ export function VolunteerDetailPage() {
         ) : null}
       </div>
 
-      <Tabs defaultValue="assignments">
+      {/**
+        * Controlled from ?tab=, and it HAS to move in the same change as the
+        * three lists inside it. Those lists now keep their page in the URL under
+        * their own namespace, so a restored ?checks.page=2 on a tab strip that
+        * silently reset to Assignments would leave page 2 of a list the user
+        * cannot see. Radix unmounts inactive tabs, so it would not even render.
+        */}
+      <Tabs value={tab} onValueChange={(next) => setTab('tab', next as VolunteerTab)}>
         <TabsList>
           <TabsTrigger value="assignments">Assignments</TabsTrigger>
           <TabsTrigger value="trainings">Trainings</TabsTrigger>

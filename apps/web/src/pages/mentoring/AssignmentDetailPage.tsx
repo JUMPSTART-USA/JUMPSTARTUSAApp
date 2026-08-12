@@ -28,6 +28,7 @@ import { FormError, Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import { api, qs, type Paged } from '@/lib/api';
+import { useListParams } from '@/lib/list-params';
 import { useAuth } from '@/lib/auth';
 import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
@@ -271,12 +272,15 @@ export function AssignmentDetailPage() {
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<'pause' | 'end' | 'session' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [sessionState, setSessionState] = useState<ListState>({
-    ...initialListState,
-    sortBy: 'sessionDate',
-    sortDir: 'desc',
-    pageSize: 10,
-  });
+  /**
+   * pageSize is passed in options, NOT left to the default: the hook keeps it out
+   * of the URL entirely (no screen offers a rows-per-page control), so omitting it
+   * here would silently turn this 10-row list into 25.
+   */
+  const { listState: sessionState, onListStateChange: onSessionStateChange } = useListParams(
+    {},
+    { ns: 'sessions', sort: { by: 'sessionDate', dir: 'desc' }, pageSize: 10 },
+  );
 
   const query = useQuery({
     queryKey: ['mentoring', 'assignment', id],
@@ -478,7 +482,7 @@ export function AssignmentDetailPage() {
               data={sessions.data}
               isLoading={sessions.isLoading}
               state={sessionState}
-              onStateChange={setSessionState}
+              onStateChange={onSessionStateChange}
               emptyMessage="No sessions logged yet"
             />
           )}
