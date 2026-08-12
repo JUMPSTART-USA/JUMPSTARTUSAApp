@@ -1,11 +1,5 @@
-import {
-  donorTaskSchema,
-  INTERACTION_CHANNELS,
-  INTERACTION_CHANNEL_LABELS,
-  INTERACTION_PURPOSES,
-  INTERACTION_PURPOSE_LABELS,
-} from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CHAPTER_STATES, INTERACTION_CHANNELS, INTERACTION_CHANNEL_LABELS, INTERACTION_PURPOSES, INTERACTION_PURPOSE_LABELS, donorTaskSchema } from '@jumpstart/shared';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -30,6 +24,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, qs, type Paged } from '@/lib/api';
+import { P, useListParams } from '@/lib/list-params';
 import { useAuth } from '@/lib/auth';
 import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { formatDate } from '@/lib/utils';
@@ -258,33 +253,43 @@ export function CompleteTaskDialog({
 }
 
 type TaskTab = 'mine' | 'open' | 'completed';
+const TASK_TABS = ['mine', 'open', 'completed'] as const;
 
 export function DonorTasksPage() {
   const { can, user } = useAuth();
-  const [tab, setTab] = useState<TaskTab>('mine');
-  const [state, setState] = useState<ListState>({
-    page: 1,
-    pageSize: 25,
-    sortBy: 'dueDate',
-    sortDir: 'asc',
-  });
-  const [chapter, setChapter] = useState('');
+  /**
+   * The plan expected this to need patch(), on the grounds that the tab "rewrites
+   * status and assignedToId". It does not: those two are DERIVED from the tab in
+   * the request below, never stored, so the tab is the only key that moves and one
+   * write covers it. Nothing has to land atomically.
+   */
+  const { values, set, listState, onListStateChange } = useListParams(
+    {
+      tab: P.choice(TASK_TABS, 'mine'),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { sort: { by: 'dueDate', dir: 'asc' } },
+  );
+  const tab: TaskTab = values.tab || 'mine';
   const [createOpen, setCreateOpen] = useState(false);
   const [completing, setCompleting] = useState<DonorTask | null>(null);
   const canUpdate = can('donors.update');
   const today = todayInput();
 
   const params = qs({
-    page: state.page,
-    pageSize: state.pageSize,
-    sortBy: state.sortBy,
-    sortDir: state.sortDir,
+    page: listState.page,
+    pageSize: listState.pageSize,
+    sortBy: listState.sortBy,
+    sortDir: listState.sortDir,
+    // Derived from the tab, not stored: that is why one URL key is enough.
     status: tab === 'completed' ? 'completed' : 'open',
     assignedToId: tab === 'mine' ? 'me' : undefined,
-    state: chapter,
+    state: values.state,
   });
   const query = useQuery({
     queryKey: ['crm', 'donor-tasks', 'list', params],
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
     queryFn: () => api.get<Paged<DonorTask>>(`/donor-tasks${params}`),
   });
 
@@ -379,10 +384,7 @@ export function DonorTasksPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs
           value={tab}
-          onValueChange={(next) => {
-            setTab(next as TaskTab);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          onValueChange={(next) => set('tab', next as TaskTab)}
         >
           <TabsList>
             <TabsTrigger value="mine">My tasks</TabsTrigger>
@@ -392,11 +394,8 @@ export function DonorTasksPage() {
         </Tabs>
         {/* Chapter filter (§7.2) — hidden for scoped users; the API force-filters theirs. */}
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </div>
 
@@ -405,8 +404,9 @@ export function DonorTasksPage() {
         columns={columns}
         data={query.data}
         isLoading={query.isLoading}
-        state={state}
-        onStateChange={setState}
+        isFetching={query.isFetching}
+        state={listState}
+        onStateChange={onListStateChange}
         emptyMessage={tab === 'completed' ? 'No completed tasks' : 'No open tasks'}
       />
 
