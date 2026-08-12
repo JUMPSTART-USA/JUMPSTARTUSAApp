@@ -197,11 +197,13 @@ export function AcknowledgmentsPage() {
   }, [canUpdate]);
 
   /**
-   * `state.page === 1` is load-bearing now that the page lives in the URL. This
-   * branch replaces the whole table with a card, pager included — so a shared or
-   * bookmarked ?page=3 whose result set has since emptied would strand the user
-   * on "All caught up" with no control to get back to page 1. Out of range, show
-   * the table and let its own empty state and pager handle it.
+   * `state.page === 1` stays load-bearing, and with a total of 0 it means
+   * exactly "the page is in range". This branch replaces the whole table with a
+   * card — so on a shared or bookmarked ?page=3 whose result set has since
+   * emptied, dropping the gate would unmount the very component that corrects
+   * the page, leaving the URL pointing at a page that does not exist. Keep the
+   * table mounted while out of range; DataTable snaps to page 1, the gate then
+   * opens, and the card appears.
    */
   const isEmpty = !query.isLoading && (query.data?.total ?? 0) === 0 && state.page === 1;
 

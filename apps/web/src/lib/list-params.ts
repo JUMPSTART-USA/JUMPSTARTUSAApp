@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import type { ListState } from '@/components/DataTable';
+import type { ListState, ListStateChangeOptions } from '@/components/DataTable';
 
 /**
  * List view state — search, filters, sort, page — held in the URL instead of
@@ -163,7 +163,7 @@ export interface ListParams<S extends Record<string, ParamSpec<unknown>>> {
   /** Any declared param differs from its default — drives a Reset control. */
   isFiltered: boolean;
   listState: ListState;
-  onListStateChange: (next: ListState) => void;
+  onListStateChange: (next: ListState, options?: ListStateChangeOptions) => void;
 }
 
 const SORT_SEPARATOR = ':';
@@ -421,7 +421,7 @@ export function useListParams<S extends Record<string, ParamSpec<unknown>>>(
   );
 
   const onListStateChange = useCallback(
-    (next: ListState) => {
+    (next: ListState, options?: ListStateChangeOptions) => {
       const sortChanged = next.sortBy !== sortBy || next.sortDir !== sortDir;
       write((params) => {
         if (next.page <= 1) params.delete(pageKey);
@@ -433,11 +433,16 @@ export function useListParams<S extends Record<string, ParamSpec<unknown>>>(
         // A sort change restarts at page 1; DataTable already asks for that, but
         // the URL must agree or a stale ?page= survives the sort.
         if (sortChanged) params.delete(pageKey);
-        // `replace` is `sortChanged`, which is the whole rule: a SORT change
+        // The default is `sortChanged`, which is the whole rule: a SORT change
         // replaces, because Back should leave the screen rather than undo one
         // column click; a PAGE change pushes, because paging is the one movement
         // a user expects Back to undo, and it is bounded by the page count.
-      }, sortChanged);
+        //
+        // The caller overrides it for a change the USER did not make — DataTable
+        // snapping a bookmarked out-of-range page back to the last real one. A
+        // pushed correction would put the page that does not exist behind the
+        // Back button, which is exactly where it should not be.
+      }, options?.replace ?? sortChanged);
     },
     [write, pageKey, sortKey, sort?.by, sort?.dir, sortBy, sortDir],
   );
