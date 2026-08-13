@@ -246,7 +246,7 @@ export function ReferralsTab() {
       {query.isError ? (
         <ErrorState error={query.error} onRetry={query.refetch} />
       ) : (
-        <DataTable
+        <DataTable chapterScoped
           columns={columns}
           data={query.data}
           isLoading={query.isLoading}

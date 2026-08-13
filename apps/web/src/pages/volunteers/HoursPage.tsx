@@ -13,6 +13,7 @@ import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { StatTile } from '@/components/ui/stat';
+import { ChapterScopeBadge } from '@/components/ChapterSelect';
 import { ListToolbar, ToolbarDateField } from '@/components/ui/toolbar';
 import {
   Table,
@@ -289,6 +290,10 @@ export function HoursPage() {
         <CardHeaderRow title="All entries" />
         <CardContent className="space-y-3">
           <ListToolbar className="items-end">
+            {/* Same shape as EmploymentsListPage: chapter derives via the
+                volunteer's profile, no state param exists, the chip names the
+                slice for scoped users. */}
+            <ChapterScopeBadge />
             <div className="w-full sm:w-72">
               <VolunteerPicker
                 {...volunteer}
@@ -322,7 +327,7 @@ export function HoursPage() {
 
           {entries.error ? <ErrorState error={entries.error} onRetry={entries.refetch} /> : null}
 
-          <DataTable
+          <DataTable chapterScoped
             columns={columns}
             data={entries.data}
             isLoading={entries.isLoading}

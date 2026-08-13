@@ -106,13 +106,13 @@ export function FleetAlertsPage() {
         />
       </div>
 
-      {/* Chapter filter (§7.2) — sent as the `state` query param. Scoped users
-          get no toolbar at all: the API already forces their chapter. */}
-      {user?.chapter ? null : (
-        <ListToolbar>
-          <ChapterFilterSelect value={stateFilter} onChange={setStateFilter} />
-        </ListToolbar>
-      )}
+      {/* Chapter filter (§7.2) — sent as the `state` query param. For scoped
+          users ChapterFilterSelect renders the inert scope chip instead, so
+          this page names its slice like every other list; hiding the whole
+          toolbar was how "no fleet alerts" read as an org-wide all-clear. */}
+      <ListToolbar>
+        <ChapterFilterSelect value={stateFilter} onChange={setStateFilter} />
+      </ListToolbar>
 
       {query.isError ? (
         <ErrorState error={query.error} onRetry={query.refetch} />

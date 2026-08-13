@@ -496,7 +496,7 @@ export function CaseNotesPage() {
       </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
-      <DataTable
+      <DataTable chapterScoped
         columns={columns}
         data={data}
         isLoading={isLoading}

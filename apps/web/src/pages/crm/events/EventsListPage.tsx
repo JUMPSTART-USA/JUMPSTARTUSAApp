@@ -182,7 +182,7 @@ export function EventsListPage() {
       </ListToolbar>
 
       {query.isError ? <ErrorState error={query.error} onRetry={query.refetch} /> : null}
-      <DataTable
+      <DataTable chapterScoped
         columns={columns}
         data={query.data}
         isLoading={query.isLoading}

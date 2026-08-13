@@ -20,6 +20,7 @@ import {
 import { EmptyState, ErrorState, PageLoader, Spinner } from '@/components/ui/spinner';
 import { api, qs } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useChapterScope } from '@/lib/chapter-scope';
 import { useDebounced } from '@/lib/form';
 import { BackLink } from '@/components/BackLink';
 import { cn, formatDate, formatMoney, humanize } from '@/lib/utils';
@@ -122,6 +123,7 @@ export function ReportRunnerPage() {
 
 function RunnerInner({ report }: { report: ReportSummary }) {
   const { can } = useAuth();
+  const { name: chapterName } = useChapterScope();
 
   // A required numeric 'year' param (giving-statements) defaults to the current year.
   const [values, setValues] = useState<Record<string, string>>(
@@ -198,6 +200,23 @@ function RunnerInner({ report }: { report: ReportSummary }) {
           value={value}
           onChange={(e) => setValue(param.name, e.target.value)}
         />
+      );
+    }
+    if (param.name === 'state' && chapterName) {
+      /**
+       * The API force-overwrites this param with the session's chapter for
+       * scoped users (reports.controller.ts scopeToChapter), so the live
+       * select was the app's one actively lying chapter affordance: a scoped
+       * user could pick Georgia, run the report, and silently receive their
+       * own chapter's rows labelled as their choice. Pin it to the truth.
+       */
+      return (
+        <div
+          className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm text-muted-foreground"
+          title="Reports run on this chapter only."
+        >
+          {chapterName}
+        </div>
       );
     }
     if (param.type === 'enum' && param.values) {

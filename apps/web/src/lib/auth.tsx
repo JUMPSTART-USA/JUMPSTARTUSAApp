@@ -81,3 +81,15 @@ export function useAuth(): AuthContextValue {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
+
+/**
+ * The session if one exists, null if no provider is mounted — for components
+ * that RENDER in sessionless trees rather than requiring one (the tokenized
+ * portal, unit tests). Prefer useAuth everywhere a session is a precondition:
+ * this variant's null looks the same as "not signed in", and a component that
+ * silently does less because a provider was forgotten is harder to notice than
+ * a thrown error.
+ */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
+}

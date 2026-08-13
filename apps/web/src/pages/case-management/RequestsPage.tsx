@@ -204,7 +204,7 @@ function MessagesTab() {
       </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
-      <DataTable
+      <DataTable chapterScoped
         columns={columns}
         data={data}
         isLoading={isLoading}
@@ -356,7 +356,7 @@ function MeetingsTab() {
       </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
-      <DataTable
+      <DataTable chapterScoped
         columns={columns}
         data={data}
         isLoading={isLoading}
@@ -537,7 +537,7 @@ function TransportTab() {
       </ListToolbar>
 
       {error ? <ErrorState error={error} /> : null}
-      <DataTable
+      <DataTable chapterScoped
         columns={columns}
         data={data}
         isLoading={isLoading}

@@ -364,7 +364,7 @@ export function NeedsAssessmentsPage() {
       </ListToolbar>
 
       {error ? <ErrorState error={error} onRetry={refetch} /> : null}
-      <DataTable
+      <DataTable chapterScoped
         columns={columns}
         data={data}
         isLoading={isLoading}

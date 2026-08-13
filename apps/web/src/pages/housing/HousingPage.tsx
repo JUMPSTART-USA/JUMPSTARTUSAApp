@@ -264,7 +264,7 @@ function HomesTab() {
         </FilterSelect>
       </ListToolbar>
       {query.error ? <ErrorState error={query.error} onRetry={query.refetch} /> : null}
-      <DataTable
+      <DataTable chapterScoped
         columns={homeColumns}
         data={query.data}
         isLoading={query.isLoading}
@@ -375,7 +375,7 @@ function ResidentsTab() {
         </FilterSelect>
       </ListToolbar>
       {query.error ? <ErrorState error={query.error} onRetry={query.refetch} /> : null}
-      <DataTable
+      <DataTable chapterScoped
         columns={residentColumns}
         data={query.data}
         isLoading={query.isLoading}

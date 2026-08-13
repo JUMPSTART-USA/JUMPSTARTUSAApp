@@ -164,7 +164,7 @@ export function OutsideProgramListPage() {
 
       {query.error ? <ErrorState error={query.error} onRetry={query.refetch} /> : null}
 
-      <DataTable
+      <DataTable chapterScoped
         columns={columns}
         data={query.data}
         isLoading={query.isLoading}

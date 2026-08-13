@@ -92,6 +92,7 @@ export function ParticipantPicker({ value, status, onRetry, onChange, disabled, 
         onChange(option);
       }}
       disabled={disabled}
+      chapterScoped
       queryKey="participant-picker"
       placeholder="Search participants by name or number…"
       search={async (term) => {
@@ -136,6 +137,7 @@ export function VolunteerPicker({
         onChange(option);
       }}
       disabled={disabled}
+      chapterScoped
       queryKey={`volunteer-picker-${mentorsOnly}`}
       placeholder="Search volunteers by name…"
       search={async (term) => {

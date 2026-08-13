@@ -156,6 +156,7 @@ export function DonorPicker({
         remember(option);
         onChange(option);
       }}
+      chapterScoped
       queryKey="crm-donor-picker"
       placeholder={placeholder ?? 'Search donors…'}
       disabled={disabled}
@@ -299,6 +300,7 @@ export function PersonSearch({
             : null,
         )
       }
+      chapterScoped
       queryKey={`crm-person-${canParticipants}-${canVolunteers}`}
       placeholder={placeholder ?? 'Search by name or email…'}
       search={async (term) => {

@@ -111,6 +111,44 @@ Never default dates of birth, releases, or expirations.
 - Buttons: `default` (navy) for primary actions, `accent` (gold) ONLY for brand
   moments (login), `outline` secondary, `ghost` row actions, `destructive` delete.
 
+## Naming the chapter slice
+
+A chapter-scoped session sees the org through a slice, and for years nothing
+said so where it mattered: the only always-on chapter name was an 11px sidebar
+line. So "No participants found" read as "none anywhere," and the audit called
+chapter scoping invisible.
+
+**The safety rule, before the components:** every scope string is a pure
+function of the SESSION (`useChapterScope()` in `lib/chapter-scope.ts`) —
+decided before any request runs, blind to query results. §7.2 requires "exists
+in another chapter" and "exists nowhere" to render identically, and copy that
+never sees a result cannot tell them apart. Corollary: name the search's
+COVERAGE ("in the South Carolina chapter"), never a cause — "in another
+chapter" is forbidden everywhere, because the client does not possess that fact.
+
+- **`ChapterScopeBadge`** renders in the exact toolbar slot where all-chapters
+  users get `ChapterFilterSelect` (automatic — the select renders the chip for
+  scoped sessions). Its title says "Viewing…", not "your account…": a session
+  can be narrowed by an admin's chapter preview.
+- **`DataTable chapterScoped`** adds "Showing the {Chapter} chapter only."
+  under both empty-state branches. OPT-IN, because the flag is a claim about
+  the ENDPOINT: TasksPage must never set it (case tasks include chapter-neutral
+  staff to-dos from any chapter), nor org-global lists (support tickets), nor
+  parent-scoped child tables. The line renders only on a RESOLVED empty —
+  several pages stack ErrorState above an unconditional DataTable, and a scope
+  line under an error would dress it up as a confirmed empty chapter.
+- **`EntityPicker chapterScoped`** turns the zero-result row into "No matches
+  in the {Chapter} chapter". Opt-in for the same reason: MergePage's picker
+  searches org-wide and the household picker searches the donor's chapter.
+- **GlobalSearch** names the slice in its placeholder and zero-result row, and
+  now renders zero results and failures as distinct visible states — silence
+  was indistinguishable from a typo, and a failed search rendering as a
+  negative result is the documented duplicate-record path.
+- **The report runner pins the chapter param** for scoped users: the API
+  force-overwrites it (`scopeToChapter`), so the live select was the app's one
+  actively lying chapter affordance — pick Georgia, silently get your own
+  chapter's rows.
+
 ## Saying "you may not see this"
 
 Three components exist to keep three pairs of things apart. Each pair rendered

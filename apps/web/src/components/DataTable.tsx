@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { Paged } from '@/lib/api';
+import { useChapterScope } from '@/lib/chapter-scope';
 import { cn } from '@/lib/utils';
 
 /**
@@ -72,6 +73,22 @@ interface DataTableProps<T> {
   /** Offered when the list is empty and NOT filtered: usually "New <thing>". */
   emptyAction?: ReactNode;
   /**
+   * Set on tables whose list endpoint is FORCE-FILTERED to the session's
+   * chapter for scoped users. The empty state then adds "Showing the
+   * {Chapter} chapter only." under both fork branches — because for a scoped
+   * user, "No donors found" is false for the org and "Every record is excluded
+   * by a filter above" blames controls that are not even rendered. The line
+   * states WHERE the view looked, never why it is empty, and is built from the
+   * session alone, so it cannot become a §7.2 oracle (lib/chapter-scope.ts).
+   *
+   * OPT-IN, not a default, because the flag is a claim about the API: a
+   * blanket default is provably wrong for org-global lists (support tickets),
+   * chapter-neutral ones (case tasks include parentless staff to-dos from any
+   * chapter — TasksPage must NOT set this), and parent-scoped child tables.
+   * Set it only where the endpoint filters on the session's chapter.
+   */
+  chapterScoped?: boolean;
+  /**
    * Where a row leads. Prefer this over `onRowClick` for any list whose rows
    * open a record: it renders the row's identifying cell as a real <Link>, so a
    * keyboard or screen-reader user gets one tab stop per row with the record's
@@ -124,8 +141,10 @@ export function DataTable<T extends { id: string }>({
   rowLabel,
   linkColumnKey,
   isFetching,
+  chapterScoped,
 }: DataTableProps<T>) {
   const navigate = useNavigate();
+  const { name: chapterName } = useChapterScope();
   const totalPages = data ? Math.max(1, Math.ceil(data.total / state.pageSize)) : 1;
   const linkKey = linkColumnKey ?? columns[0]?.key;
   /**
@@ -325,6 +344,16 @@ export function DataTable<T extends { id: string }>({
                   {isFiltered ? (
                     <p className="text-sm text-muted-foreground">
                       Every record is excluded by a filter above.
+                    </p>
+                  ) : null}
+                  {/* Only on a RESOLVED empty result (`data` present): with the
+                      query still failed-or-unresolved, seven CRM pages stack an
+                      ErrorState above an unconditional DataTable, and a scope
+                      line under "No donors found" would dress an error up as a
+                      confirmed empty chapter. */}
+                  {chapterScoped && chapterName && data ? (
+                    <p className="text-sm text-muted-foreground">
+                      Showing the {chapterName} chapter only.
                     </p>
                   ) : null}
                   {isFiltered && onClearFilters ? (
