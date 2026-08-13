@@ -1,7 +1,7 @@
 import { AUDIT_ACTIONS } from '@jumpstart/shared';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,14 +12,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FilterSelect } from '@/components/ui/filter-select';
+import { FilterSelect, unresolvedOptionLabel } from '@/components/ui/filter-select';
 import { Input, Label } from '@/components/ui/input';
 import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState } from '@/components/ui/spinner';
 import { ListToolbar } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { humanize } from '@/lib/utils';
 import { formatDateTime, JsonBlock, useActiveUserOptions } from './shared';
 import type { AuditLogEntry } from './types';
@@ -50,45 +50,50 @@ function changeSummary(entry: AuditLogEntry): string {
 export function AuditLogPage() {
   const { can } = useAuth();
 
-  const [listState, setListState] = useState<ListState>(initialListState);
-  const [userId, setUserId] = useState('');
-  const [entityType, setEntityType] = useState('');
-  const [entityId, setEntityId] = useState('');
-  const [action, setAction] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams({
+    userId: P.id(),
+    entityType: P.text(),
+    /**
+     * P.id(), so a mistyped or truncated uuid is dropped rather than sent. The
+     * API 400s on a malformed uuid, which would take out the whole screen for
+     * what is a typo in one field.
+     */
+    entityId: P.id(),
+    action: P.choice(AUDIT_ACTIONS, ''),
+    from: P.date(),
+    to: P.date(),
+  });
   const [selected, setSelected] = useState<AuditLogEntry | null>(null);
 
-  const debouncedEntityType = useDebounced(entityType);
-  const debouncedEntityId = useDebounced(entityId);
 
   // The user filter needs the /admin/users lookup; audit.read alone may not
   // hold admin.users, so the dropdown degrades to a hidden control.
   const canListUsers = can('admin.users');
-  const { users } = useActiveUserOptions(canListUsers);
+  const { users, isLoading: usersLoading } = useActiveUserOptions(canListUsers);
 
   const params = {
     page: listState.page,
     pageSize: listState.pageSize,
-    userId,
-    entityType: debouncedEntityType,
-    entityId: debouncedEntityId,
-    action,
-    from,
-    to,
+    userId: values.userId,
+    // `values`, not `draft`: the query waits for typing to settle.
+    entityType: values.entityType,
+    entityId: values.entityId,
+    action: values.action,
+    from: values.from,
+    to: values.to,
   };
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['admin', 'audit', params],
     queryFn: () => api.get<Paged<AuditLogEntry>>(`/admin/audit-logs${qs(params)}`),
     enabled: can('audit.read'),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   if (!can('audit.read')) {
     return <EmptyState title="No access" hint="Requires the audit.read permission." />;
   }
-
-  const resetPage = () => setListState((s) => ({ ...s, page: 1 }));
 
   // Server always sorts newest-first; no sortKeys on purpose.
   const columns: Column<AuditLogEntry>[] = [
@@ -174,13 +179,18 @@ export function AuditLogPage() {
             <FilterSelect
               aria-label="User"
               className="w-full"
-              value={userId}
-              onChange={(value) => {
-                setUserId(value);
-                resetPage();
-              }}
+              value={values.userId}
+              onChange={(value) => set('userId', value)}
             >
               <option value="">All users</option>
+              {/* The user options are capped at 200 and active-only, so an id
+                  from a link may be absent — a deactivated author, most likely.
+                  Must be a DIRECT child; see filter-select.tsx. */}
+              {unresolvedOptionLabel(values.userId, users, usersLoading) ? (
+                <option value={values.userId}>
+                  {unresolvedOptionLabel(values.userId, users, usersLoading)}
+                </option>
+              ) : null}
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.firstName} {u.lastName}
@@ -194,11 +204,8 @@ export function AuditLogPage() {
           <Input
             className="w-full"
             placeholder="e.g. user, participant…"
-            value={entityType}
-            onChange={(e) => {
-              setEntityType(e.target.value);
-              resetPage();
-            }}
+            value={draft.entityType}
+            onChange={(e) => set('entityType', e.target.value)}
           />
         </div>
         <div className="w-full space-y-1 sm:w-44">
@@ -206,11 +213,8 @@ export function AuditLogPage() {
           <Input
             className="w-full"
             placeholder="UUID"
-            value={entityId}
-            onChange={(e) => {
-              setEntityId(e.target.value);
-              resetPage();
-            }}
+            value={values.entityId}
+            onChange={(e) => set('entityId', e.target.value)}
           />
         </div>
         <div className="w-full space-y-1 sm:w-44">
@@ -218,11 +222,8 @@ export function AuditLogPage() {
           <FilterSelect
             aria-label="Action"
             className="w-full"
-            value={action}
-            onChange={(value) => {
-              setAction(value);
-              resetPage();
-            }}
+            value={values.action}
+            onChange={(value) => set('action', value as (typeof AUDIT_ACTIONS)[number] | '')}
           >
             <option value="">All actions</option>
             {AUDIT_ACTIONS.map((a) => (
@@ -237,11 +238,8 @@ export function AuditLogPage() {
           <Input
             type="date"
             className="w-full"
-            value={from}
-            onChange={(e) => {
-              setFrom(e.target.value);
-              resetPage();
-            }}
+            value={values.from}
+            onChange={(e) => set('from', e.target.value)}
           />
         </div>
         <div className="w-full space-y-1 sm:w-40">
@@ -249,11 +247,8 @@ export function AuditLogPage() {
           <Input
             type="date"
             className="w-full"
-            value={to}
-            onChange={(e) => {
-              setTo(e.target.value);
-              resetPage();
-            }}
+            value={values.to}
+            onChange={(e) => set('to', e.target.value)}
           />
         </div>
       </ListToolbar>
@@ -264,8 +259,9 @@ export function AuditLogPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         onRowClick={setSelected}
         emptyMessage="No audit entries match the filters"
       />
