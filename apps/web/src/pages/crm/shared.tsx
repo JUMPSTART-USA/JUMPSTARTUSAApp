@@ -8,6 +8,7 @@ import {
   type RehydratedValue,
   type RehydrationStatus,
 } from '@/components/ui/entity-picker';
+import { StatTile as KitStatTile } from '@/components/ui/stat';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, fullName } from '@/lib/utils';
@@ -36,14 +37,28 @@ export function ProgressBar({ pct }: { pct: number | null }) {
   );
 }
 
-/** Compact label + value tile for giving-summary rows. */
+/**
+ * Compact label + value tile for giving-summary rows — the kit's `StatTile`
+ * wearing this module's older prop shape.
+ *
+ * The adapter is here rather than at the call sites because the ONLY difference
+ * is where the value arrives: nineteen sites across the three donor screens
+ * spell it `<StatTile label="Lifetime">{formatMoney(…)}</StatTile>`, and
+ * rewriting all of them to `value={…}` would spread a change that moves nothing
+ * on screen across the CRM, burying the pixel-for-pixel claim in a diff too
+ * large to check it against. `size` is pinned, not forwarded: `sm` is text-lg,
+ * which is what every one of those sites renders today, and a size a call site
+ * can pass is a size that eventually differs from the one beside it.
+ *
+ * The output is identical, not merely close. The kit's value line also carries
+ * `leading-tight`, but twMerge drops it — `text-lg` sets its own line-height and
+ * arrives later in the `cn()` call — so these values keep the 1.75rem line they
+ * have now. That is worth knowing before reordering `cn()`'s arguments in
+ * stat.tsx: `leading-tight` would start winning and every giving summary would
+ * tighten by 5px with no diff in this file.
+ */
 export function StatTile({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-lg font-semibold tabular-nums">{children}</p>
-    </div>
-  );
+  return <KitStatTile label={label} value={children} size="sm" />;
 }
 
 /**

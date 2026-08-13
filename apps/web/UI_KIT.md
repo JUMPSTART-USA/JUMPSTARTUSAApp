@@ -111,6 +111,45 @@ Never default dates of birth, releases, or expirations.
 - Buttons: `default` (navy) for primary actions, `accent` (gold) ONLY for brand
   moments (login), `outline` secondary, `ghost` row actions, `destructive` delete.
 
+## Metrics
+
+`StatTile` is a label above a number. `MetricCard` is a card around one. Between
+them they replaced four rival KPI-tile implementations.
+
+- **`StatTile` owns type scale and reading order and nothing else** — no border,
+  background, padding, grid, alignment or heading. The containers it goes in vary
+  six ways (a bordered strip inside a titled Card, the same strip on a bare page,
+  a plain CardContent grid, a left-aligned CRM grid, a dialog cell, a card), so
+  anything structural in it is wrong at one of them. Layout stays on the caller.
+- **Label first.** A screen reader reads DOM order: "Active matches, 12" is a
+  fact, "12, active matches" is a guessing game.
+- **Colour is the caller's opinion, never a threshold.** There is no `tone` prop.
+  Pass `flag={x > 0 ? { tone: 'warning', note: '…' } : undefined}` beside the
+  quantity you are comparing. Mentoring's overdue count is bad above zero;
+  housing's available beds are bad *below* zero. As two callers computing two
+  booleans they cannot conflict — one shared rule would have to be wrong for one
+  of them. `flag.note` is required: colour alone fails WCAG 1.4.1.
+- **The only route to a tab stop is `to`.** `MetricCard`'s prop list is closed —
+  no `onClick`, no `role`, no `tabIndex` — so a tile that must not be navigable
+  cannot become navigable by accident. Resolve `to` with `can()` at the call
+  site, and check the permission the DESTINATION ROUTE is gated on, not the one
+  that produced the number: three dashboard tiles are computed under one key and
+  link to a route gated on another.
+- **A number the reader may see can still be a link they may not follow.** The
+  intake summary shows the Referrals count to anyone with `intake_queues.read`
+  while the Referrals tab needs `referral_inbox.read`. The count stays; the link
+  must not exist. That is a lying link, not a leak — see the note on §7.2 below.
+- Sizes are `sm` 18px / `md` 24px (default) / `lg` 30px. **Known remainder:** six
+  tiles render at `text-xl` (20px) — `volunteers/tabs/HoursTab.tsx` and
+  `crm/donors/DonationsListPage.tsx`. They are not migrated. A fourth size to
+  serve six tiles would institutionalise an accident, and moving them is a visual
+  change nobody has asked for; pick one deliberately rather than by drift.
+  `HoursTab`'s three are also value-first with lowercase captions, which the
+  label-first rule says is backwards.
+- Not everything with a big number is a tile. `HomeDetailPage`'s "3 **of** 8
+  beds" and `CampaignDetailPage`'s "$12,400 raised of $50,000 goal" are prose
+  compositions with no label line; they stay hand-written.
+
 ## Words
 
 - **A status becomes text through `statusLabel()`, never a bare `humanize()`.**

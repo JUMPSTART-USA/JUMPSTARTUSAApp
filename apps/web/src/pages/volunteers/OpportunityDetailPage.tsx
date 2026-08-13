@@ -22,6 +22,7 @@ import { Input, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader, SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { StatTile } from '@/components/ui/stat';
 import {
   Table,
   TableBody,
@@ -146,16 +147,11 @@ export function OpportunityDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3 rounded-md border bg-muted/30 p-3 text-center">
-              <div>
-                <p className="text-2xl font-semibold">
-                  {formatHours(data.hoursSummary?.totalApproved)}
-                </p>
-                <p className="text-xs text-muted-foreground">Approved hours</p>
-              </div>
-              <div>
-                <p className="text-2xl font-semibold">{data.hoursSummary?.approvedEntries ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Hours entries</p>
-              </div>
+              <StatTile
+                label="Approved hours"
+                value={formatHours(data.hoursSummary?.totalApproved)}
+              />
+              <StatTile label="Hours entries" value={data.hoursSummary?.approvedEntries ?? 0} />
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
               Checking a volunteer out of a shift records an approved hours entry automatically.

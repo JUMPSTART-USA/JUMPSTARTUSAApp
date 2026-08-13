@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { MetricCard } from '@/components/ui/stat';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -13,6 +13,14 @@ import { VolunteerApplicationsTab } from './VolunteerApplicationsTab';
 import { SLA_DAYS, type IntakeSummary } from './types';
 import { BackLink } from '@/components/BackLink';
 
+/**
+ * Counts only, and INERT BY DESIGN — it takes no destination and must never be
+ * given one. The Referrals count is safe for anyone with intake_queues.read
+ * while the Referrals TAB renders only with referral_inbox.read, so a link here
+ * would land half its readers on a tab that is not on the page. `MetricCard`
+ * offers no other route to a tab stop, so this holds by construction rather
+ * than by review.
+ */
 function SummaryCard({
   title,
   summary,
@@ -24,27 +32,25 @@ function SummaryCard({
   const age = summary?.oldestPendingAgeDays ?? null;
   const breached = age !== null && age > SLA_DAYS;
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription>{title}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-1">
-        <div className="text-3xl font-semibold">{pending}</div>
-        <p className="text-sm text-muted-foreground">
+    <MetricCard
+      label={title}
+      value={pending}
+      size="lg"
+      // `note`, not `flag`: the SLA colour belongs to the AGE, which is a
+      // different number in a different unit from the count above it. A flag
+      // would tint the count instead and say the backlog itself is breached.
+      note={
+        <>
           awaiting review
           {age !== null ? (
             <>
               {' · oldest '}
-              {breached ? (
-                <Badge variant="warning">{age}d</Badge>
-              ) : (
-                <span>{age}d</span>
-              )}
+              {breached ? <Badge variant="warning">{age}d</Badge> : <span>{age}d</span>}
             </>
           ) : null}
-        </p>
-      </CardContent>
-    </Card>
+        </>
+      }
+    />
   );
 }
 

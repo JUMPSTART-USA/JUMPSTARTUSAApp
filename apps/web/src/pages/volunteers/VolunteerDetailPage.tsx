@@ -30,6 +30,7 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { PhoneInput } from '@/components/ui/phone-input';
+import { StatTile } from '@/components/ui/stat';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
@@ -156,22 +157,12 @@ export function VolunteerDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-3 gap-3 rounded-md border bg-muted/30 p-3 text-center">
-                <div>
-                  <p className="text-2xl font-semibold">
-                    {formatHours(data.hoursSummary.totalApproved)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Approved total</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold">
-                    {formatHours(data.hoursSummary.ytdApproved)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">This year</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold">{data.hoursSummary.pendingCount}</p>
-                  <p className="text-xs text-muted-foreground">Pending</p>
-                </div>
+                <StatTile
+                  label="Approved total"
+                  value={formatHours(data.hoursSummary.totalApproved)}
+                />
+                <StatTile label="This year" value={formatHours(data.hoursSummary.ytdApproved)} />
+                <StatTile label="Pending" value={data.hoursSummary.pendingCount} />
               </div>
             </CardContent>
           </Card>

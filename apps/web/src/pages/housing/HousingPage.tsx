@@ -2,15 +2,16 @@ import { CHAPTER_STATES, HOME_GENDER_LABELS, HOUSING_STATUSES } from '@jumpstart
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { BedDouble, Plus, UserPlus } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, cardClickNav } from '@/components/ui/card';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { MetricCard } from '@/components/ui/stat';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
@@ -58,54 +59,63 @@ function OccupancyDashboard() {
     (acc, e) => ({ capacity: acc.capacity + e.capacity, occupied: acc.occupied + e.occupied }),
     { capacity: 0, occupied: 0 },
   );
+  const available = totals.capacity - totals.occupied;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Total beds
-            </div>
-            <div className="mt-1 text-2xl font-semibold">{totals.capacity}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Occupied
-            </div>
-            <div className="mt-1 text-2xl font-semibold">{totals.occupied}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Available
-            </div>
-            <div
-              className={cn(
-                'mt-1 text-2xl font-semibold',
-                totals.capacity - totals.occupied < 0 && 'text-destructive',
-              )}
-            >
-              {totals.capacity - totals.occupied}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Inert on purpose: these three total the homes listed directly below,
+            so there is nowhere to click through TO. */}
+        <MetricCard label="Total beds" value={totals.capacity} />
+        <MetricCard label="Occupied" value={totals.occupied} />
+        {/**
+          * THIS ONE IS BAD WHEN NEGATIVE — the opposite direction from every
+          * other flagged metric in the app, where the number is bad when it
+          * GROWS. A pass that harmonises these onto one "over the threshold"
+          * rule silently stops colouring the only case that matters here: more
+          * residents than beds (§6.4 — over capacity is surfaced, not blocked).
+          */}
+        <MetricCard
+          label="Available"
+          value={available}
+          flag={
+            available < 0
+              ? {
+                  tone: 'destructive',
+                  note: `${-available} bed${available === -1 ? '' : 's'} over capacity`,
+                }
+              : undefined
+          }
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        {/**
+          * The card's click is pointer convenience; the REAL navigation is the
+          * link on the home name. It used to be the other way round — onClick on
+          * the Card with no tabIndex, no role, no key handler and nothing
+          * focusable inside — so a keyboard user could not open a home from THIS
+          * tab (WCAG 2.1.1). The Homes tab beside it was always reachable
+          * through DataTable's rowHref; this is that same shape, by hand,
+          * because these are cards rather than rows.
+          */}
         {entries.map((entry) => (
           <Card
             key={entry.home.id}
             className="cursor-pointer transition-colors hover:border-primary/40"
-            onClick={() => navigate(`homes/${entry.home.id}`)}
+            onClick={cardClickNav(() => navigate(`homes/${entry.home.id}`))}
           >
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <CardTitle>{entry.home.name}</CardTitle>
+                  <CardTitle>
+                    <Link
+                      to={`homes/${entry.home.id}`}
+                      className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {entry.home.name}
+                    </Link>
+                  </CardTitle>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {[entry.home.city, entry.home.state].filter(Boolean).join(', ')}
                   </p>

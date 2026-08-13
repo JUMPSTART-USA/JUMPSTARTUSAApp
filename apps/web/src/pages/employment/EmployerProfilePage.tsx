@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { StatTile } from '@/components/ui/stat';
 import {
   Table,
   TableBody,
@@ -172,18 +173,9 @@ export function EmployerProfilePage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-md border bg-muted/30 p-3 text-center">
-            <div>
-              <p className="text-2xl font-semibold">{outcomes.placements}</p>
-              <p className="text-xs text-muted-foreground">Placements</p>
-            </div>
-            <div>
-              <p className="text-2xl font-semibold">{outcomes.currentlyActive}</p>
-              <p className="text-xs text-muted-foreground">Currently active</p>
-            </div>
-            <div>
-              <p className="text-2xl font-semibold">{outcomes.retained90Days}</p>
-              <p className="text-xs text-muted-foreground">Retained 90+ days</p>
-            </div>
+            <StatTile label="Placements" value={outcomes.placements} />
+            <StatTile label="Currently active" value={outcomes.currentlyActive} />
+            <StatTile label="Retained 90+ days" value={outcomes.retained90Days} />
           </div>
 
           {employments.length === 0 ? (

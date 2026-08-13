@@ -1,4 +1,9 @@
-import { CHAPTER_STATES, INSIDE_STATUSES, OUTSIDE_STATUSES } from '@jumpstart/shared';
+import {
+  CHAPTER_STATES,
+  INSIDE_STATUSES,
+  OUTSIDE_STATUSES,
+  type PermissionKey,
+} from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import {
@@ -30,8 +35,10 @@ import { FilterSelect } from '@/components/ui/filter-select';
 import { Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { MetricCard } from '@/components/ui/stat';
 import { ListToolbar, ToolbarDateField, ToolbarSpacer } from '@/components/ui/toolbar';
 import { api, qs } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { P, useListParams } from '@/lib/list-params';
 import { cn, formatDate, formatMoney, humanize } from '@/lib/utils';
 /**
@@ -219,51 +226,6 @@ function TitleIcon({ icon: Icon }: { icon: LucideIcon }) {
   );
 }
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  hint,
-  to,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: number;
-  hint?: string;
-  /** Functional area this number comes from — the whole card navigates there. */
-  to: string;
-}) {
-  const navigate = useNavigate();
-  return (
-    <Card
-      role="link"
-      tabIndex={0}
-      aria-label={`${label} — open`}
-      className="cursor-pointer transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onClick={() => navigate(to, backTo('/', 'Dashboard'))}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          navigate(to, backTo('/', 'Dashboard'));
-        }
-      }}
-    >
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gold/15 text-gold-dark">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-[11px] font-medium uppercase leading-tight tracking-wide text-muted-foreground">
-            {label}
-          </div>
-          <div className="font-display text-2xl font-semibold leading-tight">{fmtCount(value)}</div>
-          {hint ? <div className="truncate text-[11px] text-muted-foreground/80">{hint}</div> : null}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 /** Info-card wrapper that navigates to its functional area on click. */
 function NavCard({
   to,
@@ -313,6 +275,24 @@ export function DashboardPage() {
   const { from, to, state, participantStatus } = values;
   /** Carries the filters above into whichever destination understands them. */
   const drillTo = buildDrillTo({ from, to, state });
+
+  /**
+   * Three tiles are computed under one permission and link to a route gated on
+   * another, so `!== undefined` is not enough to say the link is followable:
+   *
+   *   Employed participants  employment.read      ->  /employers (employers.read)
+   *   Completions, Left early
+   *                inside_classes|outside_programs.read -> /participants (participants.read)
+   *
+   * No seeded role holds one without the other, which is why nothing is broken
+   * today — but role permissions are editable at runtime, so this is a matrix
+   * that happens to line up, not an invariant. A tile whose destination the
+   * reader cannot open drops its link and stays inert; the number itself is
+   * authorized either way and stays on screen.
+   */
+  const { can } = useAuth();
+  const drillIfAllowed = (path: string, permission: PermissionKey) =>
+    can(permission) ? drillTo(path) : undefined;
 
   const hasFilters = isFiltered;
   const hasPeriod = Boolean(from || to);
@@ -393,31 +373,60 @@ export function DashboardPage() {
         <ErrorState error={query.error} onRetry={query.refetch} />
       ) : data ? (
         <div className={cn('space-y-4 transition-opacity', query.isFetching && 'opacity-60')}>
+          {/* A tile renders only when the API sent its key, which it does only
+              when the reader has that module's read permission. For seven of the
+              ten that is also the permission their destination is gated on, so
+              the render guard is the link guard; the other three go through
+              drillIfAllowed above. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
             {data.activeParticipants !== undefined ? (
-              <StatCard
+              <MetricCard
                 icon={Users}
                 label="Participants"
-                value={data.activeParticipants}
+                value={fmtCount(data.activeParticipants)}
+                note={
+                  participantStatus ? `${humanize(participantStatus)} status` : 'Active inside or outside'
+                }
                 to={drillTo('/participants')}
-                hint={participantStatus ? `${humanize(participantStatus)} status` : 'Active inside or outside'}
+                {...backTo('/', 'Dashboard')}
               />
             ) : null}
             {data.participantsInHousing !== undefined ? (
-              <StatCard icon={Home} label="In housing" value={data.participantsInHousing} hint="Active enrollments" to={drillTo('/housing')} />
+              <MetricCard
+                icon={Home}
+                label="In housing"
+                value={fmtCount(data.participantsInHousing)}
+                note="Active enrollments"
+                to={drillTo('/housing')}
+                {...backTo('/', 'Dashboard')}
+              />
             ) : null}
             {data.activeInsideClasses !== undefined ? (
-              <StatCard icon={School} label="Inside classes" value={data.activeInsideClasses} hint="Active" to={drillTo('/inside-classes')} />
+              <MetricCard
+                icon={School}
+                label="Inside classes"
+                value={fmtCount(data.activeInsideClasses)}
+                note="Active"
+                to={drillTo('/inside-classes')}
+                {...backTo('/', 'Dashboard')}
+              />
             ) : null}
             {data.activeOutsidePrograms !== undefined ? (
-              <StatCard icon={GraduationCap} label="Outside programs" value={data.activeOutsidePrograms} hint="Active" to={drillTo('/outside-programs')} />
+              <MetricCard
+                icon={GraduationCap}
+                label="Outside programs"
+                value={fmtCount(data.activeOutsidePrograms)}
+                note="Active"
+                to={drillTo('/outside-programs')}
+                {...backTo('/', 'Dashboard')}
+              />
             ) : null}
             {data.volunteersActive !== undefined ? (
-              <StatCard
+              <MetricCard
                 icon={HandHeart}
                 label="Volunteers"
-                value={data.volunteersActive}
-                hint={
+                value={fmtCount(data.volunteersActive)}
+                note={
                   [
                     data.volunteerHoursMonth !== undefined
                       ? `${fmtCount(data.volunteerHoursMonth)} hrs this month`
@@ -428,39 +437,56 @@ export function DashboardPage() {
                     .join(' · ') || 'Active'
                 }
                 to={drillTo('/volunteers')}
+                {...backTo('/', 'Dashboard')}
               />
             ) : null}
             {data.employedParticipants !== undefined ? (
-              <StatCard icon={Briefcase} label="Employed participants" value={data.employedParticipants} to={drillTo('/employers')} />
+              <MetricCard
+                icon={Briefcase}
+                label="Employed participants"
+                value={fmtCount(data.employedParticipants)}
+                to={drillIfAllowed('/employers', 'employers.read')}
+                {...backTo('/', 'Dashboard')}
+              />
             ) : null}
             {data.activeEmployers !== undefined ? (
-              <StatCard icon={Building2} label="Employer partners" value={data.activeEmployers} hint="Partner or hiring" to={drillTo('/employers')} />
+              <MetricCard
+                icon={Building2}
+                label="Employer partners"
+                value={fmtCount(data.activeEmployers)}
+                note="Partner or hiring"
+                to={drillTo('/employers')}
+                {...backTo('/', 'Dashboard')}
+              />
             ) : null}
             {data.vehiclesActive !== undefined ? (
-              <StatCard
+              <MetricCard
                 icon={Bus}
                 label="Vehicles"
-                value={data.vehiclesActive}
-                hint={data.vehicleAlerts ? `${fmtCount(data.vehicleAlerts)} with alerts` : 'No alerts'}
+                value={fmtCount(data.vehiclesActive)}
+                note={data.vehicleAlerts ? `${fmtCount(data.vehicleAlerts)} with alerts` : 'No alerts'}
                 to={drillTo('/vehicles')}
+                {...backTo('/', 'Dashboard')}
               />
             ) : null}
             {data.completedPrograms !== undefined ? (
-              <StatCard
+              <MetricCard
                 icon={CheckCircle2}
                 label="Completions"
-                value={data.completedPrograms}
-                hint={hasPeriod ? 'In selected period' : 'All time'}
-                to={drillTo('/participants')}
+                value={fmtCount(data.completedPrograms)}
+                note={hasPeriod ? 'In selected period' : 'All time'}
+                to={drillIfAllowed('/participants', 'participants.read')}
+                {...backTo('/', 'Dashboard')}
               />
             ) : null}
             {data.leftEarly !== undefined ? (
-              <StatCard
+              <MetricCard
                 icon={UserMinus}
                 label="Left early"
-                value={data.leftEarly}
-                hint={hasPeriod ? 'In selected period' : 'All time'}
-                to={drillTo('/participants')}
+                value={fmtCount(data.leftEarly)}
+                note={hasPeriod ? 'In selected period' : 'All time'}
+                to={drillIfAllowed('/participants', 'participants.read')}
+                {...backTo('/', 'Dashboard')}
               />
             ) : null}
           </div>
