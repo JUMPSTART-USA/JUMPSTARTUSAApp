@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CHAPTER_STATES, usChapterMap } from '@/assets/brand/chapters';
+import { CHAPTER_BRAND, usChapterMap } from '@/assets/brand/chapters';
 import logoColor from '@/assets/brand/jumpstart-logo.png';
 import logoTaglineWhite from '@/assets/brand/jumpstart-usa-tagline-white.png';
 import { Button } from '@/components/ui/button';
@@ -76,10 +76,10 @@ export function LoginPage() {
             Serving six state chapters
           </div>
           <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-sm text-white/80">
-            {CHAPTER_STATES.map((s, i) => (
+            {CHAPTER_BRAND.map((s, i) => (
               <span key={s.code}>
                 {s.name}
-                {i < CHAPTER_STATES.length - 1 && <span className="ml-2 text-gold">·</span>}
+                {i < CHAPTER_BRAND.length - 1 && <span className="ml-2 text-gold">·</span>}
               </span>
             ))}
           </div>

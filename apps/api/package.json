@@ -36,7 +36,6 @@
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
-    "@nestjs/testing": "^11.0.0",
     "@swc/core": "^1.10.7",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "^5.0.0",
