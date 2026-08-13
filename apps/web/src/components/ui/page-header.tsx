@@ -1,7 +1,42 @@
-import { useEffect, type HTMLAttributes, type ReactNode } from 'react';
+import { useEffect, useSyncExternalStore, type HTMLAttributes, type ReactNode } from 'react';
 import { cn, nodeText } from '@/lib/utils';
 
 const APP_NAME = 'JUMPSTART USA';
+
+/**
+ * The current page's heading, published as a subscribable value.
+ *
+ * AppLayout announces route changes to screen readers, and it used to get the
+ * name by READING `document.title` when the pathname changed — correct only
+ * while every route rendered synchronously, because effects run child-first and
+ * the destination's PageHeader had therefore already run.
+ *
+ * The module routes are lazy now. On a first visit the destination has not
+ * mounted when the pathname changes, so that read returns the PREVIOUS page's
+ * name and announces it. A signal fixes the ordering rather than papering over
+ * it: the announcement fires when the title actually arrives, however long the
+ * chunk takes.
+ */
+let currentTitle = '';
+const titleListeners = new Set<() => void>();
+
+function publishTitle(title: string) {
+  if (title === currentTitle) return;
+  currentTitle = title;
+  for (const listener of titleListeners) listener();
+}
+
+function subscribeToTitle(onChange: () => void) {
+  titleListeners.add(onChange);
+  return () => {
+    titleListeners.delete(onChange);
+  };
+}
+
+/** The heading of the page currently mounted; '' until the first one renders. */
+export function useCurrentPageTitle(): string {
+  return useSyncExternalStore(subscribeToTitle, () => currentTitle, () => currentTitle);
+}
 
 /**
  * Standard page header for every screen: one title size, one layout.
@@ -31,6 +66,9 @@ export function PageHeader({
   const heading = documentTitle ?? nodeText(title);
   useEffect(() => {
     document.title = heading ? `${heading} · ${APP_NAME}` : `${APP_NAME} Operations Platform`;
+    // Same value, two consumers: the browser chrome reads document.title, and
+    // AppLayout's live region subscribes to this.
+    publishTitle(heading);
   }, [heading]);
 
   return (
