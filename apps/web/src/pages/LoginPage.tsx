@@ -54,10 +54,23 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen">
-      {/* Brand panel — palette and chapter map from jumpstartvision.org */}
+      {/*
+        Brand panel — palette and chapter map from jumpstartvision.org.
+
+        `hidden lg:flex`, so below 1024px this whole panel is display:none — but
+        a plain <img> inside it is still fetched and decoded. Measured on a
+        375px viewport: the map arrived complete at its full width for a slot
+        rendered 0px wide, on the connection least able to afford it.
+
+        `loading="lazy"` is what stops that: a lazy image that is not in the
+        viewport is not fetched, and display:none is never in the viewport. On a
+        large screen the panel IS visible at load, so both images are in the
+        initial viewport and load immediately — the attribute costs nothing
+        there.
+      */}
       <div className="hidden flex-col justify-between bg-gradient-to-br from-navy-deep to-navy p-10 lg:flex lg:w-[46%]">
-        <img src={logoTaglineWhite} alt="JUMPSTART USA — Transforming the lives of prisoners from the inside out" className="w-72 self-start" />
-        <img src={usChapterMap} alt="Map of JUMPSTART chapter states" className="mx-auto w-full max-w-md drop-shadow-lg" />
+        <img src={logoTaglineWhite} alt="JUMPSTART USA — Transforming the lives of prisoners from the inside out" className="w-72 self-start" loading="lazy" />
+        <img src={usChapterMap} alt="Map of JUMPSTART chapter states" className="mx-auto w-full max-w-md drop-shadow-lg" loading="lazy" />
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-widest text-gold">
             Serving six state chapters
