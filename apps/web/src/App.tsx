@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { LiveAnnouncer } from '@/components/ui/announcer';
 import { PageLoader } from '@/components/ui/spinner';
 import { useAuth } from '@/lib/auth';
 import { postLoginTarget } from '@/lib/session-return';
@@ -27,7 +28,11 @@ export default function App() {
   if (isLoading) return <PageLoader />;
 
   return (
-    <Routes>
+    <>
+      {/* Above the routes so it covers the authenticated app AND the public
+          portal, which submits requests of its own from outside AppLayout. */}
+      <LiveAnnouncer />
+      <Routes>
       <Route
         path="/login"
         element={user ? <Navigate to={returnTarget} replace /> : <LoginPage />}
@@ -51,6 +56,7 @@ export default function App() {
       ) : (
         <Route path="*" element={<Navigate to="/login" replace />} />
       )}
-    </Routes>
+      </Routes>
+    </>
   );
 }

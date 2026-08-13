@@ -3,7 +3,37 @@
  * carries credentials; 401 anywhere bounces to the login screen.
  */
 
+import { announce } from '@/lib/announce';
 import { noteApiActivity } from '@/lib/session-activity';
+
+/**
+ * Requests that change something but are not a user's SAVE, and so must stay
+ * silent. Everything else non-GET is announced — see announceWrite below.
+ *
+ * All three are POSTs shaped like questions rather than commands: the two
+ * lookups return candidates for the user to review, and the auth family is
+ * sign-in, sign-out and the admin view-as switch, each of which already has
+ * loud feedback of its own (a redirect, a banner). Enumerated from every
+ * mutating call in the app rather than guessed at.
+ *
+ * If you add another question-shaped POST, add it here — otherwise it will
+ * announce "Saved" at a screen-reader user who only asked a question.
+ */
+const SILENT_WRITES = [/^\/auth\//, /\/duplicate-check$/, /\/person-merge\/preview$/];
+
+/**
+ * What to say when a write succeeds.
+ *
+ * The METHOD is the only signal available that is always right and needs no
+ * per-call-site work — there are 222 mutating calls across 101 files, and a
+ * convention that has to be repeated 222 times is one that will be missed.
+ * DELETE is worth distinguishing because "Saved" after removing a record reads
+ * as though it did the opposite.
+ */
+function writeAnnouncement(method: string, path: string): string | null {
+  if (method === 'GET' || SILENT_WRITES.some((silent) => silent.test(path))) return null;
+  return method === 'DELETE' ? 'Deleted' : 'Saved';
+}
 
 export class ApiError extends Error {
   constructor(
@@ -56,6 +86,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     }
     window.location.assign('/login');
     throw new ApiError(401, 'Session expired');
+  }
+
+  /**
+   * Above the 204 early return, deliberately: DELETE is the method most likely
+   * to answer 204, and it is the one whose announcement matters most — removing
+   * a record is the action a silent success is worst for.
+   */
+  if (res.ok) {
+    const said = writeAnnouncement(method, path);
+    if (said) announce(said);
   }
 
   if (res.status === 204) return undefined as T;
