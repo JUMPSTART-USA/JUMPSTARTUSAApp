@@ -1,4 +1,4 @@
-import { INSIDE_STATUSES, OUTSIDE_STATUSES } from '@jumpstart/shared';
+import { CHAPTER_STATES, INSIDE_STATUSES, OUTSIDE_STATUSES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import {
@@ -32,6 +32,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
 import { ListToolbar, ToolbarDateField, ToolbarSpacer } from '@/components/ui/toolbar';
 import { api, qs } from '@/lib/api';
+import { P, useListParams } from '@/lib/list-params';
 import { cn, formatDate, formatMoney, humanize } from '@/lib/utils';
 /**
  * recharts — with d3 and lodash behind it — is 383 KB, 23% of everything the app
@@ -122,8 +123,92 @@ const ATTENTION_LINKS: Record<string, string> = {
   pending_timesheets: '/volunteers/hours',
 };
 
+/**
+ * Which of the dashboard's filters each destination can actually receive.
+ *
+ * The audit's finding was that all 22 drill-downs navigate to a BARE path, so
+ * setting a chapter and opening a card silently showed the whole org — the
+ * number you clicked and the list you landed on disagreed, with nothing saying
+ * why.
+ *
+ * This map is deliberately explicit rather than "append every filter and let the
+ * destination ignore what it does not know", because those two things are not
+ * the same: an unknown key would sit in the URL looking like it applied.
+ *
+ *  - `chapter` names the destination's own chapter key. Housing's is
+ *    `homes.state`, because that route mounts two lists and namespaces both.
+ *  - `dates` is true only where the destination really has from/to. The toolbar
+ *    already tells the user the range applies "only to those that carry a date",
+ *    and this is the same rule.
+ *  - An EMPTY entry means the target has no filter to receive: /intake keeps its
+ *    per-queue filters namespaced, and the case-management landing page has
+ *    none at all. They are listed rather than omitted so that "nothing to carry"
+ *    reads as a decision instead of an oversight.
+ *
+ * The dashboard's `participantStatus` is carried NOWHERE on purpose. It is the
+ * deduplicated union of the inside and outside domains (see
+ * PARTICIPANT_STATUS_OPTIONS), while the participants list keeps `insideStatus`
+ * and `outsideStatus` apart — and a value present in both domains cannot be
+ * mapped to one of them without guessing. Silently filtering by the wrong domain
+ * would be worse than not filtering.
+ */
+const DRILL_TARGETS: Record<
+  string,
+  { chapter?: string; dates?: boolean; extra?: Record<string, string> }
+> = {
+  '/participants': { chapter: 'state' },
+  /**
+   * Housing needs `tab` too, not just the chapter. The route lands on the
+   * OCCUPANCY tab by default, where the homes list — and therefore
+   * `homes.state` — is not even mounted, so the chapter would sit in the URL
+   * looking applied while the view showed every chapter. Measured: with only
+   * `homes.state=GA`, the page requested `/transitional-homes/occupancy` and
+   * listed all five homes. Sending `tab=homes` lands where the filter is real.
+   */
+  '/housing': { chapter: 'homes.state', extra: { tab: 'homes' } },
+  '/inside-classes': { chapter: 'state' },
+  '/outside-programs': { chapter: 'state' },
+  '/volunteers': { chapter: 'state' },
+  '/employers': { chapter: 'state' },
+  '/vehicles': { chapter: 'state' },
+  '/campaigns': { chapter: 'state' },
+  '/events': { chapter: 'state' },
+  '/donors/donations': { chapter: 'state', dates: true },
+  '/intake': {},
+  '/case-management': {},
+};
+
 const fmtCount = (n: number) => n.toLocaleString('en-US');
 const fmtDateTime = (value: string) => format(new Date(value), 'MMM d, yyyy h:mm a');
+
+/**
+ * Build a destination URL carrying whatever filters it understands.
+ *
+ * Sub-paths inherit their section's entry (`/vehicles/alerts` is treated as
+ * `/vehicles`), so a link added later still carries the chapter without being
+ * listed twice.
+ *
+ * A plain function, not a hook: it calls nothing from React, and keeping it
+ * plain is what lets drill-down.test.ts check the map directly.
+ */
+export function buildDrillTo(filters: { from: string; to: string; state: string }) {
+  return (path: string) => {
+    const target =
+      DRILL_TARGETS[path] ??
+      DRILL_TARGETS[Object.keys(DRILL_TARGETS).find((base) => path.startsWith(`${base}/`)) ?? ''];
+    if (!target) return path;
+    const params: Record<string, string | undefined> = {};
+    if (target.chapter && filters.state) params[target.chapter] = filters.state;
+    // `extra` only rides along when a filter is actually being carried: an
+    // unfiltered click should land on the section's normal default view.
+    if (target.extra && filters.state) Object.assign(params, target.extra);
+    if (target.dates) {
+      if (filters.from) params.from = filters.from;
+      if (filters.to) params.to = filters.to;
+    }
+    return `${path}${qs(params)}`;
+  };
+}
 
 /** The dashboard's one gold accent: an icon chip shared by stat and info cards. */
 function TitleIcon({ icon: Icon }: { icon: LucideIcon }) {
@@ -213,12 +298,23 @@ function NavCard({
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [state, setState] = useState('');
-  const [participantStatus, setParticipantStatus] = useState('');
+  /**
+   * The dashboard's own filters live in the URL for the same reason every list's
+   * do — but here it also makes the drill-downs work in BOTH directions: set a
+   * chapter, open a card, press Back, and the dashboard comes back filtered
+   * rather than reset to everything.
+   */
+  const { values, set, clear, isFiltered } = useListParams({
+    from: P.date(),
+    to: P.date(),
+    state: P.choice(CHAPTER_STATES, ''),
+    participantStatus: P.choice(PARTICIPANT_STATUS_OPTIONS, ''),
+  });
+  const { from, to, state, participantStatus } = values;
+  /** Carries the filters above into whichever destination understands them. */
+  const drillTo = buildDrillTo({ from, to, state });
 
-  const hasFilters = Boolean(from || to || state || participantStatus);
+  const hasFilters = isFiltered;
   const hasPeriod = Boolean(from || to);
   // ISO date strings compare lexicographically — catch the 400 before it happens.
   const invalidRange = Boolean(from && to && from > to);
@@ -230,13 +326,6 @@ export function DashboardPage() {
     placeholderData: keepPreviousData,
     enabled: !invalidRange,
   });
-
-  const reset = () => {
-    setFrom('');
-    setTo('');
-    setState('');
-    setParticipantStatus('');
-  };
 
   const data = query.data;
 
@@ -253,23 +342,28 @@ export function DashboardPage() {
         <ToolbarDateField
           label="From"
           className="sm:w-36"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
+          value={values.from}
+          onChange={(e) => set('from', e.target.value)}
         />
         <ToolbarDateField
           label="To"
           className="sm:w-36"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
+          value={values.to}
+          onChange={(e) => set('to', e.target.value)}
         />
         {/* Chapter (§7.2), not a 50-state address filter: the API validates
             against CHAPTER_STATES and forces a scoped user's own chapter. */}
-        <ChapterFilterSelect value={state} onChange={setState} />
+        <ChapterFilterSelect
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
+        />
         <FilterSelect
           aria-label="Participant status"
           className="w-full sm:w-44"
-          value={participantStatus}
-          onChange={setParticipantStatus}
+          value={values.participantStatus}
+          onChange={(value) =>
+            set('participantStatus', value as (typeof PARTICIPANT_STATUS_OPTIONS)[number] | '')
+          }
         >
           <option value="">Active (default)</option>
           {PARTICIPANT_STATUS_OPTIONS.map((s) => (
@@ -279,7 +373,7 @@ export function DashboardPage() {
           ))}
         </FilterSelect>
         {hasFilters ? (
-          <Button variant="ghost" onClick={reset}>
+          <Button variant="ghost" onClick={clear}>
             Reset
           </Button>
         ) : null}
@@ -305,18 +399,18 @@ export function DashboardPage() {
                 icon={Users}
                 label="Participants"
                 value={data.activeParticipants}
-                to="/participants"
+                to={drillTo('/participants')}
                 hint={participantStatus ? `${humanize(participantStatus)} status` : 'Active inside or outside'}
               />
             ) : null}
             {data.participantsInHousing !== undefined ? (
-              <StatCard icon={Home} label="In housing" value={data.participantsInHousing} hint="Active enrollments" to="/housing" />
+              <StatCard icon={Home} label="In housing" value={data.participantsInHousing} hint="Active enrollments" to={drillTo('/housing')} />
             ) : null}
             {data.activeInsideClasses !== undefined ? (
-              <StatCard icon={School} label="Inside classes" value={data.activeInsideClasses} hint="Active" to="/inside-classes" />
+              <StatCard icon={School} label="Inside classes" value={data.activeInsideClasses} hint="Active" to={drillTo('/inside-classes')} />
             ) : null}
             {data.activeOutsidePrograms !== undefined ? (
-              <StatCard icon={GraduationCap} label="Outside programs" value={data.activeOutsidePrograms} hint="Active" to="/outside-programs" />
+              <StatCard icon={GraduationCap} label="Outside programs" value={data.activeOutsidePrograms} hint="Active" to={drillTo('/outside-programs')} />
             ) : null}
             {data.volunteersActive !== undefined ? (
               <StatCard
@@ -333,14 +427,14 @@ export function DashboardPage() {
                     .filter(Boolean)
                     .join(' · ') || 'Active'
                 }
-                to="/volunteers"
+                to={drillTo('/volunteers')}
               />
             ) : null}
             {data.employedParticipants !== undefined ? (
-              <StatCard icon={Briefcase} label="Employed participants" value={data.employedParticipants} to="/employers" />
+              <StatCard icon={Briefcase} label="Employed participants" value={data.employedParticipants} to={drillTo('/employers')} />
             ) : null}
             {data.activeEmployers !== undefined ? (
-              <StatCard icon={Building2} label="Employer partners" value={data.activeEmployers} hint="Partner or hiring" to="/employers" />
+              <StatCard icon={Building2} label="Employer partners" value={data.activeEmployers} hint="Partner or hiring" to={drillTo('/employers')} />
             ) : null}
             {data.vehiclesActive !== undefined ? (
               <StatCard
@@ -348,7 +442,7 @@ export function DashboardPage() {
                 label="Vehicles"
                 value={data.vehiclesActive}
                 hint={data.vehicleAlerts ? `${fmtCount(data.vehicleAlerts)} with alerts` : 'No alerts'}
-                to="/vehicles"
+                to={drillTo('/vehicles')}
               />
             ) : null}
             {data.completedPrograms !== undefined ? (
@@ -357,7 +451,7 @@ export function DashboardPage() {
                 label="Completions"
                 value={data.completedPrograms}
                 hint={hasPeriod ? 'In selected period' : 'All time'}
-                to="/participants"
+                to={drillTo('/participants')}
               />
             ) : null}
             {data.leftEarly !== undefined ? (
@@ -366,7 +460,7 @@ export function DashboardPage() {
                 label="Left early"
                 value={data.leftEarly}
                 hint={hasPeriod ? 'In selected period' : 'All time'}
-                to="/participants"
+                to={drillTo('/participants')}
               />
             ) : null}
           </div>
@@ -394,13 +488,13 @@ export function DashboardPage() {
                             'flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0',
                             to && 'cursor-pointer -mx-2 rounded-md px-2 transition-colors hover:bg-accent',
                           )}
-                          onClick={to ? () => navigate(to, backTo('/', 'Dashboard')) : undefined}
+                          onClick={to ? () => navigate(drillTo(to), backTo('/', 'Dashboard')) : undefined}
                           onKeyDown={
                             to
                               ? (e) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault();
-                                    navigate(to, backTo('/', 'Dashboard'));
+                                    navigate(drillTo(to), backTo('/', 'Dashboard'));
                                   }
                                 }
                               : undefined
@@ -417,7 +511,7 @@ export function DashboardPage() {
             </Card>
 
             {data.donationTotal !== undefined ? (
-              <NavCard to="/donors/donations">
+              <NavCard to={drillTo('/donors/donations')}>
                 <CardHeader className="pb-3">
                   <CardTitle>
                     <TitleIcon icon={HandCoins} /> Donations
@@ -469,7 +563,7 @@ export function DashboardPage() {
             ) : null}
 
             {data.intakeQueues ? (
-              <NavCard to="/intake">
+              <NavCard to={drillTo('/intake')}>
                 <CardHeader className="pb-3">
                   <CardTitle>
                     <TitleIcon icon={Inbox} /> Intake queue
@@ -505,7 +599,7 @@ export function DashboardPage() {
             ) : null}
 
             {data.recentCaseActivity ? (
-              <NavCard to="/case-management">
+              <NavCard to={drillTo('/case-management')}>
                 <CardHeader className="pb-3">
                   <CardTitle>
                     <TitleIcon icon={HeartHandshake} /> Case activity
@@ -532,7 +626,7 @@ export function DashboardPage() {
 
           <div className="grid gap-4 lg:grid-cols-3">
             {data.activeCampaigns ? (
-              <NavCard to="/campaigns" className="lg:col-span-2">
+              <NavCard to={drillTo('/campaigns')} className="lg:col-span-2">
                 <CardHeader className="pb-3">
                   <CardTitle>Campaign progress</CardTitle>
                   <CardDescription>Raised to date against goal — not period-filtered</CardDescription>
@@ -548,7 +642,7 @@ export function DashboardPage() {
             ) : null}
 
             {data.upcomingEvents ? (
-              <NavCard to="/events" className={cn(!data.activeCampaigns && 'lg:col-span-3')}>
+              <NavCard to={drillTo('/events')} className={cn(!data.activeCampaigns && 'lg:col-span-3')}>
                 <CardHeader className="pb-3">
                   <CardTitle>
                     <TitleIcon icon={CalendarDays} /> Upcoming events
