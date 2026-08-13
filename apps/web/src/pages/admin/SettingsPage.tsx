@@ -18,7 +18,7 @@ import { FilterSelect } from '@/components/ui/filter-select';
 import { Input, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
-import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { EmptyState, ErrorState, PageLoader, NoAccess } from '@/components/ui/spinner';
 import {
   Table,
   TableBody,
@@ -77,7 +77,7 @@ export function SettingsPage() {
   });
 
   if (!can('admin.settings')) {
-    return <EmptyState title="No access" hint="Requires the admin.settings permission." />;
+    return <NoAccess reason="Requires the admin.settings permission." />;
   }
   if (isLoading) return <PageLoader />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;

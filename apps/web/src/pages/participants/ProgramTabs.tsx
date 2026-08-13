@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { EmptyState, ErrorState, PageLoader, NoAccess } from '@/components/ui/spinner';
 import {
   Table,
   TableBody,
@@ -57,11 +57,12 @@ function TabShell({
   return <>{children}</>;
 }
 
-function NoAccess({ what }: { what: string }) {
+/** The kit's NoAccess, worded for a participant-profile tab. */
+function ModuleNoAccess({ what }: { what: string }) {
   return (
-    <EmptyState
+    <NoAccess
       title={`No access to ${what}`}
-      hint="Your role does not include permission to view these records."
+      reason="Your role does not include permission to view these records."
     />
   );
 }
@@ -218,7 +219,7 @@ export function HousingTab({ participantId }: { participantId: string }) {
     enabled: canRead,
   });
 
-  if (!canRead) return <NoAccess what="housing records" />;
+  if (!canRead) return <ModuleNoAccess what="housing records" />;
   return (
     <TabShell isLoading={query.isLoading} error={query.error}>
       {!query.data || query.data.items.length === 0 ? (
@@ -311,7 +312,7 @@ export function EmploymentTab({ participantId }: { participantId: string }) {
     enabled: canRead,
   });
 
-  if (!canRead) return <NoAccess what="employment records" />;
+  if (!canRead) return <ModuleNoAccess what="employment records" />;
   return (
     <TabShell isLoading={query.isLoading} error={query.error}>
       {!query.data || query.data.items.length === 0 ? (
@@ -459,7 +460,7 @@ export function ServicesTab({ participantId }: { participantId: string }) {
     enabled: canRead,
   });
 
-  if (!canRead) return <NoAccess what="case services" />;
+  if (!canRead) return <ModuleNoAccess what="case services" />;
   return (
     <TabShell isLoading={query.isLoading} error={query.error}>
       {canCreate ? (
@@ -553,7 +554,7 @@ export function NotesTab({ participantId }: { participantId: string }) {
     enabled: canRead,
   });
 
-  if (!canRead) return <NoAccess what="case notes" />;
+  if (!canRead) return <ModuleNoAccess what="case notes" />;
   return (
     <TabShell isLoading={query.isLoading} error={query.error}>
       {canCreate ? (

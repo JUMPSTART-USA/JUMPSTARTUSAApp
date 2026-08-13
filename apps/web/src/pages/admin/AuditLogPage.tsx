@@ -15,7 +15,7 @@ import {
 import { FilterSelect, unresolvedOptionLabel } from '@/components/ui/filter-select';
 import { Input, Label } from '@/components/ui/input';
 import { SectionHeader } from '@/components/ui/page-header';
-import { EmptyState, ErrorState } from '@/components/ui/spinner';
+import { EmptyState, ErrorState, NoAccess } from '@/components/ui/spinner';
 import { ListToolbar } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -99,7 +99,7 @@ export function AuditLogPage() {
   });
 
   if (!can('audit.read')) {
-    return <EmptyState title="No access" hint="Requires the audit.read permission." />;
+    return <NoAccess reason="Requires the audit.read permission." />;
   }
 
   // Server always sorts newest-first; no sortKeys on purpose.

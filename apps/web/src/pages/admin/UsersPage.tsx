@@ -29,7 +29,7 @@ import { FilterSelect } from '@/components/ui/filter-select';
 import { Checkbox, Input, Label, Select } from '@/components/ui/input';
 import { FormError, Notice } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
-import { EmptyState, ErrorState } from '@/components/ui/spinner';
+import { EmptyState, ErrorState, NoAccess } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -93,7 +93,7 @@ export function UsersPage() {
   });
 
   if (!canWrite) {
-    return <EmptyState title="No access" hint="Requires the admin.users permission." />;
+    return <NoAccess reason="Requires the admin.users permission." />;
   }
 
   const columns: Column<AdminUser>[] = [

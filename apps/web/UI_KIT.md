@@ -111,6 +111,37 @@ Never default dates of birth, releases, or expirations.
 - Buttons: `default` (navy) for primary actions, `accent` (gold) ONLY for brand
   moments (login), `outline` secondary, `ghost` row actions, `destructive` delete.
 
+## Saying "you may not see this"
+
+Three components exist to keep three pairs of things apart. Each pair rendered
+identically before, and in an app holding records about justice-involved people
+each collapse is a reader drawing a false conclusion about a person.
+
+- **`NoAccess`, never `EmptyState`, for a permission denial.** Nine screens
+  reported a denial through `EmptyState`, so "No access to case management"
+  arrived in the same dashed box, weight and grey as "No case notes recorded" —
+  a case manager reads an empty file and concludes the participant has none.
+  `NoAccess` is a solid border, a filled surface and a lock; keep all three, each
+  is too quiet alone. Give it a `reason` naming the permission, because the
+  reader's next move is to ask someone for it. Naming a permission is not a leak
+  — it describes this user's role, not whether a record exists.
+- **`RedactedValue` for a value that exists and is withheld.** It renders an em
+  dash like a hundred other cells, which is exactly why it is a named component
+  for one call site: a mechanical sweep onto a shared "empty value" dash would
+  make a redacted DOC number identical to a participant who has none. Only for
+  fields the API STRIPS while keeping the row — where it omits the field or the
+  record entirely, render nothing.
+- **`Meter` draws a bar and has no opinion about a full one.** `tone` is required
+  and there is no `>= 100` rule anywhere in it. Fundraising `ProgressBar` paints
+  100% success; housing `OccupancyBar` paints a full home warning and an
+  over-capacity one destructive. Sharing the geometry is safe; sharing a
+  threshold is how an over-capacity transitional home turns green.
+
+One denial deliberately stays a red `ErrorState`:
+`employment/EmployerProfilePage.tsx` renders a server 403, whose comment says it
+*usually* means a missing grant. "Usually" is not enough to promise the reader a
+permission wall, so it keeps the error treatment until the API says which it is.
+
 ## Metrics
 
 `StatTile` is a label above a number. `MetricCard` is a card around one. Between

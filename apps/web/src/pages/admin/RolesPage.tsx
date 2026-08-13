@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox, Label } from '@/components/ui/input';
 import { Notice } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
-import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { EmptyState, ErrorState, PageLoader, NoAccess } from '@/components/ui/spinner';
 import {
   Table,
   TableBody,
@@ -66,7 +66,7 @@ export function RolesPage() {
   });
 
   if (!can('admin.roles')) {
-    return <EmptyState title="No access" hint="Requires the admin.roles permission." />;
+    return <NoAccess reason="Requires the admin.roles permission." />;
   }
   if (isLoading) return <PageLoader />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;

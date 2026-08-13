@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { StatusBadge } from '@/components/ui/badge';
+import { Meter } from '@/components/ui/meter';
 import {
   EntityPicker,
   useRehydratedValue,
@@ -21,17 +22,18 @@ import type {
   PersonRef,
 } from './types';
 
+/**
+ * Campaign/appeal progress toward a goal.
+ *
+ * Reaching 100% is GOOD here, which is why the tone rule lives at this call site
+ * and not in the kit's Meter: housing's OccupancyBar draws the same bar and
+ * means the opposite by a full one. See the note in components/ui/meter.tsx.
+ */
 export function ProgressBar({ pct }: { pct: number | null }) {
   if (pct === null) return <span className="text-xs text-muted-foreground">No goal set</span>;
-  const clamped = Math.min(100, Math.max(0, pct));
   return (
     <div className="flex items-center gap-2">
-      <div className="h-2 w-full max-w-[160px] overflow-hidden rounded-full bg-muted">
-        <div
-          className={cn('h-full rounded-full', pct >= 100 ? 'bg-success' : 'bg-primary')}
-          style={{ width: `${clamped}%` }}
-        />
-      </div>
+      <Meter pct={pct} tone={pct >= 100 ? 'success' : 'primary'} className="max-w-[160px]" />
       <span className="text-xs tabular-nums text-muted-foreground">{pct}%</span>
     </div>
   );

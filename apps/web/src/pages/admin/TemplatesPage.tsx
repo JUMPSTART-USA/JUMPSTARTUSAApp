@@ -20,7 +20,7 @@ import {
 import { Checkbox, Input, Label } from '@/components/ui/input';
 import { FormError, Notice } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
-import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { EmptyState, ErrorState, PageLoader, NoAccess } from '@/components/ui/spinner';
 import {
   Table,
   TableBody,
@@ -70,7 +70,7 @@ export function TemplatesPage() {
   const { can } = useAuth();
 
   if (!can('admin.templates')) {
-    return <EmptyState title="No access" hint="Requires the admin.templates permission." />;
+    return <NoAccess reason="Requires the admin.templates permission." />;
   }
 
   return (

@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Lock, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
+import { RedactedValue } from '@/components/ui/spinner';
 import {
   Table,
   TableBody,
@@ -436,12 +437,7 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
                       ) : (
                         // §7.2: the row stays visible, the value is stripped
                         // without fields.justice.read.
-                        <span
-                          className="inline-flex items-center gap-1 text-muted-foreground"
-                          title="Hidden — requires justice-history access"
-                        >
-                          <Lock className="h-3 w-3" /> —
-                        </span>
+                        <RedactedValue requires="justice-history access" />
                       )}
                     </TableCell>
                     <TableCell>{humanize(d.source)}</TableCell>

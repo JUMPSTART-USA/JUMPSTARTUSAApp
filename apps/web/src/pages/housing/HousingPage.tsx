@@ -18,27 +18,25 @@ import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { P, useListParams } from '@/lib/list-params';
 import { cn, formatDate, fullName, humanize } from '@/lib/utils';
+import { Meter } from '@/components/ui/meter';
 import { HomeFormDialog } from './HomeFormDialog';
 import { MoveInDialog } from './MoveInDialog';
 import type { HomeRow, HousingEnrollmentRow, OccupancyEntry } from './types';
 import { BackLink } from '@/components/BackLink';
 
-/** Beds-used bar: green under, amber at, red over capacity (§6.4 surfaced, not blocked). */
+/**
+ * Beds-used bar: green under, amber AT, red over capacity (§6.4 — surfaced, not
+ * blocked).
+ *
+ * The thresholds stay here rather than in the kit's Meter because they are the
+ * opposite of the fundraising ProgressBar's, which paints 100% green. A full
+ * home is not an achievement, and a shared "100% is success" rule would paint an
+ * over-capacity transitional home green.
+ */
 export function OccupancyBar({ occupied, capacity }: { occupied: number; capacity: number }) {
   const pct = capacity > 0 ? Math.min(100, Math.round((occupied / capacity) * 100)) : 0;
-  const over = occupied > capacity;
-  const full = occupied === capacity;
-  return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-      <div
-        className={cn(
-          'h-full rounded-full transition-all',
-          over ? 'bg-destructive' : full ? 'bg-warning' : 'bg-success',
-        )}
-        style={{ width: `${pct}%` }}
-      />
-    </div>
-  );
+  const tone = occupied > capacity ? 'destructive' : occupied === capacity ? 'warning' : 'success';
+  return <Meter pct={pct} tone={tone} />;
 }
 
 function OccupancyDashboard() {

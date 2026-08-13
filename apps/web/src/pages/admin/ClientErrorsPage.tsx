@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { FilterSelect, unresolvedOptionLabel } from '@/components/ui/filter-select';
 import { SectionHeader } from '@/components/ui/page-header';
-import { EmptyState, ErrorState } from '@/components/ui/spinner';
+import { EmptyState, ErrorState, NoAccess } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -117,7 +117,7 @@ export function ClientErrorsPage() {
   });
 
   if (!can('audit.read')) {
-    return <EmptyState title="No access" hint="Requires the audit.read permission." />;
+    return <NoAccess reason="Requires the audit.read permission." />;
   }
 
   const columns: Column<ClientErrorRow>[] = [
