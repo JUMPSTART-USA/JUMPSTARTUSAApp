@@ -912,6 +912,7 @@ model User {
   supportTickets      SupportTicket[]      @relation("TicketCreator")
   supportMessages     SupportMessage[]
   passwordResetTokens PasswordResetToken[]
+  clientErrors        ClientError[]
 
   @@map("users")
 }
@@ -3184,4 +3185,48 @@ model AppSetting {
   updatedById String?
 
   @@map("app_settings")
+}
+
+/**
+ * Client-side errors reported by the browser (§5 phase 5 — observability).
+ * The app had no client error reporting at all, which is why a dropdown bug
+ * took four rounds and a hand-measured window size to pin down: nothing the
+ * browser did was ever visible from the server.
+ * DELIBERATELY PII-FREE. `route` is the route PATTERN — /participants/:id, never
+ * the real id — and no query string is stored, because filter values and record
+ * ids are exactly what §7.2 keeps out of logs. `userId` is kept so a report can
+ * be matched to a support call; everything else is about the BUILD and the
+ * VIEWPORT, which is what diagnosing these actually needs.
+ * `fingerprint` groups repeats (same message + route + build) so one broken
+ * screen refreshed twenty times is one row with a count, not twenty rows.
+ */
+model ClientError {
+  id          String   @id @default(uuid())
+  /**
+   * message + route + buildId, hashed — see the service.
+   */
+  fingerprint String
+  message     String
+  stack       String?
+  /**
+   * Route PATTERN only: /participants/:id. Never the live URL.
+   */
+  route       String
+  /**
+   * Which capture point saw it: 'boundary' | 'window' | 'promise'.
+   */
+  source      String
+  buildId     String
+  viewportW   Int?
+  viewportH   Int?
+  userAgent   String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  count       Int      @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@unique([fingerprint])
+  @@index([lastSeenAt])
+  @@map("client_errors")
 }

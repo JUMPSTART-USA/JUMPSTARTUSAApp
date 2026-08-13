@@ -12,7 +12,15 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { RootErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider } from './lib/auth';
+import { installGlobalErrorReporting } from './lib/error-reporting';
 import './index.css';
+
+/**
+ * Before anything renders, so an error thrown during the first paint is still
+ * caught. Covers what the ErrorBoundary cannot see: event handlers, timers and
+ * unhandled rejections all bypass React's tree entirely.
+ */
+installGlobalErrorReporting();
 
 const queryClient = new QueryClient({
   defaultOptions: {

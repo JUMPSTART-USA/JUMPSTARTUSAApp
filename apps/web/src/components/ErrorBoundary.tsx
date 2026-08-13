@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/spinner';
 import { hasUnsavedWork } from '@/components/ui/unsaved-changes';
+import { reportClientError } from '@/lib/error-reporting';
 
 /**
  * The app's only error boundary. Until now it had none anywhere, so a render
@@ -66,11 +67,17 @@ class ErrorBoundaryInner extends Component<Props, State> {
   }
 
   override componentDidCatch(error: unknown, info: ErrorInfo) {
-    // No client error reporting exists yet (Phase 5). The console is all a
-    // developer gets, so make it complete rather than swallowing the stack.
     console.error('Unhandled render error', error, info.componentStack);
 
-    if (!isChunkFailure(error)) return;
+    /**
+     * A chunk failure is not a bug — it is a stale tab meeting a new deploy, and
+     * it is about to fix itself with a reload. Reporting those would bury the
+     * real errors under one row per deploy.
+     */
+    if (!isChunkFailure(error)) {
+      reportClientError(error, 'boundary');
+      return;
+    }
     if (hasUnsavedWork()) return; // Never reload over a half-filled form.
     try {
       if (sessionStorage.getItem(RELOAD_KEY)) return;

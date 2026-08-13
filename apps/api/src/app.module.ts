@@ -9,6 +9,7 @@ import { SessionAuthGuard } from './common/guards/session-auth.guard';
 import { OriginCheckMiddleware } from './common/middleware/origin-check.middleware';
 import { HealthController } from './health/health.controller';
 import { AdminModule } from './modules/admin/admin.module';
+import { ObservabilityModule } from './modules/observability/observability.module';
 import { CaseManagementModule } from './modules/case-management/case-management.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { PortalModule } from './modules/portal/portal.module';
@@ -56,6 +57,7 @@ import { SupportModule } from './modules/support/support.module';
     DashboardModule,
     ReportsModule,
     AdminModule,
+    ObservabilityModule,
     // Global baseline rate limit; hot endpoints tighten with @Throttle.
     // Disabled under test — suites log in far more often than a human.
     ThrottlerModule.forRoot({
