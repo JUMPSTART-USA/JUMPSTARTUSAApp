@@ -310,3 +310,40 @@ describe('the pinned identity column', () => {
     expect(isPinned(headers[0]!)).toBe(true);
   });
 });
+
+/**
+ * An empty list is a fork in the road: nothing exists yet, or a filter excluded
+ * everything. The audit found 72 empty states that took the same turn for both —
+ * a centred sentence and no way out.
+ */
+describe('the empty state', () => {
+  const empty = page([], 0);
+
+  it('says what is missing when the list is genuinely empty', () => {
+    mount({ data: empty, emptyMessage: 'No participants yet' });
+    expect(screen.getByText('No participants yet')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /clear filters/i })).toBeNull();
+  });
+
+  it('blames the filters, and offers to clear them, when that is the reason', () => {
+    const onClearFilters = vi.fn();
+    mount({ data: empty, emptyMessage: 'No participants yet', isFiltered: true, onClearFilters });
+    // The message must CHANGE: "No participants yet" over a filtered list is a
+    // lie that sends someone off to create a duplicate record.
+    expect(screen.queryByText('No participants yet')).toBeNull();
+    expect(screen.getByText('No matches for these filters')).toBeTruthy();
+
+    screen.getByRole('button', { name: /clear filters/i }).click();
+    expect(onClearFilters).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers a create action only when the list is NOT filtered', () => {
+    const action = <button type="button">New participant</button>;
+    mount({ data: empty, emptyAction: action });
+    expect(screen.getByRole('button', { name: 'New participant' })).toBeTruthy();
+
+    // Filtered: creating a record is the wrong offer — the record may well exist.
+    mount({ data: empty, emptyAction: action, isFiltered: true, onClearFilters: vi.fn() });
+    expect(screen.getAllByRole('button', { name: 'New participant' })).toHaveLength(1);
+  });
+});

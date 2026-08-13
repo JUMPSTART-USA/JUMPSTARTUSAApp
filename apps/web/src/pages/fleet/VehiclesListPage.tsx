@@ -101,7 +101,7 @@ export function VehiclesListPage() {
         key: 'mileage',
         header: 'Mileage',
         sortKey: 'mileage',
-        className: 'text-right',
+        className: 'text-right tabular-nums',
         render: (row) => (row.mileage != null ? row.mileage.toLocaleString('en-US') : '—'),
       },
       {
@@ -142,7 +142,7 @@ export function VehiclesListPage() {
       {
         key: 'maintenance',
         header: 'Services',
-        className: 'text-right',
+        className: 'text-right tabular-nums',
         render: (row) => row._count.maintenanceRecords,
       },
     ],

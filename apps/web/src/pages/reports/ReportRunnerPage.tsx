@@ -22,7 +22,7 @@ import { api, qs } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useDebounced } from '@/lib/form';
 import { BackLink } from '@/components/BackLink';
-import { formatDate, formatMoney, humanize } from '@/lib/utils';
+import { cn, formatDate, formatMoney, humanize } from '@/lib/utils';
 import {
   useCampaignOptions,
   useCaseManagerOptions,
@@ -61,6 +61,22 @@ const MONEY_KEYS = new Set([
 const PERCENT_KEYS = new Set(['occupancyPct', 'pctOfGoal']);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SNAKE_ENUM = /^[a-z0-9]+(_[a-z0-9]+)*$/;
+
+/**
+ * Whether a column holds magnitudes, and so should be right-aligned and tabular.
+ *
+ * Reports are the most number-dense tables in the app and the only ones with no
+ * alignment treatment at all — because their columns are data-driven, so nobody
+ * could hand-annotate them. The test is the same one `renderCell` already makes
+ * below: it is the ROW that knows, not a column definition.
+ *
+ * A boolean renders "Yes"/"No" and a status renders a badge, so `typeof number`
+ * is the whole rule.
+ */
+function isNumericColumn(colKey: string, rows: Record<string, ReportCell>[]) {
+  const firstPresent = rows.find((row) => row[colKey] !== null && row[colKey] !== undefined && row[colKey] !== '');
+  return typeof firstPresent?.[colKey] === 'number';
+}
 
 function renderCell(colKey: string, value: ReportCell) {
   if (value === null || value === undefined || value === '') {
@@ -319,7 +335,13 @@ function RunnerInner({ report }: { report: ReportSummary }) {
                 <TableHeader>
                   <TableRow>
                     {result.columns.map((col) => (
-                      <TableHead key={col.key} className="sticky top-0 z-10 bg-card">
+                      <TableHead
+                        key={col.key}
+                        className={cn(
+                          'sticky top-0 z-10 bg-card',
+                          isNumericColumn(col.key, result.rows) && 'text-right',
+                        )}
+                      >
                         {col.label}
                       </TableHead>
                     ))}
@@ -329,7 +351,13 @@ function RunnerInner({ report }: { report: ReportSummary }) {
                   {result.rows.map((row, i) => (
                     <TableRow key={i}>
                       {result.columns.map((col) => (
-                        <TableCell key={col.key} className="whitespace-nowrap">
+                        <TableCell
+                          key={col.key}
+                          className={cn(
+                            'whitespace-nowrap',
+                            isNumericColumn(col.key, result.rows) && 'text-right tabular-nums',
+                          )}
+                        >
                           {renderCell(col.key, row[col.key] ?? null)}
                         </TableCell>
                       ))}

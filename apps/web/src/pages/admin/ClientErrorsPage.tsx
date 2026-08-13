@@ -142,7 +142,7 @@ export function ClientErrorsPage() {
       key: 'count',
       header: 'Seen',
       sortKey: 'count',
-      className: 'tabular-nums',
+      className: 'tabular-nums text-right',
       render: (row) => row.count.toLocaleString('en-US'),
     },
     {

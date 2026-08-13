@@ -55,7 +55,7 @@ const columns: Column<InsideClassListItem>[] = [
   {
     key: 'enrolled',
     header: 'Enrolled',
-    className: 'text-right',
+    className: 'text-right tabular-nums',
     render: (row) => row._count.enrollments,
   },
 ];

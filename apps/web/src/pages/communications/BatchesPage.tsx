@@ -108,7 +108,7 @@ export function BatchesPage() {
       key: 'recipients',
       header: 'Recipients',
       render: (b) => b._count.communications,
-      className: 'tabular-nums',
+      className: 'tabular-nums text-right',
     },
     {
       key: 'createdAt',

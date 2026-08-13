@@ -133,7 +133,7 @@ export function BudgetsPage() {
       header: 'Amount',
       sortKey: 'amount',
       render: (p) => formatMoney(p.amount),
-      className: 'whitespace-nowrap',
+      className: 'whitespace-nowrap text-right tabular-nums',
     },
     {
       key: 'method',

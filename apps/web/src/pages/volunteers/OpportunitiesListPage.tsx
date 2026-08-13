@@ -99,6 +99,7 @@ export function OpportunitiesListPage() {
     },
     {
       key: 'signups',
+      className: 'text-right tabular-nums',
       header: 'Signups',
       render: (row) => <span>{row.signupCount}</span>,
     },

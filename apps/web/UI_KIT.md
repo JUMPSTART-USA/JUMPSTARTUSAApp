@@ -111,6 +111,26 @@ Never default dates of birth, releases, or expirations.
 - Buttons: `default` (navy) for primary actions, `accent` (gold) ONLY for brand
   moments (login), `outline` secondary, `ghost` row actions, `destructive` delete.
 
+## Tables
+
+- **Numbers that are compared down a column get
+  `className: 'text-right tabular-nums'` — on the `Column`, not on a `<span>`
+  inside `render`.** `DataTable` spreads `col.className` onto both the header and
+  the cell, so one string aligns the header with its numbers, makes `'—'`
+  fallbacks tabular too, and cannot be lost when someone rewrites the render
+  function. This convention existed and was applied correctly 17 times, but it
+  was only ever written down here after an audit found it had never escaped the
+  CRM module — 18 numeric columns elsewhere had one half of it or neither.
+- **Units and ratios get `tabular-nums` but stay left-aligned.** Right-aligning
+  `"45 min"` or `"3 / 8"` moves the ragged edge without aligning a single digit.
+- Identifiers are not magnitudes: `participantNumber` is `font-mono`, and a count
+  inside a `<Badge>` is not being compared to the row above it.
+- The identifying column is pinned on small screens — `DataTable` does it from
+  `linkColumnKey`, so name that column if your table does not lead with it.
+- An empty table is a fork in the road: pass `isFiltered` and `onClearFilters`
+  (both come straight from `useListParams`) so it can say which fork and offer
+  the way back. `emptyAction` is for the genuinely-empty case.
+
 ## Mobile rules
 - Toolbars wrap (`ListToolbar` handles it); search is full-width under `sm`.
 - Dialogs become bottom sheets automatically; keep footers in `DialogFooter`.

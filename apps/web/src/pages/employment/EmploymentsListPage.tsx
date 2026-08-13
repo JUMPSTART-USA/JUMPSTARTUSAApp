@@ -97,7 +97,7 @@ export function EmploymentsListPage() {
         {
           key: 'pay',
           header: 'Pay',
-          className: 'text-right',
+          className: 'text-right tabular-nums',
           render: (row) =>
             row.payRate == null ? (
               '—'
@@ -113,7 +113,7 @@ export function EmploymentsListPage() {
         {
           key: 'hours',
           header: 'Hrs/wk',
-          className: 'text-right',
+          className: 'text-right tabular-nums',
           render: (row) => row.hoursPerWeek ?? '—',
         },
       );

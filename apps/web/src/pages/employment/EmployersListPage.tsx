@@ -47,7 +47,7 @@ const columns: Column<EmployerListItem>[] = [
   {
     key: 'placements',
     header: 'Placements',
-    className: 'text-right',
+    className: 'text-right tabular-nums',
     render: (row) => row._count.employments,
   },
 ];

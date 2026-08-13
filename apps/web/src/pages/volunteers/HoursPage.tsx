@@ -137,6 +137,7 @@ export function HoursPage() {
     },
     {
       key: 'hours',
+      className: 'text-right tabular-nums',
       header: 'Hours',
       sortKey: 'hours',
       render: (row) => <span className="font-medium">{formatHours(row.hours)}</span>,

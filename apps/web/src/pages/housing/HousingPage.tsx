@@ -174,7 +174,7 @@ const homeColumns: Column<HomeRow>[] = [
     key: 'occupancy',
     header: 'Occupancy',
     sortKey: 'capacity',
-    className: 'w-48',
+    className: 'w-48 tabular-nums',
     render: (h) => (
       <div className="space-y-1">
         <div className="text-xs">
