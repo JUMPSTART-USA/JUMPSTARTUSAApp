@@ -218,7 +218,16 @@ export function VehiclesListPage() {
           rowHref={(row) => row.id}
           isFiltered={isFiltered}
           onClearFilters={clear}
-          emptyMessage="No vehicles found"
+          emptyMessage={
+            /* `active` defaults to 'true', so the default view is IN-SERVICE
+               vehicles and isFiltered is false — "No vehicles found" would be a
+               lie the moment one vehicle is archived. */
+            values.active === 'false'
+              ? 'No retired vehicles'
+              : values.active === ''
+                ? 'No vehicles yet'
+                : 'No vehicles in service'
+          }
         />
       )}
 

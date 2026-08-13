@@ -433,7 +433,15 @@ export function OutcomeCheckinsPage() {
           onStateChange={onListStateChange}
           isFiltered={isFiltered}
           onClearFilters={clear}
-          emptyMessage="No check-ins match these filters"
+          emptyMessage={
+            /* `due` defaults to 'overdue', so an empty default view is a
+               SUCCESS state — nothing is overdue — not an absence of data. */
+            values.due === 'overdue'
+              ? 'Nothing is overdue'
+              : values.due === 'upcoming'
+                ? 'No check-ins coming up'
+                : 'No check-ins yet'
+          }
         />
       )}
 

@@ -97,6 +97,9 @@ export function EmploymentsListPage() {
         {
           key: 'pay',
           header: 'Pay',
+          /* Right-aligned despite the /hr · /wk · /yr suffix: all three are the
+             same length, so the digits land within a letter-width of each other
+             — against ~30px of drift if this were left-aligned. */
           className: 'text-right tabular-nums',
           render: (row) =>
             row.payRate == null ? (
