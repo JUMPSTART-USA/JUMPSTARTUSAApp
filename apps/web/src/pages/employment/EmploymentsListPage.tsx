@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { FilterSelect, unresolvedOptionLabel } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { ChapterScopeBadge } from '@/components/ChapterSelect';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -161,6 +162,10 @@ export function EmploymentsListPage() {
       </div>
 
       <ListToolbar>
+        {/* No live chapter filter here — chapter derives via the participant's
+            profile and the endpoint takes no state param. The chip still names
+            the slice for scoped users; all-chapters users see nothing new. */}
+        <ChapterScopeBadge />
         <SearchInput
           placeholder="Search participant, employer, title…"
           value={draft.search}
@@ -205,7 +210,7 @@ export function EmploymentsListPage() {
       {query.isError ? (
         <ErrorState error={query.error} onRetry={query.refetch} />
       ) : (
-        <DataTable
+        <DataTable chapterScoped
           columns={columns}
           data={query.data}
           isLoading={query.isLoading}

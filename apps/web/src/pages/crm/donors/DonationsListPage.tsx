@@ -312,7 +312,7 @@ export function DonationsListPage() {
       </Card>
 
       {listQuery.isError ? <ErrorState error={listQuery.error} onRetry={listQuery.refetch} /> : null}
-      <DataTable
+      <DataTable chapterScoped
         columns={columns}
         data={listQuery.data}
         isLoading={listQuery.isLoading}

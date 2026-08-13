@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDebounced } from '@/lib/form';
+import { useChapterScope } from '@/lib/chapter-scope';
 import { cn } from '@/lib/utils';
 
 export interface PickerOption {
@@ -119,6 +120,7 @@ export function EntityPicker({
   disabled,
   className,
   id,
+  chapterScoped,
 }: {
   value: PickerOption | null;
   /**
@@ -143,8 +145,20 @@ export function EntityPicker({
    * picked (both are labelable elements).
    */
   id?: string;
+  /**
+   * Set by pickers whose search endpoint is FORCE-FILTERED to the session's
+   * chapter (participants, volunteers, donors). The zero-result row then names
+   * the slice — "No matches in the South Carolina chapter" — because a bare
+   * "No matches" is read as "this person is not in the system", which is the
+   * duplicate-creation path documented at the failed-search branch below.
+   * OPT-IN because the claim is about the ENDPOINT: MergePage's picker searches
+   * org-wide, and the DonorProfilePage household picker searches the DONOR's
+   * chapter; the session-derived suffix would be false on both.
+   */
+  chapterScoped?: boolean;
 }) {
   const [q, setQ] = useState('');
+  const { name: scopeName } = useChapterScope();
   const term = useDebounced(q.trim());
   const enabled = !value && term.length >= minChars;
   const { data, isFetching, isError, refetch } = useQuery({
@@ -234,7 +248,12 @@ export function EntityPicker({
               </Button>
             </div>
           ) : !data || data.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              {/* Coverage, never cause: identical whether the person exists in
+                  another chapter or nowhere — the list endpoint already answers
+                  both the same way (§7.2, pinned by pickers.test.tsx). */}
+              {chapterScoped && scopeName ? `No matches in the ${scopeName} chapter` : 'No matches'}
+            </div>
           ) : (
             data.map((option) => (
               <button

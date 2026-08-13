@@ -300,7 +300,7 @@ export function ScreeningsPage() {
           {decided.isError ? (
             <ErrorState error={decided.error} onRetry={decided.refetch} />
           ) : (
-            <DataTable
+            <DataTable chapterScoped
               columns={decidedColumns}
               data={decided.data}
               isLoading={decided.isLoading}
