@@ -1,11 +1,11 @@
-import { ENGAGEMENT_TYPES, alumniEngagementSchema } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CHAPTER_STATES, ENGAGEMENT_TYPES, alumniEngagementSchema } from '@jumpstart/shared';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +25,8 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiError, formResolver, todayInput, useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
+import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
 import { emptyToUndefined, type EngagementView } from './types';
 
@@ -119,35 +120,33 @@ function LogEngagementDialog({ onClose }: { onClose: () => void }) {
 
 export function EngagementsPage() {
   const { can } = useAuth();
-  const [state, setState] = useState<ListState>({
-    ...initialListState,
-    sortBy: 'engagementDate',
-    sortDir: 'desc',
-  });
-  const [type, setType] = useState('');
-  const [chapter, setChapter] = useState('');
-  const [search, setSearch] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      engagementType: P.choice(ENGAGEMENT_TYPES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { sort: { by: 'engagementDate', dir: 'desc' } },
+  );
   const [logging, setLogging] = useState(false);
-  const debounced = useDebounced(search);
-
-  useEffect(() => {
-    setState((s) => (s.page === 1 ? s : { ...s, page: 1 }));
-  }, [debounced]);
 
   const query = useQuery({
-    queryKey: ['mentoring', 'engagements', state, type, chapter, debounced],
+    queryKey: ['mentoring', 'engagements', listState, values],
     queryFn: () =>
       api.get<Paged<EngagementView>>(
         `/alumni-engagements${qs({
-          page: state.page,
-          pageSize: state.pageSize,
-          sortBy: state.sortBy,
-          sortDir: state.sortDir,
-          engagementType: type || undefined,
-          state: chapter || undefined,
-          search: debounced,
+          page: listState.page,
+          pageSize: listState.pageSize,
+          sortBy: listState.sortBy,
+          sortDir: listState.sortDir,
+          engagementType: values.engagementType || undefined,
+          state: values.state || undefined,
+          // `values`, not `draft`: the query waits for typing to settle.
+          search: values.search,
         })}`,
       ),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<EngagementView>[] = [
@@ -206,19 +205,19 @@ export function EngagementsPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles — and the page reset the old
+            useEffect did by hand now happens in the same URL write. */}
         <SearchInput
           placeholder="Search participant or notes…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Engagement type"
           className="w-full sm:w-44"
-          value={type}
-          onChange={(value) => {
-            setType(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.engagementType}
+          onChange={(value) => set('engagementType', value as (typeof ENGAGEMENT_TYPES)[number] | '')}
         >
           <option value="">All types</option>
           {ENGAGEMENT_TYPES.map((t) => (
@@ -228,11 +227,8 @@ export function EngagementsPage() {
           ))}
         </FilterSelect>
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -243,8 +239,9 @@ export function EngagementsPage() {
           columns={columns}
           data={query.data}
           isLoading={query.isLoading}
-          state={state}
-          onStateChange={setState}
+          isFetching={query.isFetching}
+          state={listState}
+          onStateChange={onListStateChange}
           emptyMessage="No engagements logged"
         />
       )}
