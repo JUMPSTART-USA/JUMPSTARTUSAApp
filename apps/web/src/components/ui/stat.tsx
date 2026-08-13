@@ -127,9 +127,20 @@ export function StatTile({
   return (
     <div className={cn('min-w-0', className)}>
       <p className={fieldLabelClasses}>{label}</p>
+      {/* `font-display` is IBM Plex Sans Condensed — the heading face, and a stat
+          value is not a heading. It is here anyway because the dashboard set its
+          KPIs in it and that is the look the product has; putting it on the
+          PRIMITIVE rather than per call site is the point, so the app has one
+          face for every number it asks you to read at a glance instead of ten
+          condensed on the dashboard and fifty-odd in the body face everywhere
+          else.
+
+          It catches dates too: the CRM giving summary's "First gift" and "Last
+          gift" are formatDate strings in a StatTile, so they condense alongside
+          the money. Deliberate, and the reason this line is a comment. */}
       <p
         className={cn(
-          'mt-0.5 font-semibold leading-tight tabular-nums',
+          'mt-0.5 font-display font-semibold leading-tight tabular-nums',
           VALUE_SIZE[size],
           flag && TONE_CLASS[flag.tone],
         )}

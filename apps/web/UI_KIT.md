@@ -139,6 +139,12 @@ them they replaced four rival KPI-tile implementations.
   intake summary shows the Referrals count to anyone with `intake_queues.read`
   while the Referrals tab needs `referral_inbox.read`. The count stays; the link
   must not exist. That is a lying link, not a leak — see the note on §7.2 below.
+- **Every metric value is set in `font-display`** (IBM Plex Sans Condensed), from
+  the primitive rather than per call site. It is the heading face and a stat
+  value is not a heading, but it is the look the dashboard established, and one
+  face for every glanceable number beats ten condensed on one screen and fifty
+  in the body face everywhere else. It condenses dates too — the CRM giving
+  summary's "First gift" is a `formatDate` string in a `StatTile`.
 - Sizes are `sm` 18px / `md` 24px (default) / `lg` 30px. **Known remainder:** six
   tiles render at `text-xl` (20px) — `volunteers/tabs/HoursTab.tsx` and
   `crm/donors/DonationsListPage.tsx`. They are not migrated. A fourth size to
