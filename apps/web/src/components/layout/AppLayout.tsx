@@ -542,7 +542,23 @@ export function AppLayout() {
         </div>
         {/* tabIndex={-1} so the skip link can move focus here without making
             <main> itself a tab stop. */}
-        <main ref={mainRef} id="main-content" tabIndex={-1} className="flex-1 p-4 outline-none sm:p-6">
+        {/*
+            A measure, not a stretch. At 1920px the participants table ran to
+            1,630px, so the eye travelled that far from a name to its status —
+            and the audit measured 2,270px on a wider display. Capping the
+            content column keeps a row scannable and leaves the widest tables
+            their own horizontal scroll, which is a smaller ask than reading
+            across two feet of screen.
+
+            On the container rather than the table, because a full-width toolbar
+            above a narrower table reads as a bug.
+        */}
+        <main
+          ref={mainRef}
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-screen-2xl flex-1 p-4 outline-none sm:p-6"
+        >
           {/* Inside <main>, so a failed screen leaves the sidebar, header and
               chapter switcher alive — a user can navigate out instead of
               reloading. It resets itself on pathname change.

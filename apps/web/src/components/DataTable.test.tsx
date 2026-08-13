@@ -272,3 +272,41 @@ describe('DataTable — a page past the end', () => {
     expect(onStateChange).toHaveBeenCalledTimes(2);
   });
 });
+
+/**
+ * Measured on /participants at 375px before this: the table is 854px wide in a
+ * 341px window, so reading a status means scrolling 513px right — at which point
+ * the name cell sits at left:-496, entirely off screen. You are looking at a
+ * status with no idea whose it is.
+ *
+ * jsdom has no layout, so these check WHICH cell is pinned rather than where it
+ * lands. That is the part that can silently drift: eight tables lead with a
+ * date, and pinning "Aug 6, 2026" anchors nothing.
+ */
+describe('the pinned identity column', () => {
+  const isPinned = (cell: Element | null) => cell?.className.includes('sticky') ?? false;
+
+  it('pins the first column when that is what identifies the row', () => {
+    mount({ rowHref: (r: Row) => `/rows/${r.id}` });
+    const cells = screen.getAllByRole('cell');
+    expect(isPinned(cells[0]!)).toBe(true);
+  });
+
+  it('pins the column a table NAMES as identifying, not blindly the first', () => {
+    // The eight date-led tables are the reason this is not just "column 0".
+    const dateFirst: Column<Row>[] = [
+      { key: 'when', header: 'Date', render: () => 'Aug 6, 2026' },
+      { key: 'name', header: 'Name', render: (r) => r.name },
+    ];
+    mount({ columns: dateFirst, linkColumnKey: 'name', rowHref: (r: Row) => `/rows/${r.id}` });
+    const cells = screen.getAllByRole('cell');
+    expect(isPinned(cells[0]!)).toBe(false);
+    expect(isPinned(cells[1]!)).toBe(true);
+  });
+
+  it('pins the same column in the header, so the two cannot drift apart', () => {
+    mount();
+    const headers = screen.getAllByRole('columnheader');
+    expect(isPinned(headers[0]!)).toBe(true);
+  });
+});

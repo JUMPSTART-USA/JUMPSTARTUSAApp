@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -112,6 +112,32 @@ export function DataTable<T extends { id: string }>({
   const navigate = useNavigate();
   const totalPages = data ? Math.max(1, Math.ceil(data.total / state.pageSize)) : 1;
   const linkKey = linkColumnKey ?? columns[0]?.key;
+  /**
+   * Whether the table is scrolled off its left edge, which is the only moment
+   * the pinned column needs to look pinned. Same approach as the pill bars'
+   * edge fade: a shadow that appears when there is something underneath it.
+   */
+  const [scrolled, setScrolled] = useState(false);
+
+  /**
+   * Keep the row's IDENTITY on screen while the rest scrolls.
+   *
+   * Measured on /participants at 375px: the table is 854px wide in a 341px
+   * window, so reading a status means scrolling 513px right — at which point the
+   * name cell sits at left: -496px, entirely off screen. You are looking at a
+   * status with no idea whose it is.
+   *
+   * It pins the IDENTIFYING column rather than the first one, because eight
+   * tables lead with a date and pinning "Aug 6, 2026" anchors nothing. That
+   * column is already known: it is the cell `rowHref` turns into a link, which
+   * callers can name with `linkColumnKey`. Plain `sticky left-0` handles a
+   * non-first column too — earlier columns scroll underneath it, which is
+   * exactly what should happen to a date once you have left it behind.
+   */
+  const pinnedClasses = (key: string) =>
+    key === linkKey
+      ? cn('sticky left-0 z-10 bg-inherit', scrolled && 'shadow-[1px_0_0_0_hsl(var(--border))]')
+      : undefined;
 
   /**
    * Rows are on screen but no longer current. Driven ONLY by the caller's
@@ -207,7 +233,7 @@ export function DataTable<T extends { id: string }>({
     <div className="space-y-3">
       {/* aria-busy is the only loading signal this table has ever had for
           assistive tech — the bare <Spinner> below carries no role="status". */}
-      <Table aria-busy={isLoading || stale}>
+      <Table aria-busy={isLoading || stale} onScrolledChange={setScrolled}>
         <TableHeader>
           <TableRow>
             {columns.map((col) => {
@@ -215,7 +241,7 @@ export function DataTable<T extends { id: string }>({
               return (
                 <TableHead
                   key={col.key}
-                  className={col.className}
+                  className={cn(col.className, pinnedClasses(col.key))}
                   /* Without aria-sort a screen-reader user is told a column is
                      sortable but never which column is sorted, or which way. */
                   aria-sort={
@@ -298,7 +324,7 @@ export function DataTable<T extends { id: string }>({
                 }
               >
                 {columns.map((col) => (
-                  <TableCell key={col.key} className={col.className}>
+                  <TableCell key={col.key} className={cn(col.className, pinnedClasses(col.key))}>
                     {rowHref && col.key === linkKey ? (
                       <Link
                         to={rowHref(row)}
