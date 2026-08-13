@@ -1,34 +1,20 @@
-import { Badge, type BadgeProps } from '@/components/ui/badge';
-import { humanize } from '@/lib/utils';
+import { StatusBadge } from '@/components/ui/badge';
 
-const HIRING_VARIANTS: Record<string, BadgeProps['variant']> = {
-  prospect: 'secondary',
-  partner: 'info',
-  actively_hiring: 'success',
-  paused: 'warning',
-  inactive: 'outline',
-};
+/** Hiring posture folded into the kit's STATUS_VARIANTS — no key collided. */
+export const HiringStatusBadge = StatusBadge;
 
-export function HiringStatusBadge({ status }: { status: string | null | undefined }) {
-  if (!status) return <span className="text-muted-foreground">—</span>;
-  return <Badge variant={HIRING_VARIANTS[status] ?? 'secondary'}>{humanize(status)}</Badge>;
-}
-
-const EMPLOYMENT_VARIANTS: Record<string, BadgeProps['variant']> = {
-  applied: 'secondary',
-  interviewing: 'info',
-  hired: 'success',
-  active: 'success',
-  terminated: 'destructive',
-  resigned: 'warning',
-  completed: 'info',
-  unknown: 'outline',
-};
-
-export function EmploymentStatusBadge({ status }: { status: string | null | undefined }) {
-  if (!status) return <span className="text-muted-foreground">—</span>;
-  return <Badge variant={EMPLOYMENT_VARIANTS[status] ?? 'secondary'}>{humanize(status)}</Badge>;
-}
+/**
+ * Employment statuses folded too, including `completed`.
+ *
+ * It is the one word here that means something local — beside Start and End
+ * dates a job coach reads "Completed" as *this placement ended*, not the
+ * neutral "done" the kit means by it — but both spell it `info`, so the module
+ * map that used to hold it only restated the canonical answer. The nuance is
+ * recorded in badge.tsx and pinned by badge.test.tsx; whether a finished
+ * placement should read as a win rather than a neutral outcome is a product
+ * call, and changing it would move pixels on every employment list.
+ */
+export const EmploymentStatusBadge = StatusBadge;
 
 export const PAY_SUFFIX: Record<string, string> = {
   hourly: '/hr',

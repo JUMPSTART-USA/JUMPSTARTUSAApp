@@ -24,6 +24,13 @@ import { humanize } from '@/lib/utils';
 import { formatDateTime, JsonBlock, useActiveUserOptions } from './shared';
 import type { AuditLogEntry } from './types';
 
+/**
+ * Not a status map and deliberately not folded into the kit's: these are verbs
+ * that already happened, coloured by how closely the action deserves reading
+ * rather than by whether a record is healthy. `export`, `permission_change` and
+ * `read_confidential` all succeeded — they are warnings because an auditor
+ * should stop on them, which is not a meaning STATUS_VARIANTS can carry.
+ */
 const ACTION_VARIANTS: Record<string, BadgeProps['variant']> = {
   create: 'success',
   update: 'info',

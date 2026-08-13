@@ -20,7 +20,15 @@ import { formatDateTime, JsonBlock } from './shared';
 
 const SOURCES = ['boundary', 'window', 'promise'] as const;
 
-/** What each capture point means, in words a reader can act on. */
+/**
+ * What each capture point means, in words a reader can act on.
+ *
+ * Not a candidate for the kit's STATUS_VARIANTS: it carries a label and a hint
+ * as well as a colour, and the colour ranks blast radius (a render throw took
+ * the screen down; a stray rejection may have gone unnoticed) rather than
+ * naming a state. `boundary`/`window`/`promise` are also raw capture points —
+ * the labels exist precisely because humanize() would print the wrong word.
+ */
 const SOURCE_META: Record<string, { label: string; variant: BadgeProps['variant']; hint: string }> =
   {
     boundary: {

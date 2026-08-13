@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/badge';
 import {
   EntityPicker,
   useRehydratedValue,
@@ -46,19 +46,16 @@ export function StatTile({ label, children }: { label: string; children: React.R
   );
 }
 
-const LIFECYCLE_META: Record<DonorLifecycle, { label: string; variant: BadgeProps['variant'] }> = {
-  prospective: { label: 'Prospective', variant: 'outline' },
-  new: { label: 'New', variant: 'info' },
-  active: { label: 'Active', variant: 'success' },
-  lapsed: { label: 'Lapsed', variant: 'warning' },
-  inactive: { label: 'Inactive', variant: 'outline' },
-};
-
-/** Computed giving-lifecycle badge (prospective/new/active/lapsed/inactive). */
+/**
+ * Computed giving-lifecycle badge (prospective/new/active/lapsed/inactive).
+ *
+ * All five labels were exactly what humanize() produces, and the colours were
+ * the canonical ones, so the local map folded into STATUS_VARIANTS with no
+ * pixel change — including the em dash StatusBadge already renders for a donor
+ * with no computed lifecycle.
+ */
 export function LifecycleBadge({ lifecycle }: { lifecycle: DonorLifecycle | null | undefined }) {
-  if (!lifecycle) return <span className="text-muted-foreground">—</span>;
-  const meta = LIFECYCLE_META[lifecycle];
-  return <Badge variant={meta.variant}>{meta.label}</Badge>;
+  return <StatusBadge status={lifecycle} />;
 }
 
 /** All campaigns for select controls — small dataset, cached per session. */

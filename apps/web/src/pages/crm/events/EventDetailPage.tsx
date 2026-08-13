@@ -27,6 +27,13 @@ import { EventFormDialog } from './EventFormDialog';
 import { RegistrationDialog } from './RegistrationDialog';
 import { BackLink } from '@/components/BackLink';
 
+/**
+ * Kept out of the kit's STATUS_VARIANTS because `no_show` is a milder word on
+ * an event than on a volunteer shift: nobody was left short-handed, so it is a
+ * warning here where volunteers/shared.tsx spells it destructive. The other
+ * three agree with the canonical map and stay only to keep the four readable in
+ * one place.
+ */
 const REGISTRATION_VARIANTS: Record<RegistrationStatus, BadgeProps['variant']> = {
   registered: 'secondary',
   attended: 'success',

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { CommChannel } from '@jumpstart/shared';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/badge';
 import { api, qs, type Paged } from '@/lib/api';
 import { humanize } from '@/lib/utils';
 import type { TemplateRow } from './types';
@@ -12,26 +12,6 @@ export const CHANNEL_LABELS: Record<CommChannel, string> = {
   letter: 'Letter',
 };
 
-/**
- * Delivery + batch status colors. The kit's StatusBadge map doesn't cover the
- * communication statuses (queued/sent/delivered/returned, batch draft), so
- * this module maps them onto Badge variants directly.
- */
-const COMM_STATUS_VARIANTS: Record<string, BadgeProps['variant']> = {
-  draft: 'outline',
-  queued: 'secondary',
-  sent: 'info',
-  delivered: 'success',
-  // A dispatch where some or all messages failed no longer reports "Sent".
-  partially_sent: 'warning',
-  failed: 'destructive',
-  returned: 'warning',
-};
-
-export function CommStatusBadge({ status }: { status: string | null | undefined }) {
-  if (!status) return <span className="text-muted-foreground">—</span>;
-  return <Badge variant={COMM_STATUS_VARIANTS[status] ?? 'secondary'}>{humanize(status)}</Badge>;
-}
 
 /**
  * Active templates for select controls, optionally narrowed to one channel.
@@ -59,3 +39,10 @@ export function messageSummary(subject: string | null, body: string): string {
   if (subject) return subject;
   return body.length > 60 ? `${body.slice(0, 60)}…` : body;
 }
+
+/**
+ * Every communication status now lives in the kit's STATUS_VARIANTS — none of
+ * them collided with an existing key, so the badges are unchanged. Re-exported
+ * under the old name so call sites read the same.
+ */
+export const CommStatusBadge = StatusBadge;

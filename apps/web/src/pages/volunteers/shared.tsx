@@ -43,6 +43,13 @@ export function ExpiryBadge({
 
 // ── Volunteer engagement badges & formatters ────────────────────────────────
 
+/**
+ * Kept out of the kit's STATUS_VARIANTS: `open` is the healthy state here — the
+ * opportunity is published and taking signups, and it is the only green thing
+ * on that list — where the canonical map rules `open` the neutral grey an
+ * unworked incident or ticket deserves. Fold this and every published
+ * opportunity goes grey.
+ */
 const OPPORTUNITY_VARIANTS: Record<OpportunityStatus, BadgeProps['variant']> = {
   draft: 'secondary',
   open: 'success',
@@ -54,6 +61,17 @@ export function OpportunityStatusBadge({ status }: { status: OpportunityStatus }
   return <Badge variant={OPPORTUNITY_VARIANTS[status]}>{OPPORTUNITY_STATUS_LABELS[status]}</Badge>;
 }
 
+/**
+ * Kept out of the kit's STATUS_VARIANTS for two words that mean the opposite of
+ * what they mean elsewhere:
+ *   canceled  routine here, not a failure — the API's `seated` treats a
+ *             canceled signup as a vacated seat and promotes the waitlist, so
+ *             it gets outline rather than the canonical destructive.
+ *   no_show   the harsher word here than on an event registration: the seat was
+ *             reserved, the waitlist was not promoted, and the shift went
+ *             uncovered. Event registrations spell it `warning` (see
+ *             REGISTRATION_VARIANTS) because an event no-show costs nothing.
+ */
 const SIGNUP_VARIANTS: Record<ShiftSignupStatus, BadgeProps['variant']> = {
   signed_up: 'secondary',
   confirmed: 'info',
