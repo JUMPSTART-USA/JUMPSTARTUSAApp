@@ -239,7 +239,7 @@ export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValu
           <PhoneInput {...register('person.primaryPhone')} />
         </FormField>
         <FormField label="Email" error={p?.primaryEmail}>
-          <Input {...register('person.primaryEmail')} />
+          <Input type="email" {...register('person.primaryEmail')} />
         </FormField>
       </div>
 
@@ -265,7 +265,7 @@ export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValu
             </Select>
           </FormField>
           <FormField label="ZIP" error={p?.zip}>
-            <Input {...register('person.zip')} />
+            <Input inputMode="numeric" {...register('person.zip')} />
           </FormField>
         </div>
       </div>

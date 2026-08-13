@@ -175,7 +175,7 @@ export function VendorFormDialog({
               </Select>
             </FormField>
             <FormField label="ZIP" error={form.formState.errors.zip}>
-              <Input {...form.register('zip', optional)} />
+              <Input inputMode="numeric" {...form.register('zip', optional)} />
             </FormField>
           </div>
           <FormField label="Services provided" error={form.formState.errors.servicesProvided}>

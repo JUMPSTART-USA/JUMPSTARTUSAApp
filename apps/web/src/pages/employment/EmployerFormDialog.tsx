@@ -161,7 +161,7 @@ export function EmployerFormDialog({
                 </Select>
               </FormField>
               <FormField label="ZIP" error={errors.zip}>
-                <Input {...register('zip')} />
+                <Input inputMode="numeric" {...register('zip')} />
               </FormField>
             </div>
           </div>

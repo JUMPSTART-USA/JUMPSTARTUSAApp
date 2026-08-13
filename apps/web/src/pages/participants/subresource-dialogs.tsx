@@ -157,7 +157,7 @@ export function ContactDialog({
               <PhoneInput {...form.register('phone')} />
             </FormField>
             <FormField label="Email" error={errors.email}>
-              <Input {...form.register('email')} />
+              <Input type="email" {...form.register('email')} />
             </FormField>
           </div>
           <div className="flex gap-6">
@@ -291,7 +291,7 @@ export function AddressDialog({
               </Select>
             </FormField>
             <FormField label="ZIP" required error={errors.zip}>
-              <Input {...form.register('zip')} />
+              <Input inputMode="numeric" {...form.register('zip')} />
             </FormField>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">

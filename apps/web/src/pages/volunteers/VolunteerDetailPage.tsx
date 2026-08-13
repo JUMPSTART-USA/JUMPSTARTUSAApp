@@ -430,7 +430,7 @@ function EditVolunteerDialog({
                 </Select>
               </FormField>
               <FormField label="ZIP" error={personErrors.zip}>
-                <Input {...register('person.zip')} />
+                <Input inputMode="numeric" {...register('person.zip')} />
               </FormField>
             </div>
             <FormField label="Volunteer roles" hint="Comma-separated" className="sm:col-span-2">

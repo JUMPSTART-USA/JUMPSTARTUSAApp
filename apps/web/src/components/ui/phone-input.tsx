@@ -12,7 +12,15 @@ export const PhoneInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLI
       ref={ref}
       type="tel"
       inputMode="numeric"
-      autoComplete="tel"
+      /**
+       * "off", not "tel". Every one of this control's twelve call sites is
+       * SOMEONE ELSE's number — a participant's, a vendor's, a house manager's
+       * — so `autoComplete="tel"` offered the staff member's own phone number
+       * while they typed a record about a person in their caseload, and one
+       * absent-minded tap filed it. A field for the signed-in user's own number
+       * can pass autoComplete="tel" explicitly.
+       */
+      autoComplete="off"
       placeholder="XXX-XXX-XXXX"
       maxLength={12}
       onChange={(e) => {

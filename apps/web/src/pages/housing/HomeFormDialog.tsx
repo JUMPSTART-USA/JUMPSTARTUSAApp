@@ -130,7 +130,7 @@ export function HomeFormDialog({
                 whose chapter is preset in the defaults. */}
             <ChapterSelect label="State (chapter)" error={errors.state} {...register('state')} />
             <FormField label="Zip" error={errors.zip}>
-              <Input {...register('zip')} />
+              <Input inputMode="numeric" {...register('zip')} />
             </FormField>
             <FormField label="Phone" error={errors.phone}>
               <PhoneInput {...register('phone')} />

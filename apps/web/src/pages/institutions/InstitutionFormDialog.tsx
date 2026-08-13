@@ -129,7 +129,7 @@ export function InstitutionFormDialog({
                   users, whose chapter is preset in the defaults. */}
               <ChapterSelect label="State (chapter)" error={errors.state} {...register('state')} />
               <FormField label="ZIP" error={errors.zip}>
-                <Input {...register('zip')} />
+                <Input inputMode="numeric" {...register('zip')} />
               </FormField>
             </div>
           </div>
