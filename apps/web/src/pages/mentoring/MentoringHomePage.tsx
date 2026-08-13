@@ -1,16 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardHeaderRow,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { MetricCard, StatTile } from '@/components/ui/stat';
 import {
   Table,
   TableBody,
@@ -23,36 +17,6 @@ import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/utils';
 import type { CheckinView, OversightData } from './types';
-
-function StatCard({
-  label,
-  value,
-  to,
-  tone,
-}: {
-  label: string;
-  value: number;
-  to?: string;
-  tone?: 'warn';
-}) {
-  const body = (
-    <Card className={to ? 'transition-colors hover:bg-accent/50' : undefined}>
-      <CardHeader className="pb-2">
-        <CardDescription>{label}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div
-          className={
-            tone === 'warn' && value > 0 ? 'text-3xl font-semibold text-warning' : 'text-3xl font-semibold'
-          }
-        >
-          {value}
-        </div>
-      </CardContent>
-    </Card>
-  );
-  return to ? <Link to={to}>{body}</Link> : body;
-}
 
 /** Mentoring oversight dashboard (§6.7 workflow 5). */
 export function MentoringHomePage() {
@@ -84,21 +48,37 @@ export function MentoringHomePage() {
   return (
     <div className="space-y-6">
       {/* The only module home with no PageHeader, so it had no h1 and kept the
-          previous route's document title — the sub-nav is not a page heading. */}
-      <PageHeader title="Mentoring" />
+          previous route's document title — the sub-nav is not a page heading.
+          The heading is the sidebar's own words: this module carries alumni
+          engagements and flags alumni on screenings, so "Mentoring" alone
+          dropped half of what the link promised. */}
+      <PageHeader title="Alumni & Mentoring" />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Active matches" value={data.activeMatches} to="assignments" />
-        <StatCard
+        <MetricCard label="Active matches" value={data.activeMatches} size="lg" to="assignments" />
+        {/* The "is this bad right now" test stays out here on both amber tiles:
+            zero is the good outcome on each, and a tile that coloured by value
+            would paint "nothing to chase" the same amber as a backlog. */}
+        <MetricCard
           label="No session in 30 days"
           value={data.matchesNoSessionIn30Days.length}
-          tone="warn"
+          size="lg"
+          flag={
+            data.matchesNoSessionIn30Days.length > 0
+              ? { tone: 'warning', note: 'waiting on a session' }
+              : undefined
+          }
         />
-        <StatCard label="Screenings in pipeline" value={pipelineTotal} to="screenings" />
-        <StatCard
+        <MetricCard label="Screenings in pipeline" value={pipelineTotal} size="lg" to="screenings" />
+        <MetricCard
           label="Overdue check-ins"
           value={data.checkinsOverdue}
+          size="lg"
+          // The count comes with the oversight endpoint, but the queue behind it
+          // is alumni data — no destination for a reader who cannot open it.
           to={can('alumni.read') ? 'checkins' : undefined}
-          tone="warn"
+          flag={
+            data.checkinsOverdue > 0 ? { tone: 'warning', note: 'past their due date' } : undefined
+          }
         />
       </div>
 
@@ -134,10 +114,16 @@ export function MentoringHomePage() {
             <CardTitle>Alumni engagement</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <div className="text-3xl font-semibold">{data.alumniEngagementLast90Days}</div>
-            <p className="text-sm text-muted-foreground">
-              Engagements logged in the last 90 days.
-            </p>
+            {/* StatTile, not MetricCard: this Card and its title are already
+                here, so a MetricCard would paint a second card surface inside
+                this one. The caption that used to sit under the number is the
+                label now — a screen reader reads DOM order, and the number on
+                its own said nothing about what was counted. */}
+            <StatTile
+              label="Engagements logged in the last 90 days"
+              value={data.alumniEngagementLast90Days}
+              size="lg"
+            />
             {can('alumni.read') ? (
               <Link to="engagements" className="text-sm text-primary hover:underline">
                 View engagement log

@@ -25,7 +25,7 @@ const SEVERITY_ORDER: AlertSeverity[] = ['overdue', 'due_soon', 'upcoming'];
 export function VehiclesListPage() {
   const { can } = useAuth();
   const navigate = useNavigate();
-  const { values, draft, set, listState, onListStateChange } = useListParams({
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams({
     search: P.text(),
     /** Free text: locations are typed, not enumerated. */
     location: P.text(),
@@ -101,7 +101,7 @@ export function VehiclesListPage() {
         key: 'mileage',
         header: 'Mileage',
         sortKey: 'mileage',
-        className: 'text-right',
+        className: 'text-right tabular-nums',
         render: (row) => (row.mileage != null ? row.mileage.toLocaleString('en-US') : '—'),
       },
       {
@@ -142,7 +142,7 @@ export function VehiclesListPage() {
       {
         key: 'maintenance',
         header: 'Services',
-        className: 'text-right',
+        className: 'text-right tabular-nums',
         render: (row) => row._count.maintenanceRecords,
       },
     ],
@@ -216,7 +216,18 @@ export function VehiclesListPage() {
           state={listState}
           onStateChange={onListStateChange}
           rowHref={(row) => row.id}
-          emptyMessage="No vehicles found"
+          isFiltered={isFiltered}
+          onClearFilters={clear}
+          emptyMessage={
+            /* `active` defaults to 'true', so the default view is IN-SERVICE
+               vehicles and isFiltered is false — "No vehicles found" would be a
+               lie the moment one vehicle is archived. */
+            values.active === 'false'
+              ? 'No retired vehicles'
+              : values.active === ''
+                ? 'No vehicles yet'
+                : 'No vehicles in service'
+          }
         />
       )}
 

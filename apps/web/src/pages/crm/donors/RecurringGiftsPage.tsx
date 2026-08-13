@@ -62,7 +62,7 @@ const columns: Column<RecurringGiftListItem>[] = [
 
 export function RecurringGiftsPage() {
   const { can } = useAuth();
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       donorId: P.id(),
       status: P.choice(RECURRING_GIFT_STATUSES, ''),
@@ -144,6 +144,8 @@ export function RecurringGiftsPage() {
         state={listState}
         onStateChange={onListStateChange}
         rowHref={(row) => `/donors/recurring/${row.id}`}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No recurring gifts found"
       />
 

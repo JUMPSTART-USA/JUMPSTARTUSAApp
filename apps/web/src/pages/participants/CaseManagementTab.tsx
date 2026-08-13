@@ -7,7 +7,7 @@ import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { EmptyState, ErrorState, PageLoader, Spinner } from '@/components/ui/spinner';
+import { EmptyState, ErrorState, PageLoader, Spinner, NoAccess } from '@/components/ui/spinner';
 import {
   Table,
   TableBody,
@@ -296,9 +296,9 @@ export function CaseManagementTab({ participantId }: { participantId: string }) 
 
   if (!canRead) {
     return (
-      <EmptyState
+      <NoAccess
         title="No access to case management"
-        hint="Your role does not include permission to view these records."
+        reason="Your role does not include permission to view these records."
       />
     );
   }

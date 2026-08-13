@@ -51,7 +51,7 @@ const columns: Column<InstitutionListItem>[] = [
   {
     key: 'classes',
     header: 'Classes',
-    className: 'text-right',
+    className: 'text-right tabular-nums',
     render: (row) => row._count.insideClasses,
   },
   {
@@ -64,7 +64,7 @@ const columns: Column<InstitutionListItem>[] = [
 
 export function InstitutionListPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams({
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams({
     search: P.text(),
     state: P.choice(CHAPTER_STATES, ''),
     /** Tri-state: '' is "active and inactive", not "unset". */
@@ -140,6 +140,8 @@ export function InstitutionListPage() {
           state={listState}
           onStateChange={onListStateChange}
           rowHref={(row) => row.id}
+          isFiltered={isFiltered}
+          onClearFilters={clear}
           emptyMessage="No institutions found"
         />
       )}

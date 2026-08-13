@@ -29,7 +29,7 @@ import type { CommunicationRow } from './types';
 /** All sent/queued messages, newest first — the cross-person outbox (§6.12). */
 export function HistoryPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       personId: P.id(),
@@ -203,6 +203,8 @@ export function HistoryPage() {
         state={listState}
         onStateChange={onListStateChange}
         onRowClick={setDetail}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No messages yet"
       />
 

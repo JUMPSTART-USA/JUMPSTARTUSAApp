@@ -56,7 +56,7 @@ const columns: Column<Vendor>[] = [
 
 export function VendorsListPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       active: P.choice(['true', 'false'] as const, ''),
@@ -156,6 +156,8 @@ export function VendorsListPage() {
               }
             : undefined
         }
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No vendors found"
       />
 

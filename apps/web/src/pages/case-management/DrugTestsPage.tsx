@@ -27,7 +27,7 @@ import { type DrugTestRow } from './shared';
 
 export function DrugTestsPage() {
   const { can } = useAuth();
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       participantId: P.id(),
       result: P.choice(DRUG_TEST_RESULTS, ''),
@@ -199,6 +199,8 @@ export function DrugTestsPage() {
         isFetching={isFetching}
         state={listState}
         onStateChange={onListStateChange}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No drug tests recorded"
       />
 

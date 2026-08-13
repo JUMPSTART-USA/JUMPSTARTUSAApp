@@ -15,7 +15,7 @@ import { EntityPicker, type PickerOption } from '@/components/ui/entity-picker';
 import { Input } from '@/components/ui/input';
 import { Notice } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
-import { EmptyState, ErrorState } from '@/components/ui/spinner';
+import { EmptyState, ErrorState, NoAccess } from '@/components/ui/spinner';
 import {
   Table,
   TableBody,
@@ -191,7 +191,7 @@ export function MergePage() {
   });
 
   if (!can('person.merge')) {
-    return <EmptyState title="No access" hint="Requires the person.merge permission." />;
+    return <NoAccess reason="Requires the person.merge permission." />;
   }
 
   const resetDownstream = () => {

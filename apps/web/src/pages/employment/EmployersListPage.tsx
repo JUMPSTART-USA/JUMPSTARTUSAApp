@@ -47,7 +47,7 @@ const columns: Column<EmployerListItem>[] = [
   {
     key: 'placements',
     header: 'Placements',
-    className: 'text-right',
+    className: 'text-right tabular-nums',
     render: (row) => row._count.employments,
   },
 ];
@@ -55,7 +55,7 @@ const columns: Column<EmployerListItem>[] = [
 export function EmployersListPage() {
   const { can } = useAuth();
   const navigate = useNavigate();
-  const { values, draft, set, listState, onListStateChange } = useListParams({
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams({
     search: P.text(),
     /** Free text, not a choice: industries are typed, not enumerated. */
     industry: P.text(),
@@ -150,6 +150,8 @@ export function EmployersListPage() {
           state={listState}
           onStateChange={onListStateChange}
           rowHref={(row) => row.id}
+          isFiltered={isFiltered}
+          onClearFilters={clear}
           emptyMessage="No employers found"
         />
       )}

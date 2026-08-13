@@ -51,7 +51,7 @@ const columns: Column<CampaignListItem>[] = [
 
 export function CampaignsListPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       status: P.choice(CAMPAIGN_STATUSES, ''),
@@ -128,6 +128,8 @@ export function CampaignsListPage() {
         state={listState}
         onStateChange={onListStateChange}
         rowHref={(row) => `/campaigns/${row.id}`}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No campaigns found"
       />
 

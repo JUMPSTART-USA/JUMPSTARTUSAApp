@@ -193,7 +193,7 @@ function ReferralDialog({
 
 export function ReferralsPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       participantId: P.id(),
@@ -338,6 +338,8 @@ export function ReferralsPage() {
               }
             : undefined
         }
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No referrals recorded"
       />
 

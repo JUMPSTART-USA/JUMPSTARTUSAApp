@@ -15,7 +15,7 @@ import {
 import { FilterSelect, unresolvedOptionLabel } from '@/components/ui/filter-select';
 import { Input, Label } from '@/components/ui/input';
 import { SectionHeader } from '@/components/ui/page-header';
-import { EmptyState, ErrorState } from '@/components/ui/spinner';
+import { EmptyState, ErrorState, NoAccess } from '@/components/ui/spinner';
 import { ListToolbar } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -24,6 +24,13 @@ import { humanize } from '@/lib/utils';
 import { formatDateTime, JsonBlock, useActiveUserOptions } from './shared';
 import type { AuditLogEntry } from './types';
 
+/**
+ * Not a status map and deliberately not folded into the kit's: these are verbs
+ * that already happened, coloured by how closely the action deserves reading
+ * rather than by whether a record is healthy. `export`, `permission_change` and
+ * `read_confidential` all succeeded — they are warnings because an auditor
+ * should stop on them, which is not a meaning STATUS_VARIANTS can carry.
+ */
 const ACTION_VARIANTS: Record<string, BadgeProps['variant']> = {
   create: 'success',
   update: 'info',
@@ -50,7 +57,7 @@ function changeSummary(entry: AuditLogEntry): string {
 export function AuditLogPage() {
   const { can } = useAuth();
 
-  const { values, draft, set, listState, onListStateChange } = useListParams({
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams({
     userId: P.id(),
     entityType: P.text(),
     /**
@@ -92,7 +99,7 @@ export function AuditLogPage() {
   });
 
   if (!can('audit.read')) {
-    return <EmptyState title="No access" hint="Requires the audit.read permission." />;
+    return <NoAccess reason="Requires the audit.read permission." />;
   }
 
   // Server always sorts newest-first; no sortKeys on purpose.
@@ -263,6 +270,8 @@ export function AuditLogPage() {
         state={listState}
         onStateChange={onListStateChange}
         onRowClick={setSelected}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No audit entries match the filters"
       />
 

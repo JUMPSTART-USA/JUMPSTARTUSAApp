@@ -120,7 +120,7 @@ function LogEngagementDialog({ onClose }: { onClose: () => void }) {
 
 export function EngagementsPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       engagementType: P.choice(ENGAGEMENT_TYPES, ''),
@@ -242,6 +242,8 @@ export function EngagementsPage() {
           isFetching={query.isFetching}
           state={listState}
           onStateChange={onListStateChange}
+          isFiltered={isFiltered}
+          onClearFilters={clear}
           emptyMessage="No engagements logged"
         />
       )}

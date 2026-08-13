@@ -81,7 +81,7 @@ function MessagesTab() {
    * queue the user opened next — the one place in this migration where a
    * missing namespace is a silent data bug rather than a cosmetic one.
    */
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       participantId: P.id(),
       status: P.choice(PORTAL_MESSAGE_STATUSES, ''),
@@ -212,6 +212,8 @@ function MessagesTab() {
         state={listState}
         onStateChange={onListStateChange}
         onRowClick={setReviewTarget}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No portal messages"
       />
 
@@ -228,7 +230,7 @@ function MeetingsTab() {
    * queue the user opened next — the one place in this migration where a
    * missing namespace is a silent data bug rather than a cosmetic one.
    */
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       participantId: P.id(),
       status: P.choice(MEETING_REQUEST_STATUSES, ''),
@@ -362,6 +364,8 @@ function MeetingsTab() {
         state={listState}
         onStateChange={onListStateChange}
         onRowClick={setDecisionTarget}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No meeting requests"
       />
 
@@ -378,7 +382,7 @@ function TransportTab() {
    * queue the user opened next — the one place in this migration where a
    * missing namespace is a silent data bug rather than a cosmetic one.
    */
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       participantId: P.id(),
       status: P.choice(TRANSPORT_REQUEST_STATUSES, ''),
@@ -541,6 +545,8 @@ function TransportTab() {
         state={listState}
         onStateChange={onListStateChange}
         onRowClick={setDecisionTarget}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No transportation requests"
       />
 
@@ -560,7 +566,7 @@ type RequestTab = (typeof REQUEST_TABS)[number];
 
 export function RequestsPage() {
   /** 'messages' is the default, so it is the value ABSENT from the URL. */
-  const { values: tabValues, set: setTab } = useListParams({
+  const { values: tabValues, set: setTab, clear, isFiltered } = useListParams({
     tab: P.choice(REQUEST_TABS, 'messages'),
   });
   const tab = tabValues.tab || 'messages';

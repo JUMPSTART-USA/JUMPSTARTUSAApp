@@ -59,6 +59,19 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
   /**
+   * An empty list is a fork in the road, and until now every one of the 52
+   * tables took the same turn: a centred sentence and nothing to do about it.
+   *
+   * Pass `isFiltered` (useListParams computes it already) and the table can tell
+   * the two cases apart — nothing exists yet, versus a filter excluded
+   * everything — and offer the matching way out. `onClearFilters` is
+   * `useListParams`'s `clear`, which has been sitting there unused.
+   */
+  isFiltered?: boolean;
+  onClearFilters?: () => void;
+  /** Offered when the list is empty and NOT filtered: usually "New <thing>". */
+  emptyAction?: ReactNode;
+  /**
    * Where a row leads. Prefer this over `onRowClick` for any list whose rows
    * open a record: it renders the row's identifying cell as a real <Link>, so a
    * keyboard or screen-reader user gets one tab stop per row with the record's
@@ -103,6 +116,9 @@ export function DataTable<T extends { id: string }>({
   onStateChange,
   onRowClick,
   emptyMessage = 'No records found',
+  isFiltered,
+  onClearFilters,
+  emptyAction,
   rowHref,
   onRowOpen,
   rowLabel,
@@ -301,11 +317,24 @@ export function DataTable<T extends { id: string }>({
             </TableRow>
           ) : !data || data.items.length === 0 ? (
             <TableRow>
-              <TableCell
-                colSpan={columns.length}
-                className="h-24 text-center text-muted-foreground"
-              >
-                {emptyMessage}
+              <TableCell colSpan={columns.length} className="py-10 text-center">
+                <div className="flex flex-col items-center gap-1">
+                  <p className="text-sm font-medium">
+                    {isFiltered ? 'No matches for these filters' : emptyMessage}
+                  </p>
+                  {isFiltered ? (
+                    <p className="text-sm text-muted-foreground">
+                      Every record is excluded by a filter above.
+                    </p>
+                  ) : null}
+                  {isFiltered && onClearFilters ? (
+                    <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearFilters}>
+                      Clear filters
+                    </Button>
+                  ) : !isFiltered && emptyAction ? (
+                    <div className="mt-3">{emptyAction}</div>
+                  ) : null}
+                </div>
               </TableCell>
             </TableRow>
           ) : (

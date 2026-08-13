@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/compo
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { StatTile } from '@/components/ui/stat';
 import {
   Table,
   TableBody,
@@ -116,18 +117,9 @@ export function InstitutionProfilePage() {
             <CardTitle>At a glance</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-2xl font-semibold">{participantsServedCount}</p>
-              <p className="text-xs text-muted-foreground">Participants served</p>
-            </div>
-            <div>
-              <p className="text-2xl font-semibold">{classes.length}</p>
-              <p className="text-xs text-muted-foreground">Classes held</p>
-            </div>
-            <div>
-              <p className="text-2xl font-semibold">{volunteerAssignments.length}</p>
-              <p className="text-xs text-muted-foreground">Volunteer assignments</p>
-            </div>
+            <StatTile label="Participants served" value={participantsServedCount} />
+            <StatTile label="Classes held" value={classes.length} />
+            <StatTile label="Volunteer assignments" value={volunteerAssignments.length} />
           </CardContent>
         </Card>
       </div>

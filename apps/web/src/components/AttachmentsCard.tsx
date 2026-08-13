@@ -42,6 +42,12 @@ export interface AttachmentItem {
   createdAt: string;
 }
 
+/**
+ * A classification, not a status, so it stays out of the kit's STATUS_VARIANTS:
+ * `confidential` is red because of the handling the file demands, not because
+ * anything went wrong with it. Folding it would put a document classification
+ * in the same vocabulary as a failed dispatch.
+ */
 const SENSITIVITY_BADGES: Record<AttachmentSensitivity, 'warning' | 'destructive' | 'secondary'> = {
   standard: 'secondary', // never rendered — standard rows show no badge
   sensitive: 'warning',

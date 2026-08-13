@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/spinner';
+import { StatTile } from '@/components/ui/stat';
 import {
   Table,
   TableBody,
@@ -291,14 +292,8 @@ export function VehicleProfilePage() {
             ) : (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-md border bg-muted/30 p-3 text-center">
-                  <div>
-                    <p className="text-2xl font-semibold">{formatMoney(summary?.totalCost ?? 0)}</p>
-                    <p className="text-xs text-muted-foreground">Total cost</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-semibold">{summary?.records ?? 0}</p>
-                    <p className="text-xs text-muted-foreground">Services</p>
-                  </div>
+                  <StatTile label="Total cost" value={formatMoney(summary?.totalCost ?? 0)} />
+                  <StatTile label="Services" value={summary?.records ?? 0} />
                 </div>
                 {summary && summary.byType.length > 0 ? (
                   <ul className="space-y-1.5">

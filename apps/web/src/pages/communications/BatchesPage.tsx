@@ -27,7 +27,7 @@ import type { BatchRow } from './types';
 export function BatchesPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       state: P.choice(CHAPTER_STATES, ''),
@@ -108,7 +108,7 @@ export function BatchesPage() {
       key: 'recipients',
       header: 'Recipients',
       render: (b) => b._count.communications,
-      className: 'tabular-nums',
+      className: 'tabular-nums text-right',
     },
     {
       key: 'createdAt',
@@ -203,6 +203,8 @@ export function BatchesPage() {
         isFetching={isFetching}
         state={listState}
         onStateChange={onListStateChange}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No batches yet"
       />
 

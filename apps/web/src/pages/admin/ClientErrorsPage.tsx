@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { FilterSelect, unresolvedOptionLabel } from '@/components/ui/filter-select';
 import { SectionHeader } from '@/components/ui/page-header';
-import { EmptyState, ErrorState } from '@/components/ui/spinner';
+import { EmptyState, ErrorState, NoAccess } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -20,7 +20,15 @@ import { formatDateTime, JsonBlock } from './shared';
 
 const SOURCES = ['boundary', 'window', 'promise'] as const;
 
-/** What each capture point means, in words a reader can act on. */
+/**
+ * What each capture point means, in words a reader can act on.
+ *
+ * Not a candidate for the kit's STATUS_VARIANTS: it carries a label and a hint
+ * as well as a colour, and the colour ranks blast radius (a render throw took
+ * the screen down; a stray rejection may have gone unnoticed) rather than
+ * naming a state. `boundary`/`window`/`promise` are also raw capture points —
+ * the labels exist precisely because humanize() would print the wrong word.
+ */
 const SOURCE_META: Record<string, { label: string; variant: BadgeProps['variant']; hint: string }> =
   {
     boundary: {
@@ -66,7 +74,7 @@ interface ClientErrorRow {
  */
 export function ClientErrorsPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       source: P.choice(SOURCES, ''),
@@ -109,7 +117,7 @@ export function ClientErrorsPage() {
   });
 
   if (!can('audit.read')) {
-    return <EmptyState title="No access" hint="Requires the audit.read permission." />;
+    return <NoAccess reason="Requires the audit.read permission." />;
   }
 
   const columns: Column<ClientErrorRow>[] = [
@@ -142,7 +150,7 @@ export function ClientErrorsPage() {
       key: 'count',
       header: 'Seen',
       sortKey: 'count',
-      className: 'tabular-nums',
+      className: 'tabular-nums text-right',
       render: (row) => row.count.toLocaleString('en-US'),
     },
     {
@@ -223,6 +231,8 @@ export function ClientErrorsPage() {
         onStateChange={onListStateChange}
         onRowOpen={(row) => setDetail(row)}
         rowLabel={(row) => `View error: ${row.message}`}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No client errors reported"
       />
 

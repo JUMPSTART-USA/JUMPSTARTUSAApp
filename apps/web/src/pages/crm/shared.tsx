@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/badge';
+import { Meter } from '@/components/ui/meter';
 import {
   EntityPicker,
   useRehydratedValue,
@@ -8,6 +9,7 @@ import {
   type RehydratedValue,
   type RehydrationStatus,
 } from '@/components/ui/entity-picker';
+import { StatTile as KitStatTile } from '@/components/ui/stat';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, fullName } from '@/lib/utils';
@@ -20,45 +22,57 @@ import type {
   PersonRef,
 } from './types';
 
+/**
+ * Campaign/appeal progress toward a goal.
+ *
+ * Reaching 100% is GOOD here, which is why the tone rule lives at this call site
+ * and not in the kit's Meter: housing's OccupancyBar draws the same bar and
+ * means the opposite by a full one. See the note in components/ui/meter.tsx.
+ */
 export function ProgressBar({ pct }: { pct: number | null }) {
   if (pct === null) return <span className="text-xs text-muted-foreground">No goal set</span>;
-  const clamped = Math.min(100, Math.max(0, pct));
   return (
     <div className="flex items-center gap-2">
-      <div className="h-2 w-full max-w-[160px] overflow-hidden rounded-full bg-muted">
-        <div
-          className={cn('h-full rounded-full', pct >= 100 ? 'bg-success' : 'bg-primary')}
-          style={{ width: `${clamped}%` }}
-        />
-      </div>
+      <Meter pct={pct} tone={pct >= 100 ? 'success' : 'primary'} className="max-w-[160px]" />
       <span className="text-xs tabular-nums text-muted-foreground">{pct}%</span>
     </div>
   );
 }
 
-/** Compact label + value tile for giving-summary rows. */
+/**
+ * Compact label + value tile for giving-summary rows — the kit's `StatTile`
+ * wearing this module's older prop shape.
+ *
+ * The adapter is here rather than at the call sites because the ONLY difference
+ * is where the value arrives: nineteen sites across the three donor screens
+ * spell it `<StatTile label="Lifetime">{formatMoney(…)}</StatTile>`, and
+ * rewriting all of them to `value={…}` would spread a change that moves nothing
+ * on screen across the CRM, burying the pixel-for-pixel claim in a diff too
+ * large to check it against. `size` is pinned, not forwarded: `sm` is text-lg,
+ * which is what every one of those sites renders today, and a size a call site
+ * can pass is a size that eventually differs from the one beside it.
+ *
+ * The output is identical, not merely close. The kit's value line also carries
+ * `leading-tight`, but twMerge drops it — `text-lg` sets its own line-height and
+ * arrives later in the `cn()` call — so these values keep the 1.75rem line they
+ * have now. That is worth knowing before reordering `cn()`'s arguments in
+ * stat.tsx: `leading-tight` would start winning and every giving summary would
+ * tighten by 5px with no diff in this file.
+ */
 export function StatTile({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-lg font-semibold tabular-nums">{children}</p>
-    </div>
-  );
+  return <KitStatTile label={label} value={children} size="sm" />;
 }
 
-const LIFECYCLE_META: Record<DonorLifecycle, { label: string; variant: BadgeProps['variant'] }> = {
-  prospective: { label: 'Prospective', variant: 'outline' },
-  new: { label: 'New', variant: 'info' },
-  active: { label: 'Active', variant: 'success' },
-  lapsed: { label: 'Lapsed', variant: 'warning' },
-  inactive: { label: 'Inactive', variant: 'outline' },
-};
-
-/** Computed giving-lifecycle badge (prospective/new/active/lapsed/inactive). */
+/**
+ * Computed giving-lifecycle badge (prospective/new/active/lapsed/inactive).
+ *
+ * All five labels were exactly what humanize() produces, and the colours were
+ * the canonical ones, so the local map folded into STATUS_VARIANTS with no
+ * pixel change — including the em dash StatusBadge already renders for a donor
+ * with no computed lifecycle.
+ */
 export function LifecycleBadge({ lifecycle }: { lifecycle: DonorLifecycle | null | undefined }) {
-  if (!lifecycle) return <span className="text-muted-foreground">—</span>;
-  const meta = LIFECYCLE_META[lifecycle];
-  return <Badge variant={meta.variant}>{meta.label}</Badge>;
+  return <StatusBadge status={lifecycle} />;
 }
 
 /** All campaigns for select controls — small dataset, cached per session. */

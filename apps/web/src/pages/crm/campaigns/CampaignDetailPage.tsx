@@ -74,7 +74,7 @@ export function CampaignDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   /** ns 'donations': a second list could join this route behind the tab strip. */
-  const { listState: donationState, onListStateChange: onDonationStateChange } = useListParams(
+  const { listState: donationState, onListStateChange: onDonationStateChange, clear, isFiltered } = useListParams(
     {},
     { ns: 'donations', sort: { by: 'donationDate', dir: 'desc' } },
   );
@@ -269,6 +269,8 @@ export function CampaignDetailPage() {
               isFetching={donationsQuery.isFetching}
               state={donationState}
               onStateChange={onDonationStateChange}
+              isFiltered={isFiltered}
+              onClearFilters={clear}
               emptyMessage="No donations linked to this campaign"
             />
           </TabsContent>

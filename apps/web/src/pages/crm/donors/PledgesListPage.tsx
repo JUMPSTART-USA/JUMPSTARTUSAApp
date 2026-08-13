@@ -70,7 +70,7 @@ const columns: Column<PledgeListItem>[] = [
 
 export function PledgesListPage() {
   const { can } = useAuth();
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       donorId: P.id(),
       status: P.choice(PLEDGE_STATUSES, ''),
@@ -156,6 +156,8 @@ export function PledgesListPage() {
         state={listState}
         onStateChange={onListStateChange}
         rowHref={(row) => `/donors/pledges/${row.id}`}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No pledges found"
       />
 

@@ -62,6 +62,8 @@ export function HomeDetailPage() {
     set,
     listState: historyState,
     onListStateChange: setHistoryState,
+    clear,
+    isFiltered,
   } = useListParams(
     {
       search: P.text(),
@@ -364,6 +366,8 @@ export function HomeDetailPage() {
                     })
                 : undefined
             }
+            isFiltered={isFiltered}
+            onClearFilters={clear}
             emptyMessage="No enrollment history for this home"
           />
         </CardContent>

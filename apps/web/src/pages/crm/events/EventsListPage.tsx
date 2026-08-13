@@ -78,7 +78,7 @@ export function EventsListPage() {
    * So this is not a patch() case after all, even though the tab changes more than
    * itself: nothing needs to land atomically because only one key moves.
    */
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       eventType: P.text(),
@@ -190,6 +190,8 @@ export function EventsListPage() {
         state={listState}
         onStateChange={onListStateChange}
         rowHref={(row) => `/events/${row.id}`}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage={tab === 'upcoming' ? 'No upcoming events' : 'No past events'}
       />
 

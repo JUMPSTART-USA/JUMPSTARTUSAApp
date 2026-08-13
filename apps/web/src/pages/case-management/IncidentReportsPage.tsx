@@ -34,7 +34,7 @@ export type { IncidentReportRow } from './incident-report-dialogs';
 export function IncidentReportsPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       participantId: P.id(),
       severity: P.choice(INCIDENT_SEVERITIES, ''),
@@ -242,6 +242,8 @@ export function IncidentReportsPage() {
         isFetching={isFetching}
         state={listState}
         onStateChange={onListStateChange}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No incidents reported"
       />
 

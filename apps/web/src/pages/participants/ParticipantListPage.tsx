@@ -97,7 +97,7 @@ export function ParticipantListPage() {
   const navigate = useNavigate();
   const { user, can } = useAuth();
 
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       insideStatus: P.choice(INSIDE_STATUSES, ''),
@@ -261,6 +261,8 @@ export function ParticipantListPage() {
           // a screen-reader user hears the link text as the row's identity,
           // and "P-2026-00011" is not an identity.
           linkColumnKey="name"
+          isFiltered={isFiltered}
+          onClearFilters={clear}
           emptyMessage="No participants match these filters"
         />
       )}

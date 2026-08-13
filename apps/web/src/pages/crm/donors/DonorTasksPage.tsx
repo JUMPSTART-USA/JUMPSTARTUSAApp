@@ -263,7 +263,7 @@ export function DonorTasksPage() {
    * the request below, never stored, so the tab is the only key that moves and one
    * write covers it. Nothing has to land atomically.
    */
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       tab: P.choice(TASK_TABS, 'mine'),
       state: P.choice(CHAPTER_STATES, ''),
@@ -407,6 +407,8 @@ export function DonorTasksPage() {
         isFetching={query.isFetching}
         state={listState}
         onStateChange={onListStateChange}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage={tab === 'completed' ? 'No completed tasks' : 'No open tasks'}
       />
 

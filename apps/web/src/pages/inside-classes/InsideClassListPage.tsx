@@ -55,14 +55,14 @@ const columns: Column<InsideClassListItem>[] = [
   {
     key: 'enrolled',
     header: 'Enrolled',
-    className: 'text-right',
+    className: 'text-right tabular-nums',
     render: (row) => row._count.enrollments,
   },
 ];
 
 export function InsideClassListPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams({
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams({
     search: P.text(),
     institutionId: P.id(),
     state: P.choice(CHAPTER_STATES, ''),
@@ -164,6 +164,8 @@ export function InsideClassListPage() {
           state={listState}
           onStateChange={onListStateChange}
           rowHref={(row) => row.id}
+          isFiltered={isFiltered}
+          onClearFilters={clear}
           emptyMessage="No classes found"
         />
       )}

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
+import { StatTile } from '@/components/ui/stat';
 import { ListToolbar, ToolbarDateField } from '@/components/ui/toolbar';
 import {
   Table,
@@ -96,7 +97,7 @@ export function HoursPage() {
   });
 
   // ── All entries ───────────────────────────────────────────────────────────
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       volunteerId: P.id(),
       status: P.choice(HOURS_STATUSES, ''),
@@ -137,6 +138,7 @@ export function HoursPage() {
     },
     {
       key: 'hours',
+      className: 'text-right tabular-nums',
       header: 'Hours',
       sortKey: 'hours',
       render: (row) => <span className="font-medium">{formatHours(row.hours)}</span>,
@@ -197,18 +199,9 @@ export function HoursPage() {
       />
 
       <div className="grid grid-cols-1 gap-3 rounded-md border bg-muted/30 p-3 text-center sm:grid-cols-3">
-        <div>
-          <p className="text-2xl font-semibold">{formatHours(monthTotal)}</p>
-          <p className="text-xs text-muted-foreground">Approved this month</p>
-        </div>
-        <div>
-          <p className="text-2xl font-semibold">{formatHours(ytdTotal)}</p>
-          <p className="text-xs text-muted-foreground">Approved this year</p>
-        </div>
-        <div>
-          <p className="text-2xl font-semibold">{pendingQuery.data?.total ?? 0}</p>
-          <p className="text-xs text-muted-foreground">Pending approval</p>
-        </div>
+        <StatTile label="Approved this month" value={formatHours(monthTotal)} />
+        <StatTile label="Approved this year" value={formatHours(ytdTotal)} />
+        <StatTile label="Pending approval" value={pendingQuery.data?.total ?? 0} />
       </div>
 
       <Card>
@@ -336,6 +329,8 @@ export function HoursPage() {
             isFetching={entries.isFetching}
             state={listState}
             onStateChange={onListStateChange}
+            isFiltered={isFiltered}
+            onClearFilters={clear}
             emptyMessage="No hours entries found"
           />
         </CardContent>

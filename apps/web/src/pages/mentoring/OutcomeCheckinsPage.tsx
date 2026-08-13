@@ -266,7 +266,7 @@ function CompleteCheckinDialog({
 
 export function OutcomeCheckinsPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       /**
@@ -431,7 +431,17 @@ export function OutcomeCheckinsPage() {
           isFetching={query.isFetching}
           state={listState}
           onStateChange={onListStateChange}
-          emptyMessage="No check-ins match these filters"
+          isFiltered={isFiltered}
+          onClearFilters={clear}
+          emptyMessage={
+            /* `due` defaults to 'overdue', so an empty default view is a
+               SUCCESS state — nothing is overdue — not an absence of data. */
+            values.due === 'overdue'
+              ? 'Nothing is overdue'
+              : values.due === 'upcoming'
+                ? 'No check-ins coming up'
+                : 'No check-ins yet'
+          }
         />
       )}
 

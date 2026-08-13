@@ -43,7 +43,7 @@ import { BackLink } from '@/components/BackLink';
  */
 export function FacilityRequirementsPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       institutionId: P.id(),
@@ -204,6 +204,8 @@ export function FacilityRequirementsPage() {
               }
             : undefined
         }
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No clearance requirements defined"
       />
 

@@ -29,7 +29,7 @@ export function HoursTab({
    * Namespaced 'hours': all three volunteer tabs mount on /volunteers/:id, so
    * an un-namespaced ?page= would page whichever tab the user opens next.
    */
-  const { listState, onListStateChange } = useListParams(
+  const { listState, onListStateChange, clear, isFiltered } = useListParams(
     {},
     { ns: 'hours', sort: { by: 'activityDate', dir: 'desc' } },
   );
@@ -129,6 +129,8 @@ export function HoursTab({
         isFetching={isFetching}
         state={listState}
         onStateChange={onListStateChange}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No hours recorded yet"
       />
 

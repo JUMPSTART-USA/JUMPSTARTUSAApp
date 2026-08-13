@@ -66,7 +66,7 @@ export function VolunteerListPage() {
   const { can } = useAuth();
   const navigate = useNavigate();
 
-  const { values, draft, set, listState, onListStateChange } = useListParams({
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams({
     search: P.text(),
     status: P.choice(VOLUNTEER_STATUSES, ''),
     /** Tri-state: '' is "mentors and non-mentors", not "unset". */
@@ -220,6 +220,8 @@ export function VolunteerListPage() {
         state={listState}
         onStateChange={onListStateChange}
         rowHref={(row) => `/volunteers/${row.id}`}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No volunteers found"
       />
 

@@ -80,7 +80,7 @@ const columns: Column<OutsideProgramRow>[] = [
 
 export function OutsideProgramListPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams({
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams({
     search: P.text(),
     programType: P.choice(PROGRAM_TYPES, ''),
     status: P.choice(['active', 'inactive', 'completed'] as const, ''),
@@ -172,6 +172,8 @@ export function OutsideProgramListPage() {
         state={listState}
         onStateChange={onListStateChange}
         rowHref={(row) => row.id}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No outside programs found"
       />
 
