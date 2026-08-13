@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
+  CHAPTER_STATES,
   GENDERS,
   US_STATES,
   VOLUNTEER_STATUSES,
@@ -9,13 +10,13 @@ import {
   type UsState,
   type VolunteerStatus,
 } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, CalendarDays, ClipboardList, Clock, Plus } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { ChapterFilterSelect, ChapterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { P, useListParams } from '@/lib/list-params';
 import { applyApiError, useDebounced } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import type { BackgroundCheckRow, DuplicateCandidate, VolunteerListItem } from './types';
@@ -64,28 +66,32 @@ export function VolunteerListPage() {
   const { can } = useAuth();
   const navigate = useNavigate();
 
-  const [listState, setListState] = useState<ListState>(initialListState);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const [mentor, setMentor] = useState('');
-  const [chapter, setChapter] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams({
+    search: P.text(),
+    status: P.choice(VOLUNTEER_STATUSES, ''),
+    /** Tri-state: '' is "mentors and non-mentors", not "unset". */
+    isMentor: P.choice(['true', 'false'] as const, ''),
+    state: P.choice(CHAPTER_STATES, ''),
+  });
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
 
   const params = {
     page: listState.page,
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    search: debouncedSearch,
-    status,
-    isMentor: mentor,
-    state: chapter,
+    // `values`, not `draft`: the query waits for typing to settle.
+    search: values.search,
+    status: values.status,
+    isMentor: values.isMentor,
+    state: values.state,
   };
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['volunteers', 'list', params],
     queryFn: () => api.get<Paged<VolunteerListItem>>(`/volunteers${qs(params)}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<VolunteerListItem>[] = [
@@ -168,22 +174,18 @@ export function VolunteerListPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search name or email…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof VOLUNTEER_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {VOLUNTEER_STATUSES.map((s) => (
@@ -195,22 +197,16 @@ export function VolunteerListPage() {
         <FilterSelect
           aria-label="Mentor"
           className="w-full sm:w-44"
-          value={mentor}
-          onChange={(value) => {
-            setMentor(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.isMentor}
+          onChange={(value) => set('isMentor', value as 'true' | 'false' | '')}
         >
           <option value="">Mentors & non-mentors</option>
           <option value="true">Mentors only</option>
           <option value="false">Non-mentors only</option>
         </FilterSelect>
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -220,8 +216,9 @@ export function VolunteerListPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         rowHref={(row) => `/volunteers/${row.id}`}
         emptyMessage="No volunteers found"
       />

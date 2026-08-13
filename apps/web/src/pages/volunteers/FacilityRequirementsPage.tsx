@@ -4,11 +4,11 @@ import {
   clearanceRequirementSchema,
   type ClearanceRequirementType,
 } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FilterSelect } from '@/components/ui/filter-select';
+import { FilterSelect, unresolvedOptionLabel } from '@/components/ui/filter-select';
 import { Checkbox, Input, Label, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
@@ -29,6 +29,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, ApiError, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { P, useListParams } from '@/lib/list-params';
 import { applyApiError, useDebounced } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import { useInstitutionsLookup } from './lookups';
@@ -42,25 +43,32 @@ import { BackLink } from '@/components/BackLink';
  */
 export function FacilityRequirementsPage() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortBy: 'name' });
-  const [institutionId, setInstitutionId] = useState('');
-  const [active, setActive] = useState('');
-  const [search, setSearch] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      institutionId: P.id(),
+      /** Tri-state: '' is "active and retired", not "unset". */
+      active: P.choice(['true', 'false'] as const, ''),
+    },
+    { sort: { by: 'name' } },
+  );
   const [editing, setEditing] = useState<RequirementRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
   const institutions = useInstitutionsLookup();
 
   const params = {
     ...listState,
-    search: debouncedSearch,
-    institutionId,
-    active,
+    // `values`, not `draft`: the query waits for typing to settle.
+    search: values.search,
+    institutionId: values.institutionId,
+    active: values.active,
   };
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['volunteers', 'requirements', 'list', params],
     queryFn: () =>
       api.get<Paged<RequirementRow>>(`/volunteers/facility-requirements${qs(params)}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<RequirementRow>[] = [
@@ -138,24 +146,29 @@ export function FacilityRequirementsPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search requirements…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Institution"
           className="w-full sm:w-56"
-          value={institutionId}
-          onChange={(value) => {
-            setInstitutionId(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.institutionId}
+          onChange={(value) => set('institutionId', value)}
         >
           <option value="">All institutions</option>
+          {/* The lookup is capped at 200, active-only and gated on
+              institutions.read, so an id from a link may be absent from it —
+              without a stand-in the select would read "All institutions" over a
+              filtered list. Must be a DIRECT child; see filter-select.tsx. */}
+          {unresolvedOptionLabel(values.institutionId, institutions.items, institutions.isLoading) ? (
+            <option value={values.institutionId}>
+              {unresolvedOptionLabel(values.institutionId, institutions.items, institutions.isLoading)}
+            </option>
+          ) : null}
           {institutions.items.map((i) => (
             <option key={i.id} value={i.id}>
               {i.name}
@@ -165,11 +178,8 @@ export function FacilityRequirementsPage() {
         <FilterSelect
           aria-label="Active status"
           className="w-full sm:w-44"
-          value={active}
-          onChange={(value) => {
-            setActive(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.active}
+          onChange={(value) => set('active', value as 'true' | 'false' | '')}
         >
           <option value="">Active & retired</option>
           <option value="true">Active only</option>
@@ -183,8 +193,9 @@ export function FacilityRequirementsPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         onRowClick={
           can('volunteers.update')
             ? (row) => {
