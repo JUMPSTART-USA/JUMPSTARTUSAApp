@@ -180,13 +180,77 @@ export interface PersonHit {
  * Person lookup across the records this user can already read (participants
  * and volunteers) — there is no standalone person-search endpoint.
  */
+/**
+ * The person behind a `?personId=` in the URL.
+ *
+ * Unlike the other pickers there is no single person endpoint — PersonSearch
+ * looks across participants AND volunteers, because a person can be both. So
+ * this asks the same two lists, by `personId`, and takes whichever answers
+ * first; the label is the same either way, and "Participant" wins the sublabel
+ * when both do, matching what the typeahead shows.
+ *
+ * Permission-gated the same way the search is: a viewer who can read neither
+ * list resolves nothing, which the picker renders as a record they cannot view.
+ */
+export function usePersonOption(personId: string): {
+  value: PersonHit | null;
+  status: RehydrationStatus;
+  onRetry?: () => void;
+} {
+  const { can } = useAuth();
+  const canParticipants = can('participants.read');
+  const canVolunteers = can('volunteers.read');
+
+  const rehydrated = useRehydratedValue(
+    `person-${canParticipants}-${canVolunteers}`,
+    personId,
+    async (id) => {
+      const query = qs({ personId: id, pageSize: 1 });
+      const [participants, volunteers] = await Promise.all([
+        canParticipants
+          ? api.get<Paged<{ person: PersonRef | null }>>(`/participants${query}`)
+          : Promise.resolve(undefined),
+        canVolunteers
+          ? api.get<Paged<{ person: PersonRef | null }>>(`/volunteers${query}`)
+          : Promise.resolve(undefined),
+      ]);
+      const asParticipant = participants?.items[0]?.person;
+      const asVolunteer = volunteers?.items[0]?.person;
+      const person = asParticipant ?? asVolunteer;
+      if (!person) return null;
+      return {
+        id: person.id,
+        label: fullName(person),
+        sublabel: asParticipant ? 'Participant' : 'Volunteer',
+      };
+    },
+  );
+
+  return {
+    value: rehydrated.value
+      ? {
+          personId: rehydrated.value.id,
+          name: rehydrated.value.label,
+          source: rehydrated.value.sublabel ?? '',
+        }
+      : null,
+    status: rehydrated.status,
+    onRetry: rehydrated.onRetry,
+  };
+}
+
 export function PersonSearch({
   selected,
+  status,
+  onRetry,
   onSelect,
   placeholder,
   id,
 }: {
   selected: PersonHit | null;
+  /** Set by `usePersonOption` when the value came from the URL. */
+  status?: RehydrationStatus;
+  onRetry?: () => void;
   onSelect: (hit: PersonHit | null) => void;
   placeholder?: string;
   /** Forwarded to the inner control so a FormField label can target it. */
@@ -207,6 +271,8 @@ export function PersonSearch({
   return (
     <EntityPicker
       id={id}
+      status={status}
+      onRetry={onRetry}
       value={
         selected
           ? { id: selected.personId, label: selected.name, sublabel: selected.source }

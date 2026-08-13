@@ -23,6 +23,8 @@ import type { AuthenticatedUser } from '../../common/types';
 export interface ParticipantListFilters {
   /** A single record, for a picker turning an id from a URL back into a name. */
   id?: string;
+  /** The person behind the profile — see the controller. */
+  personId?: string;
   insideStatus?: InsideStatus;
   outsideStatus?: OutsideStatus;
   alumniStatus?: AlumniStatus;
@@ -82,7 +84,7 @@ export class ParticipantsService {
   async list(query: ListQuery, filters: ParticipantListFilters) {
     const where: Prisma.ParticipantProfileWhereInput = {
       deletedAt: null,
-      person: { deletedAt: null },
+      person: { deletedAt: null, ...(filters.personId ? { id: filters.personId } : {}) },
       // Chapter scoping (§7.2): own chapterState column — person.state is mail.
       ...(filters.state ? { chapterState: filters.state } : {}),
       // A picker rehydrating one id. It sits INSIDE this where on purpose: the

@@ -62,6 +62,12 @@ const listFiltersSchema = listQuerySchema.extend({
    * which has no business being fetched to label a filter chip.
    */
   id: z.string().uuid().optional(),
+  /**
+   * The PERSON behind the profile, for a picker whose results span more than one
+   * profile type — the communications history filters by person, because a
+   * message goes to a person who may be both a participant and a volunteer.
+   */
+  personId: z.string().uuid().optional(),
   insideStatus: z.enum(INSIDE_STATUSES).optional(),
   outsideStatus: z.enum(OUTSIDE_STATUSES).optional(),
   alumniStatus: z.enum(ALUMNI_STATUSES).optional(),
@@ -98,6 +104,7 @@ export class ParticipantsController {
   ) {
     const {
       id,
+      personId,
       insideStatus,
       outsideStatus,
       alumniStatus,
@@ -110,6 +117,7 @@ export class ParticipantsController {
     const state = (user.chapter ?? requestedState) as ListFilters['state'];
     return this.participants.list(listQuery as ListQuery, {
       id,
+      personId,
       insideStatus,
       outsideStatus,
       alumniStatus,
