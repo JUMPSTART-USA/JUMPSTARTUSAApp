@@ -183,7 +183,7 @@ function TaskDialog({
 export function TasksPage() {
   const { user, can } = useAuth();
   const queryClient = useQueryClient();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       status: P.choice(TASK_STATUSES, ''),
@@ -344,6 +344,8 @@ export function TasksPage() {
         isFetching={isFetching}
         state={listState}
         onStateChange={onListStateChange}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage={values.mineOnly ? 'No tasks assigned to you' : 'No tasks found'}
       />
 

@@ -132,7 +132,7 @@ function ProposeAssignmentDialog({ onClose }: { onClose: () => void }) {
 
 export function AssignmentsPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       status: P.choice(MENTOR_ASSIGNMENT_STATUSES, ''),
@@ -235,6 +235,8 @@ export function AssignmentsPage() {
           state={listState}
           onStateChange={onListStateChange}
           rowHref={(row) => row.id}
+          isFiltered={isFiltered}
+          onClearFilters={clear}
           emptyMessage="No assignments match these filters"
         />
       )}

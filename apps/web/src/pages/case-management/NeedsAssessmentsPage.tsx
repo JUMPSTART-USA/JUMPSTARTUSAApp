@@ -208,7 +208,7 @@ function AssessmentViewDialog({
 
 export function NeedsAssessmentsPage() {
   const { can } = useAuth();
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       participantId: P.id(),
       state: P.choice(CHAPTER_STATES, ''),
@@ -372,6 +372,8 @@ export function NeedsAssessmentsPage() {
         state={listState}
         onStateChange={onListStateChange}
         onRowClick={(a) => setViewing(a)}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No needs assessments recorded"
       />
 

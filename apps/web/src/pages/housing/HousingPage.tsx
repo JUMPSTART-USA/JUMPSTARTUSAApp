@@ -204,7 +204,7 @@ function HomesTab() {
    * deletes the page key in the same URL write as the filter, so there is no
    * second render pass and no window showing page 3 of a new result set.
    */
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       state: P.choice(CHAPTER_STATES, ''),
@@ -264,6 +264,8 @@ function HomesTab() {
         state={listState}
         onStateChange={onListStateChange}
         rowHref={(row) => `homes/${row.id}`}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No transitional homes found"
       />
     </div>
@@ -317,7 +319,7 @@ const residentColumns: Column<HousingEnrollmentRow>[] = [
 function ResidentsTab() {
   const navigate = useNavigate();
   /** ns 'residents': shares this route, and a `search` key, with the Homes queue. */
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       status: P.choice(HOUSING_STATUSES, ''),
@@ -373,6 +375,8 @@ function ResidentsTab() {
         state={listState}
         onStateChange={onListStateChange}
         rowHref={(row) => `homes/${row.homeId}`}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No housing enrollments found"
       />
     </div>
@@ -385,7 +389,7 @@ type HousingTab = (typeof HOUSING_TABS)[number];
 
 export function HousingPage() {
   /** 'occupancy' is the default, so it is the value ABSENT from the URL. */
-  const { values: tabValues, set: setTab } = useListParams({
+  const { values: tabValues, set: setTab, clear, isFiltered } = useListParams({
     tab: P.choice(HOUSING_TABS, 'occupancy'),
   });
   const tab = tabValues.tab || 'occupancy';

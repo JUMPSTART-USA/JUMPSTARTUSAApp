@@ -50,7 +50,7 @@ function changeSummary(entry: AuditLogEntry): string {
 export function AuditLogPage() {
   const { can } = useAuth();
 
-  const { values, draft, set, listState, onListStateChange } = useListParams({
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams({
     userId: P.id(),
     entityType: P.text(),
     /**
@@ -263,6 +263,8 @@ export function AuditLogPage() {
         state={listState}
         onStateChange={onListStateChange}
         onRowClick={setSelected}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No audit entries match the filters"
       />
 

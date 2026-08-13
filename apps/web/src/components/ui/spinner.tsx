@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Notice } from '@/components/ui/notice';
@@ -20,11 +21,27 @@ export function PageLoader({ label = 'Loading…' }: { label?: string }) {
   );
 }
 
-export function EmptyState({ title, hint }: { title: string; hint?: string }) {
+/**
+ * `action` is the whole point of the audit's empty-state finding: 72 of these
+ * told a user that nothing was here and then left them to work out what to do
+ * about it. An empty screen is a fork in the road — either nothing exists yet
+ * (make one) or a filter excluded everything (clear it) — and the state that
+ * knows which should say so.
+ */
+export function EmptyState({
+  title,
+  hint,
+  action,
+}: {
+  title: string;
+  hint?: string;
+  action?: ReactNode;
+}) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed bg-card px-6 py-12 text-center">
       <p className="text-sm font-medium">{title}</p>
-      {hint ? <p className="mt-1 text-sm text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className="text-sm text-muted-foreground">{hint}</p> : null}
+      {action ? <div className="mt-3">{action}</div> : null}
     </div>
   );
 }

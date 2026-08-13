@@ -127,7 +127,7 @@ export function ReferralsTab() {
    * view), and '' means the user explicitly asked for every status. Collapsing
    * the two would make "All statuses" unreachable from a link.
    */
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       status: P.choice(INTAKE_STATUSES, 'pending'),
       search: P.text(),
@@ -254,6 +254,8 @@ export function ReferralsTab() {
           state={listState}
           onStateChange={onListStateChange}
           onRowOpen={(row) => setSelectedId(row.id)}
+          isFiltered={isFiltered}
+          onClearFilters={clear}
           emptyMessage="No referrals in this view"
         />
       )}

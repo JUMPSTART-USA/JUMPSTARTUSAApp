@@ -66,7 +66,7 @@ interface ClientErrorRow {
  */
 export function ClientErrorsPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       source: P.choice(SOURCES, ''),
@@ -223,6 +223,8 @@ export function ClientErrorsPage() {
         onStateChange={onListStateChange}
         onRowOpen={(row) => setDetail(row)}
         rowLabel={(row) => `View error: ${row.message}`}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No client errors reported"
       />
 

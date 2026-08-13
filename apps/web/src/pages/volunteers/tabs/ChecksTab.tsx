@@ -53,7 +53,7 @@ export function ChecksTab({ personId }: { personId: string }) {
    * Namespaced 'checks': all three volunteer tabs mount on /volunteers/:id, so
    * an un-namespaced ?page= would page whichever tab the user opens next.
    */
-  const { listState, onListStateChange } = useListParams(
+  const { listState, onListStateChange, clear, isFiltered } = useListParams(
     {},
     { ns: 'checks', sort: { by: 'orderedAt', dir: 'desc' } },
   );
@@ -163,6 +163,8 @@ export function ChecksTab({ personId }: { personId: string }) {
         isFetching={isFetching}
         state={listState}
         onStateChange={onListStateChange}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No background checks recorded"
       />
 

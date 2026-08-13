@@ -52,7 +52,7 @@ const columns: Column<DonorListItem>[] = [
 
 export function DonorsListPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       donorType: P.choice(DONOR_TYPES, ''),
@@ -142,6 +142,8 @@ export function DonorsListPage() {
         state={listState}
         onStateChange={onListStateChange}
         rowHref={(row) => `/donors/${row.id}`}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No donors found"
       />
 

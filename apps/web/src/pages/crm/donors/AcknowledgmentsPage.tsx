@@ -123,7 +123,7 @@ function AcknowledgeDialog({
 
 export function AcknowledgmentsPage() {
   const { can } = useAuth();
-  const { listState: state, onListStateChange } = useListParams(
+  const { listState: state, onListStateChange, clear, isFiltered } = useListParams(
     {},
     { sort: { by: 'donationDate', dir: 'asc' } },
   );
@@ -231,6 +231,8 @@ export function AcknowledgmentsPage() {
           isFetching={query.isFetching}
           state={state}
           onStateChange={onListStateChange}
+          isFiltered={isFiltered}
+          onClearFilters={clear}
           emptyMessage="All caught up"
         />
       )}

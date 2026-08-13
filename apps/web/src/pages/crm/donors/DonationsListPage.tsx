@@ -113,7 +113,7 @@ export function DonationsListPage() {
    * because those are free-form values from a fetched list — there is no closed set
    * to validate against, unlike the chapter and the two boolean selects.
    */
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       state: P.choice(CHAPTER_STATES, ''),
@@ -320,6 +320,8 @@ export function DonationsListPage() {
         state={listState}
         onStateChange={onListStateChange}
         onRowOpen={can('donors.update') ? (row) => setEditing(row) : undefined}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No donations match these filters"
       />
 

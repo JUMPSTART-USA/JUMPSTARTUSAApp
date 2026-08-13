@@ -46,7 +46,7 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
    * Namespaced 'trainings': all three volunteer tabs mount on /volunteers/:id, so
    * an un-namespaced ?page= would page whichever tab the user opens next.
    */
-  const { listState, onListStateChange } = useListParams(
+  const { listState, onListStateChange, clear, isFiltered } = useListParams(
     {},
     { ns: 'trainings', sort: { by: 'completedAt', dir: 'desc' } },
   );
@@ -169,6 +169,8 @@ export function TrainingsTab({ volunteerProfileId }: { volunteerProfileId: strin
         isFetching={isFetching}
         state={listState}
         onStateChange={onListStateChange}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No trainings recorded"
       />
 

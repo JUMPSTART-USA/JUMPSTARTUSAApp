@@ -22,7 +22,7 @@ export function EmploymentsListPage() {
   const { can } = useAuth();
   const canPay = can('fields.pay.read');
   const canUpdate = can('employment.update');
-  const { values, draft, set, listState, onListStateChange } = useListParams({
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams({
     search: P.text(),
     employerId: P.id(),
     status: P.choice(EMPLOYMENT_STATUSES, ''),
@@ -209,6 +209,8 @@ export function EmploymentsListPage() {
           isFetching={query.isFetching}
           state={listState}
           onStateChange={onListStateChange}
+          isFiltered={isFiltered}
+          onClearFilters={clear}
           emptyMessage="No employment records found"
         />
       )}

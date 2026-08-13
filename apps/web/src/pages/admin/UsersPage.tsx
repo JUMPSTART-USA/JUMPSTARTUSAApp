@@ -43,7 +43,7 @@ export function UsersPage() {
   const { can, user: me } = useAuth();
   const queryClient = useQueryClient();
 
-  const { values, draft, set, listState, onListStateChange } = useListParams({
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams({
     search: P.text(),
     status: P.choice(USER_STATUSES, ''),
   });
@@ -302,6 +302,8 @@ export function UsersPage() {
         isFetching={isFetching}
         state={listState}
         onStateChange={onListStateChange}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No users found"
       />
 

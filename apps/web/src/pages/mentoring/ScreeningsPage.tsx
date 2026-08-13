@@ -141,6 +141,8 @@ export function ScreeningsPage() {
     set,
     listState: decidedState,
     onListStateChange: setDecidedState,
+    clear,
+    isFiltered,
   } = useListParams(
     {
       search: P.text(),
@@ -306,6 +308,8 @@ export function ScreeningsPage() {
               state={decidedState}
               onStateChange={setDecidedState}
               rowHref={(row) => row.id}
+              isFiltered={isFiltered}
+              onClearFilters={clear}
               emptyMessage={`No ${humanize(values.stage).toLowerCase()} screenings`}
             />
           )}

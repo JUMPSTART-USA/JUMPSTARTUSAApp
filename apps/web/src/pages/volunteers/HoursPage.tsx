@@ -96,7 +96,7 @@ export function HoursPage() {
   });
 
   // ── All entries ───────────────────────────────────────────────────────────
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       volunteerId: P.id(),
       status: P.choice(HOURS_STATUSES, ''),
@@ -336,6 +336,8 @@ export function HoursPage() {
             isFetching={entries.isFetching}
             state={listState}
             onStateChange={onListStateChange}
+            isFiltered={isFiltered}
+            onClearFilters={clear}
             emptyMessage="No hours entries found"
           />
         </CardContent>

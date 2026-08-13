@@ -44,7 +44,7 @@ export { formatTravelDates, type TravelRequestRow };
 export function TravelRequestsPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       participantId: P.id(),
       status: P.choice(TRAVEL_REQUEST_STATUSES, ''),
@@ -269,6 +269,8 @@ export function TravelRequestsPage() {
         isFetching={isFetching}
         state={listState}
         onStateChange={onListStateChange}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No travel requests"
       />
 

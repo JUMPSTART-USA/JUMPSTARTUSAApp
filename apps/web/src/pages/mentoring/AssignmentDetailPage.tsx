@@ -277,7 +277,7 @@ export function AssignmentDetailPage() {
    * of the URL entirely (no screen offers a rows-per-page control), so omitting it
    * here would silently turn this 10-row list into 25.
    */
-  const { listState: sessionState, onListStateChange: onSessionStateChange } = useListParams(
+  const { listState: sessionState, onListStateChange: onSessionStateChange, clear, isFiltered } = useListParams(
     {},
     { ns: 'sessions', sort: { by: 'sessionDate', dir: 'desc' }, pageSize: 10 },
   );
@@ -483,6 +483,8 @@ export function AssignmentDetailPage() {
               isLoading={sessions.isLoading}
               state={sessionState}
               onStateChange={onSessionStateChange}
+              isFiltered={isFiltered}
+              onClearFilters={clear}
               emptyMessage="No sessions logged yet"
             />
           )}

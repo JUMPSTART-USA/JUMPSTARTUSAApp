@@ -285,7 +285,7 @@ function NoteViewDialog({ noteId, onClose }: { noteId: string | null; onClose: (
 
 export function CaseNotesPage() {
   const { can } = useAuth();
-  const { values, set, listState, onListStateChange } = useListParams(
+  const { values, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       participantId: P.id(),
       category: P.choice(NOTE_CATEGORIES, ''),
@@ -504,6 +504,8 @@ export function CaseNotesPage() {
         state={listState}
         onStateChange={onListStateChange}
         onRowClick={(n) => setViewId(n.id)}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No case notes match the current filters"
       />
 

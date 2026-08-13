@@ -266,7 +266,7 @@ function CompleteCheckinDialog({
 
 export function OutcomeCheckinsPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       /**
@@ -431,6 +431,8 @@ export function OutcomeCheckinsPage() {
           isFetching={query.isFetching}
           state={listState}
           onStateChange={onListStateChange}
+          isFiltered={isFiltered}
+          onClearFilters={clear}
           emptyMessage="No check-ins match these filters"
         />
       )}

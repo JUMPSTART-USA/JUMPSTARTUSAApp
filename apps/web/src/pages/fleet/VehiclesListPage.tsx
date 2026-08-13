@@ -25,7 +25,7 @@ const SEVERITY_ORDER: AlertSeverity[] = ['overdue', 'due_soon', 'upcoming'];
 export function VehiclesListPage() {
   const { can } = useAuth();
   const navigate = useNavigate();
-  const { values, draft, set, listState, onListStateChange } = useListParams({
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams({
     search: P.text(),
     /** Free text: locations are typed, not enumerated. */
     location: P.text(),
@@ -216,6 +216,8 @@ export function VehiclesListPage() {
           state={listState}
           onStateChange={onListStateChange}
           rowHref={(row) => row.id}
+          isFiltered={isFiltered}
+          onClearFilters={clear}
           emptyMessage="No vehicles found"
         />
       )}

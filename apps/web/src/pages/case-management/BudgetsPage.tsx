@@ -74,7 +74,7 @@ export function BudgetsPage() {
    * `?payments.participantId=`, which reads as a property of the payments table
    * rather than of the page.)
    */
-  const { values, set, listState: payState, onListStateChange: setPayState } = useListParams(
+  const { values, set, listState: payState, onListStateChange: setPayState, clear, isFiltered } = useListParams(
     { participantId: P.id() },
     { sort: { by: 'paidDate', dir: 'desc' } },
   );
@@ -336,6 +336,8 @@ export function BudgetsPage() {
                 isFetching={paymentsQuery.isFetching}
                 state={payState}
                 onStateChange={setPayState}
+                isFiltered={isFiltered}
+                onClearFilters={clear}
                 emptyMessage="No payments recorded"
               />
             </CardContent>

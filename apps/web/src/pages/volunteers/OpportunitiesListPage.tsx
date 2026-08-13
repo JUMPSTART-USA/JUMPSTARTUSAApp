@@ -34,7 +34,7 @@ function linkedTo(row: OpportunityListItem) {
 export function OpportunitiesListPage() {
   const { can } = useAuth();
 
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       status: P.choice(OPPORTUNITY_STATUSES, ''),
@@ -169,6 +169,8 @@ export function OpportunitiesListPage() {
         state={listState}
         onStateChange={onListStateChange}
         rowHref={(row) => `/volunteers/opportunities/${row.id}`}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No opportunities found"
       />
 

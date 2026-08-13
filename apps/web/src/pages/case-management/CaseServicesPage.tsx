@@ -162,7 +162,7 @@ function RecordServiceDialog({
 
 export function CaseServicesPage() {
   const { can } = useAuth();
-  const { values, draft, set, listState, onListStateChange } = useListParams(
+  const { values, draft, set, listState, onListStateChange, clear, isFiltered } = useListParams(
     {
       search: P.text(),
       participantId: P.id(),
@@ -320,6 +320,8 @@ export function CaseServicesPage() {
         isFetching={isFetching}
         state={listState}
         onStateChange={onListStateChange}
+        isFiltered={isFiltered}
+        onClearFilters={clear}
         emptyMessage="No services recorded"
       />
 
