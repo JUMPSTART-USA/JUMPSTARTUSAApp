@@ -1,10 +1,10 @@
 import { HOME_GENDER_LABELS, HOUSING_STATUSES } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, Pencil, Trash2, UserPlus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BackLink } from '@/components/BackLink';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,8 +23,8 @@ import {
 } from '@/components/ui/table';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
+import { P, useListParams } from '@/lib/list-params';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import { HomeFormDialog } from './HomeFormDialog';
 import { OccupancyBar } from './HousingPage';
@@ -49,18 +49,26 @@ export function HomeDetailPage() {
   const [deleteEnrollmentTarget, setDeleteEnrollmentTarget] =
     useState<EnrollmentWithName | null>(null);
 
-  const [historyState, setHistoryState] = useState<ListState>({
-    ...initialListState,
-    sortBy: 'moveInDate',
-    sortDir: 'desc',
-  });
-  const [historySearch, setHistorySearch] = useState('');
-  const [historyStatus, setHistoryStatus] = useState('');
-  const debouncedSearch = useDebounced(historySearch);
-
-  useEffect(() => {
-    setHistoryState((s) => (s.page === 1 ? s : { ...s, page: 1 }));
-  }, [debouncedSearch, historyStatus]);
+  /**
+   * A detail page, not a list page — but the enrollment history below it is a
+   * real paged list, and a home's history is exactly the kind of thing worth
+   * sending to someone. `ns: 'history'` because these keys hang off a route that
+   * already means "this home", so an unprefixed ?status= would read as the
+   * home's own.
+   */
+  const {
+    values,
+    draft,
+    set,
+    listState: historyState,
+    onListStateChange: setHistoryState,
+  } = useListParams(
+    {
+      search: P.text(),
+      status: P.choice(HOUSING_STATUSES, ''),
+    },
+    { ns: 'history', sort: { by: 'moveInDate', dir: 'desc' } },
+  );
 
   const homeQuery = useQuery({
     queryKey: ['housing', 'home', id],
@@ -68,7 +76,7 @@ export function HomeDetailPage() {
   });
 
   const historyQuery = useQuery({
-    queryKey: ['housing', 'home-history', id, historyState, debouncedSearch, historyStatus],
+    queryKey: ['housing', 'home-history', id, historyState, values],
     queryFn: () =>
       api.get<Paged<HousingEnrollmentRow>>(
         `/housing-enrollments${qs({
@@ -77,10 +85,13 @@ export function HomeDetailPage() {
           pageSize: historyState.pageSize,
           sortBy: historyState.sortBy,
           sortDir: historyState.sortDir,
-          search: debouncedSearch,
-          status: historyStatus,
+          // `values`, not `draft`: the query waits for typing to settle.
+          search: values.search,
+          status: values.status,
         })}`,
       ),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const deleteHome = useMutation({
@@ -319,13 +330,13 @@ export function HomeDetailPage() {
           <ListToolbar>
             <SearchInput
               placeholder="Search participant…"
-              value={historySearch}
-              onChange={(e) => setHistorySearch(e.target.value)}
+              value={draft.search}
+              onChange={(e) => set('search', e.target.value)}
             />
             <FilterSelect
               aria-label="Enrollment status"
-              value={historyStatus}
-              onChange={setHistoryStatus}
+              value={values.status}
+              onChange={(value) => set('status', value as (typeof HOUSING_STATUSES)[number] | '')}
               className="w-full sm:w-44"
             >
               <option value="">All statuses</option>
@@ -341,6 +352,7 @@ export function HomeDetailPage() {
             columns={historyColumns}
             data={historyQuery.data}
             isLoading={historyQuery.isLoading}
+            isFetching={historyQuery.isFetching}
             state={historyState}
             onStateChange={setHistoryState}
             onRowClick={
