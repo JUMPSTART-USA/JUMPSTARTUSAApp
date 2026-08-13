@@ -62,40 +62,6 @@ export function LifecycleBadge({ lifecycle }: { lifecycle: DonorLifecycle | null
 }
 
 /** All campaigns for select controls — small dataset, cached per session. */
-/**
- * The label for an <option> standing in for a filter value the loaded option list
- * does not contain — or null when no stand-in is needed.
- *
- * Returns a LABEL, not an element, and the caller must render the <option>
- * itself as a DIRECT child of FilterSelect. That control reads its children with
- * `child.type === 'option'` (filter-select.tsx), so an <option> wrapped in a
- * component of your own is invisible to it: the menu silently omits the value and
- * the button falls back to the first option. Measured — the first version of this
- * was a component and the select still read "All campaigns".
- *
- * Why a stand-in is needed at all: these filters now come from the URL, and the
- * option lists behind them are both capped (pageSize: 200) and CHAPTER-SCOPED. A
- * scoped user opening an all-chapters colleague's link gets a campaign id the
- * options query will never return, and a select whose value matches no option
- * renders as its first — so the screen said "All campaigns" while showing one
- * campaign's donations. That is the "filtered list beside an empty box" the entity
- * pickers were kept out of the URL to avoid.
- *
- * ONE message for every cause — another chapter, deleted, past the cap. Naming the
- * cause would make the control an existence oracle for other chapters' records,
- * the §7.2 leak just closed on /budget-items. Clearing the filter instead is not an
- * option either: it would silently widen the results beyond what the link asked for.
- */
-export function unresolvedOptionLabel(
-  value: string,
-  options: { id: string }[] | undefined,
-  isLoading: boolean,
-): string | null {
-  if (!value) return null;
-  if (options?.some((o) => o.id === value)) return null;
-  return isLoading ? 'Loading…' : "A record you can't view";
-}
-
 export function useCampaignOptions() {
   return useQuery({
     queryKey: ['crm', 'campaigns', 'options'],
@@ -214,13 +180,77 @@ export interface PersonHit {
  * Person lookup across the records this user can already read (participants
  * and volunteers) — there is no standalone person-search endpoint.
  */
+/**
+ * The person behind a `?personId=` in the URL.
+ *
+ * Unlike the other pickers there is no single person endpoint — PersonSearch
+ * looks across participants AND volunteers, because a person can be both. So
+ * this asks the same two lists, by `personId`, and takes whichever answers
+ * first; the label is the same either way, and "Participant" wins the sublabel
+ * when both do, matching what the typeahead shows.
+ *
+ * Permission-gated the same way the search is: a viewer who can read neither
+ * list resolves nothing, which the picker renders as a record they cannot view.
+ */
+export function usePersonOption(personId: string): {
+  value: PersonHit | null;
+  status: RehydrationStatus;
+  onRetry?: () => void;
+} {
+  const { can } = useAuth();
+  const canParticipants = can('participants.read');
+  const canVolunteers = can('volunteers.read');
+
+  const rehydrated = useRehydratedValue(
+    `person-${canParticipants}-${canVolunteers}`,
+    personId,
+    async (id) => {
+      const query = qs({ personId: id, pageSize: 1 });
+      const [participants, volunteers] = await Promise.all([
+        canParticipants
+          ? api.get<Paged<{ person: PersonRef | null }>>(`/participants${query}`)
+          : Promise.resolve(undefined),
+        canVolunteers
+          ? api.get<Paged<{ person: PersonRef | null }>>(`/volunteers${query}`)
+          : Promise.resolve(undefined),
+      ]);
+      const asParticipant = participants?.items[0]?.person;
+      const asVolunteer = volunteers?.items[0]?.person;
+      const person = asParticipant ?? asVolunteer;
+      if (!person) return null;
+      return {
+        id: person.id,
+        label: fullName(person),
+        sublabel: asParticipant ? 'Participant' : 'Volunteer',
+      };
+    },
+  );
+
+  return {
+    value: rehydrated.value
+      ? {
+          personId: rehydrated.value.id,
+          name: rehydrated.value.label,
+          source: rehydrated.value.sublabel ?? '',
+        }
+      : null,
+    status: rehydrated.status,
+    onRetry: rehydrated.onRetry,
+  };
+}
+
 export function PersonSearch({
   selected,
+  status,
+  onRetry,
   onSelect,
   placeholder,
   id,
 }: {
   selected: PersonHit | null;
+  /** Set by `usePersonOption` when the value came from the URL. */
+  status?: RehydrationStatus;
+  onRetry?: () => void;
   onSelect: (hit: PersonHit | null) => void;
   placeholder?: string;
   /** Forwarded to the inner control so a FormField label can target it. */
@@ -241,6 +271,8 @@ export function PersonSearch({
   return (
     <EntityPicker
       id={id}
+      status={status}
+      onRetry={onRetry}
       value={
         selected
           ? { id: selected.personId, label: selected.name, sublabel: selected.source }

@@ -1,11 +1,15 @@
-import { OPPORTUNITY_STATUSES, OPPORTUNITY_STATUS_LABELS } from '@jumpstart/shared';
-import { useQuery } from '@tanstack/react-query';
+import {
+  CHAPTER_STATES,
+  OPPORTUNITY_STATUSES,
+  OPPORTUNITY_STATUS_LABELS,
+} from '@jumpstart/shared';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { BackLink } from '@/components/BackLink';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FilterSelect } from '@/components/ui/filter-select';
@@ -14,6 +18,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { P, useListParams } from '@/lib/list-params';
 import { useDebounced } from '@/lib/form';
 import { OpportunityFormDialog } from './OpportunityFormDialog';
 import { OpportunityStatusBadge, formatHours } from './shared';
@@ -29,26 +34,32 @@ function linkedTo(row: OpportunityListItem) {
 export function OpportunitiesListPage() {
   const { can } = useAuth();
 
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortBy: 'name' });
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const [chapter, setChapter] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      status: P.choice(OPPORTUNITY_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { sort: { by: 'name' } },
+  );
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
 
   const params = {
     page: listState.page,
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    search: debouncedSearch,
-    status,
-    state: chapter,
+    // `values`, not `draft`: the query waits for typing to settle.
+    search: values.search,
+    status: values.status,
+    state: values.state,
   };
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['volunteers', 'opportunities', params],
     queryFn: () => api.get<Paged<OpportunityListItem>>(`/volunteers/opportunities${qs(params)}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<OpportunityListItem>[] = [
@@ -122,22 +133,18 @@ export function OpportunitiesListPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search name or location…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof OPPORTUNITY_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {OPPORTUNITY_STATUSES.map((s) => (
@@ -147,11 +154,8 @@ export function OpportunitiesListPage() {
           ))}
         </FilterSelect>
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -161,8 +165,9 @@ export function OpportunitiesListPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         rowHref={(row) => `/volunteers/opportunities/${row.id}`}
         emptyMessage="No opportunities found"
       />

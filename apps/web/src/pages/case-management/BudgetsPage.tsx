@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { BUDGET_CATEGORY_LABELS, BUDGET_FREQUENCY_LABELS } from '@jumpstart/shared';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
@@ -17,9 +17,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ListToolbar } from '@/components/ui/toolbar';
-import { ParticipantPicker, type PickerOption } from '@/components/pickers';
+import { ParticipantPicker, useParticipantOption, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, formatMoney } from '@/lib/utils';
 import {
   BudgetItemFormDialog,
@@ -55,31 +56,41 @@ export function monthlyEquivalent(items: BudgetItemView[]): number {
   }, 0);
 }
 
-const PAYMENTS_INITIAL_STATE: ListState = {
-  ...initialListState,
-  sortBy: 'paidDate',
-  sortDir: 'desc',
-};
 
 export function BudgetsPage() {
   const { can } = useAuth();
   const canCreate = can('case_management.create');
   const canUpdate = can('case_management.update');
   const canDelete = can('case_management.delete');
-  const [participant, setParticipant] = useState<PickerOption | null>(null);
-  const [payState, setPayState] = useState<ListState>(PAYMENTS_INITIAL_STATE);
+  /**
+   * The participant is not a filter here — it IS the page. Without one there is
+   * nothing to show, so putting it in the URL is what makes a participant's
+   * budget linkable at all: `?participantId=…` reopens the same budget rather
+   * than an empty state with a prompt to search again.
+   *
+   * NO namespace: the budget-items card above is unpaginated, so the payments
+   * table is the only thing on this route that pages and a bare ?page= cannot
+   * collide with anything. (Namespacing it also pushed the participant itself to
+   * `?payments.participantId=`, which reads as a property of the payments table
+   * rather than of the page.)
+   */
+  const { values, set, listState: payState, onListStateChange: setPayState } = useListParams(
+    { participantId: P.id() },
+    { sort: { by: 'paidDate', dir: 'desc' } },
+  );
+  const participant = useParticipantOption(values.participantId);
   const [itemDialog, setItemDialog] = useState<BudgetItemView | 'new' | null>(null);
   const [paymentDialog, setPaymentDialog] = useState<BudgetPaymentRow | 'new' | null>(null);
   const [deleteItem, setDeleteItem] = useState<BudgetItemView | null>(null);
   const [deletePayment, setDeletePayment] = useState<BudgetPaymentRow | null>(null);
 
   const itemsQuery = useQuery({
-    queryKey: ['case-management', 'budgets', 'items', participant?.id],
+    queryKey: ['case-management', 'budgets', 'items', values.participantId],
     queryFn: () =>
       api.get<{ items: BudgetItemView[] }>(
-        `/budget-items${qs({ participantProfileId: participant?.id })}`,
+        `/budget-items${qs({ participantProfileId: values.participantId })}`,
       ),
-    enabled: !!participant,
+    enabled: !!values.participantId,
   });
 
   const payParams = qs({
@@ -87,12 +98,14 @@ export function BudgetsPage() {
     pageSize: payState.pageSize,
     sortBy: payState.sortBy,
     sortDir: payState.sortDir,
-    participantProfileId: participant?.id,
+    participantProfileId: values.participantId,
   });
   const paymentsQuery = useQuery({
     queryKey: ['case-management', 'budgets', 'payments', payParams],
     queryFn: () => api.get<Paged<BudgetPaymentRow>>(`/budget-payments${payParams}`),
-    enabled: !!participant,
+    enabled: !!values.participantId,
+    // Rows stay put through a page change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const items = itemsQuery.data?.items ?? [];
@@ -191,17 +204,16 @@ export function BudgetsPage() {
 
       <ListToolbar className="items-end">
         <div className="w-full sm:w-72">
+          {/* Changing participant deletes the payments page key in the same
+              write, so the old page 3 cannot survive into a shorter budget. */}
           <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              setPayState(PAYMENTS_INITIAL_STATE);
-            }}
+            {...participant}
+            onChange={(p) => set('participantId', p?.id ?? '')}
           />
         </div>
       </ListToolbar>
 
-      {!participant ? (
+      {!values.participantId ? (
         <EmptyState title="Select a participant to view their budget" />
       ) : (
         <>
@@ -321,6 +333,7 @@ export function BudgetsPage() {
                 columns={paymentColumns}
                 data={paymentsQuery.data}
                 isLoading={paymentsQuery.isLoading}
+                isFetching={paymentsQuery.isFetching}
                 state={payState}
                 onStateChange={setPayState}
                 emptyMessage="No payments recorded"
@@ -332,12 +345,12 @@ export function BudgetsPage() {
 
       <BudgetItemFormDialog
         item={itemDialog}
-        participant={participant}
+        participant={participant.value}
         onClose={() => setItemDialog(null)}
       />
       <BudgetPaymentFormDialog
         payment={paymentDialog}
-        participantId={participant?.id ?? null}
+        participantId={values.participantId || null}
         onClose={() => setPaymentDialog(null)}
       />
       <DeleteBudgetItemDialog item={deleteItem} onClose={() => setDeleteItem(null)} />

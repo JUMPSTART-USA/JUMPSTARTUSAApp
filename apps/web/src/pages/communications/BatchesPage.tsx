@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, Plus, Send } from 'lucide-react';
 import { useState } from 'react';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { CHAPTER_STATES } from '@jumpstart/shared';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { SectionHeader } from '@/components/ui/page-header';
@@ -11,7 +12,8 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiError, useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
+import { applyApiError } from '@/lib/form';
 import { formatDate } from '@/lib/utils';
 import { NewBatchDialog } from './NewBatchDialog';
 import { CHANNEL_LABELS, CommStatusBadge } from './shared';
@@ -25,14 +27,17 @@ import type { BatchRow } from './types';
 export function BatchesPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [search, setSearch] = useState('');
-  const [chapter, setChapter] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { sort: { dir: 'desc' } },
+  );
   const [newOpen, setNewOpen] = useState(false);
   const [dispatchTarget, setDispatchTarget] = useState<BatchRow | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
   const [dispatchResult, setDispatchResult] = useState<string | null>(null);
-  const debouncedSearch = useDebounced(search);
   const canCreate = can('communications.create');
   const canDispatch = can('communications.update');
 
@@ -41,13 +46,16 @@ export function BatchesPage() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    search: debouncedSearch,
-    state: chapter,
+    // `values`, not `draft`: the query waits for typing to settle.
+    search: values.search,
+    state: values.state,
   });
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['communications', 'batches', params],
     queryFn: () => api.get<Paged<BatchRow>>(`/communications/batches${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   /**
@@ -174,20 +182,16 @@ export function BatchesPage() {
       ) : null}
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
           placeholder="Search batches…"
         />
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -196,8 +200,9 @@ export function BatchesPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         emptyMessage="No batches yet"
       />
 

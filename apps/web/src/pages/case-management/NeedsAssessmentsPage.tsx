@@ -1,13 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
-import { needsAssessmentSchema } from '@jumpstart/shared';
+import { CHAPTER_STATES, needsAssessmentSchema } from '@jumpstart/shared';
 import { backTo } from '@/components/BackLink';
 import { EditAssessmentDialog } from './edit-dialogs';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,9 +23,10 @@ import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
 import { ListToolbar } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
-import { ParticipantPicker, type PickerOption } from '@/components/pickers';
+import { ParticipantPicker, useParticipantOption, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { P, useListParams } from '@/lib/list-params';
 import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import { type NeedsAssessmentRow } from './shared';
@@ -207,9 +208,15 @@ function AssessmentViewDialog({
 
 export function NeedsAssessmentsPage() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [participant, setParticipant] = useState<PickerOption | null>(null);
-  const [state, setState] = useState('');
+  const { values, set, listState, onListStateChange } = useListParams(
+    {
+      participantId: P.id(),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { sort: { dir: 'desc' } },
+  );
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const participant = useParticipantOption(values.participantId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewing, setViewing] = useState<NeedsAssessmentRow | null>(null);
   const [editing, setEditing] = useState<NeedsAssessmentRow | null>(null);
@@ -221,13 +228,16 @@ export function NeedsAssessmentsPage() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    participantProfileId: participant?.id,
-    state,
+    // The URL value, not the resolved option — see CaseNotesPage.
+    participantProfileId: values.participantId,
+    state: values.state,
   });
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['case-management', 'needs-assessments', params],
     queryFn: () => api.get<Paged<NeedsAssessmentRow>>(`/needs-assessments${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<NeedsAssessmentRow>[] = [
@@ -341,21 +351,15 @@ export function NeedsAssessmentsPage() {
       <ListToolbar>
         <div className="w-full sm:w-72">
           <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              setListState((s) => ({ ...s, page: 1 }));
-            }}
+            {...participant}
+            onChange={(p) => set('participantId', p?.id ?? '')}
           />
         </div>
         {/* Chapter scoping (§7.2): assessments derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -364,8 +368,9 @@ export function NeedsAssessmentsPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         onRowClick={(a) => setViewing(a)}
         emptyMessage="No needs assessments recorded"
       />
@@ -374,7 +379,7 @@ export function NeedsAssessmentsPage() {
         <RecordAssessmentDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          initialParticipant={participant}
+          initialParticipant={participant.value}
         />
       ) : null}
       <AssessmentViewDialog assessment={viewing} onClose={() => setViewing(null)} />

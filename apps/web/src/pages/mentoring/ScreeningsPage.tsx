@@ -1,11 +1,11 @@
-import { MENTOR_SCREENING_STAGES, mentorScreeningSchema } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CHAPTER_STATES, MENTOR_SCREENING_STAGES, mentorScreeningSchema } from '@jumpstart/shared';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,8 @@ import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import { VolunteerPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiError, formResolver, useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
+import { applyApiError, formResolver } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
 import { type ScreeningListItem } from './types';
 
@@ -129,41 +130,45 @@ function PipelineCard({ item, onOpen }: { item: ScreeningListItem; onOpen: () =>
 export function ScreeningsPage() {
   const { can } = useAuth();
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [chapter, setChapter] = useState('');
+  /**
+   * The search and chapter filters drive BOTH the pipeline board and the decided
+   * table, but only the decided table pages — so one hook owns everything and
+   * its page key is unambiguous.
+   */
+  const {
+    values,
+    draft,
+    set,
+    listState: decidedState,
+    onListStateChange: setDecidedState,
+  } = useListParams(
+    {
+      search: P.text(),
+      state: P.choice(CHAPTER_STATES, ''),
+      /** Which decided outcome the lower table shows; approved is the default view. */
+      stage: P.choice(TERMINAL_STAGES, 'approved'),
+    },
+    { sort: { by: 'updatedAt', dir: 'desc' } },
+  );
   const [creating, setCreating] = useState(false);
-  const [decidedStage, setDecidedStage] = useState<string>('approved');
-  const [decidedState, setDecidedState] = useState<ListState>({
-    ...initialListState,
-    sortBy: 'updatedAt',
-    sortDir: 'desc',
-  });
-  const debounced = useDebounced(search);
 
   // The pipeline never holds more than a handful of screenings at once, so
   // one page (max 200) is fetched and grouped into stage columns client-side.
   const pipeline = useQuery({
-    queryKey: ['mentoring', 'screenings', 'pipeline', chapter, debounced],
+    queryKey: ['mentoring', 'screenings', 'pipeline', values.state, values.search],
     queryFn: () =>
       api.get<Paged<ScreeningListItem>>(
         `/mentoring/screenings${qs({
           pageSize: 200,
-          state: chapter || undefined,
-          search: debounced,
+          state: values.state || undefined,
+          // `values`, not `draft`: the query waits for typing to settle.
+          search: values.search,
         })}`,
       ),
   });
 
   const decided = useQuery({
-    queryKey: [
-      'mentoring',
-      'screenings',
-      'decided',
-      decidedStage,
-      decidedState,
-      chapter,
-      debounced,
-    ],
+    queryKey: ['mentoring', 'screenings', 'decided', decidedState, values],
     queryFn: () =>
       api.get<Paged<ScreeningListItem>>(
         `/mentoring/screenings${qs({
@@ -171,11 +176,13 @@ export function ScreeningsPage() {
           pageSize: decidedState.pageSize,
           sortBy: decidedState.sortBy,
           sortDir: decidedState.sortDir,
-          stage: decidedStage,
-          state: chapter || undefined,
-          search: debounced,
+          stage: values.stage,
+          state: values.state || undefined,
+          search: values.search,
         })}`,
       ),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const active = (pipeline.data?.items ?? []).filter(
@@ -225,17 +232,16 @@ export function ScreeningsPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search volunteer name…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setDecidedState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -278,11 +284,8 @@ export function ScreeningsPage() {
           <FilterSelect
             aria-label="Outcome"
             className="w-full sm:w-44"
-            value={decidedStage}
-            onChange={(value) => {
-              setDecidedStage(value);
-              setDecidedState((s) => ({ ...s, page: 1 }));
-            }}
+            value={values.stage}
+            onChange={(value) => set('stage', value as (typeof TERMINAL_STAGES)[number])}
           >
             {TERMINAL_STAGES.map((s) => (
               <option key={s} value={s}>
@@ -299,10 +302,11 @@ export function ScreeningsPage() {
               columns={decidedColumns}
               data={decided.data}
               isLoading={decided.isLoading}
+              isFetching={decided.isFetching}
               state={decidedState}
               onStateChange={setDecidedState}
               rowHref={(row) => row.id}
-              emptyMessage={`No ${humanize(decidedStage).toLowerCase()} screenings`}
+              emptyMessage={`No ${humanize(values.stage).toLowerCase()} screenings`}
             />
           )}
         </CardContent>

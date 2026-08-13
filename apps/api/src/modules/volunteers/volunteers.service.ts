@@ -16,6 +16,8 @@ import { redactBackgroundCheck } from './screening.service';
 export interface VolunteerListFilters {
   /** A single record, for a picker turning an id from a URL back into a name. */
   id?: string;
+  /** The person behind the profile — see the participants controller. */
+  personId?: string;
   status?: VolunteerStatus;
   isMentor?: boolean;
   state?: string;
@@ -57,6 +59,7 @@ export class VolunteersService {
       ...(filters.id ? { id: filters.id } : {}),
       person: {
         deletedAt: null,
+        ...(filters.personId ? { id: filters.personId } : {}),
         ...(query.search
           ? {
               OR: [

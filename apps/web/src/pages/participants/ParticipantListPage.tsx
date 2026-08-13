@@ -1,20 +1,20 @@
-import { ALUMNI_STATUSES, INSIDE_STATUSES, OUTSIDE_STATUSES } from '@jumpstart/shared';
+import { CHAPTER_STATES, ALUMNI_STATUSES, INSIDE_STATUSES, OUTSIDE_STATUSES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/badge';
-import { FilterSelect } from '@/components/ui/filter-select';
+import { FilterSelect, unresolvedOptionLabel } from '@/components/ui/filter-select';
 import { Checkbox } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import type { ParticipantListItem } from './types';
 import { BackLink } from '@/components/BackLink';
@@ -97,15 +97,24 @@ export function ParticipantListPage() {
   const navigate = useNavigate();
   const { user, can } = useAuth();
 
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortBy: 'lastName' });
-  const [search, setSearch] = useState('');
-  const [insideStatus, setInsideStatus] = useState('');
-  const [outsideStatus, setOutsideStatus] = useState('');
-  const [alumniStatus, setAlumniStatus] = useState('');
-  const [state, setState] = useState('');
-  const [institutionId, setInstitutionId] = useState('');
-  const [myCaseload, setMyCaseload] = useState(false);
-  const debouncedSearch = useDebounced(search);
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      insideStatus: P.choice(INSIDE_STATUSES, ''),
+      outsideStatus: P.choice(OUTSIDE_STATUSES, ''),
+      alumniStatus: P.choice(ALUMNI_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+      institutionId: P.id(),
+      /**
+       * Sent as `assignedCaseManagerId: <me>`, so the URL carries the INTENT
+       * ("my caseload") rather than a user id. A colleague opening the link sees
+       * THEIR caseload, which is what the checkbox means; pasting an id would
+       * have silently shown them someone else's.
+       */
+      myCaseload: P.flag(false),
+    },
+    { sort: { by: 'lastName' } },
+  );
 
   // Location filter options: institutions are only listable with the
   // institutions.read permission — the filter hides without it.
@@ -120,23 +129,19 @@ export function ParticipantListPage() {
   });
 
   // Any filter change resets to page 1 — otherwise the page can outrun the total.
-  const filter = (apply: () => void) => {
-    apply();
-    setListState((s) => ({ ...s, page: 1 }));
-  };
-
   const params = {
     page: listState.page,
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    search: debouncedSearch || undefined,
-    insideStatus: insideStatus || undefined,
-    outsideStatus: outsideStatus || undefined,
-    alumniStatus: alumniStatus || undefined,
-    state: state || undefined,
-    institutionId: institutionId || undefined,
-    assignedCaseManagerId: myCaseload ? user?.id : undefined,
+    // `values`, not `draft`: the query waits for typing to settle.
+    search: values.search || undefined,
+    insideStatus: values.insideStatus || undefined,
+    outsideStatus: values.outsideStatus || undefined,
+    alumniStatus: values.alumniStatus || undefined,
+    state: values.state || undefined,
+    institutionId: values.institutionId || undefined,
+    assignedCaseManagerId: values.myCaseload ? user?.id : undefined,
   };
 
   const query = useQuery({
@@ -162,13 +167,13 @@ export function ParticipantListPage() {
       <ListToolbar>
         <SearchInput
           placeholder="Search name, number, phone, email…"
-          value={search}
-          onChange={(e) => filter(() => setSearch(e.target.value))}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Inside status"
-          value={insideStatus}
-          onChange={(value) => filter(() => setInsideStatus(value))}
+          value={values.insideStatus}
+          onChange={(value) => set('insideStatus', value as (typeof INSIDE_STATUSES)[number] | '')}
           className="w-full sm:w-44"
         >
           <option value="">Inside: all</option>
@@ -180,8 +185,8 @@ export function ParticipantListPage() {
         </FilterSelect>
         <FilterSelect
           aria-label="Outside status"
-          value={outsideStatus}
-          onChange={(value) => filter(() => setOutsideStatus(value))}
+          value={values.outsideStatus}
+          onChange={(value) => set('outsideStatus', value as (typeof OUTSIDE_STATUSES)[number] | '')}
           className="w-full sm:w-44"
         >
           <option value="">Outside: all</option>
@@ -193,8 +198,8 @@ export function ParticipantListPage() {
         </FilterSelect>
         <FilterSelect
           aria-label="Alumni status"
-          value={alumniStatus}
-          onChange={(value) => filter(() => setAlumniStatus(value))}
+          value={values.alumniStatus}
+          onChange={(value) => set('alumniStatus', value as (typeof ALUMNI_STATUSES)[number] | '')}
           className="w-full sm:w-44"
         >
           <option value="">Alumni: all</option>
@@ -206,15 +211,25 @@ export function ParticipantListPage() {
         </FilterSelect>
         {/* Chapter scoping (§7.2): the `state` param filters by chapter now —
             hidden for scoped users, whom the API force-filters anyway. */}
-        <ChapterFilterSelect value={state} onChange={(v) => filter(() => setState(v))} />
+        <ChapterFilterSelect
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
+        />
         {can('institutions.read') ? (
           <FilterSelect
             aria-label="Location"
-            value={institutionId}
-            onChange={(value) => filter(() => setInstitutionId(value))}
+            value={values.institutionId}
+            onChange={(value) => set('institutionId', value)}
             className="w-full sm:w-56"
           >
             <option value="">Location: all</option>
+            {/* Capped at 200 and permission-gated, so an id from a link may be
+                absent. Must be a DIRECT child; see filter-select.tsx. */}
+            {unresolvedOptionLabel(values.institutionId, institutionOptions.data?.items, institutionOptions.isLoading) ? (
+              <option value={values.institutionId}>
+                {unresolvedOptionLabel(values.institutionId, institutionOptions.data?.items, institutionOptions.isLoading)}
+              </option>
+            ) : null}
             {(institutionOptions.data?.items ?? []).map((i) => (
               <option key={i.id} value={i.id}>
                 {i.name} ({i.state})
@@ -224,8 +239,8 @@ export function ParticipantListPage() {
         ) : null}
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <Checkbox
-            checked={myCaseload}
-            onChange={(e) => filter(() => setMyCaseload(e.target.checked))}
+            checked={values.myCaseload}
+            onChange={(e) => set('myCaseload', e.target.checked)}
           />
           My caseload
         </label>
@@ -240,7 +255,7 @@ export function ParticipantListPage() {
           isLoading={query.isLoading}
           isFetching={query.isFetching}
           state={listState}
-          onStateChange={setListState}
+          onStateChange={onListStateChange}
           rowHref={(row) => row.id}
           // The link carries the participant's NAME, not the case number:
           // a screen-reader user hears the link text as the row's identity,

@@ -1,9 +1,10 @@
+import { CHAPTER_STATES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FilterSelect } from '@/components/ui/filter-select';
@@ -13,7 +14,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { SeverityBadge, vehicleLabel } from './shared';
 import { VehicleFormDialog } from './VehicleFormDialog';
 import type { AlertSeverity, VehicleAlert, VehicleListItem } from './types';
@@ -24,26 +25,21 @@ const SEVERITY_ORDER: AlertSeverity[] = ['overdue', 'due_soon', 'upcoming'];
 export function VehiclesListPage() {
   const { can } = useAuth();
   const navigate = useNavigate();
-  const [listState, setListState] = useState<ListState>(initialListState);
-  const [search, setSearch] = useState('');
-  const [location, setLocation] = useState('');
-  const [active, setActive] = useState('true');
-  const [stateFilter, setStateFilter] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams({
+    search: P.text(),
+    /** Free text: locations are typed, not enumerated. */
+    location: P.text(),
+    /**
+     * Defaults to 'true' — the fleet screen is about vehicles in service — so
+     * absent means active and '' is the explicit "All vehicles".
+     */
+    active: P.choice(['true', 'false'] as const, 'true'),
+    state: P.choice(CHAPTER_STATES, ''),
+  });
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
-  const debouncedLocation = useDebounced(location);
 
   const query = useQuery({
-    queryKey: [
-      'fleet',
-      'vehicles',
-      'list',
-      listState,
-      debouncedSearch,
-      debouncedLocation,
-      active,
-      stateFilter,
-    ],
+    queryKey: ['vehicles', 'list', listState, values],
     queryFn: () =>
       api.get<Paged<VehicleListItem>>(
         `/vehicles${qs({
@@ -51,10 +47,11 @@ export function VehiclesListPage() {
           pageSize: listState.pageSize,
           sortBy: listState.sortBy,
           sortDir: listState.sortDir,
-          search: debouncedSearch,
-          assignedLocation: debouncedLocation,
-          active,
-          state: stateFilter,
+          // `values`, not `draft`: the query waits for typing to settle.
+          search: values.search,
+          assignedLocation: values.location,
+          active: values.active,
+          state: values.state,
         })}`,
       ),
     placeholderData: keepPreviousData,
@@ -63,10 +60,10 @@ export function VehiclesListPage() {
   // One alerts fetch feeds the per-row indicator column — same chapter filter
   // as the table so the counts match what is listed (§7.2).
   const alertsQuery = useQuery({
-    queryKey: ['fleet', 'alerts', stateFilter],
+    queryKey: ['fleet', 'alerts', values.state],
     queryFn: () =>
       api.get<{ items: VehicleAlert[]; total: number }>(
-        `/vehicles/alerts${qs({ state: stateFilter })}`,
+        `/vehicles/alerts${qs({ state: values.state })}`,
       ),
   });
 
@@ -152,8 +149,6 @@ export function VehiclesListPage() {
     [alertsByVehicle],
   );
 
-  const resetPage = () => setListState((s) => ({ ...s, page: 1 }));
-
   return (
     <div className="space-y-4">
       <BackLink stateOnly />
@@ -179,31 +174,24 @@ export function VehiclesListPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search make, model, plate…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            resetPage();
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <Input
           className="w-full sm:w-44"
           placeholder="Location"
-          value={location}
-          onChange={(e) => {
-            setLocation(e.target.value);
-            resetPage();
-          }}
+          value={draft.location}
+          onChange={(e) => set('location', e.target.value)}
         />
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={active}
-          onChange={(value) => {
-            setActive(value);
-            resetPage();
-          }}
+          value={values.active}
+          onChange={(value) => set('active', value as 'true' | 'false' | '')}
         >
           <option value="">All vehicles</option>
           <option value="true">Active</option>
@@ -212,11 +200,8 @@ export function VehiclesListPage() {
         {/* Chapter filter (§7.2) — sent as the `state` query param; hidden for
             scoped users (the API forces their chapter). */}
         <ChapterFilterSelect
-          value={stateFilter}
-          onChange={(value) => {
-            setStateFilter(value);
-            resetPage();
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -229,7 +214,7 @@ export function VehiclesListPage() {
           isLoading={query.isLoading}
           isFetching={query.isFetching}
           state={listState}
-          onStateChange={setListState}
+          onStateChange={onListStateChange}
           rowHref={(row) => row.id}
           emptyMessage="No vehicles found"
         />

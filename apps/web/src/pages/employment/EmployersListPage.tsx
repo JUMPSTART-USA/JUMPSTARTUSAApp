@@ -1,10 +1,10 @@
-import { HIRING_STATUSES } from '@jumpstart/shared';
+import { CHAPTER_STATES, HIRING_STATUSES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Briefcase, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { P, useListParams } from '@/lib/list-params';
 import { useDebounced } from '@/lib/form';
 import { humanize } from '@/lib/utils';
 import { EmployerFormDialog } from './EmployerFormDialog';
@@ -54,25 +55,17 @@ const columns: Column<EmployerListItem>[] = [
 export function EmployersListPage() {
   const { can } = useAuth();
   const navigate = useNavigate();
-  const [listState, setListState] = useState<ListState>(initialListState);
-  const [search, setSearch] = useState('');
-  const [industry, setIndustry] = useState('');
-  const [hiringStatus, setHiringStatus] = useState('');
-  const [stateFilter, setStateFilter] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams({
+    search: P.text(),
+    /** Free text, not a choice: industries are typed, not enumerated. */
+    industry: P.text(),
+    hiringStatus: P.choice(HIRING_STATUSES, ''),
+    state: P.choice(CHAPTER_STATES, ''),
+  });
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
-  const debouncedIndustry = useDebounced(industry);
 
   const query = useQuery({
-    queryKey: [
-      'employers',
-      'list',
-      listState,
-      debouncedSearch,
-      debouncedIndustry,
-      hiringStatus,
-      stateFilter,
-    ],
+    queryKey: ['employers', 'list', listState, values],
     queryFn: () =>
       api.get<Paged<EmployerListItem>>(
         `/employers${qs({
@@ -80,16 +73,15 @@ export function EmployersListPage() {
           pageSize: listState.pageSize,
           sortBy: listState.sortBy,
           sortDir: listState.sortDir,
-          search: debouncedSearch,
-          industry: debouncedIndustry,
-          hiringStatus,
-          state: stateFilter,
+          // `values`, not `draft`: the query waits for typing to settle.
+          search: values.search,
+          industry: values.industry,
+          hiringStatus: values.hiringStatus,
+          state: values.state,
         })}`,
       ),
     placeholderData: keepPreviousData,
   });
-
-  const resetPage = () => setListState((s) => ({ ...s, page: 1 }));
 
   return (
     <div className="space-y-4">
@@ -113,22 +105,18 @@ export function EmployersListPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search name, contact, city…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            resetPage();
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Hiring status"
           className="w-full sm:w-44"
-          value={hiringStatus}
-          onChange={(value) => {
-            setHiringStatus(value);
-            resetPage();
-          }}
+          value={values.hiringStatus}
+          onChange={(value) => set('hiringStatus', value as (typeof HIRING_STATUSES)[number] | '')}
         >
           <option value="">All hiring statuses</option>
           {HIRING_STATUSES.map((s) => (
@@ -140,20 +128,14 @@ export function EmployersListPage() {
         <Input
           className="w-full sm:w-44"
           placeholder="Industry"
-          value={industry}
-          onChange={(e) => {
-            setIndustry(e.target.value);
-            resetPage();
-          }}
+          value={draft.industry}
+          onChange={(e) => set('industry', e.target.value)}
         />
         {/* Chapter filter (§7.2) — still sent as the `state` query param;
             hidden for scoped users (the API forces their chapter). */}
         <ChapterFilterSelect
-          value={stateFilter}
-          onChange={(value) => {
-            setStateFilter(value);
-            resetPage();
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -166,7 +148,7 @@ export function EmployersListPage() {
           isLoading={query.isLoading}
           isFetching={query.isFetching}
           state={listState}
-          onStateChange={setListState}
+          onStateChange={onListStateChange}
           rowHref={(row) => row.id}
           emptyMessage="No employers found"
         />

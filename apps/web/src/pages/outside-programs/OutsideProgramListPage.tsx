@@ -1,10 +1,11 @@
+import { CHAPTER_STATES } from '@jumpstart/shared';
 import { PROGRAM_TYPES } from '@jumpstart/shared';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FilterSelect } from '@/components/ui/filter-select';
@@ -13,7 +14,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, humanize } from '@/lib/utils';
 import { ProgramFormDialog } from './ProgramFormDialog';
 import type { OutsideProgramRow } from './types';
@@ -79,20 +80,16 @@ const columns: Column<OutsideProgramRow>[] = [
 
 export function OutsideProgramListPage() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>(initialListState);
-  const [search, setSearch] = useState('');
-  const [programType, setProgramType] = useState('');
-  const [status, setStatus] = useState('');
-  const [state, setState] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams({
+    search: P.text(),
+    programType: P.choice(PROGRAM_TYPES, ''),
+    status: P.choice(['active', 'inactive', 'completed'] as const, ''),
+    state: P.choice(CHAPTER_STATES, ''),
+  });
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
-
-  useEffect(() => {
-    setListState((s) => (s.page === 1 ? s : { ...s, page: 1 }));
-  }, [debouncedSearch, programType, status, state]);
 
   const query = useQuery({
-    queryKey: ['outside-programs', 'list', listState, debouncedSearch, programType, status, state],
+    queryKey: ['outside-programs', 'list', listState, values],
     queryFn: () =>
       api.get<Paged<OutsideProgramRow>>(
         `/outside-programs${qs({
@@ -100,10 +97,11 @@ export function OutsideProgramListPage() {
           pageSize: listState.pageSize,
           sortBy: listState.sortBy,
           sortDir: listState.sortDir,
-          search: debouncedSearch,
-          programType,
-          status,
-          state,
+          // `values`, not `draft`: the query waits for typing to settle.
+          search: values.search,
+          programType: values.programType,
+          status: values.status,
+          state: values.state,
         })}`,
       ),
   });
@@ -124,15 +122,17 @@ export function OutsideProgramListPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search name, location, volunteer lead…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Program type"
-          value={programType}
-          onChange={setProgramType}
+          value={values.programType}
+          onChange={(value) => set('programType', value as (typeof PROGRAM_TYPES)[number] | '')}
           className="w-full sm:w-44"
         >
           <option value="">All types</option>
@@ -144,8 +144,8 @@ export function OutsideProgramListPage() {
         </FilterSelect>
         <FilterSelect
           aria-label="Status"
-          value={status}
-          onChange={setStatus}
+          value={values.status}
+          onChange={(value) => set('status', value as 'active' | 'inactive' | 'completed' | '')}
           className="w-full sm:w-44"
         >
           <option value="">All statuses</option>
@@ -156,7 +156,10 @@ export function OutsideProgramListPage() {
           ))}
         </FilterSelect>
         {/* Chapter scoping (§7.2): hidden for scoped users — the API force-filters their chapter. */}
-        <ChapterFilterSelect value={state} onChange={setState} />
+        <ChapterFilterSelect
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
+        />
       </ListToolbar>
 
       {query.error ? <ErrorState error={query.error} onRetry={query.refetch} /> : null}
@@ -165,8 +168,9 @@ export function OutsideProgramListPage() {
         columns={columns}
         data={query.data}
         isLoading={query.isLoading}
+        isFetching={query.isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         rowHref={(row) => row.id}
         emptyMessage="No outside programs found"
       />
