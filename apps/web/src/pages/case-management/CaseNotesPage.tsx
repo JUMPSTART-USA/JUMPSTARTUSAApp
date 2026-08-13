@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Lock, Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -7,13 +7,14 @@ import { backTo } from '@/components/BackLink';
 import { EditNoteDialog } from './edit-dialogs';
 import {
   caseNoteSchema,
+  CHAPTER_STATES,
   CONTACT_TYPES,
   NOTE_CATEGORIES,
   type ContactType,
   type NoteCategory,
 } from '@jumpstart/shared';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,10 +32,11 @@ import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
 import { ListToolbar } from '@/components/ui/toolbar';
 import { ErrorState, Spinner } from '@/components/ui/spinner';
-import { ParticipantPicker, type PickerOption } from '@/components/pickers';
+import { ParticipantPicker, useParticipantOption, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { applyApiError, formResolver, todayInput } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, humanize } from '@/lib/utils';
 import { isConfidentialStub, type CaseNoteRow } from './shared';
 
@@ -283,12 +285,18 @@ function NoteViewDialog({ noteId, onClose }: { noteId: string | null; onClose: (
 
 export function CaseNotesPage() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [participant, setParticipant] = useState<PickerOption | null>(null);
-  const [category, setCategory] = useState('');
-  const [state, setState] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const { values, set, listState, onListStateChange } = useListParams(
+    {
+      participantId: P.id(),
+      category: P.choice(NOTE_CATEGORIES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+      from: P.date(),
+      to: P.date(),
+    },
+    { sort: { dir: 'desc' } },
+  );
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const participant = useParticipantOption(values.participantId);
   const [newOpen, setNewOpen] = useState(false);
   const [viewId, setViewId] = useState<string | null>(null);
   const [editNote, setEditNote] = useState<CaseNoteRow | null>(null);
@@ -300,16 +308,20 @@ export function CaseNotesPage() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    participantProfileId: participant?.id,
-    category,
-    state,
-    from,
-    to,
+    // The URL value, not the resolved option: the list must filter on what the
+    // link asked for while the name is still loading.
+    participantProfileId: values.participantId,
+    category: values.category,
+    state: values.state,
+    from: values.from,
+    to: values.to,
   });
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['case-management', 'case-notes', params],
     queryFn: () => api.get<Paged<CaseNoteRow>>(`/case-notes${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<CaseNoteRow>[] = [
@@ -439,24 +451,20 @@ export function CaseNotesPage() {
         }
       />
 
+      {/* Every filter below used to carry its own `page: 1` reset. `set` deletes
+          the page key in the SAME URL write, so they no longer need one. */}
       <ListToolbar>
         <div className="w-full sm:w-72">
           <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              setListState((s) => ({ ...s, page: 1 }));
-            }}
+            {...participant}
+            onChange={(p) => set('participantId', p?.id ?? '')}
           />
         </div>
         <FilterSelect
           aria-label="Category"
           className="w-full sm:w-44"
-          value={category}
-          onChange={(value) => {
-            setCategory(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.category}
+          onChange={(value) => set('category', value as (typeof NOTE_CATEGORIES)[number] | '')}
         >
           <option value="">All categories</option>
           {NOTE_CATEGORIES.map((c) => (
@@ -468,30 +476,21 @@ export function CaseNotesPage() {
         {/* Chapter scoping (§7.2): notes derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
         />
         <Input
           type="date"
           className="w-full sm:w-44"
-          value={from}
-          onChange={(e) => {
-            setFrom(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.from}
+          onChange={(e) => set('from', e.target.value)}
           aria-label="From date"
         />
         <Input
           type="date"
           className="w-full sm:w-44"
-          value={to}
-          onChange={(e) => {
-            setTo(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.to}
+          onChange={(e) => set('to', e.target.value)}
           aria-label="To date"
         />
       </ListToolbar>
@@ -501,14 +500,19 @@ export function CaseNotesPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         onRowClick={(n) => setViewId(n.id)}
         emptyMessage="No case notes match the current filters"
       />
 
       {newOpen ? (
-        <NewNoteDialog open={newOpen} onOpenChange={setNewOpen} initialParticipant={participant} />
+        <NewNoteDialog
+          open={newOpen}
+          onOpenChange={setNewOpen}
+          initialParticipant={participant.value}
+        />
       ) : null}
       <NoteViewDialog noteId={viewId} onClose={() => setViewId(null)} />
       <EditNoteDialog note={editNote} onClose={() => setEditNote(null)} />

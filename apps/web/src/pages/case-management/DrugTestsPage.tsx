@@ -1,32 +1,44 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { DRUG_TEST_RESULT_LABELS, DRUG_TEST_RESULTS, DRUG_TEST_TYPE_LABELS } from '@jumpstart/shared';
+import {
+  CHAPTER_STATES,
+  DRUG_TEST_RESULT_LABELS,
+  DRUG_TEST_RESULTS,
+  DRUG_TEST_TYPE_LABELS,
+} from '@jumpstart/shared';
 import { backTo } from '@/components/BackLink';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { SectionHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, ToolbarDateField } from '@/components/ui/toolbar';
-import { ParticipantPicker, type PickerOption } from '@/components/pickers';
+import { ParticipantPicker, useParticipantOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, fullName } from '@/lib/utils';
 import { DrugTestFormDialog } from './drug-test-dialogs';
 import { type DrugTestRow } from './shared';
 
 export function DrugTestsPage() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [participant, setParticipant] = useState<PickerOption | null>(null);
-  const [result, setResult] = useState('');
-  const [state, setState] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const { values, set, listState, onListStateChange } = useListParams(
+    {
+      participantId: P.id(),
+      result: P.choice(DRUG_TEST_RESULTS, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+      from: P.date(),
+      to: P.date(),
+    },
+    { sort: { dir: 'desc' } },
+  );
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const participant = useParticipantOption(values.participantId);
   const [dialogTest, setDialogTest] = useState<DrugTestRow | 'new' | null>(null);
   const canEdit = can('case_management.update');
   const canOpenParticipant = can('participants.read');
@@ -36,16 +48,19 @@ export function DrugTestsPage() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    participantProfileId: participant?.id,
-    result,
-    state,
-    from,
-    to,
+    // The URL value, not the resolved option — see CaseNotesPage.
+    participantProfileId: values.participantId,
+    result: values.result,
+    state: values.state,
+    from: values.from,
+    to: values.to,
   });
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['case-management', 'drug-tests', params],
     queryFn: () => api.get<Paged<DrugTestRow>>(`/drug-tests${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<DrugTestRow>[] = [
@@ -144,24 +159,20 @@ export function DrugTestsPage() {
         }
       />
 
+      {/* `set` deletes the page key in the same URL write, so none of these
+          filters needs its own page-1 reset any more. */}
       <ListToolbar className="items-end">
         <div className="w-full sm:w-72">
           <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              setListState((s) => ({ ...s, page: 1 }));
-            }}
+            {...participant}
+            onChange={(p) => set('participantId', p?.id ?? '')}
           />
         </div>
         <FilterSelect
           aria-label="Result"
           className="w-full sm:w-44"
-          value={result}
-          onChange={(value) => {
-            setResult(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.result}
+          onChange={(value) => set('result', value as (typeof DRUG_TEST_RESULTS)[number] | '')}
         >
           <option value="">All results</option>
           {DRUG_TEST_RESULTS.map((r) => (
@@ -173,28 +184,11 @@ export function DrugTestsPage() {
         {/* Chapter scoping (§7.2): tests derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
         />
-        <ToolbarDateField
-          label="From"
-          value={from}
-          onChange={(e) => {
-            setFrom(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
-        />
-        <ToolbarDateField
-          label="To"
-          value={to}
-          onChange={(e) => {
-            setTo(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
-        />
+        <ToolbarDateField label="From" value={values.from} onChange={(e) => set('from', e.target.value)} />
+        <ToolbarDateField label="To" value={values.to} onChange={(e) => set('to', e.target.value)} />
       </ListToolbar>
 
       {error ? <ErrorState error={error} onRetry={refetch} /> : null}
@@ -202,14 +196,15 @@ export function DrugTestsPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         emptyMessage="No drug tests recorded"
       />
 
       <DrugTestFormDialog
         test={dialogTest}
-        initialParticipant={participant}
+        initialParticipant={participant.value}
         onClose={() => setDialogTest(null)}
       />
     </div>

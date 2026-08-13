@@ -1,13 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
-import { caseServiceSchema } from '@jumpstart/shared';
+import { caseServiceSchema, CHAPTER_STATES } from '@jumpstart/shared';
 import { backTo } from '@/components/BackLink';
 import { EditServiceDialog } from './edit-dialogs';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { ServiceTypeSelect } from '@/components/ServiceTypeSelect';
 import { Badge } from '@/components/ui/badge';
@@ -25,10 +25,11 @@ import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
 import { ListToolbar, SearchInput, ToolbarDateField } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
-import { ParticipantPicker, type PickerOption } from '@/components/pickers';
+import { ParticipantPicker, useParticipantOption, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiError, formResolver, todayInput, useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
+import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { formatDate, fullName } from '@/lib/utils';
 import { type CaseServiceRow } from './shared';
 
@@ -161,15 +162,20 @@ function RecordServiceDialog({
 
 export function CaseServicesPage() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [participant, setParticipant] = useState<PickerOption | null>(null);
-  const [search, setSearch] = useState('');
-  const [state, setState] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      participantId: P.id(),
+      state: P.choice(CHAPTER_STATES, ''),
+      from: P.date(),
+      to: P.date(),
+    },
+    { sort: { dir: 'desc' } },
+  );
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const participant = useParticipantOption(values.participantId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editService, setEditService] = useState<CaseServiceRow | null>(null);
-  const debouncedSearch = useDebounced(search);
   const canEdit = can('case_management.update');
   const canOpenParticipant = can('participants.read');
 
@@ -178,16 +184,20 @@ export function CaseServicesPage() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    search: debouncedSearch,
-    participantProfileId: participant?.id,
-    state,
-    from,
-    to,
+    // `values`, not `draft`: the query waits for typing to settle.
+    search: values.search,
+    // The URL value, not the resolved option — see CaseNotesPage.
+    participantProfileId: values.participantId,
+    state: values.state,
+    from: values.from,
+    to: values.to,
   });
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['case-management', 'case-services', params],
     queryFn: () => api.get<Paged<CaseServiceRow>>(`/case-services${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<CaseServiceRow>[] = [
@@ -271,47 +281,34 @@ export function CaseServicesPage() {
       />
 
       <ListToolbar className="items-end">
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search type, provider, description…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <div className="w-full sm:w-72">
           <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              setListState((s) => ({ ...s, page: 1 }));
-            }}
+            {...participant}
+            onChange={(p) => set('participantId', p?.id ?? '')}
           />
         </div>
         {/* Chapter scoping (§7.2): services derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
         />
         <ToolbarDateField
           label="From"
-          value={from}
-          onChange={(e) => {
-            setFrom(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.from}
+          onChange={(e) => set('from', e.target.value)}
         />
         <ToolbarDateField
           label="To"
-          value={to}
-          onChange={(e) => {
-            setTo(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.to}
+          onChange={(e) => set('to', e.target.value)}
         />
       </ListToolbar>
 
@@ -320,8 +317,9 @@ export function CaseServicesPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         emptyMessage="No services recorded"
       />
 
@@ -329,7 +327,7 @@ export function CaseServicesPage() {
         <RecordServiceDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          initialParticipant={participant}
+          initialParticipant={participant.value}
         />
       ) : null}
       <EditServiceDialog service={editService} onClose={() => setEditService(null)} />
