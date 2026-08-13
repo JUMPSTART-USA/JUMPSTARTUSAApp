@@ -27,7 +27,18 @@ export const SearchInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTML
   ({ className, ...props }, ref) => (
     <div className={cn('relative w-full sm:w-72', className)}>
       <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-      <Input ref={ref} type="search" className="pl-8" {...props} />
+      {/* enterKeyHint: the on-screen Return key reads "Search" rather than a
+          newline arrow, which is what a phone user is looking for after typing
+          into a list filter. autoComplete off because a list search is not a
+          form field — the browser offering someone's saved name here is noise. */}
+      <Input
+        ref={ref}
+        type="search"
+        enterKeyHint="search"
+        autoComplete="off"
+        className="pl-8"
+        {...props}
+      />
     </div>
   ),
 );

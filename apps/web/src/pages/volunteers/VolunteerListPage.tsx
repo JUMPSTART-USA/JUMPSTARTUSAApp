@@ -474,7 +474,7 @@ function CreateVolunteerDialog({
                   </Select>
                 </FormField>
                 <FormField label="ZIP" error={personErrors.zip}>
-                  <Input {...register('person.zip')} />
+                  <Input inputMode="numeric" {...register('person.zip')} />
                 </FormField>
               </div>
               <FormField

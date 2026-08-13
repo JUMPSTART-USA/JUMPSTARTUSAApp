@@ -15,9 +15,49 @@ import { cn } from '@/lib/utils';
 const controlClasses =
   'flex w-full rounded-md border border-input bg-card text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm';
 
+/**
+ * The on-screen keyboard a field should raise, derived from its `type`.
+ *
+ * Doing this in the kit rather than at ~354 call sites is the only version that
+ * stays true: a convention nobody can forget. A staff member entering a phone
+ * number on a phone gets a keypad instead of a QWERTY keyboard, and one entering
+ * an amount gets a decimal point, without anyone remembering to ask.
+ *
+ * `step` decides numeric vs decimal, because "0.01" means money and "1" means a
+ * count, and a decimal keypad for a count is a stray dot waiting to happen.
+ *
+ * DELIBERATELY NOT autoComplete. It is tempting to pair `type="email"` with
+ * `autoComplete="email"`, and it would be wrong nearly everywhere here: most
+ * fields in this app describe SOMEONE ELSE — a participant's email, a vendor's
+ * phone — and the browser would helpfully offer the staff member's own details
+ * for a record about a person in their caseload. The auth screens set their own
+ * tokens (username / current-password) because those really are about the
+ * person typing.
+ */
+function keyboardFor(props: InputHTMLAttributes<HTMLInputElement>) {
+  if (props.inputMode) return props.inputMode;
+  switch (props.type) {
+    case 'email':
+      return 'email';
+    case 'tel':
+      return 'tel';
+    case 'url':
+      return 'url';
+    case 'number':
+      return String(props.step ?? '').includes('.') ? 'decimal' : 'numeric';
+    default:
+      return undefined;
+  }
+}
+
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => (
-    <input ref={ref} className={cn(controlClasses, 'h-9 px-3 py-1', className)} {...props} />
+    <input
+      ref={ref}
+      className={cn(controlClasses, 'h-9 px-3 py-1', className)}
+      inputMode={keyboardFor(props)}
+      {...props}
+    />
   ),
 );
 Input.displayName = 'Input';
