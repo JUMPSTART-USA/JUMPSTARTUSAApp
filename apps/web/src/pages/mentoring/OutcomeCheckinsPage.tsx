@@ -1,4 +1,5 @@
 import {
+  CHAPTER_STATES,
   CHECKIN_METHODS,
   CHECKIN_WAVES,
   OUTCOME_EMPLOYMENT_STATUSES,
@@ -6,12 +7,12 @@ import {
   VERIFICATION_LEVELS,
   outcomeCheckinCompleteSchema,
 } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,8 @@ import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiError, formResolver, todayInput, useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
+import { applyApiError, formResolver, todayInput } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
 import { emptyToUndefined, isOverdue, type CheckinView } from './types';
 
@@ -264,33 +266,40 @@ function CompleteCheckinDialog({
 
 export function OutcomeCheckinsPage() {
   const { can } = useAuth();
-  const [state, setState] = useState<ListState>({ ...initialListState, sortBy: 'dueDate' });
-  const [due, setDue] = useState<'overdue' | 'upcoming' | ''>('overdue');
-  const [wave, setWave] = useState('');
-  const [chapter, setChapter] = useState('');
-  const [search, setSearch] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      /**
+       * Defaults to 'overdue' — this screen exists to chase overdue check-ins —
+       * so absent means overdue and '' is the explicit "All". A link to the
+       * default view carries no `due` key at all.
+       */
+      due: P.choice(['overdue', 'upcoming'] as const, 'overdue'),
+      wave: P.choice(CHECKIN_WAVES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { sort: { by: 'dueDate' } },
+  );
   const [completing, setCompleting] = useState<CheckinView | null>(null);
-  const debounced = useDebounced(search);
-
-  useEffect(() => {
-    setState((s) => (s.page === 1 ? s : { ...s, page: 1 }));
-  }, [debounced]);
 
   const query = useQuery({
-    queryKey: ['mentoring', 'checkins', state, due, wave, chapter, debounced],
+    queryKey: ['mentoring', 'checkins', listState, values],
     queryFn: () =>
       api.get<Paged<CheckinView>>(
         `/outcome-checkins${qs({
-          page: state.page,
-          pageSize: state.pageSize,
-          sortBy: state.sortBy,
-          sortDir: state.sortDir,
-          due: due || undefined,
-          wave: wave || undefined,
-          state: chapter || undefined,
-          search: debounced,
+          page: listState.page,
+          pageSize: listState.pageSize,
+          sortBy: listState.sortBy,
+          sortDir: listState.sortDir,
+          due: values.due || undefined,
+          wave: values.wave || undefined,
+          state: values.state || undefined,
+          // `values`, not `draft`: the query waits for typing to settle.
+          search: values.search,
         })}`,
       ),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<CheckinView>[] = [
@@ -375,19 +384,19 @@ export function OutcomeCheckinsPage() {
       <PageHeader title="Outcome Check-ins" />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles — and the page reset the old
+            useEffect did by hand now happens in the same URL write. */}
         <SearchInput
           placeholder="Search participant name or number…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Due status"
           className="w-full sm:w-44"
-          value={due}
-          onChange={(value) => {
-            setDue(value as typeof due);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.due}
+          onChange={(value) => set('due', value as 'overdue' | 'upcoming' | '')}
         >
           <option value="overdue">Overdue</option>
           <option value="upcoming">Upcoming</option>
@@ -396,11 +405,8 @@ export function OutcomeCheckinsPage() {
         <FilterSelect
           aria-label="Wave"
           className="w-full sm:w-44"
-          value={wave}
-          onChange={(value) => {
-            setWave(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.wave}
+          onChange={(value) => set('wave', value as (typeof CHECKIN_WAVES)[number] | '')}
         >
           <option value="">All waves</option>
           {CHECKIN_WAVES.map((w) => (
@@ -410,11 +416,8 @@ export function OutcomeCheckinsPage() {
           ))}
         </FilterSelect>
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -425,8 +428,9 @@ export function OutcomeCheckinsPage() {
           columns={columns}
           data={query.data}
           isLoading={query.isLoading}
-          state={state}
-          onStateChange={setState}
+          isFetching={query.isFetching}
+          state={listState}
+          onStateChange={onListStateChange}
           emptyMessage="No check-ins match these filters"
         />
       )}

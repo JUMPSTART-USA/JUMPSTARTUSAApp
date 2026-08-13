@@ -1,10 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { outboundReferralSchema } from '@jumpstart/shared';
+import { CHAPTER_STATES, outboundReferralSchema } from '@jumpstart/shared';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,16 +15,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FilterSelect } from '@/components/ui/filter-select';
+import { FilterSelect, unresolvedOptionLabel } from '@/components/ui/filter-select';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { SectionHeader } from '@/components/ui/page-header';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { ErrorState } from '@/components/ui/spinner';
-import { ParticipantPicker, type PickerOption } from '@/components/pickers';
+import { ParticipantPicker, useParticipantOption, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiError, formResolver, toDateInput, todayInput, useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
+import { applyApiError, formResolver, toDateInput, todayInput } from '@/lib/form';
 import { formatDate, fullName } from '@/lib/utils';
 import { type ReferralRow } from './shared';
 
@@ -192,17 +193,22 @@ function ReferralDialog({
 
 export function ReferralsPage() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [participant, setParticipant] = useState<PickerOption | null>(null);
-  const [vendorId, setVendorId] = useState('');
-  const [search, setSearch] = useState('');
-  const [state, setState] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      participantId: P.id(),
+      vendorId: P.id(),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { sort: { dir: 'desc' } },
+  );
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const participant = useParticipantOption(values.participantId);
   const [editing, setEditing] = useState<ReferralRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
 
   const canListVendors = can('vendors.read');
-  const { data: vendors } = useReferralPartners(canListVendors);
+  const { data: vendors, isLoading: vendorsLoading } = useReferralPartners(canListVendors);
   const canUpdate = can('case_management.update');
 
   const params = qs({
@@ -210,15 +216,19 @@ export function ReferralsPage() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    search: debouncedSearch,
-    participantProfileId: participant?.id,
-    vendorId,
-    state,
+    // `values`, not `draft`: the query waits for typing to settle.
+    search: values.search,
+    // The URL value, not the resolved option — see CaseNotesPage.
+    participantProfileId: values.participantId,
+    vendorId: values.vendorId,
+    state: values.state,
   });
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['case-management', 'referrals', params],
     queryFn: () => api.get<Paged<ReferralRow>>(`/referrals${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<ReferralRow>[] = [
@@ -267,43 +277,42 @@ export function ReferralsPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search reason, provider, partner…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <div className="w-full sm:w-72">
           <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              setListState((s) => ({ ...s, page: 1 }));
-            }}
+            {...participant}
+            onChange={(p) => set('participantId', p?.id ?? '')}
           />
         </div>
         {/* Chapter scoping (§7.2): referrals derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
         />
         {canListVendors ? (
           <FilterSelect
             aria-label="Partner"
             className="w-full sm:w-44"
-            value={vendorId}
-            onChange={(value) => {
-              setVendorId(value);
-              setListState((s) => ({ ...s, page: 1 }));
-            }}
+            value={values.vendorId}
+            onChange={(value) => set('vendorId', value)}
           >
             <option value="">All partners</option>
+            {/* The partner list is capped at 200 AND narrowed to active referral
+                partners, so a vendorId from a link may not be in it — without a
+                stand-in the select would quietly read "All partners" over a
+                filtered list. Must be a DIRECT child; see filter-select.tsx. */}
+            {unresolvedOptionLabel(values.vendorId, vendors?.items, vendorsLoading) ? (
+              <option value={values.vendorId}>
+                {unresolvedOptionLabel(values.vendorId, vendors?.items, vendorsLoading)}
+              </option>
+            ) : null}
             {vendors?.items.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -318,8 +327,9 @@ export function ReferralsPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         onRowClick={
           canUpdate
             ? (r) => {

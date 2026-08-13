@@ -1291,3 +1291,67 @@ describe('the list `id` filter rehydrates a picker without leaking across chapte
     await request(server).get('/api/participants?id=not-a-uuid').set('Cookie', cookie).expect(400);
   });
 });
+
+describe('the list `personId` filter resolves a person across profile types', () => {
+  /**
+   * The communications history filters by PERSON, not by profile — a message
+   * goes to a person, who may be both a participant and a volunteer. There is no
+   * standalone person endpoint, so the picker asks both lists by personId, and
+   * the same chapter clause has to apply to each.
+   */
+  it('finds the participant behind a person id', async () => {
+    const cookie = await login(ADMIN);
+    const list = await request(server)
+      .get('/api/participants?pageSize=1')
+      .set('Cookie', cookie)
+      .expect(200);
+    const personId = list.body.items[0].person.id;
+
+    const byPerson = await request(server)
+      .get(`/api/participants?personId=${personId}&pageSize=1`)
+      .set('Cookie', cookie)
+      .expect(200);
+    // total, not items.length — pageSize=1 would hide an ignored filter.
+    expect(byPerson.body.total).toBe(1);
+    expect(byPerson.body.items[0].person.id).toBe(personId);
+  });
+
+  it('stays chapter-scoped, so a foreign person is simply not found', async () => {
+    const cookie = await login(ADMIN);
+    const scoped = await request(server)
+      .get('/api/participants?pageSize=1&state=SC')
+      .set('Cookie', cookie)
+      .expect(200);
+    const foreignPersonId = scoped.body.items[0].person.id;
+
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ chapter: 'GA' })
+      .expect(200);
+    try {
+      const foreign = await request(server)
+        .get(`/api/participants?personId=${foreignPersonId}&pageSize=1`)
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(foreign.body.total).toBe(0);
+      expect(foreign.body.items).toEqual([]);
+    } finally {
+      await request(server)
+        .post('/api/auth/view-as')
+        .set('Cookie', cookie)
+        .set('Origin', ORIGIN)
+        .send({ chapter: null })
+        .expect(200);
+    }
+  });
+
+  it('rejects a personId that is not a uuid', async () => {
+    const cookie = await login(ADMIN);
+    await request(server)
+      .get('/api/volunteers?personId=nope')
+      .set('Cookie', cookie)
+      .expect(400);
+  });
+});

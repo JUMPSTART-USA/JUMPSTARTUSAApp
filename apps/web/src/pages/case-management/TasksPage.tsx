@@ -1,10 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { caseTaskSchema, TASK_STATUSES, type TaskStatus } from '@jumpstart/shared';
+import { caseTaskSchema, CHAPTER_STATES, TASK_STATUSES, type TaskStatus } from '@jumpstart/shared';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,8 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ParticipantPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiError, formResolver, toDateInput, useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
+import { applyApiError, formResolver, toDateInput } from '@/lib/form';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import { type CaseTaskRow } from './shared';
 
@@ -182,29 +183,40 @@ function TaskDialog({
 export function TasksPage() {
   const { user, can } = useAuth();
   const queryClient = useQueryClient();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortBy: 'dueDate' });
-  const [status, setStatus] = useState('');
-  const [search, setSearch] = useState('');
-  const [state, setState] = useState('');
-  const [mineOnly, setMineOnly] = useState(true);
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      status: P.choice(TASK_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+      /**
+       * Defaults to TRUE, so the URL carries `mineOnly=0` for the wider view and
+       * nothing at all for the default — a link to "my tasks" stays clean, and a
+       * link to everyone's is explicit about it.
+       */
+      mineOnly: P.flag(true),
+    },
+    { sort: { by: 'dueDate' } },
+  );
   const [editing, setEditing] = useState<CaseTaskRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
 
   const params = qs({
     page: listState.page,
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    search: debouncedSearch,
-    status,
-    state,
-    assignedToId: mineOnly ? user?.id : undefined,
+    // `values`, not `draft`: the query waits for typing to settle.
+    search: values.search,
+    status: values.status,
+    state: values.state,
+    assignedToId: values.mineOnly ? user?.id : undefined,
   });
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['case-management', 'case-tasks', params],
     queryFn: () => api.get<Paged<CaseTaskRow>>(`/case-tasks${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const complete = useMutation({
@@ -286,22 +298,18 @@ export function TasksPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search tasks…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof TASK_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {TASK_STATUSES.map((s) => (
@@ -314,20 +322,14 @@ export function TasksPage() {
             participant (unlinked staff to-dos are chapter-neutral and always
             listed) — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
         />
         <div className="flex items-center gap-2">
           <Checkbox
             id="tasks-mine"
-            checked={mineOnly}
-            onChange={(e) => {
-              setMineOnly(e.target.checked);
-              setListState((s) => ({ ...s, page: 1 }));
-            }}
+            checked={values.mineOnly}
+            onChange={(e) => set('mineOnly', e.target.checked)}
           />
           <Label htmlFor="tasks-mine">My tasks only</Label>
         </div>
@@ -339,9 +341,10 @@ export function TasksPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
-        emptyMessage={mineOnly ? 'No tasks assigned to you' : 'No tasks found'}
+        onStateChange={onListStateChange}
+        emptyMessage={values.mineOnly ? 'No tasks assigned to you' : 'No tasks found'}
       />
 
       {dialogOpen ? (

@@ -1,11 +1,15 @@
-import { MENTOR_ASSIGNMENT_STATUSES, mentorAssignmentSchema } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  CHAPTER_STATES,
+  MENTOR_ASSIGNMENT_STATUSES,
+  mentorAssignmentSchema,
+} from '@jumpstart/shared';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,7 +30,8 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ParticipantPicker, VolunteerPicker, type PickerOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiError, formResolver, useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
+import { applyApiError, formResolver } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
 import { type AssignmentView } from './types';
 
@@ -127,35 +132,33 @@ function ProposeAssignmentDialog({ onClose }: { onClose: () => void }) {
 
 export function AssignmentsPage() {
   const { can } = useAuth();
-  const [state, setState] = useState<ListState>({
-    ...initialListState,
-    sortBy: 'createdAt',
-    sortDir: 'desc',
-  });
-  const [status, setStatus] = useState('');
-  const [chapter, setChapter] = useState('');
-  const [search, setSearch] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      status: P.choice(MENTOR_ASSIGNMENT_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { sort: { by: 'createdAt', dir: 'desc' } },
+  );
   const [proposing, setProposing] = useState(false);
-  const debounced = useDebounced(search);
-
-  useEffect(() => {
-    setState((s) => (s.page === 1 ? s : { ...s, page: 1 }));
-  }, [debounced]);
 
   const query = useQuery({
-    queryKey: ['mentoring', 'assignments', state, status, chapter, debounced],
+    queryKey: ['mentoring', 'assignments', listState, values],
     queryFn: () =>
       api.get<Paged<AssignmentView>>(
         `/mentoring/assignments${qs({
-          page: state.page,
-          pageSize: state.pageSize,
-          sortBy: state.sortBy,
-          sortDir: state.sortDir,
-          status: status || undefined,
-          state: chapter || undefined,
-          search: debounced,
+          page: listState.page,
+          pageSize: listState.pageSize,
+          sortBy: listState.sortBy,
+          sortDir: listState.sortDir,
+          status: values.status || undefined,
+          state: values.state || undefined,
+          // `values`, not `draft`: the query waits for typing to settle.
+          search: values.search,
         })}`,
       ),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<AssignmentView>[] = [
@@ -194,19 +197,19 @@ export function AssignmentsPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles — and the page reset the old
+            useEffect did by hand now happens in the same URL write. */}
         <SearchInput
           placeholder="Search mentor or participant…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof MENTOR_ASSIGNMENT_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {MENTOR_ASSIGNMENT_STATUSES.map((s) => (
@@ -216,11 +219,8 @@ export function AssignmentsPage() {
           ))}
         </FilterSelect>
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -231,8 +231,9 @@ export function AssignmentsPage() {
           columns={columns}
           data={query.data}
           isLoading={query.isLoading}
-          state={state}
-          onStateChange={setState}
+          isFetching={query.isFetching}
+          state={listState}
+          onStateChange={onListStateChange}
           rowHref={(row) => row.id}
           emptyMessage="No assignments match these filters"
         />

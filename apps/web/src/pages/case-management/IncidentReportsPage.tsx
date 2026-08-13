@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  CHAPTER_STATES,
   INCIDENT_CATEGORY_LABELS,
   INCIDENT_SEVERITIES,
   INCIDENT_SEVERITY_LABELS,
@@ -11,7 +12,7 @@ import {
 } from '@jumpstart/shared';
 import { backTo } from '@/components/BackLink';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
@@ -20,10 +21,11 @@ import { FilterSelect } from '@/components/ui/filter-select';
 import { SectionHeader } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, Spinner } from '@/components/ui/spinner';
 import { ListToolbar, ToolbarDateField } from '@/components/ui/toolbar';
-import { ParticipantPicker, type PickerOption } from '@/components/pickers';
+import { ParticipantPicker, useParticipantOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { applyApiError } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, fullName } from '@/lib/utils';
 import { IncidentReportFormDialog, type IncidentReportRow } from './incident-report-dialogs';
 
@@ -32,13 +34,19 @@ export type { IncidentReportRow } from './incident-report-dialogs';
 export function IncidentReportsPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [participant, setParticipant] = useState<PickerOption | null>(null);
-  const [severity, setSeverity] = useState('');
-  const [status, setStatus] = useState('');
-  const [state, setState] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const { values, set, listState, onListStateChange } = useListParams(
+    {
+      participantId: P.id(),
+      severity: P.choice(INCIDENT_SEVERITIES, ''),
+      status: P.choice(INCIDENT_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+      from: P.date(),
+      to: P.date(),
+    },
+    { sort: { dir: 'desc' } },
+  );
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const participant = useParticipantOption(values.participantId);
   const [dialogReport, setDialogReport] = useState<IncidentReportRow | 'new' | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<IncidentReportRow | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -51,17 +59,20 @@ export function IncidentReportsPage() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    participantProfileId: participant?.id,
-    severity,
-    status,
-    state,
-    from,
-    to,
+    // The URL value, not the resolved option — see CaseNotesPage.
+    participantProfileId: values.participantId,
+    severity: values.severity,
+    status: values.status,
+    state: values.state,
+    from: values.from,
+    to: values.to,
   });
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['case-management', 'incident-reports', params],
     queryFn: () => api.get<Paged<IncidentReportRow>>(`/incident-reports${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const remove = useMutation({
@@ -178,24 +189,20 @@ export function IncidentReportsPage() {
         }
       />
 
+      {/* `set` deletes the page key in the same URL write, so none of these
+          filters needs its own page-1 reset any more. */}
       <ListToolbar className="items-end">
         <div className="w-full sm:w-72">
           <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              setListState((s) => ({ ...s, page: 1 }));
-            }}
+            {...participant}
+            onChange={(p) => set('participantId', p?.id ?? '')}
           />
         </div>
         <FilterSelect
           aria-label="Severity"
           className="w-full sm:w-44"
-          value={severity}
-          onChange={(value) => {
-            setSeverity(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.severity}
+          onChange={(value) => set('severity', value as (typeof INCIDENT_SEVERITIES)[number] | '')}
         >
           <option value="">All severities</option>
           {INCIDENT_SEVERITIES.map((s) => (
@@ -207,11 +214,8 @@ export function IncidentReportsPage() {
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof INCIDENT_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {INCIDENT_STATUSES.map((s) => (
@@ -223,28 +227,11 @@ export function IncidentReportsPage() {
         {/* Chapter scoping (§7.2): reports derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
         />
-        <ToolbarDateField
-          label="From"
-          value={from}
-          onChange={(e) => {
-            setFrom(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
-        />
-        <ToolbarDateField
-          label="To"
-          value={to}
-          onChange={(e) => {
-            setTo(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
-        />
+        <ToolbarDateField label="From" value={values.from} onChange={(e) => set('from', e.target.value)} />
+        <ToolbarDateField label="To" value={values.to} onChange={(e) => set('to', e.target.value)} />
       </ListToolbar>
 
       {error ? <ErrorState error={error} onRetry={refetch} /> : null}
@@ -252,14 +239,15 @@ export function IncidentReportsPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         emptyMessage="No incidents reported"
       />
 
       <IncidentReportFormDialog
         report={dialogReport}
-        initialParticipant={participant}
+        initialParticipant={participant.value}
         onClose={() => setDialogReport(null)}
       />
       <ConfirmDialog

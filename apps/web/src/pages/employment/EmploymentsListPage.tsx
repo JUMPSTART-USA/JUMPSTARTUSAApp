@@ -2,14 +2,15 @@ import { EMPLOYMENT_STATUSES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Pencil, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
-import { FilterSelect } from '@/components/ui/filter-select';
+import { FilterSelect, unresolvedOptionLabel } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { P, useListParams } from '@/lib/list-params';
 import { useDebounced } from '@/lib/form';
 import { formatDate, formatMoney, humanize } from '@/lib/utils';
 import { EmploymentFormDialog } from './EmploymentFormDialog';
@@ -21,13 +22,13 @@ export function EmploymentsListPage() {
   const { can } = useAuth();
   const canPay = can('fields.pay.read');
   const canUpdate = can('employment.update');
-  const [listState, setListState] = useState<ListState>(initialListState);
-  const [search, setSearch] = useState('');
-  const [employerId, setEmployerId] = useState('');
-  const [status, setStatus] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams({
+    search: P.text(),
+    employerId: P.id(),
+    status: P.choice(EMPLOYMENT_STATUSES, ''),
+  });
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<EmploymentListItem | null>(null);
-  const debouncedSearch = useDebounced(search);
 
   const employersQuery = useQuery({
     queryKey: ['employers', 'options'],
@@ -37,7 +38,7 @@ export function EmploymentsListPage() {
   });
 
   const query = useQuery({
-    queryKey: ['employments', 'list', listState, debouncedSearch, employerId, status],
+    queryKey: ['employments', 'list', listState, values],
     queryFn: () =>
       api.get<Paged<EmploymentListItem>>(
         `/employments${qs({
@@ -45,9 +46,10 @@ export function EmploymentsListPage() {
           pageSize: listState.pageSize,
           sortBy: listState.sortBy,
           sortDir: listState.sortDir,
-          search: debouncedSearch,
-          employerId,
-          status,
+          // `values`, not `draft`: the query waits for typing to settle.
+          search: values.search,
+          employerId: values.employerId,
+          status: values.status,
         })}`,
       ),
     placeholderData: keepPreviousData,
@@ -139,8 +141,6 @@ export function EmploymentsListPage() {
     return cols;
   }, [canPay, canUpdate]);
 
-  const resetPage = () => setListState((s) => ({ ...s, page: 1 }));
-
   return (
     <div className="space-y-4">
       <div className="space-y-1">
@@ -160,22 +160,24 @@ export function EmploymentsListPage() {
       <ListToolbar>
         <SearchInput
           placeholder="Search participant, employer, title…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            resetPage();
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Employer"
           className="w-full sm:w-56"
-          value={employerId}
-          onChange={(value) => {
-            setEmployerId(value);
-            resetPage();
-          }}
+          value={values.employerId}
+          onChange={(value) => set('employerId', value)}
         >
           <option value="">All employers</option>
+          {/* The options are capped at 200 and gated on employers.read, so an id
+              from a link may be absent. Must be a DIRECT child; see
+              filter-select.tsx. */}
+          {unresolvedOptionLabel(values.employerId, employersQuery.data?.items, employersQuery.isLoading) ? (
+            <option value={values.employerId}>
+              {unresolvedOptionLabel(values.employerId, employersQuery.data?.items, employersQuery.isLoading)}
+            </option>
+          ) : null}
           {employersQuery.data?.items.map((emp) => (
             <option key={emp.id} value={emp.id}>
               {emp.name}
@@ -185,11 +187,8 @@ export function EmploymentsListPage() {
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            resetPage();
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof EMPLOYMENT_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {EMPLOYMENT_STATUSES.map((s) => (
@@ -209,7 +208,7 @@ export function EmploymentsListPage() {
           isLoading={query.isLoading}
           isFetching={query.isFetching}
           state={listState}
-          onStateChange={setListState}
+          onStateChange={onListStateChange}
           emptyMessage="No employment records found"
         />
       )}

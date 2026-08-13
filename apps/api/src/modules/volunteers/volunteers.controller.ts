@@ -36,6 +36,8 @@ const listFiltersSchema = listQuerySchema.extend({
    * participants controller for the full reasoning.
    */
   id: uuid.optional(),
+  /** The PERSON behind the profile — see the participants controller. */
+  personId: uuid.optional(),
   status: z.enum(VOLUNTEER_STATUSES).optional(),
   isMentor: z
     .enum(['true', 'false'])
@@ -68,11 +70,11 @@ export class VolunteersController {
     @Query(zodQuery(listFiltersSchema)) query: ListFilters,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const { id, status, isMentor, state, ...listQuery } = query;
+    const { id, personId, status, isMentor, state, ...listQuery } = query;
     // Chapter scoping (§7.2): scoped users always see their own chapter.
     return this.volunteers.list(
       listQuery as ListQuery,
-      { id, status, isMentor, state: (user.chapter ?? state) as ListFilters['state'] },
+      { id, personId, status, isMentor, state: (user.chapter ?? state) as ListFilters['state'] },
       canReadChecks(user),
     );
   }

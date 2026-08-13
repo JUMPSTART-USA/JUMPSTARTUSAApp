@@ -22,7 +22,13 @@ export function useInstitutionsLookup() {
     enabled: can('institutions.read'),
     staleTime: LOOKUP_STALE,
   });
-  return { items: query.data?.items ?? [], allowed: can('institutions.read') };
+  return {
+    items: query.data?.items ?? [],
+    allowed: can('institutions.read'),
+    // For unresolvedOptionLabel: without it a URL-supplied id reads as "A record
+    // you can't view" for the moment the lookup is in flight.
+    isLoading: query.isLoading,
+  };
 }
 
 export function useInsideClassesLookup(institutionId?: string) {

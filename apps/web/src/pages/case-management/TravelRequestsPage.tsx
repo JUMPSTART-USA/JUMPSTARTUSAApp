@@ -1,11 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TRAVEL_REQUEST_STATUSES, TRAVEL_REQUEST_STATUS_LABELS } from '@jumpstart/shared';
+import {
+  CHAPTER_STATES,
+  TRAVEL_REQUEST_STATUSES,
+  TRAVEL_REQUEST_STATUS_LABELS,
+} from '@jumpstart/shared';
 import { backTo } from '@/components/BackLink';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
@@ -22,9 +26,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ListToolbar, ToolbarDateField } from '@/components/ui/toolbar';
-import { ParticipantPicker, type PickerOption } from '@/components/pickers';
+import { ParticipantPicker, useParticipantOption } from '@/components/pickers';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { P, useListParams } from '@/lib/list-params';
 import { applyApiError } from '@/lib/form';
 import { formatDate, fullName } from '@/lib/utils';
 import {
@@ -39,12 +44,18 @@ export { formatTravelDates, type TravelRequestRow };
 export function TravelRequestsPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [participant, setParticipant] = useState<PickerOption | null>(null);
-  const [status, setStatus] = useState('');
-  const [state, setState] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const { values, set, listState, onListStateChange } = useListParams(
+    {
+      participantId: P.id(),
+      status: P.choice(TRAVEL_REQUEST_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+      from: P.date(),
+      to: P.date(),
+    },
+    { sort: { dir: 'desc' } },
+  );
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const participant = useParticipantOption(values.participantId);
   const [formTarget, setFormTarget] = useState<TravelRequestRow | 'new' | null>(null);
   const [decisionTarget, setDecisionTarget] = useState<TravelRequestRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TravelRequestRow | null>(null);
@@ -58,14 +69,15 @@ export function TravelRequestsPage() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    participantProfileId: participant?.id,
-    status,
-    state,
-    from,
-    to,
+    // The URL value, not the resolved option — see CaseNotesPage.
+    participantProfileId: values.participantId,
+    status: values.status,
+    state: values.state,
+    from: values.from,
+    to: values.to,
   });
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['case-management', 'travel-requests', params],
     queryFn: () => api.get<Paged<TravelRequestRow>>(`/travel-requests${params}`),
   });
@@ -209,24 +221,20 @@ export function TravelRequestsPage() {
         }
       />
 
+      {/* `set` deletes the page key in the same URL write, so none of these
+          filters needs its own page-1 reset any more. */}
       <ListToolbar className="items-end">
         <div className="w-full sm:w-72">
           <ParticipantPicker
-            value={participant}
-            onChange={(p) => {
-              setParticipant(p);
-              setListState((s) => ({ ...s, page: 1 }));
-            }}
+            {...participant}
+            onChange={(p) => set('participantId', p?.id ?? '')}
           />
         </div>
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof TRAVEL_REQUEST_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {TRAVEL_REQUEST_STATUSES.map((s) => (
@@ -238,27 +246,18 @@ export function TravelRequestsPage() {
         {/* Chapter scoping (§7.2): requests derive their chapter from the
             participant — hidden for scoped users, whom the API force-filters. */}
         <ChapterFilterSelect
-          value={state}
-          onChange={(v) => {
-            setState(v);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(v) => set('state', v as (typeof CHAPTER_STATES)[number] | '')}
         />
         <ToolbarDateField
           label="From"
-          value={from}
-          onChange={(e) => {
-            setFrom(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.from}
+          onChange={(e) => set('from', e.target.value)}
         />
         <ToolbarDateField
           label="To"
-          value={to}
-          onChange={(e) => {
-            setTo(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.to}
+          onChange={(e) => set('to', e.target.value)}
         />
       </ListToolbar>
 
@@ -267,14 +266,15 @@ export function TravelRequestsPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         emptyMessage="No travel requests"
       />
 
       <TravelRequestFormDialog
         request={formTarget}
-        initialParticipant={participant}
+        initialParticipant={participant.value}
         onClose={() => setFormTarget(null)}
       />
       <TravelDecisionDialog request={decisionTarget} onClose={() => setDecisionTarget(null)} />

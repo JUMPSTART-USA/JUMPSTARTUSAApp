@@ -1,9 +1,10 @@
+import { CHAPTER_STATES } from '@jumpstart/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FilterSelect } from '@/components/ui/filter-select';
@@ -12,7 +13,7 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { InstitutionFormDialog } from './InstitutionFormDialog';
 import type { InstitutionListItem } from './types';
 
@@ -63,15 +64,16 @@ const columns: Column<InstitutionListItem>[] = [
 
 export function InstitutionListPage() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>(initialListState);
-  const [search, setSearch] = useState('');
-  const [stateFilter, setStateFilter] = useState('');
-  const [activeFilter, setActiveFilter] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams({
+    search: P.text(),
+    state: P.choice(CHAPTER_STATES, ''),
+    /** Tri-state: '' is "active and inactive", not "unset". */
+    active: P.choice(['true', 'false'] as const, ''),
+  });
   const [createOpen, setCreateOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
 
   const query = useQuery({
-    queryKey: ['institutions', 'list', listState, debouncedSearch, stateFilter, activeFilter],
+    queryKey: ['institutions', 'list', listState, values],
     queryFn: () =>
       api.get<Paged<InstitutionListItem>>(
         `/institutions${qs({
@@ -79,15 +81,14 @@ export function InstitutionListPage() {
           pageSize: listState.pageSize,
           sortBy: listState.sortBy,
           sortDir: listState.sortDir,
-          search: debouncedSearch,
-          state: stateFilter,
-          active: activeFilter,
+          // `values`, not `draft`: the query waits for typing to settle.
+          search: values.search,
+          state: values.state,
+          active: values.active,
         })}`,
       ),
     placeholderData: keepPreviousData,
   });
-
-  const resetPage = () => setListState((s) => ({ ...s, page: 1 }));
 
   return (
     <div className="space-y-4">
@@ -103,31 +104,24 @@ export function InstitutionListPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search name, city, contact…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            resetPage();
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         {/* Facility state IS the chapter (§7.2) — the 50-state list offered
             states no institution can be in. */}
         <ChapterFilterSelect
-          value={stateFilter}
-          onChange={(value) => {
-            setStateFilter(value);
-            resetPage();
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={activeFilter}
-          onChange={(value) => {
-            setActiveFilter(value);
-            resetPage();
-          }}
+          value={values.active}
+          onChange={(value) => set('active', value as 'true' | 'false' | '')}
         >
           <option value="">All statuses</option>
           <option value="true">Active</option>
@@ -144,7 +138,7 @@ export function InstitutionListPage() {
           isLoading={query.isLoading}
           isFetching={query.isFetching}
           state={listState}
-          onStateChange={setListState}
+          onStateChange={onListStateChange}
           rowHref={(row) => row.id}
           emptyMessage="No institutions found"
         />

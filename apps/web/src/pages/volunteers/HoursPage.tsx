@@ -1,11 +1,11 @@
 import { HOURS_STATUSES, HOURS_STATUS_LABELS } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BackLink } from '@/components/BackLink';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
-import { VolunteerPicker, type PickerOption } from '@/components/pickers';
+import { DataTable, type Column } from '@/components/DataTable';
+import { VolunteerPicker, useVolunteerOption, type PickerOption } from '@/components/pickers';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
@@ -24,6 +24,7 @@ import {
 import { api, qs, type Paged } from '@/lib/api';
 import { endOfMonthInput, todayInput } from '@/lib/form';
 import { useAuth } from '@/lib/auth';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, fullName } from '@/lib/utils';
 import { LogHoursDialog } from './LogHoursDialog';
 import { HoursSourceBadge, formatHours } from './shared';
@@ -95,29 +96,35 @@ export function HoursPage() {
   });
 
   // ── All entries ───────────────────────────────────────────────────────────
-  const [listState, setListState] = useState<ListState>({
-    ...initialListState,
-    sortBy: 'activityDate',
-    sortDir: 'desc',
-  });
-  const [volunteer, setVolunteer] = useState<PickerOption | null>(null);
-  const [status, setStatus] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const { values, set, listState, onListStateChange } = useListParams(
+    {
+      volunteerId: P.id(),
+      status: P.choice(HOURS_STATUSES, ''),
+      from: P.date(),
+      to: P.date(),
+    },
+    { sort: { by: 'activityDate', dir: 'desc' } },
+  );
+  /** The URL carries the id; this turns it back into the name on the chip. */
+  const volunteer = useVolunteerOption(values.volunteerId);
 
   const params = {
     page: listState.page,
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    volunteerProfileId: volunteer?.id,
-    status,
-    from,
-    to,
+    // The URL value, not the resolved option: the list filters on what the link
+    // asked for while the name is still loading.
+    volunteerProfileId: values.volunteerId,
+    status: values.status,
+    from: values.from,
+    to: values.to,
   };
   const entries = useQuery({
     queryKey: ['volunteers', 'hours', 'list', params],
     queryFn: () => api.get<Paged<HoursEntryRow>>(`/volunteers/hours${qs(params)}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<HoursEntryRow>[] = [
@@ -291,21 +298,15 @@ export function HoursPage() {
           <ListToolbar className="items-end">
             <div className="w-full sm:w-72">
               <VolunteerPicker
-                value={volunteer}
-                onChange={(v) => {
-                  setVolunteer(v);
-                  setListState((s) => ({ ...s, page: 1 }));
-                }}
+                {...volunteer}
+                onChange={(v) => set('volunteerId', v?.id ?? '')}
               />
             </div>
             <FilterSelect
               aria-label="Status"
               className="w-full sm:w-44"
-              value={status}
-              onChange={(value) => {
-                setStatus(value);
-                setListState((s) => ({ ...s, page: 1 }));
-              }}
+              value={values.status}
+              onChange={(value) => set('status', value as (typeof HOURS_STATUSES)[number] | '')}
             >
               <option value="">All statuses</option>
               {HOURS_STATUSES.map((s) => (
@@ -316,19 +317,13 @@ export function HoursPage() {
             </FilterSelect>
             <ToolbarDateField
               label="From"
-              value={from}
-              onChange={(e) => {
-                setFrom(e.target.value);
-                setListState((s) => ({ ...s, page: 1 }));
-              }}
+              value={values.from}
+              onChange={(e) => set('from', e.target.value)}
             />
             <ToolbarDateField
               label="To"
-              value={to}
-              onChange={(e) => {
-                setTo(e.target.value);
-                setListState((s) => ({ ...s, page: 1 }));
-              }}
+              value={values.to}
+              onChange={(e) => set('to', e.target.value)}
             />
           </ListToolbar>
 
@@ -338,8 +333,9 @@ export function HoursPage() {
             columns={columns}
             data={entries.data}
             isLoading={entries.isLoading}
+            isFetching={entries.isFetching}
             state={listState}
-            onStateChange={setListState}
+            onStateChange={onListStateChange}
             emptyMessage="No hours entries found"
           />
         </CardContent>

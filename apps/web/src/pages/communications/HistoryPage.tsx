@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Send } from 'lucide-react';
 import { useState } from 'react';
-import { COMM_CHANNELS, COMM_STATUSES } from '@jumpstart/shared';
+import { CHAPTER_STATES, COMM_CHANNELS, COMM_STATUSES } from '@jumpstart/shared';
 import { ChapterFilterSelect } from '@/components/ChapterSelect';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { DescriptionList, InfoItem } from '@/components/ui/description-list';
 import {
@@ -19,9 +19,9 @@ import { ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
 import { formatDate, fullName, humanize } from '@/lib/utils';
-import { PersonSearch, type PersonHit } from '@/pages/crm/shared';
+import { PersonSearch, usePersonOption } from '@/pages/crm/shared';
 import { SendDialog } from './SendDialog';
 import { CHANNEL_LABELS, CommStatusBadge, messageSummary } from './shared';
 import type { CommunicationRow } from './types';
@@ -29,31 +29,41 @@ import type { CommunicationRow } from './types';
 /** All sent/queued messages, newest first — the cross-person outbox (§6.12). */
 export function HistoryPage() {
   const { can } = useAuth();
-  const [listState, setListState] = useState<ListState>({ ...initialListState, sortDir: 'desc' });
-  const [person, setPerson] = useState<PersonHit | null>(null);
-  const [channel, setChannel] = useState('');
-  const [status, setStatus] = useState('');
-  const [chapter, setChapter] = useState('');
-  const [search, setSearch] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams(
+    {
+      search: P.text(),
+      personId: P.id(),
+      channel: P.choice(COMM_CHANNELS, ''),
+      status: P.choice(COMM_STATUSES, ''),
+      state: P.choice(CHAPTER_STATES, ''),
+    },
+    { sort: { dir: 'desc' } },
+  );
+  /** The URL carries the person id; this turns it back into the name. */
+  const person = usePersonOption(values.personId);
   const [detail, setDetail] = useState<CommunicationRow | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
-  const debouncedSearch = useDebounced(search);
 
   const params = qs({
     page: listState.page,
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    personId: person?.personId,
-    channel,
-    status,
-    state: chapter,
-    search: debouncedSearch,
+    // The URL value, not the resolved option: the list filters on what the link
+    // asked for while the name is still loading.
+    personId: values.personId,
+    channel: values.channel,
+    status: values.status,
+    state: values.state,
+    // `values`, not `draft`: the query waits for typing to settle.
+    search: values.search,
   });
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['communications', 'history', params],
     queryFn: () => api.get<Paged<CommunicationRow>>(`/communications${params}`),
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const columns: Column<CommunicationRow>[] = [
@@ -136,32 +146,27 @@ export function HistoryPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
           placeholder="Search subject or body…"
         />
         <div className="w-full sm:w-72">
           <PersonSearch
-            selected={person}
-            onSelect={(hit) => {
-              setPerson(hit);
-              setListState((s) => ({ ...s, page: 1 }));
-            }}
+            selected={person.value}
+            status={person.status}
+            onRetry={person.onRetry}
+            onSelect={(hit) => set('personId', hit?.personId ?? '')}
             placeholder="Filter by person…"
           />
         </div>
         <FilterSelect
           aria-label="Channel"
           className="w-full sm:w-44"
-          value={channel}
-          onChange={(value) => {
-            setChannel(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.channel}
+          onChange={(value) => set('channel', value as (typeof COMM_CHANNELS)[number] | '')}
         >
           <option value="">All channels</option>
           {COMM_CHANNELS.map((c) => (
@@ -173,11 +178,8 @@ export function HistoryPage() {
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof COMM_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {COMM_STATUSES.map((s) => (
@@ -187,11 +189,8 @@ export function HistoryPage() {
           ))}
         </FilterSelect>
         <ChapterFilterSelect
-          value={chapter}
-          onChange={(value) => {
-            setChapter(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.state}
+          onChange={(value) => set('state', value as (typeof CHAPTER_STATES)[number] | '')}
         />
       </ListToolbar>
 
@@ -200,8 +199,9 @@ export function HistoryPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         onRowClick={setDetail}
         emptyMessage="No messages yet"
       />

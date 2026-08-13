@@ -9,11 +9,11 @@ import {
   USER_STATUSES,
   type RoleKey,
 } from '@jumpstart/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm, type Resolver, type UseFormRegister } from 'react-hook-form';
-import { DataTable, initialListState, type Column, type ListState } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { FormField } from '@/components/FormField';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,8 @@ import { EmptyState, ErrorState } from '@/components/ui/spinner';
 import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { applyApiError, useDebounced } from '@/lib/form';
+import { P, useListParams } from '@/lib/list-params';
+import { applyApiError } from '@/lib/form';
 import { formatDate, humanize } from '@/lib/utils';
 import { useActiveUserOptions } from './shared';
 import type { AdminUser, DeactivateResult, InviteResult } from './types';
@@ -42,14 +43,14 @@ export function UsersPage() {
   const { can, user: me } = useAuth();
   const queryClient = useQueryClient();
 
-  const [listState, setListState] = useState<ListState>(initialListState);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const { values, draft, set, listState, onListStateChange } = useListParams({
+    search: P.text(),
+    status: P.choice(USER_STATUSES, ''),
+  });
   const [inviteOpen, setInviteOpen] = useState(false);
   const [resendResult, setResendResult] = useState<InviteResult | null>(null);
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [deactivateUser, setDeactivateUser] = useState<AdminUser | null>(null);
-  const debouncedSearch = useDebounced(search);
 
   const canWrite = can('admin.users');
 
@@ -58,14 +59,17 @@ export function UsersPage() {
     pageSize: listState.pageSize,
     sortBy: listState.sortBy,
     sortDir: listState.sortDir,
-    search: debouncedSearch,
-    status,
+    // `values`, not `draft`: the query waits for typing to settle.
+    search: values.search,
+    status: values.status,
   };
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['admin', 'users', 'list', params],
     queryFn: () => api.get<Paged<AdminUser>>(`/admin/users${qs(params)}`),
     enabled: canWrite,
+    // Rows stay put through a page or filter change; DataTable dims them.
+    placeholderData: keepPreviousData,
   });
 
   const reactivate = useMutation({
@@ -232,22 +236,18 @@ export function UsersPage() {
       />
 
       <ListToolbar>
+        {/* `draft` so the box echoes every keystroke; the query reads `values`,
+            which lands once typing settles. */}
         <SearchInput
           placeholder="Search name or email…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={draft.search}
+          onChange={(e) => set('search', e.target.value)}
         />
         <FilterSelect
           aria-label="Status"
           className="w-full sm:w-44"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setListState((s) => ({ ...s, page: 1 }));
-          }}
+          value={values.status}
+          onChange={(value) => set('status', value as (typeof USER_STATUSES)[number] | '')}
         >
           <option value="">All statuses</option>
           {USER_STATUSES.map((s) => (
@@ -299,8 +299,9 @@ export function UsersPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        isFetching={isFetching}
         state={listState}
-        onStateChange={setListState}
+        onStateChange={onListStateChange}
         emptyMessage="No users found"
       />
 
