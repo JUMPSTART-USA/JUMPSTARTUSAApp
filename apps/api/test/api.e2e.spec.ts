@@ -1355,3 +1355,89 @@ describe('the list `personId` filter resolves a person across profile types', ()
       .expect(400);
   });
 });
+
+describe('client error reports (§5 phase 5)', () => {
+  /**
+   * The app had no client error reporting, which is why a dropdown bug took four
+   * rounds and a hand-measured window size to pin down. These pin the two things
+   * that make the table safe to keep: it accepts reports from users who are not
+   * signed in (the login screen and the portal are exactly where a white screen
+   * goes unreported), and it refuses to store anything that looks like a record
+   * id even if the client sends one.
+   */
+  const REPORT = {
+    message: 'Cannot read properties of undefined',
+    stack: 'at SelectMenu (/assets/index.js:1:2)',
+    route: '/participants/:id',
+    source: 'boundary',
+    buildId: 'test-build',
+    viewportW: 1280,
+    viewportH: 800,
+    userAgent: 'vitest',
+  };
+
+  it('accepts a report from a caller with no session', async () => {
+    // No cookie on purpose: the login screen and the tokenized portal are where
+    // a white screen is the whole experience and nobody files a ticket.
+    await request(server).post('/api/client-errors').set('Origin', ORIGIN).send(REPORT).expect(204);
+  });
+
+  it('REFUSES a route that still carries a record id', async () => {
+    const leaky = { ...REPORT, route: '/participants/3f2504e0-4f89-11d3-9a0c-0305e82c3301' };
+    await request(server)
+      .post('/api/client-errors')
+      .set('Origin', ORIGIN)
+      .send(leaky)
+      .expect(400);
+  });
+
+  it('rejects a source it does not recognise', async () => {
+    await request(server)
+      .post('/api/client-errors')
+      .set('Origin', ORIGIN)
+      .send({ ...REPORT, source: 'somewhere-else' })
+      .expect(400);
+  });
+
+  it('collapses repeats into one row with a count', async () => {
+    const cookie = await login(ADMIN);
+    const unique = { ...REPORT, message: `repeat probe ${process.pid}` };
+    await request(server).post('/api/client-errors').set('Origin', ORIGIN).send(unique).expect(204);
+    await request(server).post('/api/client-errors').set('Origin', ORIGIN).send(unique).expect(204);
+    await request(server).post('/api/client-errors').set('Origin', ORIGIN).send(unique).expect(204);
+
+    const list = await request(server)
+      .get(`/api/client-errors?search=${encodeURIComponent(unique.message)}`)
+      .set('Cookie', cookie)
+      .expect(200);
+    // Three reports of one broken screen is ONE row, not three.
+    expect(list.body.total).toBe(1);
+    expect(list.body.items[0].count).toBe(3);
+    expect(list.body.items[0].route).toBe('/participants/:id');
+  });
+
+  it('attributes a report to the signed-in user, not to nobody', async () => {
+    const cookie = await login(ADMIN);
+    const unique = { ...REPORT, message: `attribution probe ${process.pid}` };
+    // @CurrentUser() is undefined on a @Public route — the guard returns before
+    // attaching it — so this would silently file every staff report as anonymous.
+    await request(server)
+      .post('/api/client-errors')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send(unique)
+      .expect(204);
+
+    const list = await request(server)
+      .get(`/api/client-errors?search=${encodeURIComponent(unique.message)}`)
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(list.body.items[0].user).not.toBeNull();
+    expect(list.body.items[0].user.id).toBeTruthy();
+  });
+
+  it('needs audit.read to be READ, even though anyone may write', async () => {
+    const cookie = await login(HOUSING);
+    await request(server).get('/api/client-errors').set('Cookie', cookie).expect(403);
+  });
+});

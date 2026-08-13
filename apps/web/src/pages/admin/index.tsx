@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/ui/spinner';
 import { SubNav } from '@/components/ui/sub-nav';
 import { useAuth } from '@/lib/auth';
 import { AuditLogPage } from './AuditLogPage';
+import { ClientErrorsPage } from './ClientErrorsPage';
 import { MergePage } from './MergePage';
 import { RolesPage } from './RolesPage';
 import { SettingsPage } from './SettingsPage';
@@ -15,6 +16,7 @@ const SECTIONS: { path: string; label: string; permission: PermissionKey }[] = [
   { path: 'users', label: 'Users', permission: 'admin.users' },
   { path: 'roles', label: 'Roles', permission: 'admin.roles' },
   { path: 'audit', label: 'Audit Log', permission: 'audit.read' },
+  { path: 'client-errors', label: 'Client Errors', permission: 'audit.read' },
   { path: 'settings', label: 'Settings', permission: 'admin.settings' },
   { path: 'templates', label: 'Templates', permission: 'admin.templates' },
   { path: 'merge', label: 'Merge People', permission: 'person.merge' },
@@ -57,6 +59,7 @@ export function AdminRoutes() {
         <Route path="users" element={<UsersPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="audit" element={<AuditLogPage />} />
+        <Route path="client-errors" element={<ClientErrorsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="merge" element={<MergePage />} />
