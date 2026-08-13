@@ -111,6 +111,41 @@ Never default dates of birth, releases, or expirations.
 - Buttons: `default` (navy) for primary actions, `accent` (gold) ONLY for brand
   moments (login), `outline` secondary, `ghost` row actions, `destructive` delete.
 
+## Words
+
+- **A status becomes text through `statusLabel()`, never a bare `humanize()`.**
+  A module may keep its own colours — several must — but no module gets its own
+  spelling. This existed because events printed "No show" and the volunteer
+  roster printed "No-show" for the same state, two clicks apart.
+- **A page's `<h1>` says what the link the user clicked said.** Not a shortened
+  form, not a longer one. A sub-nav pill may abbreviate where it is a prefix of
+  the heading ("Recurring" → "Recurring gifts"), but it must never promise
+  something the heading drops — the mentoring module was reached by clicking
+  "Alumni & Mentoring" and greeted the user with "Mentoring".
+- **These words are NOT synonyms, and consolidating them would be wrong.** The
+  audit counted nine words for "finished" and four for "approved"; all but the
+  spelling above are the domain's own vocabulary, and the API enforces the
+  difference:
+
+  | Word | Belongs to | Means, precisely |
+  |---|---|---|
+  | `completed` | tasks, classes, transports, placements, volunteer assignments | the work ran its course |
+  | `ended` | mentor matches, volunteer assignments | it stopped — and unlike `completed`, which sits beside it in the same enum, claims nothing about how |
+  | `closed` | opportunities, recurring gifts | stopped accepting new activity |
+  | `archived` | opportunities, service plans | retired. Thin against `closed`: nothing in the API treats them differently and neither is hidden from a default list, so if these ever need to mean different things, decide it there first |
+  | `resolved` | incidents | someone dealt with it |
+  | `dismissed` | incidents | it needed no dealing with |
+  | `fulfilled` | pledges | paid in full — an accounting fact |
+  | `written_off` | pledges | will not be paid, and we have said so |
+  | `satisfied` | clearances | a requirement was met |
+  | `terminated` | employment | ended by the employer; `resigned` is the same event from the other side |
+  | `approved` | travel, transport, hours, screenings, intake | a staff member said yes |
+  | `confirmed` | shift signups | the volunteer said yes |
+  | `clear` | background-check results | the check came back with nothing |
+
+  Sentence case for every label except proper nouns — the Census race
+  categories and brand names like "Apple Pay" keep their capitals.
+
 ## Tables
 
 - **Numbers that are compared down a column get

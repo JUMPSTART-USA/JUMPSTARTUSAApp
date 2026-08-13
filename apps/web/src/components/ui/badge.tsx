@@ -147,7 +147,25 @@ const STATUS_VARIANTS: Record<string, BadgeProps['variant']> = {
   lapsed: 'warning',
 };
 
+/**
+ * Words `humanize()` spells wrong, kept apart from the colours above because a
+ * module can legitimately disagree about a status's COLOUR while never being
+ * allowed to disagree about its SPELLING.
+ *
+ * One entry today: events rendered `no_show` through humanize and printed "No
+ * show" while the volunteer roster, which has a curated label, printed
+ * "No-show" — the same state, spelled two ways, two clicks apart.
+ */
+const STATUS_LABELS: Record<string, string> = {
+  no_show: 'No-show',
+};
+
+/** The one spelling of a status. Use this anywhere a status becomes text. */
+export function statusLabel(status: string): string {
+  return STATUS_LABELS[status] ?? humanize(status);
+}
+
 export function StatusBadge({ status }: { status: string | null | undefined }) {
   if (!status) return <span className="text-muted-foreground">—</span>;
-  return <Badge variant={STATUS_VARIANTS[status] ?? 'secondary'}>{humanize(status)}</Badge>;
+  return <Badge variant={STATUS_VARIANTS[status] ?? 'secondary'}>{statusLabel(status)}</Badge>;
 }

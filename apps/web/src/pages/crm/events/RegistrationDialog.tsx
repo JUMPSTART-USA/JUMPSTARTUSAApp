@@ -18,7 +18,8 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { api } from '@/lib/api';
 import { applyApiError } from '@/lib/form';
-import { cn, humanize } from '@/lib/utils';
+import { statusLabel } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { PersonSearch, type PersonHit } from '../shared';
 import type { RegistrationStatus } from '../types';
 
@@ -169,7 +170,7 @@ export function RegistrationDialog({
             <Select {...form.register('status')}>
               {REGISTRATION_STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {humanize(s)}
+                  {statusLabel(s)}
                 </option>
               ))}
             </Select>

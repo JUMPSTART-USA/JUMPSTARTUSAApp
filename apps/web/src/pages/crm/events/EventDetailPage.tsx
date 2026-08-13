@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2, UserCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { Badge, statusLabel, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -21,7 +21,7 @@ import {
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { applyApiError } from '@/lib/form';
-import { cn, formatDate, formatMoney, fullName, humanize } from '@/lib/utils';
+import { cn, formatDate, formatMoney, fullName } from '@/lib/utils';
 import type { EventDetail, RegistrationStatus } from '../types';
 import { EventFormDialog } from './EventFormDialog';
 import { RegistrationDialog } from './RegistrationDialog';
@@ -224,7 +224,7 @@ export function EventDetailPage() {
                 <TableCell>{registration.externalEmail ?? '—'}</TableCell>
                 <TableCell>
                   <Badge variant={REGISTRATION_VARIANTS[registration.status]}>
-                    {humanize(registration.status)}
+                    {statusLabel(registration.status)}
                   </Badge>
                 </TableCell>
                 <TableCell>{formatDate(registration.checkedInAt)}</TableCell>
@@ -257,7 +257,7 @@ export function EventDetailPage() {
                             })
                           }
                         >
-                          No show
+                          No-show
                         </Button>
                         <Button
                           size="sm"

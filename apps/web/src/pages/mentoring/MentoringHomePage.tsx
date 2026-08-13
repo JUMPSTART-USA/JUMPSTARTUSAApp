@@ -84,8 +84,11 @@ export function MentoringHomePage() {
   return (
     <div className="space-y-6">
       {/* The only module home with no PageHeader, so it had no h1 and kept the
-          previous route's document title — the sub-nav is not a page heading. */}
-      <PageHeader title="Mentoring" />
+          previous route's document title — the sub-nav is not a page heading.
+          The heading is the sidebar's own words: this module carries alumni
+          engagements and flags alumni on screenings, so "Mentoring" alone
+          dropped half of what the link promised. */}
+      <PageHeader title="Alumni & Mentoring" />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Active matches" value={data.activeMatches} to="assignments" />
         <StatCard

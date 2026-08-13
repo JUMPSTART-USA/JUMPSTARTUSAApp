@@ -514,7 +514,9 @@ export type GiftFrequency = (typeof GIFT_FREQUENCIES)[number];
 
 export const GIFT_FREQUENCY_LABELS: Record<GiftFrequency, string> = {
   weekly: 'Weekly',
-  biweekly: 'Every other week',
+  // Same words as BUDGET_FREQUENCY_LABELS: `biweekly` is read as both "twice a
+  // week" and "every two weeks", so neither map ever prints the word itself.
+  biweekly: 'Every two weeks',
   monthly: 'Monthly',
   quarterly: 'Quarterly',
   semiannually: 'Twice a year',

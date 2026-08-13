@@ -1,6 +1,7 @@
+import { SHIFT_SIGNUP_STATUS_LABELS } from '@jumpstart/shared';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { StatusBadge } from './badge';
+import { StatusBadge, statusLabel } from './badge';
 import { CommStatusBadge } from '@/pages/communications/shared';
 import { EmploymentStatusBadge, HiringStatusBadge } from '@/pages/employment/shared';
 import { LifecycleBadge } from '@/pages/crm/shared';
@@ -84,6 +85,23 @@ describe('folded status colours', () => {
   it('an employment record reads completed the way the kit does', () => {
     expect(variantOf('completed', <EmploymentStatusBadge status="completed" />)).toBe('info');
     expect(variantOf('completed', <StatusBadge status="completed" />)).toBe('info');
+  });
+
+  /**
+   * Events printed "No show" (humanize) while the volunteer roster printed
+   * "No-show" (a curated label) for the same state. The colours legitimately
+   * differ — an uncovered shift is worse than an empty seat — so the fix was to
+   * separate spelling from colour, and this is what holds them apart.
+   */
+  it('spells a status one way, whoever colours it', () => {
+    expect(statusLabel('no_show')).toBe(SHIFT_SIGNUP_STATUS_LABELS.no_show);
+    render(<StatusBadge status="no_show" />);
+    expect(screen.getByText('No-show')).toBeTruthy();
+  });
+
+  it('falls back to humanize for the statuses that need no special spelling', () => {
+    expect(statusLabel('in_progress')).toBe('In progress');
+    expect(statusLabel('partially_sent')).toBe('Partially sent');
   });
 
   it('renders an em dash, not an empty badge, for a missing status', () => {
