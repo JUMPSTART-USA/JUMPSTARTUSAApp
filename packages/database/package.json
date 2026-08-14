@@ -14,6 +14,7 @@
     "seed": "tsx prisma/seed.ts",
     "seed:attendance-samples": "tsx prisma/seed-attendance-samples.ts",
     "seed:photo-samples": "tsx prisma/seed-photo-samples.ts",
+    "seed:samples": "tsx prisma/seed-attendance-samples.ts && tsx prisma/seed-photo-samples.ts",
     "seed:cm-samples": "tsx prisma/seed-cm-samples.ts",
     "seed:justice-samples": "tsx prisma/seed-justice-samples.ts",
     "seed:production": "tsx prisma/seed-production.ts",
