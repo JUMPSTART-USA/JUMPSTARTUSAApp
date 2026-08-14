@@ -51,6 +51,7 @@ export function UsersPage() {
   const [resendResult, setResendResult] = useState<InviteResult | null>(null);
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [deactivateUser, setDeactivateUser] = useState<AdminUser | null>(null);
+  const [resetTotpUser, setResetTotpUser] = useState<AdminUser | null>(null);
 
   const canWrite = can('admin.users');
 
@@ -82,6 +83,17 @@ export function UsersPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       setResendResult(result);
+    },
+  });
+
+  // Lost-authenticator rescue: clears the user's TOTP + recovery codes so
+  // they sign in with their password and re-enroll at /account.
+  const resetTotp = useMutation({
+    mutationFn: ({ id, code }: { id: string; code?: string }) =>
+      api.post<AdminUser>(`/admin/users/${id}/reset-totp`, code ? { code } : {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      setResetTotpUser(null);
     },
   });
 
@@ -205,6 +217,18 @@ export function UsersPage() {
               Resend invite
             </Button>
           ) : null}
+          {row.totpEnabled ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                resetTotp.reset();
+                setResetTotpUser(row);
+              }}
+            >
+              Reset 2FA
+            </Button>
+          ) : null}
           {row.status === 'deactivated' ? (
             <Button
               variant="outline"
@@ -310,6 +334,16 @@ export function UsersPage() {
       <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
       <EditUserDialog user={editUser} onClose={() => setEditUser(null)} />
       <DeactivateUserDialog user={deactivateUser} onClose={() => setDeactivateUser(null)} />
+      <ResetTotpDialog
+        user={resetTotpUser}
+        needsCode={me?.totpEnabled ?? false}
+        isPending={resetTotp.isPending}
+        error={resetTotp.error ? resetTotp.error.message : null}
+        onConfirm={(code) =>
+          resetTotpUser ? resetTotp.mutate({ id: resetTotpUser.id, code }) : undefined
+        }
+        onClose={() => setResetTotpUser(null)}
+      />
     </div>
   );
 }
@@ -688,6 +722,76 @@ function DeactivateUserDialogInner({ user, onClose }: { user: AdminUser; onClose
             </DialogFooter>
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Reset-2FA confirm with step-up (§3.2): once the ACTING admin is enrolled,
+ * removing someone's second factor demands the admin's own current code — a
+ * signed-in-but-unattended screen must not be enough. ConfirmDialog can't
+ * host an input (description renders inside a <p>), hence the bespoke dialog.
+ */
+function ResetTotpDialog({
+  user,
+  needsCode,
+  isPending,
+  error,
+  onConfirm,
+  onClose,
+}: {
+  user: AdminUser | null;
+  needsCode: boolean;
+  isPending: boolean;
+  error: string | null;
+  onConfirm: (code?: string) => void;
+  onClose: () => void;
+}) {
+  const [code, setCode] = useState('');
+  // Render-time reset so one user's typed code never carries to the next.
+  const [lastUserId, setLastUserId] = useState(user?.id ?? null);
+  if ((user?.id ?? null) !== lastUserId) {
+    setLastUserId(user?.id ?? null);
+    setCode('');
+  }
+  return (
+    <Dialog open={user !== null} onOpenChange={(next) => (!next && !isPending ? onClose() : undefined)}>
+      <DialogContent size="sm">
+        <DialogHeader>
+          <DialogTitle>
+            Reset two-factor for {user?.firstName} {user?.lastName}?
+          </DialogTitle>
+          <DialogDescription>
+            Clears their authenticator and every recovery code. They sign in with just their
+            password until they re-enroll under My account.
+          </DialogDescription>
+        </DialogHeader>
+        {needsCode ? (
+          <FormField label="Your 6-digit code" hint="From your own authenticator — authorizes the reset.">
+            <Input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              className="w-32 text-center font-mono"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            />
+          </FormField>
+        ) : null}
+        <FormError message={error} />
+        <DialogFooter>
+          <Button variant="outline" disabled={isPending} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={isPending || (needsCode && code.length !== 6)}
+            onClick={() => onConfirm(needsCode ? code : undefined)}
+          >
+            {isPending ? 'Working…' : 'Reset 2FA'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

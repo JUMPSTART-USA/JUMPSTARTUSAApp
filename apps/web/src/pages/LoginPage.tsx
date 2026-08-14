@@ -16,6 +16,9 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [totpRequired, setTotpRequired] = useState(false);
+  /** Lost-authenticator fallback: swaps the code field for a recovery-code one. */
+  const [useRecovery, setUseRecovery] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { refresh } = useAuth();
@@ -35,7 +38,8 @@ export function LoginPage() {
       const result = await api.post<{ totpRequired?: boolean; user?: unknown }>('/auth/login', {
         email,
         password,
-        totpCode: totpCode || undefined,
+        totpCode: !useRecovery && totpCode ? totpCode : undefined,
+        recoveryCode: useRecovery && recoveryCode ? recoveryCode : undefined,
       });
       if (result.totpRequired) {
         setTotpRequired(true);
@@ -127,7 +131,7 @@ export function LoginPage() {
                   />
                 </div>
               </>
-            ) : (
+            ) : !useRecovery ? (
               <div className="space-y-1.5">
                 <Label htmlFor="totp">Authentication code</Label>
                 <Input
@@ -144,6 +148,44 @@ export function LoginPage() {
                 <p className="text-xs text-muted-foreground">
                   Enter the code from your authenticator app.
                 </p>
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => {
+                    setUseRecovery(true);
+                    setError(null);
+                  }}
+                >
+                  Lost your authenticator? Use a recovery code
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="recovery">Recovery code</Label>
+                <Input
+                  id="recovery"
+                  autoComplete="off"
+                  maxLength={20}
+                  placeholder="XXXXX-XXXXX"
+                  value={recoveryCode}
+                  onChange={(e) => setRecoveryCode(e.target.value)}
+                  autoFocus
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Each recovery code works once. After signing in, generate a fresh set under My
+                  account.
+                </p>
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => {
+                    setUseRecovery(false);
+                    setError(null);
+                  }}
+                >
+                  Back to authenticator code
+                </button>
               </div>
             )}
             {expired && !error ? (

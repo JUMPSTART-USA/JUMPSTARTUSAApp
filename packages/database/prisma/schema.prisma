@@ -934,9 +934,26 @@ model User {
   supportTickets      SupportTicket[]      @relation("TicketCreator")
   supportMessages     SupportMessage[]
   passwordResetTokens PasswordResetToken[]
+  totpRecoveryCodes   TotpRecoveryCode[]
   clientErrors        ClientError[]
 
   @@map("users")
+}
+
+// TOTP recovery codes: single-use fallbacks for a lost authenticator, stored
+// HASHED like password-reset tokens — a database leak must never yield a
+// usable second factor. A fresh set replaces the whole batch (regeneration
+// and admin reset both delete every row for the user).
+model TotpRecoveryCode {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("totp_recovery_codes")
 }
 
 // Self-service password reset (§3.1): single-use, short-lived, stored HASHED

@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { RoleKey } from '@jumpstart/shared';
+import { TOTP_REQUIRED_ROLES, type RoleKey } from '@jumpstart/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IS_PUBLIC_KEY } from '../decorators';
 import type { AuthenticatedRequest } from '../types';
@@ -17,6 +17,8 @@ import type { AuthenticatedRequest } from '../types';
  * deactivating a user cuts access on their very next request — the
  * instant-revocation property that justified sessions over JWTs (§3.2).
  */
+const TOTP_REQUIRED = new Set<string>(TOTP_REQUIRED_ROLES);
+
 @Injectable()
 export class SessionAuthGuard implements CanActivate {
   constructor(
@@ -109,6 +111,9 @@ export class SessionAuthGuard implements CanActivate {
       permissions,
       actualRoles: roles,
       totpEnabled: user.totpEnabled,
+      // Soft TOTP mandate (§3.2): computed from the account's REAL roles so a
+      // "view as" preview can neither trigger nor hide the enrollment nudge.
+      mustSetupTotp: !user.totpEnabled && roles.some((r) => TOTP_REQUIRED.has(r)),
       viewAsRole,
       personId: user.personId,
       chapter: viewChapter ?? scopedChapters[0] ?? null,

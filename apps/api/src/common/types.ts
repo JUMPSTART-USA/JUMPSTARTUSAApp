@@ -13,6 +13,8 @@ export interface AuthenticatedUser {
   actualRoles: RoleKey[];
   /** Whether the account has confirmed a TOTP authenticator (drives /account). */
   totpEnabled: boolean;
+  /** True when a TOTP-mandatory role has not enrolled yet (soft nudge, §3.2). */
+  mustSetupTotp: boolean;
   /** Set while an administrator is previewing the app as another role. */
   viewAsRole: RoleKey | null;
   personId: string | null;

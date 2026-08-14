@@ -49,7 +49,12 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   async login(@Body(zodBody(loginSchema)) body: LoginInput, @Req() req: AuthenticatedRequest) {
-    const result = await this.authService.validateLogin(body.email, body.password, body.totpCode);
+    const result = await this.authService.validateLogin(
+      body.email,
+      body.password,
+      body.totpCode,
+      body.recoveryCode,
+    );
     if (result.status === 'totp_required') {
       return { totpRequired: true };
     }
@@ -90,6 +95,7 @@ export class AuthController {
       actualRoles: user.actualRoles,
       viewAsRole: user.viewAsRole,
       totpEnabled: user.totpEnabled,
+      mustSetupTotp: user.mustSetupTotp,
       chapter: user.chapter,
       actualChapter: user.actualChapter,
       allowedChapters: user.allowedChapters,
@@ -153,13 +159,30 @@ export class AuthController {
     return this.authService.startTotpSetup(user.id);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // argon2 burst guard
   @Post('totp/confirm')
   async totpConfirm(
     @CurrentUser() user: AuthenticatedUser,
     @Body(zodBody(totpCodeSchema)) body: { code: string },
   ) {
-    await this.authService.confirmTotpSetup(user.id, body.code);
-    return { ok: true };
+    const { recoveryCodes } = await this.authService.confirmTotpSetup(user.id, body.code);
+    return { ok: true, recoveryCodes };
+  }
+
+  /** Remaining unused recovery codes — the /account page's nudge counter. */
+  @Get('totp/recovery-codes')
+  totpRecoveryCodeStatus(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.recoveryCodeStatus(user.id);
+  }
+
+  /** Fresh set, old set dead. Demands a current code — see the service note. */
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // argon2 burst guard
+  @Post('totp/recovery-codes')
+  totpRegenerateRecoveryCodes(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(zodBody(totpCodeSchema)) body: { code: string },
+  ) {
+    return this.authService.regenerateRecoveryCodes(user.id, body.code);
   }
 
   @Post('change-password')

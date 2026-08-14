@@ -31,6 +31,16 @@ const listFiltersSchema = listQuerySchema.extend({
 type ListFilters = z.infer<typeof listFiltersSchema>;
 
 const deactivateSchema = z.object({ reassignToUserId: uuid });
+
+/** Step-up proof: the ACTING admin's own current code (required once they have TOTP). */
+const resetTotpSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/)
+    .optional(),
+});
+type ResetTotpInput = z.infer<typeof resetTotpSchema>;
 type DeactivateInput = z.infer<typeof deactivateSchema>;
 
 // One chapter or all: at most one scope row; empty = all chapters (§7.2).
@@ -96,6 +106,17 @@ export class AdminUsersController {
   @RequirePermission('admin.users')
   resendInvite(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.users.resendInvite(id, user.id);
+  }
+
+  /** Lost-authenticator rescue — clears TOTP so the user can re-enroll. */
+  @Post(':id/reset-totp')
+  @RequirePermission('admin.users')
+  resetTotp(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(zodBody(resetTotpSchema)) body: ResetTotpInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.users.resetTotp(id, user.id, body.code);
   }
 
   @Get(':id/region-scopes')
