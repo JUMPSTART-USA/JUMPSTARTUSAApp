@@ -130,7 +130,7 @@ export function InstitutionFormDialog({
             <FormField label="Main phone" error={errors.mainPhone}>
               <PhoneInput {...register('mainPhone')} />
             </FormField>
-            <FormField label="Address" error={errors.addressLine1} className="sm:col-span-2">
+            <FormField label="Street address" error={errors.addressLine1} className="sm:col-span-2">
               <Input {...register('addressLine1')} />
             </FormField>
             <FormField label="City" error={errors.city}>
@@ -153,7 +153,7 @@ export function InstitutionFormDialog({
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm">
               <Checkbox {...register('mailingSameAsPrimary')} />
-              Mailing address is the same as the address above
+              Mailing address is the same as the street address above
             </label>
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField

@@ -283,10 +283,10 @@ export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValu
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <FormField label="Address line 1" error={p?.addressLine1}>
+        <FormField label="Street address line 1" error={p?.addressLine1}>
           <Input {...register('person.addressLine1')} />
         </FormField>
-        <FormField label="Address line 2" error={p?.addressLine2}>
+        <FormField label="Street address line 2" error={p?.addressLine2}>
           <Input {...register('person.addressLine2')} />
         </FormField>
         <FormField label="City" error={p?.city}>
@@ -314,7 +314,7 @@ export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValu
       <div className="space-y-3">
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <Checkbox {...register('person.mailingSameAsPrimary')} /> Mailing address is the same as
-          the address above
+          the street address above
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label="Mailing address line 1" error={p?.mailingAddressLine1}>

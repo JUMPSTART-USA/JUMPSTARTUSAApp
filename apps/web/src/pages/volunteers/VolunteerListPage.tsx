@@ -451,7 +451,7 @@ function CreateVolunteerDialog({
                 <PhoneInput {...register('person.primaryPhone')} />
               </FormField>
               <FormField
-                label="Address"
+                label="Street address"
                 error={personErrors.addressLine1}
                 className="sm:col-span-2"
               >

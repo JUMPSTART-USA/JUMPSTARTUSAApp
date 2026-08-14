@@ -625,14 +625,14 @@ export function DonorProfilePage() {
                 <InfoItem label="Contact person">{donor.contactPerson ?? '—'}</InfoItem>
                 <InfoItem label="Email">{donor.email ?? '—'}</InfoItem>
                 <InfoItem label="Phone">{donor.phone ?? '—'}</InfoItem>
-                <InfoItem label="Address">
+                <InfoItem label="Street address">
                   {[donor.addressLine1, [donor.city, donor.state].filter(Boolean).join(', '), donor.zip]
                     .filter(Boolean)
                     .join(' · ') || '—'}
                 </InfoItem>
                 <InfoItem label="Mailing address">
                   {donor.mailingSameAsPrimary
-                    ? 'Same as address'
+                    ? 'Same as street address'
                     : [
                         donor.mailingAddressLine1,
                         [donor.mailingCity, donor.mailingState].filter(Boolean).join(', '),

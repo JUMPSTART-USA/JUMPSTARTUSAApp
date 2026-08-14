@@ -149,7 +149,7 @@ export function EmployerFormDialog({
             <FormField label="Email" error={errors.email} className="sm:col-span-2">
               <Input type="email" {...register('email')} />
             </FormField>
-            <FormField label="Address" error={errors.addressLine1} className="sm:col-span-2">
+            <FormField label="Street address" error={errors.addressLine1} className="sm:col-span-2">
               <Input {...register('addressLine1')} />
             </FormField>
             <FormField label="City" error={errors.city}>

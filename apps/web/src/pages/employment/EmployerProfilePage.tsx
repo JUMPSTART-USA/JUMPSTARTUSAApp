@@ -117,7 +117,7 @@ export function EmployerProfilePage() {
           <CardContent className="space-y-4">
             <DescriptionList>
               <InfoItem label="Contact person">{employer.contactPerson}</InfoItem>
-              <InfoItem label="Address">
+              <InfoItem label="Street address">
                 {employer.addressLine1 || employer.city || employer.state || employer.zip ? (
                   <>
                     {employer.addressLine1 ? (
