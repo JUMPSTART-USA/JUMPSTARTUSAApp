@@ -51,6 +51,7 @@ const VehiclesRoutes = named(() => import('@/pages/fleet'), 'VehiclesRoutes');
 const CommunicationsRoutes = named(() => import('@/pages/communications'), 'CommunicationsRoutes');
 const ReportsRoutes = named(() => import('@/pages/reports'), 'ReportsRoutes');
 const AdminRoutes = named(() => import('@/pages/admin'), 'AdminRoutes');
+const AccountRoutes = named(() => import('@/pages/account'), 'AccountRoutes');
 
 const gate = (permission: PermissionKey, element: React.ReactNode) => (
   <RequirePermissionRoute permission={permission}>{element}</RequirePermissionRoute>
@@ -59,6 +60,8 @@ const gate = (permission: PermissionKey, element: React.ReactNode) => (
 export const moduleRoutes = (
   <>
     <Route index element={gate('dashboard.read', <DashboardRoutes />)} />
+    {/* Self-service account security — every authenticated user, no gate. */}
+    <Route path="account/*" element={<AccountRoutes />} />
     <Route
       path="participants/*"
       element={gate('participants.read', <ParticipantsRoutes />)}

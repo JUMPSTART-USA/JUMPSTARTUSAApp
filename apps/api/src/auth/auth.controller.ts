@@ -89,6 +89,7 @@ export class AuthController {
       permissions: [...user.permissions],
       actualRoles: user.actualRoles,
       viewAsRole: user.viewAsRole,
+      totpEnabled: user.totpEnabled,
       chapter: user.chapter,
       actualChapter: user.actualChapter,
       allowedChapters: user.allowedChapters,
