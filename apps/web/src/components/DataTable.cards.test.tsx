@@ -140,12 +140,72 @@ describe('the card plan', () => {
   });
 });
 
+describe('what the verify pass forced', () => {
+  /**
+   * WebKit strips list semantics from styled-off lists (Tailwind preflight
+   * sets list-style none), so iOS VoiceOver — the audience of a below-sm mode
+   * — would hear neither "list" nor the count. Mutation: drop role="list".
+   */
+  it('keeps explicit list semantics', () => {
+    mount();
+    const list = screen.getAllByRole('listitem')[0]!.closest('ul')!;
+    expect(list.getAttribute('role')).toBe('list');
+  });
+
+  /**
+   * The table header labelled the status cell; the card must too, or "Active"
+   * answers a question nobody heard — and on a list with several status
+   * domains it is actively ambiguous. Mutation: drop the sr-only label.
+   */
+  it('labels the status pill with its column header for screen readers', () => {
+    mount();
+    const card = screen.getAllByRole('listitem')[0]!;
+    expect(within(card).getByText('Status:')).toBeTruthy();
+  });
+
+  /**
+   * An explicit `card: 'identity'` on a NON-linked column must still produce
+   * the row's tab stop — otherwise cards ship with pointer-only rows, the
+   * exact failure Phase 2 closed, while the desktop table keeps its link.
+   * Mutation: drop `asIdentity` from identityCell.
+   */
+  it('keeps the keyboard link when the identity hint names a non-linked column', () => {
+    const hinted = columns.map((c) =>
+      c.key === 'manager' ? { ...c, card: 'identity' as const } : c.key === 'name' ? { ...c, card: 'hidden' as const } : c,
+    );
+    mount({ columns: hinted });
+    const link = screen.getByRole('link', { name: 'Unassigned' });
+    expect(link.getAttribute('href')).toBe('/people/r1');
+  });
+
+  /** The linked column hinted into another slot must not render twice. */
+  it('never renders the identity column a second time in another slot', () => {
+    const hinted = columns.map((c) => (c.key === 'name' ? { ...c, card: 'status' as const } : c));
+    mount({ columns: hinted });
+    expect(screen.getAllByText('Darnell Casteel')).toHaveLength(1);
+  });
+
+  /**
+   * A sort key no column claims (a stale or hand-edited link) must not make
+   * the select display the first column as if it were the active sort — the
+   * exact SelectMenu fallback failure filter-select.tsx documents. And with no
+   * ACTIVE sort there is no direction button: it would announce "Sorted
+   * ascending" over an unsorted list. Mutation: gate the placeholder on
+   * `!state.sortBy` alone, or render the button unconditionally.
+   */
+  it('shows the placeholder, and no direction button, for an unmatched sort key', () => {
+    mount({ state: { ...LIST_STATE, sortBy: 'nonsense' } });
+    expect(screen.getByRole('button', { name: 'Sort by' }).textContent).toContain('Sort…');
+    expect(screen.queryByRole('button', { name: /Sorted/ })).toBeNull();
+  });
+});
+
 describe('sorting, rehoused from the vanished column headers', () => {
   it('drives the same list state and resets to page 1', () => {
     const { onStateChange } = mount({ state: { ...LIST_STATE, page: 3 } });
     // FilterSelect is the kit's SelectMenu, not a native select: open the
     // listbox, then choose the option.
-    fireEvent.click(screen.getByRole('button', { name: 'Sort by' }));
+    fireEvent.click(screen.getByRole('button', { name: /Sort by/ }));
     fireEvent.click(screen.getByRole('option', { name: 'Intake' }));
     expect(onStateChange).toHaveBeenCalledWith({
       page: 1,

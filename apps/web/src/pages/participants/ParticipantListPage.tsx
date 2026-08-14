@@ -53,8 +53,13 @@ const columns: Column<ParticipantListItem>[] = [
     key: 'insideStatus',
     header: 'Inside',
     sortKey: 'insideStatus',
-    // The one state a phone reader checks first — top-right pill on a card.
-    card: 'status',
+    // A labelled FIELD on cards, not the top-right status pill. This list has
+    // THREE status domains (Inside/Outside/Alumni), and an unlabelled pill
+    // showing insideStatus lied about most cohorts: "Completed" on an active
+    // outside-caseload member, a bare em dash on a direct-outside intake. The
+    // pill slot is for tables with ONE status domain; here every status wears
+    // its name.
+    card: 'field',
     render: (row) => statusCell(row.insideStatus),
   },
   {

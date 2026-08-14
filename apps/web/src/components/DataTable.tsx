@@ -312,10 +312,12 @@ export function DataTable<T extends { id: string }>({
    */
   const identityCol =
     columns.find((c) => c.card === 'identity') ?? columns.find((c) => c.key === linkKey) ?? columns[0];
-  const statusCol = columns.find((c) => c.card === 'status');
+  // The identity is excluded from every other slot: a linked column hinted
+  // 'status' or 'meta' would otherwise render twice per card.
+  const statusCol = columns.find((c) => c.card === 'status' && c !== identityCol);
   const actionsCol = columns.find((c) => c.key === 'actions' && c.card !== 'hidden');
-  const metaCols = columns.filter((c) => c.card === 'meta');
-  const explicitFields = columns.filter((c) => c.card === 'field');
+  const metaCols = columns.filter((c) => c.card === 'meta' && c !== identityCol);
+  const explicitFields = columns.filter((c) => c.card === 'field' && c !== identityCol);
   const fieldCols =
     explicitFields.length > 0
       ? explicitFields
@@ -330,10 +332,18 @@ export function DataTable<T extends { id: string }>({
           )
           .slice(0, 2);
   const sortableCols = columns.filter((c) => c.sortKey);
+  const activeSortCol = sortableCols.find((c) => c.sortKey === state.sortBy);
 
-  /** The identifying cell as the row's one tab stop — same rule both modes. */
-  const identityCell = (row: T, col: Column<T>) =>
-    rowHref && col.key === linkKey ? (
+  /**
+   * The identifying cell as the row's one tab stop — same rule both modes.
+   *
+   * `asIdentity` is card mode saying "this IS the identity slot": without it,
+   * a table that hints `card: 'identity'` onto a column other than the linked
+   * one would render cards with ZERO tab stops — pointer-only rows, the exact
+   * failure Phase 2 closed — while its own desktop table kept the link.
+   */
+  const identityCell = (row: T, col: Column<T>, asIdentity = false) =>
+    rowHref && (asIdentity || col.key === linkKey) ? (
       <Link
         to={rowHref(row)}
         aria-label={rowLabel?.(row)}
@@ -341,7 +351,7 @@ export function DataTable<T extends { id: string }>({
       >
         {col.render(row)}
       </Link>
-    ) : onRowOpen && col.key === linkKey ? (
+    ) : onRowOpen && (asIdentity || col.key === linkKey) ? (
       <button
         type="button"
         aria-label={rowLabel?.(row)}
@@ -448,39 +458,54 @@ export function DataTable<T extends { id: string }>({
             semantics as toggleSort: any change resets to page 1. */}
         {sortableCols.length > 0 ? (
           <div className="flex items-center gap-2">
+            {/* The placeholder renders whenever the URL's sort matches NO
+                sortable column, not just when it is absent — a SelectMenu
+                whose value matches no option displays the FIRST option as if
+                it were chosen (the exact failure filter-select.tsx documents),
+                which here would claim the list is sorted by a column it is
+                not. The trigger's aria-label carries the current choice
+                because on a SelectMenu button aria-label REPLACES the content:
+                without it a screen reader hears "Sort by, pop-up button" and
+                never what the sort IS — the state aria-sort used to announce
+                from the vanished headers. */}
             <FilterSelect
-              aria-label="Sort by"
+              aria-label={activeSortCol ? `Sort by: ${activeSortCol.header}` : 'Sort by'}
               className="w-full"
-              value={state.sortBy ?? ''}
+              value={activeSortCol ? (state.sortBy ?? '') : ''}
               onChange={(value) => {
                 if (value) onStateChange({ ...state, sortBy: value, page: 1 });
               }}
             >
-              {!state.sortBy ? <option value="">Sort…</option> : null}
+              {!activeSortCol ? <option value="">Sort…</option> : null}
               {sortableCols.map((c) => (
                 <option key={c.sortKey} value={c.sortKey}>
                   {c.header}
                 </option>
               ))}
             </FilterSelect>
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label={
-                state.sortDir === 'asc'
-                  ? 'Sorted ascending — switch to descending'
-                  : 'Sorted descending — switch to ascending'
-              }
-              onClick={() =>
-                onStateChange({ ...state, sortDir: state.sortDir === 'asc' ? 'desc' : 'asc', page: 1 })
-              }
-            >
-              {state.sortDir === 'asc' ? (
-                <ArrowUp className="h-4 w-4" />
-              ) : (
-                <ArrowDown className="h-4 w-4" />
-              )}
-            </Button>
+            {/* No direction toggle without an active sort: it would announce
+                "Sorted ascending" over an unsorted list and push a history
+                entry for a visible no-op. */}
+            {activeSortCol ? (
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label={
+                  state.sortDir === 'asc'
+                    ? 'Sorted ascending — switch to descending'
+                    : 'Sorted descending — switch to ascending'
+                }
+                onClick={() =>
+                  onStateChange({ ...state, sortDir: state.sortDir === 'asc' ? 'desc' : 'asc', page: 1 })
+                }
+              >
+                {state.sortDir === 'asc' ? (
+                  <ArrowUp className="h-4 w-4" />
+                ) : (
+                  <ArrowDown className="h-4 w-4" />
+                )}
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -491,7 +516,11 @@ export function DataTable<T extends { id: string }>({
         ) : !data || data.items.length === 0 ? (
           <div className="rounded-md border bg-card py-10 text-center">{emptyContent}</div>
         ) : (
-          <ul className={cn('space-y-2 transition-opacity', stale && 'opacity-90')}>
+          /* role="list" is not redundant: Tailwind preflight sets list-style
+             none, and WebKit's heuristic then strips list semantics — so iOS
+             VoiceOver, the entire audience of a below-sm mode, would hear
+             neither "list" nor the item count. */
+          <ul role="list" className={cn('space-y-2 transition-opacity', stale && 'opacity-90')}>
             {data.items.map((row) => (
               <li key={row.id}>
                 <article
@@ -502,16 +531,26 @@ export function DataTable<T extends { id: string }>({
                   onClick={rowPointer(row)}
                 >
                   <div className="min-w-0 text-sm font-medium">
-                    {identityCol ? identityCell(row, identityCol) : null}
+                    {identityCol ? identityCell(row, identityCol, true) : null}
                     {metaCols.length > 0 ? (
                       <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs font-normal text-muted-foreground">
                         {metaCols.map((c) => (
-                          <span key={c.key}>{c.render(row)}</span>
+                          <span key={c.key}>
+                            <span className="sr-only">{c.header}: </span>
+                            {c.render(row)}
+                          </span>
                         ))}
                       </div>
                     ) : null}
                   </div>
-                  {statusCol ? <div className="justify-self-end">{statusCol.render(row)}</div> : null}
+                  {statusCol ? (
+                    <div className="justify-self-end">
+                      {/* The table header labelled this cell; the card must
+                          too, or "Active" answers a question nobody heard. */}
+                      <span className="sr-only">{statusCol.header}: </span>
+                      {statusCol.render(row)}
+                    </div>
+                  ) : null}
                   {fieldCols.length > 0 ? (
                     <dl className="col-span-full mt-1 grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-x-4 gap-y-1">
                       {fieldCols.map((c) => (

@@ -297,6 +297,19 @@ guessed.
   the identity, `actions` becomes the card footer, the next two columns are
   fields, the rest are hidden. Status cannot be guessed (it is rendered by a
   function) — until a table hints it, its badge shows as an ordinary field.
+- **The status pill is for tables with ONE status domain.** Participants has
+  three (Inside/Outside/Alumni), and an unlabelled pill showing one of them
+  lied about most cohorts — "Completed" on an active outside-caseload member.
+  The pilot renders every status as a labelled field instead; the pill carries
+  a visually-hidden label from its column header either way.
+- **Cards + `onRowClick`-only is the Phase 2 violation on a new surface.** A
+  card's tab stop comes from `rowHref` or `onRowOpen`; a table with only
+  `onRowClick` produces pointer-only cards, same as its rows. Give it a real
+  destination before opting it in.
+- **Page size stays 25 in card mode** — a decided default, not an oversight.
+  A card is taller than a row, but the pagination footer bounds the scroll and
+  a viewport-dependent page size would fork URL semantics between modes. If
+  real phone traffic argues otherwise, change it deliberately.
 - **The identity is the same real link/button as the table's** — Phase 2's
   keyboard guarantee, re-proven in the card markup by DataTable.cards.test.tsx.
 - **Sort moves into a control above the list** (headers are gone) driving the
