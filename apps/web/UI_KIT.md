@@ -280,6 +280,34 @@ them they replaced four rival KPI-tile implementations.
   (both come straight from `useListParams`) so it can say which fork and offer
   the way back. `emptyAction` is for the genuinely-empty case.
 
+## Cards below `sm` (opt-in per table)
+
+`DataTable cards` renders rows as CARDS below 640px instead of a sideways-
+scrolling table. Participants is the pilot; the other fifty tables keep the
+pinned-column table until evidence argues otherwise — the client-error reports
+carry viewports now, so "does this screen see phones" is measurable, not
+guessed.
+
+- **Opt-in, per table.** Cards win for "look one record up and open it" and
+  lose for "scan a column for the outlier" — a card is ~2.5× a row's height and
+  nothing lines up across rows. Which job a list's phone traffic does is a fact
+  about how staff work; each table decides.
+- **Columns hint their card slot** via `card: 'identity' | 'status' | 'field'
+  | 'meta' | 'hidden'`. Defaults are safe without hints: the linked column is
+  the identity, `actions` becomes the card footer, the next two columns are
+  fields, the rest are hidden. Status cannot be guessed (it is rendered by a
+  function) — until a table hints it, its badge shows as an ordinary field.
+- **The identity is the same real link/button as the table's** — Phase 2's
+  keyboard guarantee, re-proven in the card markup by DataTable.cards.test.tsx.
+- **Sort moves into a control above the list** (headers are gone) driving the
+  same URL-backed list state, so a sort chosen on a phone survives into the
+  desktop table and vice versa. Any sort change resets to page 1.
+- The empty-state fork, chapter scope line, staleness dim and pagination footer
+  are shared with table mode by construction — one `emptyContent`, one
+  `footer` — so the two renderings cannot drift.
+- Field labels repeat on every card; that is the honest cost of the format and
+  the reason only two or three fields fit. Do not fight it with more fields.
+
 ## Mobile rules
 - Toolbars wrap (`ListToolbar` handles it); search is full-width under `sm`.
 - Dialogs become bottom sheets automatically; keep footers in `DialogFooter`.
