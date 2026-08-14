@@ -9,6 +9,13 @@ const envSchema = z.object({
     .string()
     .min(32, 'SESSION_SECRET must be at least 32 characters — generate with: openssl rand -hex 32'),
   WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
+  /**
+   * Extra origins the origin-check and CORS accept alongside WEB_ORIGIN —
+   * comma-separated. WEB_ORIGIN stays the single CANONICAL origin (emails and
+   * portal links are built from it); aliases exist so the old front door
+   * keeps working after a custom-domain cutover.
+   */
+  WEB_ORIGIN_ALIASES: z.string().default(''),
   TURNSTILE_SECRET_KEY: z.string().optional(),
   TURNSTILE_DEV_BYPASS: z
     .string()
@@ -66,3 +73,13 @@ export function loadEnv(): Env {
 }
 
 export const isProduction = () => loadEnv().NODE_ENV === 'production';
+
+/** Every origin the API trusts for browser requests: canonical + aliases. */
+export function webOrigins(env: { WEB_ORIGIN: string; WEB_ORIGIN_ALIASES: string }): string[] {
+  return [
+    env.WEB_ORIGIN,
+    ...env.WEB_ORIGIN_ALIASES.split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
+  ];
+}

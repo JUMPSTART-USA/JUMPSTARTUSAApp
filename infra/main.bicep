@@ -21,6 +21,11 @@ param postgresAdminPassword string
 @description('Express session signing secret (openssl rand -hex 32).')
 param sessionSecret string
 
+// Custom front-door origin (e.g. https://app.jumpstartusa.org). Empty = the
+// SWA default hostname stays canonical. When set, the default hostname moves
+// to WEB_ORIGIN_ALIASES so both hosts keep working through a cutover.
+param customWebOrigin string = ''
+
 var prefix = 'js-${env}'
 var uniq = take(uniqueString(resourceGroup().id), 6)
 var isProd = env == 'prod'
@@ -200,7 +205,14 @@ var apiAppSettings = [
   { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
   { name: 'API_PORT', value: '3001' }
   { name: 'NODE_ENV', value: isProd ? 'production' : 'staging' }
-  { name: 'WEB_ORIGIN', value: 'https://${staticSite.properties.defaultHostname}' }
+  {
+    name: 'WEB_ORIGIN'
+    value: customWebOrigin != '' ? customWebOrigin : 'https://${staticSite.properties.defaultHostname}'
+  }
+  {
+    name: 'WEB_ORIGIN_ALIASES'
+    value: customWebOrigin != '' ? 'https://${staticSite.properties.defaultHostname}' : ''
+  }
   { name: 'DATABASE_URL', value: '@Microsoft.KeyVault(SecretUri=${secretDatabaseUrl.properties.secretUri})' }
   { name: 'SESSION_SECRET', value: '@Microsoft.KeyVault(SecretUri=${secretSessionSecret.properties.secretUri})' }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
