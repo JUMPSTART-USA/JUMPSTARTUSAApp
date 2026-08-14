@@ -57,7 +57,7 @@ const columns: Column<Vendor>[] = [
     header: 'Mailing address',
     render: (v) =>
       v.mailingSameAsPrimary
-        ? 'Same as address'
+        ? 'Same as street address'
         : [v.mailingAddressLine1, v.mailingCity, v.mailingState, v.mailingZip]
             .filter(Boolean)
             .join(', ') || '—',

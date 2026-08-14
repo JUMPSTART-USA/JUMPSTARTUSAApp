@@ -120,7 +120,7 @@ export function HomeFormDialog({
             <FormField label="Name" required error={errors.name} className="sm:col-span-2">
               <Input {...register('name')} autoFocus />
             </FormField>
-            <FormField label="Address" error={errors.addressLine1}>
+            <FormField label="Street address" error={errors.addressLine1}>
               <Input {...register('addressLine1')} />
             </FormField>
             <FormField label="City" error={errors.city}>

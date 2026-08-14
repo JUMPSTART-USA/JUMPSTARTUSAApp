@@ -93,7 +93,7 @@ export function InstitutionProfilePage() {
           </CardHeader>
           <CardContent>
             <DescriptionList columns={3}>
-              <InfoItem label="Address">
+              <InfoItem label="Street address">
                 <span className="block">{institution.addressLine1 ?? '—'}</span>
                 <span className="block">
                   {[institution.city, institution.state, institution.zip]
@@ -103,7 +103,7 @@ export function InstitutionProfilePage() {
               </InfoItem>
               <InfoItem label="Mailing address">
                 {institution.mailingSameAsPrimary ? (
-                  'Same as address'
+                  'Same as street address'
                 ) : (
                   <>
                     <span className="block">{institution.mailingAddressLine1 ?? '—'}</span>

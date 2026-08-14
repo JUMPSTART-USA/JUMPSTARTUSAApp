@@ -311,7 +311,7 @@ export function DonorFormDialog({
             <FormField label="Email" error={errors.email} className="sm:col-span-2">
               <Input type="email" {...register('email')} />
             </FormField>
-            <FormField label="Address" error={errors.addressLine1} className="sm:col-span-2">
+            <FormField label="Street address" error={errors.addressLine1} className="sm:col-span-2">
               <Input {...register('addressLine1')} />
             </FormField>
             <FormField label="City" error={errors.city}>
@@ -339,7 +339,7 @@ export function DonorFormDialog({
           <div className="space-y-3">
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <Checkbox {...register('mailingSameAsPrimary')} /> Mailing address is the same as the
-              address above
+              street address above
             </label>
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField

@@ -128,7 +128,7 @@ export function VolunteerDetailPage() {
             <DescriptionList>
               <InfoItem label="Email">{person.primaryEmail}</InfoItem>
               <InfoItem label="Phone">{person.primaryPhone}</InfoItem>
-              <InfoItem label="Address">
+              <InfoItem label="Street address">
                 {person.addressLine1
                   ? [person.addressLine1, person.addressLine2].filter(Boolean).join(', ')
                   : null}
@@ -138,7 +138,7 @@ export function VolunteerDetailPage() {
               </InfoItem>
               <InfoItem label="Mailing address" className="sm:col-span-2">
                 {person.mailingSameAsPrimary
-                  ? 'Same as address'
+                  ? 'Same as street address'
                   : [
                       person.mailingAddressLine1,
                       person.mailingAddressLine2,
@@ -479,7 +479,7 @@ function EditVolunteerDialog({
               <PhoneInput {...register('person.primaryPhone')} />
             </FormField>
             <FormField
-              label="Address"
+              label="Street address"
               error={personErrors.addressLine1}
               className="sm:col-span-2"
             >
@@ -510,7 +510,7 @@ function EditVolunteerDialog({
             <div className="space-y-3 sm:col-span-2">
               <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <Checkbox {...register('person.mailingSameAsPrimary')} /> Mailing address is the
-                same as the address above
+                same as the street address above
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField label="Mailing address line 1" error={personErrors.mailingAddressLine1}>

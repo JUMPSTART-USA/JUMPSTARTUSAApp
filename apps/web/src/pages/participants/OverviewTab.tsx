@@ -152,7 +152,7 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
               <InfoItem label="Preferred language">{orDash(person.preferredLanguage)}</InfoItem>
               <InfoItem label="Phone">{orDash(person.primaryPhone)}</InfoItem>
               <InfoItem label="Email">{orDash(person.primaryEmail)}</InfoItem>
-              <InfoItem label="Address">
+              <InfoItem label="Street address">
                 {person.addressLine1 ? (
                   <span>
                     {person.addressLine1}
@@ -166,7 +166,7 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
               </InfoItem>
               <InfoItem label="Mailing address">
                 {person.mailingSameAsPrimary ? (
-                  'Same as address'
+                  'Same as street address'
                 ) : person.mailingAddressLine1 ||
                   person.mailingAddressLine2 ||
                   person.mailingCity ||

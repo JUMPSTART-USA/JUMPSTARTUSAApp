@@ -187,7 +187,7 @@ export function VendorFormDialog({
           <FormField label="Website" error={form.formState.errors.website}>
             <Input {...form.register('website', optional)} placeholder="https://…" />
           </FormField>
-          <FormField label="Address" error={form.formState.errors.addressLine1}>
+          <FormField label="Street address" error={form.formState.errors.addressLine1}>
             <Input {...form.register('addressLine1', optional)} />
           </FormField>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -213,7 +213,7 @@ export function VendorFormDialog({
           <div className="space-y-3">
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <Checkbox {...form.register('mailingSameAsPrimary')} /> Mailing address is the same
-              as the address above
+              as the street address above
             </label>
             <FormField label="Mailing address" error={form.formState.errors.mailingAddressLine1}>
               <Input {...form.register('mailingAddressLine1', optional)} disabled={mailingSame} />
