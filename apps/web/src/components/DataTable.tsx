@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'luci
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Spinner } from '@/components/ui/spinner';
 import {
   Table,
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/table';
 import type { Paged } from '@/lib/api';
 import { useChapterScope } from '@/lib/chapter-scope';
+import { useMediaQuery } from '@/lib/use-media-query';
 import { cn } from '@/lib/utils';
 
 /**
@@ -26,6 +28,28 @@ export interface Column<T> {
   sortKey?: string;
   render: (row: T) => ReactNode;
   className?: string;
+  /**
+   * How this column behaves below `sm`, where a table that opted into `cards`
+   * renders rows as cards.
+   *
+   *   'identity'  the title line. Defaults to the column `rowHref` links
+   *               (linkColumnKey when the table names one), which #84 already
+   *               identified as the row's identity.
+   *   'status'    pulled out to the top-right, where a state reads without
+   *               hunting — 28 of 33 tables bury a badge mid-row.
+   *   'field'     a labelled field. A table header does this work once for 25
+   *               rows; a card repeats the label on every one, which is the
+   *               honest cost of the format and why only a few fit.
+   *   'meta'      folded under the identity line (a number, a chapter).
+   *   'hidden'    dropped on a phone. The row is still tappable and the full
+   *               record is one tap away.
+   *
+   * Unhinted columns get safe defaults (see cardPlan): the linked column is
+   * the identity, a column keyed 'actions' becomes the card footer, the next
+   * two columns are fields, the rest are hidden — column order already
+   * reflects importance, because that is how the tables were written.
+   */
+  card?: 'identity' | 'status' | 'field' | 'meta' | 'hidden';
 }
 
 export interface ListState {
@@ -89,6 +113,17 @@ interface DataTableProps<T> {
    */
   chapterScoped?: boolean;
   /**
+   * Render rows as CARDS below `sm` instead of a sideways-scrolling table.
+   *
+   * OPT-IN, one list at a time — the design sketch's own verdict. Cards are
+   * better for "look one record up and open it" and worse for "scan a column
+   * for the outlier": a card is ~2.5x a row's height and nothing lines up
+   * across rows. Whether a list's phone traffic is lookup or scanning is a
+   * fact about how staff work, not about the code, so each table decides.
+   * The client-error reports carry viewports now; let them argue for the rest.
+   */
+  cards?: boolean;
+  /**
    * Where a row leads. Prefer this over `onRowClick` for any list whose rows
    * open a record: it renders the row's identifying cell as a real <Link>, so a
    * keyboard or screen-reader user gets one tab stop per row with the record's
@@ -142,8 +177,12 @@ export function DataTable<T extends { id: string }>({
   linkColumnKey,
   isFetching,
   chapterScoped,
+  cards,
 }: DataTableProps<T>) {
   const navigate = useNavigate();
+  // Called unconditionally (hooks rule); only consulted when `cards` is set.
+  const isPhone = useMediaQuery('(max-width: 639px)');
+  const useCards = Boolean(cards && isPhone);
   const { name: chapterName } = useChapterScope();
   const totalPages = data ? Math.max(1, Math.ceil(data.total / state.pageSize)) : 1;
   const linkKey = linkColumnKey ?? columns[0]?.key;
@@ -264,6 +303,282 @@ export function DataTable<T extends { id: string }>({
     }
   };
 
+  /**
+   * The card plan, from hints with safe defaults: the linked column is the
+   * identity, 'actions' is the footer, explicit hints win, and with no field
+   * hints the next two columns become the fields — column order already
+   * reflects importance, because that is how the tables were written. The
+   * rest are hidden; the record is one tap away.
+   */
+  const identityCol =
+    columns.find((c) => c.card === 'identity') ?? columns.find((c) => c.key === linkKey) ?? columns[0];
+  // The identity is excluded from every other slot: a linked column hinted
+  // 'status' or 'meta' would otherwise render twice per card.
+  const statusCol = columns.find((c) => c.card === 'status' && c !== identityCol);
+  const actionsCol = columns.find((c) => c.key === 'actions' && c.card !== 'hidden');
+  const metaCols = columns.filter((c) => c.card === 'meta' && c !== identityCol);
+  const explicitFields = columns.filter((c) => c.card === 'field' && c !== identityCol);
+  const fieldCols =
+    explicitFields.length > 0
+      ? explicitFields
+      : columns
+          .filter(
+            (c) =>
+              c !== identityCol &&
+              c !== statusCol &&
+              c !== actionsCol &&
+              c.card !== 'meta' &&
+              c.card !== 'hidden',
+          )
+          .slice(0, 2);
+  const sortableCols = columns.filter((c) => c.sortKey);
+  const activeSortCol = sortableCols.find((c) => c.sortKey === state.sortBy);
+
+  /**
+   * The identifying cell as the row's one tab stop — same rule both modes.
+   *
+   * `asIdentity` is card mode saying "this IS the identity slot": without it,
+   * a table that hints `card: 'identity'` onto a column other than the linked
+   * one would render cards with ZERO tab stops — pointer-only rows, the exact
+   * failure Phase 2 closed — while its own desktop table kept the link.
+   */
+  const identityCell = (row: T, col: Column<T>, asIdentity = false) =>
+    rowHref && (asIdentity || col.key === linkKey) ? (
+      <Link
+        to={rowHref(row)}
+        aria-label={rowLabel?.(row)}
+        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {col.render(row)}
+      </Link>
+    ) : onRowOpen && (asIdentity || col.key === linkKey) ? (
+      <button
+        type="button"
+        aria-label={rowLabel?.(row)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRowOpen(row);
+        }}
+        className="rounded-sm text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {col.render(row)}
+      </button>
+    ) : (
+      col.render(row)
+    );
+
+  const rowPointer = (row: T) =>
+    rowHref
+      ? onRowPointer(row)
+      : onRowOpen
+        ? () => onRowOpen(row)
+        : onRowClick
+          ? () => onRowClick(row)
+          : undefined;
+
+  /** One empty-state body for both modes, so the fork and the chapter scope
+      line cannot drift between the table and its card rendering. */
+  const emptyContent = (
+    <div className="flex flex-col items-center gap-1">
+      <p className="text-sm font-medium">
+        {isFiltered ? 'No matches for these filters' : emptyMessage}
+      </p>
+      {isFiltered ? (
+        <p className="text-sm text-muted-foreground">
+          Every record is excluded by a filter above.
+        </p>
+      ) : null}
+      {/* Only on a RESOLVED empty result (`data` present): with the
+          query still failed-or-unresolved, seven CRM pages stack an
+          ErrorState above an unconditional DataTable, and a scope
+          line under "No donors found" would dress an error up as a
+          confirmed empty chapter. */}
+      {chapterScoped && chapterName && data ? (
+        <p className="text-sm text-muted-foreground">
+          Showing the {chapterName} chapter only.
+        </p>
+      ) : null}
+      {isFiltered && onClearFilters ? (
+        <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearFilters}>
+          Clear filters
+        </Button>
+      ) : !isFiltered && emptyAction ? (
+        <div className="mt-3">{emptyAction}</div>
+      ) : null}
+    </div>
+  );
+
+  const footer = (
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+      {/* A spinner here, not only the dim: opacity is a contrast-only signal, and
+          at the 90% the AA floor allows it is too quiet to be the whole cue. */}
+      <span className="flex items-center gap-2">
+        {stale ? <Spinner className="h-3.5 w-3.5" /> : null}
+        {data ? `${data.total} record${data.total === 1 ? '' : 's'}` : ''}
+      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={stale || state.page <= 1}
+          aria-label="Previous page"
+          onClick={() => onStateChange({ ...state, page: state.page - 1 })}
+        >
+          <ChevronLeft className="h-4 w-4" /> <span className="hidden sm:inline">Prev</span>
+        </Button>
+        <span className="whitespace-nowrap">
+          Page {state.page} of {totalPages}
+        </span>
+        {/**
+         * Both pagers are disabled while stale, because `totalPages` is derived
+         * from the PREVIOUS result set's total. After a filter change that
+         * narrows the results, Next would otherwise stay enabled into a page the
+         * new set does not have. (Until now the blanking hid this: data went
+         * undefined, totalPages collapsed to 1, and Next disabled itself by
+         * accident.)
+         */}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={stale || state.page >= totalPages}
+          aria-label="Next page"
+          onClick={() => onStateChange({ ...state, page: state.page + 1 })}
+        >
+          <span className="hidden sm:inline">Next</span> <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  if (useCards) {
+    return (
+      <div className="space-y-3" aria-busy={isLoading || stale}>
+        {/* Sort lived in the column headers, and cards have none — so it moves
+            into a control that drives the same URL-backed list state. Same
+            semantics as toggleSort: any change resets to page 1. */}
+        {sortableCols.length > 0 ? (
+          <div className="flex items-center gap-2">
+            {/* The placeholder renders whenever the URL's sort matches NO
+                sortable column, not just when it is absent — a SelectMenu
+                whose value matches no option displays the FIRST option as if
+                it were chosen (the exact failure filter-select.tsx documents),
+                which here would claim the list is sorted by a column it is
+                not. The trigger's aria-label carries the current choice
+                because on a SelectMenu button aria-label REPLACES the content:
+                without it a screen reader hears "Sort by, pop-up button" and
+                never what the sort IS — the state aria-sort used to announce
+                from the vanished headers. */}
+            <FilterSelect
+              aria-label={activeSortCol ? `Sort by: ${activeSortCol.header}` : 'Sort by'}
+              className="w-full"
+              value={activeSortCol ? (state.sortBy ?? '') : ''}
+              onChange={(value) => {
+                if (value) onStateChange({ ...state, sortBy: value, page: 1 });
+              }}
+            >
+              {!activeSortCol ? <option value="">Sort…</option> : null}
+              {sortableCols.map((c) => (
+                <option key={c.sortKey} value={c.sortKey}>
+                  {c.header}
+                </option>
+              ))}
+            </FilterSelect>
+            {/* No direction toggle without an active sort: it would announce
+                "Sorted ascending" over an unsorted list and push a history
+                entry for a visible no-op. */}
+            {activeSortCol ? (
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label={
+                  state.sortDir === 'asc'
+                    ? 'Sorted ascending — switch to descending'
+                    : 'Sorted descending — switch to ascending'
+                }
+                onClick={() =>
+                  onStateChange({ ...state, sortDir: state.sortDir === 'asc' ? 'desc' : 'asc', page: 1 })
+                }
+              >
+                {state.sortDir === 'asc' ? (
+                  <ArrowUp className="h-4 w-4" />
+                ) : (
+                  <ArrowDown className="h-4 w-4" />
+                )}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {isLoading ? (
+          <div className="flex h-32 items-center justify-center rounded-md border bg-card">
+            <Spinner />
+          </div>
+        ) : !data || data.items.length === 0 ? (
+          <div className="rounded-md border bg-card py-10 text-center">{emptyContent}</div>
+        ) : (
+          /* role="list" is not redundant: Tailwind preflight sets list-style
+             none, and WebKit's heuristic then strips list semantics — so iOS
+             VoiceOver, the entire audience of a below-sm mode, would hear
+             neither "list" nor the item count. */
+          <ul role="list" className={cn('space-y-2 transition-opacity', stale && 'opacity-90')}>
+            {data.items.map((row) => (
+              <li key={row.id}>
+                <article
+                  className={cn(
+                    'grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 rounded-md border bg-card p-3',
+                    rowPointer(row) && 'cursor-pointer',
+                  )}
+                  onClick={rowPointer(row)}
+                >
+                  <div className="min-w-0 text-sm font-medium">
+                    {identityCol ? identityCell(row, identityCol, true) : null}
+                    {metaCols.length > 0 ? (
+                      <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs font-normal text-muted-foreground">
+                        {metaCols.map((c) => (
+                          <span key={c.key}>
+                            <span className="sr-only">{c.header}: </span>
+                            {c.render(row)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  {statusCol ? (
+                    <div className="justify-self-end">
+                      {/* The table header labelled this cell; the card must
+                          too, or "Active" answers a question nobody heard. */}
+                      <span className="sr-only">{statusCol.header}: </span>
+                      {statusCol.render(row)}
+                    </div>
+                  ) : null}
+                  {fieldCols.length > 0 ? (
+                    <dl className="col-span-full mt-1 grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-x-4 gap-y-1">
+                      {fieldCols.map((c) => (
+                        <div key={c.key} className="min-w-0">
+                          {/* The label a table header carries once per 25 rows,
+                              repeated per card — the honest cost of the format. */}
+                          <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {c.header}
+                          </dt>
+                          <dd className="m-0 text-sm">{c.render(row)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
+                  {actionsCol ? (
+                    <div className="col-span-full mt-2 border-t pt-2">{actionsCol.render(row)}</div>
+                  ) : null}
+                </article>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {footer}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {/* aria-busy is the only loading signal this table has ever had for
@@ -337,33 +652,7 @@ export function DataTable<T extends { id: string }>({
           ) : !data || data.items.length === 0 ? (
             <TableRow>
               <TableCell colSpan={columns.length} className="py-10 text-center">
-                <div className="flex flex-col items-center gap-1">
-                  <p className="text-sm font-medium">
-                    {isFiltered ? 'No matches for these filters' : emptyMessage}
-                  </p>
-                  {isFiltered ? (
-                    <p className="text-sm text-muted-foreground">
-                      Every record is excluded by a filter above.
-                    </p>
-                  ) : null}
-                  {/* Only on a RESOLVED empty result (`data` present): with the
-                      query still failed-or-unresolved, seven CRM pages stack an
-                      ErrorState above an unconditional DataTable, and a scope
-                      line under "No donors found" would dress an error up as a
-                      confirmed empty chapter. */}
-                  {chapterScoped && chapterName && data ? (
-                    <p className="text-sm text-muted-foreground">
-                      Showing the {chapterName} chapter only.
-                    </p>
-                  ) : null}
-                  {isFiltered && onClearFilters ? (
-                    <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearFilters}>
-                      Clear filters
-                    </Button>
-                  ) : !isFiltered && emptyAction ? (
-                    <div className="mt-3">{emptyAction}</div>
-                  ) : null}
-                </div>
+                {emptyContent}
               </TableCell>
             </TableRow>
           ) : (
@@ -371,42 +660,11 @@ export function DataTable<T extends { id: string }>({
               <TableRow
                 key={row.id}
                 className={onRowClick || rowHref || onRowOpen ? 'cursor-pointer' : undefined}
-                onClick={
-                  rowHref
-                    ? onRowPointer(row)
-                    : onRowOpen
-                      ? () => onRowOpen(row)
-                      : onRowClick
-                        ? () => onRowClick(row)
-                        : undefined
-                }
+                onClick={rowPointer(row)}
               >
                 {columns.map((col) => (
                   <TableCell key={col.key} className={cn(col.className, pinnedClasses(col.key))}>
-                    {rowHref && col.key === linkKey ? (
-                      <Link
-                        to={rowHref(row)}
-                        aria-label={rowLabel?.(row)}
-                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        {col.render(row)}
-                      </Link>
-                    ) : onRowOpen && col.key === linkKey ? (
-                      <button
-                        type="button"
-                        aria-label={rowLabel?.(row)}
-                        // stopPropagation so the row handler does not fire a second time
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRowOpen(row);
-                        }}
-                        className="rounded-sm text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        {col.render(row)}
-                      </button>
-                    ) : (
-                      col.render(row)
-                    )}
+                    {identityCell(row, col)}
                   </TableCell>
                 ))}
               </TableRow>
@@ -415,45 +673,7 @@ export function DataTable<T extends { id: string }>({
         </TableBody>
       </Table>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-        {/* A spinner here, not only the dim: opacity is a contrast-only signal, and
-            at the 90% the AA floor allows it is too quiet to be the whole cue. */}
-        <span className="flex items-center gap-2">
-          {stale ? <Spinner className="h-3.5 w-3.5" /> : null}
-          {data ? `${data.total} record${data.total === 1 ? '' : 's'}` : ''}
-        </span>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={stale || state.page <= 1}
-            aria-label="Previous page"
-            onClick={() => onStateChange({ ...state, page: state.page - 1 })}
-          >
-            <ChevronLeft className="h-4 w-4" /> <span className="hidden sm:inline">Prev</span>
-          </Button>
-          <span className="whitespace-nowrap">
-            Page {state.page} of {totalPages}
-          </span>
-          {/**
-           * Both pagers are disabled while stale, because `totalPages` is derived
-           * from the PREVIOUS result set's total. After a filter change that
-           * narrows the results, Next would otherwise stay enabled into a page the
-           * new set does not have. (Until now the blanking hid this: data went
-           * undefined, totalPages collapsed to 1, and Next disabled itself by
-           * accident.)
-           */}
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={stale || state.page >= totalPages}
-            aria-label="Next page"
-            onClick={() => onStateChange({ ...state, page: state.page + 1 })}
-          >
-            <span className="hidden sm:inline">Next</span> <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      {footer}
     </div>
   );
 }

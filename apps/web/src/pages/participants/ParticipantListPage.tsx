@@ -30,6 +30,8 @@ const columns: Column<ParticipantListItem>[] = [
     key: 'participantNumber',
     header: 'Number',
     sortKey: 'participantNumber',
+    // Folds under the name on a card — an identifier, not a field to compare.
+    card: 'meta',
     render: (row) => <span className="font-mono text-xs">{row.participantNumber}</span>,
   },
   {
@@ -51,9 +53,18 @@ const columns: Column<ParticipantListItem>[] = [
     key: 'insideStatus',
     header: 'Inside',
     sortKey: 'insideStatus',
+    // A labelled FIELD on cards, not the top-right status pill. This list has
+    // THREE status domains (Inside/Outside/Alumni), and an unlabelled pill
+    // showing insideStatus lied about most cohorts: "Completed" on an active
+    // outside-caseload member, a bare em dash on a direct-outside intake. The
+    // pill slot is for tables with ONE status domain; here every status wears
+    // its name.
+    card: 'field',
     render: (row) => statusCell(row.insideStatus),
   },
   {
+    // Location and Alumni carry no card hint: with explicit fields declared
+    // they drop off the phone rendering, where the full record is a tap away.
     key: 'location',
     header: 'Location',
     render: (row) =>
@@ -67,6 +78,7 @@ const columns: Column<ParticipantListItem>[] = [
     key: 'outsideStatus',
     header: 'Outside',
     sortKey: 'outsideStatus',
+    card: 'field',
     render: (row) => statusCell(row.outsideStatus),
   },
   {
@@ -78,6 +90,7 @@ const columns: Column<ParticipantListItem>[] = [
   {
     key: 'caseManager',
     header: 'Case manager',
+    card: 'field',
     render: (row) =>
       row.assignedCaseManager ? (
         `${row.assignedCaseManager.firstName} ${row.assignedCaseManager.lastName}`
@@ -89,6 +102,7 @@ const columns: Column<ParticipantListItem>[] = [
     key: 'intakeDate',
     header: 'Intake',
     sortKey: 'intakeDate',
+    card: 'field',
     render: (row) => formatDate(row.intakeDate),
   },
 ];
@@ -250,6 +264,7 @@ export function ParticipantListPage() {
         <ErrorState error={query.error} onRetry={query.refetch} />
       ) : (
         <DataTable chapterScoped
+          cards
           columns={columns}
           data={query.data}
           isLoading={query.isLoading}
