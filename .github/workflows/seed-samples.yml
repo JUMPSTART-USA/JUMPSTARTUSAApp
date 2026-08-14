@@ -1,0 +1,60 @@
+name: Seed samples
+
+# Runs the additive demo-data seeders (sessions & attendance, profile photos)
+# against STAGING's database, as a one-off container in the VNet — the same
+# mechanism release migrations use. Both seeders skip existing rows, so
+# re-runs are no-ops and real data is never overwritten.
+#
+# Deliberately hard-pinned to the staging environment: demo data must never
+# reach production, so there is no environment input to get wrong.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: seed-samples-staging
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Same image the release migration job uses (full workspace + tsx). ACR
+      # layer caching makes this cheap when the deploy already built this sha.
+      - name: Build + push migration image
+        run: |
+          az acr build --registry "$ACR_NAME" \
+            --image "jumpstart-migrate:$TAG" \
+            --target migrate \
+            --file apps/api/Dockerfile .
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+
+      - name: Run sample seeders (one-off container in the VNet)
+        run: bash .github/scripts/run-migration-job.sh
+        env:
+          AZURE_RG: ${{ vars.AZURE_RG }}
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          KEYVAULT_NAME: ${{ vars.KEYVAULT_NAME }}
+          JOBS_SUBNET_ID: ${{ vars.JOBS_SUBNET_ID }}
+          JOBS_IDENTITY_ID: ${{ vars.JOBS_IDENTITY_ID }}
+          IMAGE_TAG: ${{ github.sha }}
+          JOB_NAME: seed-samples-${{ github.run_number }}
+          # The image's WORKDIR is packages/database; its default CMD runs
+          # migrations — this override runs the seeders instead.
+          JOB_COMMAND: pnpm run seed:samples
