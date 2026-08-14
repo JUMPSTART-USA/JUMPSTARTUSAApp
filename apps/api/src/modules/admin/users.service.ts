@@ -1,3 +1,4 @@
+import { authenticator } from 'otplib';
 import {
   BadRequestException,
   ConflictException,
@@ -361,6 +362,53 @@ export class AdminUsersService {
       id,
       { status: existing.status },
       { status: updated.status },
+    );
+    return toSafeUser(updated);
+  }
+
+  /**
+   * Lost-authenticator rescue: clears TOTP entirely (secret, flag, recovery
+   * codes) so the user signs back in with their password and re-enrolls at
+   * /account. Admin-gated because this REMOVES a second factor — the audit
+   * row is the paper trail.
+   */
+  async resetTotp(id: string, userId: string, actingAdminCode?: string) {
+    const existing = await this.getRaw(id);
+    if (!existing.totpEnabled) {
+      throw new ConflictException('This account does not have two-factor authentication enabled');
+    }
+
+    // Step-up (§3.2): removing a second factor demands the ACTING admin's own
+    // current authenticator code — a signed-in-but-unattended admin screen
+    // must not be enough. Skipped only while the admin has no TOTP yet
+    // (bootstrap), which the mustSetupTotp nudge is busy closing.
+    const actingAdmin = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (actingAdmin.totpEnabled) {
+      if (!actingAdminCode) {
+        throw new BadRequestException(
+          'Enter the 6-digit code from your own authenticator to authorize this reset',
+        );
+      }
+      if (!authenticator.verify({ token: actingAdminCode, secret: actingAdmin.totpSecret ?? '' })) {
+        throw new BadRequestException('Invalid authentication code');
+      }
+    }
+
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        data: { totpEnabled: false, totpSecret: null, updatedById: userId },
+        include: USER_ROLES_INCLUDE,
+      }),
+      this.prisma.totpRecoveryCode.deleteMany({ where: { userId: id } }),
+    ]);
+
+    await this.audit.logUpdate(
+      userId,
+      'user',
+      id,
+      { totpEnabled: true },
+      { totpEnabled: false, event: 'totp_reset_by_admin' },
     );
     return toSafeUser(updated);
   }

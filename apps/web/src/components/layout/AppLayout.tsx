@@ -572,6 +572,17 @@ export function AppLayout() {
               its subtree and WebKit then mis-hit-tests the native <select>
               popups this header holds (the role/chapter switchers), so the
               control only responded near its arrow. */}
+          {user.mustSetupTotp ? (
+            // Soft TOTP mandate (§3.2): always visible until enrolled, never
+            // blocking — locking the only admin out would be worse than the
+            // nudge. Computed from REAL roles, so previews don't affect it.
+            <div className="flex items-center gap-2 bg-gold/20 px-4 py-1.5 text-xs font-medium text-navy-ink sm:px-6">
+              <span>Your role requires two-factor authentication.</span>
+              <NavLink to="/account" className="font-semibold underline hover:no-underline">
+                Set it up in My account
+              </NavLink>
+            </div>
+          ) : null}
           <header className="flex h-14 items-center gap-3 border-b bg-background px-4 sm:px-6">
             <button
               type="button"

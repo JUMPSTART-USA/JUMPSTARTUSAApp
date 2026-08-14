@@ -91,6 +91,13 @@ export const ROLE_KEYS = [
 ] as const;
 export type RoleKey = (typeof ROLE_KEYS)[number];
 
+/**
+ * Roles whose accounts must carry a second factor (§3.2). Consumed at login
+ * (mustSetupTotp), by /auth/me, and by the SPA's enrollment nudge banner —
+ * soft enforcement: the account still works, but the ask is always visible.
+ */
+export const TOTP_REQUIRED_ROLES: readonly RoleKey[] = ['admin', 'executive'];
+
 export const ROLE_NAMES: Record<RoleKey, string> = {
   admin: 'Administrator',
   executive: 'Executive Leadership',

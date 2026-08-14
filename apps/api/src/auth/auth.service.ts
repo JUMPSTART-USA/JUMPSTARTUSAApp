@@ -4,16 +4,32 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import * as argon2 from 'argon2';
 import { authenticator } from 'otplib';
+import { TOTP_REQUIRED_ROLES } from '@jumpstart/shared';
 import { AuditService } from '../audit/audit.service';
 import { loadEnv } from '../config/env';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Roles for which TOTP two-factor is mandatory (§3.1). */
-const TOTP_REQUIRED_ROLES = new Set(['admin', 'executive']);
+const TOTP_REQUIRED = new Set<string>(TOTP_REQUIRED_ROLES);
+
+// ── TOTP recovery codes ─────────────────────────────────────────────────────
+const RECOVERY_CODE_COUNT = 10;
+// No 0/O/1/I/L — codes get read off paper. randomInt per char avoids the
+// modulo bias randomBytes % alphabet would carry.
+const RECOVERY_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
+
+function generateRecoveryCode(): string {
+  let out = '';
+  for (let i = 0; i < 10; i++) out += RECOVERY_ALPHABET[randomInt(RECOVERY_ALPHABET.length)];
+  return `${out.slice(0, 5)}-${out.slice(5)}`;
+}
+
+/** Case- and punctuation-tolerant: "abcde-23456" hashes like "ABCDE23456". */
+const normalizeRecoveryCode = (raw: string) => raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 /** Reset links die after an hour — long enough for email delivery, no longer. */
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
@@ -41,7 +57,12 @@ export class AuthService {
     private readonly mail: MailService,
   ) {}
 
-  async validateLogin(email: string, password: string, totpCode?: string): Promise<LoginResult> {
+  async validateLogin(
+    email: string,
+    password: string,
+    totpCode?: string,
+    recoveryCode?: string,
+  ): Promise<LoginResult> {
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase() },
       include: { userRoles: { include: { role: true } }, regionScopes: true },
@@ -83,20 +104,43 @@ export class AuthService {
     }
 
     const roles = user.userRoles.map((ur) => ur.role.key);
-    const totpMandatory = roles.some((r) => TOTP_REQUIRED_ROLES.has(r));
+    const totpMandatory = roles.some((r) => TOTP_REQUIRED.has(r));
 
     if (user.totpEnabled) {
-      if (!totpCode) return { status: 'totp_required' };
-      const valid = authenticator.verify({ token: totpCode, secret: user.totpSecret ?? '' });
-      if (!valid) {
+      if (recoveryCode) {
+        // Lost-authenticator fallback: burn a single-use recovery code.
+        const remaining = await this.consumeRecoveryCode(user.id, recoveryCode);
+        if (remaining === null) {
+          await this.audit.log({
+            userId: user.id,
+            action: 'login_failed',
+            entityType: 'user',
+            entityId: user.id,
+            metadata: { reason: 'bad_recovery_code' },
+          });
+          throw new UnauthorizedException('Invalid recovery code');
+        }
         await this.audit.log({
           userId: user.id,
-          action: 'login_failed',
+          action: 'update',
           entityType: 'user',
           entityId: user.id,
-          metadata: { reason: 'bad_totp' },
+          metadata: { event: 'recovery_code_used', remainingRecoveryCodes: remaining },
         });
-        throw new UnauthorizedException('Invalid authentication code');
+      } else if (!totpCode) {
+        return { status: 'totp_required' };
+      } else {
+        const valid = authenticator.verify({ token: totpCode, secret: user.totpSecret ?? '' });
+        if (!valid) {
+          await this.audit.log({
+            userId: user.id,
+            action: 'login_failed',
+            entityType: 'user',
+            entityId: user.id,
+            metadata: { reason: 'bad_totp' },
+          });
+          throw new UnauthorizedException('Invalid authentication code');
+        }
       }
     }
 
@@ -136,20 +180,113 @@ export class AuthService {
     return { otpauthUrl, secret };
   }
 
-  async confirmTotpSetup(userId: string, code: string): Promise<void> {
+  /** Arms TOTP and returns the ONE-TIME recovery code set — never shown again. */
+  async confirmTotpSetup(userId: string, code: string): Promise<{ recoveryCodes: string[] }> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    // Strictly a one-time enrollment transition: an enrolled user rotating
+    // codes must go through regenerateRecoveryCodes (its own audit event).
+    if (user.totpEnabled) {
+      throw new BadRequestException('Two-factor authentication is already enabled');
+    }
     if (!user.totpSecret) throw new BadRequestException('Start two-factor setup first');
     if (!authenticator.verify({ token: code, secret: user.totpSecret })) {
       throw new BadRequestException('Invalid authentication code');
     }
-    await this.prisma.user.update({ where: { id: userId }, data: { totpEnabled: true } });
+    // One transaction: the account must never end up totpEnabled with zero
+    // recovery codes because the issuance half failed.
+    const { codes, rows } = await this.mintRecoveryCodes(userId);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { totpEnabled: true } }),
+      this.prisma.totpRecoveryCode.deleteMany({ where: { userId } }),
+      this.prisma.totpRecoveryCode.createMany({ data: rows }),
+    ]);
     await this.audit.log({
       userId,
       action: 'update',
       entityType: 'user',
       entityId: userId,
-      newValues: { totpEnabled: true },
+      newValues: { totpEnabled: true, recoveryCodesIssued: RECOVERY_CODE_COUNT },
     });
+    return { recoveryCodes: codes };
+  }
+
+  /**
+   * Fresh recovery-code set, invalidating every previous code. Requires a
+   * CURRENT authenticator code even though the session is signed in — an
+   * unattended screen must not be enough to mint valid second factors.
+   */
+  async regenerateRecoveryCodes(userId: string, code: string): Promise<{ recoveryCodes: string[] }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!user.totpEnabled || !user.totpSecret) {
+      throw new BadRequestException('Two-factor authentication is not enabled');
+    }
+    if (!authenticator.verify({ token: code, secret: user.totpSecret })) {
+      throw new BadRequestException('Invalid authentication code');
+    }
+    const { codes, rows } = await this.mintRecoveryCodes(userId);
+    await this.prisma.$transaction([
+      this.prisma.totpRecoveryCode.deleteMany({ where: { userId } }),
+      this.prisma.totpRecoveryCode.createMany({ data: rows }),
+    ]);
+    await this.audit.log({
+      userId,
+      action: 'update',
+      entityType: 'user',
+      entityId: userId,
+      metadata: { event: 'recovery_codes_regenerated', count: RECOVERY_CODE_COUNT },
+    });
+    return { recoveryCodes: codes };
+  }
+
+  /** How many unused recovery codes remain — drives the /account nudge. */
+  async recoveryCodeStatus(userId: string): Promise<{ remaining: number }> {
+    const remaining = await this.prisma.totpRecoveryCode.count({
+      where: { userId, usedAt: null },
+    });
+    return { remaining };
+  }
+
+  /**
+   * Mint a fresh raw set + the hashed rows for the caller's transaction (the
+   * raw codes exist un-hashed only in the return value; rows store argon2
+   * hashes, same posture as password-reset tokens). Hashing is SEQUENTIAL on
+   * purpose: ten parallel argon2id hashes would monopolize the libuv thread
+   * pool and starve concurrent logins.
+   */
+  private async mintRecoveryCodes(
+    userId: string,
+  ): Promise<{ codes: string[]; rows: { userId: string; codeHash: string }[] }> {
+    const codes = Array.from({ length: RECOVERY_CODE_COUNT }, generateRecoveryCode);
+    const rows: { userId: string; codeHash: string }[] = [];
+    for (const code of codes) {
+      rows.push({ userId, codeHash: await hashPassword(normalizeRecoveryCode(code)) });
+    }
+    return { codes, rows };
+  }
+
+  /**
+   * Burn a matching unused recovery code. Returns the count still unused, or
+   * null when nothing matched. The guarded updateMany makes the burn atomic:
+   * two racing logins with the same code cannot both consume it.
+   */
+  private async consumeRecoveryCode(userId: string, raw: string): Promise<number | null> {
+    const normalized = normalizeRecoveryCode(raw);
+    if (!normalized) return null;
+    const candidates = await this.prisma.totpRecoveryCode.findMany({
+      where: { userId, usedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    for (const row of candidates) {
+      const match = await argon2.verify(row.codeHash, normalized).catch(() => false);
+      if (!match) continue;
+      const burned = await this.prisma.totpRecoveryCode.updateMany({
+        where: { id: row.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+      if (burned.count !== 1) return null; // lost the race — code already spent
+      return this.prisma.totpRecoveryCode.count({ where: { userId, usedAt: null } });
+    }
+    return null;
   }
 
   /**
