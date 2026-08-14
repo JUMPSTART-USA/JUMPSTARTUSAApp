@@ -31,6 +31,7 @@ interface EmployerFormValues {
   city: string;
   state: string;
   zip: string;
+  website: string;
   chapterState: string;
   industry: string;
   hiringStatus: string;
@@ -47,6 +48,7 @@ function buildDefaults(employer: Employer | undefined, chapter: string | null): 
     city: employer?.city ?? '',
     state: employer?.state ?? '',
     zip: employer?.zip ?? '',
+    website: employer?.website ?? '',
     // Chapter (§7.2), distinct from the postal address state. Scoped users
     // never see the picker — their chapter is preset here.
     chapterState: employer?.chapterState ?? chapter ?? '',
@@ -138,6 +140,11 @@ export function EmployerFormDialog({
             </FormField>
             <FormField label="Phone" error={errors.phone}>
               <PhoneInput {...register('phone')} />
+            </FormField>
+            <FormField label="Website" error={errors.website}>
+              {/* Free text in the schema; type="url" only picks the URL keyboard —
+                  the form's noValidate keeps native URL checking off. */}
+              <Input type="url" {...register('website')} placeholder="https://…" />
             </FormField>
             <FormField label="Email" error={errors.email} className="sm:col-span-2">
               <Input type="email" {...register('email')} />

@@ -58,3 +58,13 @@ export function fullName(p: {
   const preferred = p.preferredName ? ` “${p.preferredName}”` : '';
   return `${p.firstName}${preferred} ${p.lastName}`;
 }
+
+/**
+ * Href for a social profile value — full URLs only. Bare handles ("@joe")
+ * render as plain text; guessing the profile URL from a handle risks linking
+ * to a stranger's page.
+ */
+export function socialHref(value: string): string | null {
+  const v = value.trim();
+  return /^https?:\/\//i.test(v) ? v : null;
+}

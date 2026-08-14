@@ -104,6 +104,14 @@ export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<H
 );
 Select.displayName = 'Select';
 
+/**
+ * Navy-sidebar treatment for a native Select (the drawer's role/chapter
+ * switchers). The [&>option] rules matter: option elements inherit the OS
+ * default white sheet, so white text on bg-white/10 would vanish without them.
+ */
+export const DARK_SELECT =
+  'border-white/20 bg-white/10 text-white [&>option]:bg-navy-deep [&>option]:text-white';
+
 export const Checkbox = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => (
     <input

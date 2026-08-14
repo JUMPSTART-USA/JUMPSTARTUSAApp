@@ -79,6 +79,15 @@ export function useInsideClassOptions(enabled: boolean) {
   );
 }
 
+export function useOutsideProgramOptions(enabled: boolean) {
+  return useListOptions<{ id: string; name: string; state: string }>(
+    'outside-programs',
+    `/outside-programs${qs({ pageSize: 200 })}`,
+    enabled,
+    (p) => ({ id: p.id, label: `${p.name} (${p.state})` }),
+  );
+}
+
 export function useVehicleOptions(enabled: boolean) {
   return useListOptions<{
     id: string;

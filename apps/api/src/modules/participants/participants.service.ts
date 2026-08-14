@@ -17,6 +17,13 @@ import type {
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
+import { applyMailingSameRule } from '../../common/mailing.util';
+import {
+  CLEAR_PHOTO_COLUMNS,
+  photoColumns,
+  type StoredPhoto,
+  type UploadedPhotoFile,
+} from '../../common/profile-photo.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
@@ -305,7 +312,7 @@ export class ParticipantsService {
         const profile = await this.prisma.$transaction(async (tx) => {
           const person = await tx.person.create({
             data: {
-              ...input.person,
+              ...applyMailingSameRule(input.person, true, { hasLine2: true }),
               // TCPA: record when the SMS opt-in was captured
               smsConsentAt: input.person.smsOk ? new Date() : undefined,
               createdById: userId,
@@ -483,7 +490,9 @@ export class ParticipantsService {
 
     const personData = input.person
       ? {
-          ...input.person,
+          ...applyMailingSameRule(input.person, existing.person.mailingSameAsPrimary, {
+            hasLine2: true,
+          }),
           // TCPA: stamp the opt-in moment when smsOk flips on
           ...(input.person.smsOk === true && !existing.person.smsOk
             ? { smsConsentAt: new Date() }
@@ -509,6 +518,74 @@ export class ParticipantsService {
     });
     await this.audit.logUpdate(userId, 'participant_profile', id, existing, updated);
     return updated;
+  }
+
+  // ── Profile photo (drug-test photo contract: bytes live on the person row,
+  // the photo GET is the only reader, a new upload replaces the stored one) ──
+
+  async setPhoto(id: string, photo: UploadedPhotoFile, user: AuthenticatedUser) {
+    const existing = await this.findForPhoto(id, user);
+    await this.prisma.person.update({
+      where: { id: existing.personId },
+      data: { ...photoColumns(photo), updatedById: user.id },
+    });
+    // Audit the metadata, never the bytes.
+    await this.audit.logUpdate(user.id, 'person', existing.personId, existing.person, {
+      photoFileName: photo.originalname,
+      photoMimeType: photo.mimetype,
+    });
+    return { hasPhoto: true };
+  }
+
+  async clearPhoto(id: string, user: AuthenticatedUser) {
+    const existing = await this.findForPhoto(id, user);
+    await this.prisma.person.update({
+      where: { id: existing.personId },
+      data: { ...CLEAR_PHOTO_COLUMNS, updatedById: user.id },
+    });
+    await this.audit.logUpdate(user.id, 'person', existing.personId, existing.person, {
+      photoFileName: null,
+      photoMimeType: null,
+    });
+    return { hasPhoto: false };
+  }
+
+  /** The one query allowed to read photoData — streams bytes to the caller. */
+  async getPhoto(id: string, viewer: AuthenticatedUser): Promise<StoredPhoto> {
+    const profile = await this.prisma.participantProfile.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        chapterState: true,
+        person: { select: { photoData: true, photoMimeType: true, photoFileName: true } },
+      },
+    });
+    if (!profile) throw new NotFoundException('Participant not found');
+    // Chapter scoping (§7.2): the photo is guarded exactly like the record.
+    assertChapterAccess(viewer.chapter, profile.chapterState);
+    const { photoData, photoMimeType, photoFileName } = profile.person;
+    if (!photoData || !photoMimeType) {
+      throw new NotFoundException('This participant has no photo');
+    }
+    return {
+      data: Buffer.from(photoData),
+      mimeType: photoMimeType,
+      fileName: photoFileName ?? 'photo',
+    };
+  }
+
+  /** Fetch-for-photo-mutation with the chapter guard (§7.2) applied once. */
+  private async findForPhoto(id: string, user: AuthenticatedUser) {
+    const profile = await this.prisma.participantProfile.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        personId: true,
+        chapterState: true,
+        person: { select: { photoFileName: true, photoMimeType: true } },
+      },
+    });
+    if (!profile) throw new NotFoundException('Participant not found');
+    assertChapterAccess(user.chapter, profile.chapterState);
+    return profile;
   }
 
   /**

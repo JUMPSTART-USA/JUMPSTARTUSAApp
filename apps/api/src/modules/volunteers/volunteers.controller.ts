@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,8 +8,13 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   CHAPTER_STATES,
   listQuerySchema,
@@ -23,6 +29,11 @@ import {
 import { z } from 'zod';
 import { CurrentUser, RequirePermission } from '../../common/decorators';
 import { zodBody, zodQuery } from '../../common/pipes/zod-validation.pipe';
+import {
+  profilePhotoUpload,
+  sendPhoto,
+  type UploadedPhotoFile,
+} from '../../common/profile-photo.util';
 import { hasPerm, type AuthenticatedUser } from '../../common/types';
 import { ScreeningService } from './screening.service';
 import { VolunteersService } from './volunteers.service';
@@ -135,5 +146,35 @@ export class VolunteersController {
   @RequirePermission('volunteers.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.volunteers.softDelete(id, user);
+  }
+
+  // ── Profile photo ──────────────────────────────────────────────────────────
+
+  @Put(':id/photo')
+  @RequirePermission('volunteers.update')
+  @UseInterceptors(profilePhotoUpload())
+  setPhoto(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() photo: UploadedPhotoFile | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!photo) throw new BadRequestException('Attach the photo as the "photo" field');
+    return this.volunteers.setPhoto(id, photo, user);
+  }
+
+  @Get(':id/photo')
+  @RequirePermission('volunteers.read')
+  async getPhoto(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    sendPhoto(res, await this.volunteers.getPhoto(id, user));
+  }
+
+  @Delete(':id/photo')
+  @RequirePermission('volunteers.update')
+  clearPhoto(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.volunteers.clearPhoto(id, user);
   }
 }

@@ -7,6 +7,7 @@ import {
   PREFERRED_LANGUAGES,
   RACE_LABELS,
   RACES,
+  SOCIAL_MEDIA_FIELDS,
   US_STATES,
 } from '@jumpstart/shared';
 import { useEffect } from 'react';
@@ -49,6 +50,19 @@ export interface ParticipantFormValues {
     city: string;
     state: string;
     zip: string;
+    /** Mailing address — fields disabled (and cleared server-side) while "same as" is checked. */
+    mailingSameAsPrimary: boolean;
+    mailingAddressLine1: string;
+    mailingAddressLine2: string;
+    mailingCity: string;
+    mailingState: string;
+    mailingZip: string;
+    facebookUrl: string;
+    instagramUrl: string;
+    twitterUrl: string;
+    linkedinUrl: string;
+    tiktokUrl: string;
+    youtubeUrl: string;
     emailOk: boolean;
     smsOk: boolean;
     mailOnly: boolean;
@@ -90,6 +104,18 @@ export function emptyParticipantFormValues(): ParticipantFormValues {
       city: '',
       state: '',
       zip: '',
+      mailingSameAsPrimary: true,
+      mailingAddressLine1: '',
+      mailingAddressLine2: '',
+      mailingCity: '',
+      mailingState: '',
+      mailingZip: '',
+      facebookUrl: '',
+      instagramUrl: '',
+      twitterUrl: '',
+      linkedinUrl: '',
+      tiktokUrl: '',
+      youtubeUrl: '',
       emailOk: true,
       smsOk: false,
       mailOnly: false,
@@ -134,6 +160,18 @@ export function participantToFormValues(p: ParticipantDetail): ParticipantFormVa
       city: p.person.city ?? '',
       state: p.person.state ?? '',
       zip: p.person.zip ?? '',
+      mailingSameAsPrimary: p.person.mailingSameAsPrimary ?? true,
+      mailingAddressLine1: p.person.mailingAddressLine1 ?? '',
+      mailingAddressLine2: p.person.mailingAddressLine2 ?? '',
+      mailingCity: p.person.mailingCity ?? '',
+      mailingState: p.person.mailingState ?? '',
+      mailingZip: p.person.mailingZip ?? '',
+      facebookUrl: p.person.facebookUrl ?? '',
+      instagramUrl: p.person.instagramUrl ?? '',
+      twitterUrl: p.person.twitterUrl ?? '',
+      linkedinUrl: p.person.linkedinUrl ?? '',
+      tiktokUrl: p.person.tiktokUrl ?? '',
+      youtubeUrl: p.person.youtubeUrl ?? '',
       emailOk: p.person.emailOk,
       smsOk: p.person.smsOk,
       mailOnly: p.person.mailOnly,
@@ -169,6 +207,7 @@ export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValu
   const mailOnly = watch('person.mailOnly');
   const doNotContact = watch('person.doNotContact');
   const contactRestricted = mailOnly || doNotContact;
+  const mailingSame = watch('person.mailingSameAsPrimary');
 
   // Mail-only and do-not-contact switch the electronic contact methods off.
   useEffect(() => {
@@ -267,6 +306,52 @@ export function PersonFields({ form }: { form: UseFormReturn<ParticipantFormValu
           <FormField label="ZIP" error={p?.zip}>
             <Input inputMode="numeric" {...register('person.zip')} />
           </FormField>
+        </div>
+      </div>
+
+      {/* Mailing address: inputs stay visible but disabled while "same as" is
+          checked; the API also nulls the mailing columns whenever it is set. */}
+      <div className="space-y-3">
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <Checkbox {...register('person.mailingSameAsPrimary')} /> Mailing address is the same as
+          the address above
+        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Mailing address line 1" error={p?.mailingAddressLine1}>
+            <Input {...register('person.mailingAddressLine1')} disabled={mailingSame} />
+          </FormField>
+          <FormField label="Mailing address line 2" error={p?.mailingAddressLine2}>
+            <Input {...register('person.mailingAddressLine2')} disabled={mailingSame} />
+          </FormField>
+          <FormField label="Mailing city" error={p?.mailingCity}>
+            <Input {...register('person.mailingCity')} disabled={mailingSame} />
+          </FormField>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField label="Mailing state" error={p?.mailingState}>
+              <Select {...register('person.mailingState')} disabled={mailingSame}>
+                <option value="">—</option>
+                {US_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Mailing ZIP" error={p?.mailingZip}>
+              <Input inputMode="numeric" {...register('person.mailingZip')} disabled={mailingSame} />
+            </FormField>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-3 text-sm font-medium">Social media</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {SOCIAL_MEDIA_FIELDS.map((f) => (
+            <FormField key={f.key} label={f.label} error={p?.[f.key]}>
+              <Input {...register(`person.${f.key}`)} placeholder="URL or handle" />
+            </FormField>
+          ))}
         </div>
       </div>
 

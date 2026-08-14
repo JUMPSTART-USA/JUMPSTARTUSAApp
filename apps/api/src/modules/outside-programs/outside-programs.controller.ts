@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   listQuerySchema,
+  ATTENDANCE_STATUSES,
   optionalTrimmed,
   outsideEnrollmentSchema,
   outsideProgramSchema,
@@ -64,7 +65,7 @@ const attendanceSchema = z.object({
     .array(
       z.object({
         enrollmentId: uuid,
-        status: z.enum(['present', 'absent', 'excused']),
+        status: z.enum(ATTENDANCE_STATUSES),
         notes: optionalTrimmed,
       }),
     )

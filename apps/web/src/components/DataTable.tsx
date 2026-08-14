@@ -459,15 +459,13 @@ export function DataTable<T extends { id: string }>({
         {sortableCols.length > 0 ? (
           <div className="flex items-center gap-2">
             {/* The placeholder renders whenever the URL's sort matches NO
-                sortable column, not just when it is absent — a SelectMenu
-                whose value matches no option displays the FIRST option as if
-                it were chosen (the exact failure filter-select.tsx documents),
+                sortable column, not just when it is absent — a select whose
+                value matches no option displays the FIRST option as if it
+                were chosen (the exact failure filter-select.tsx documents),
                 which here would claim the list is sorted by a column it is
-                not. The trigger's aria-label carries the current choice
-                because on a SelectMenu button aria-label REPLACES the content:
-                without it a screen reader hears "Sort by, pop-up button" and
-                never what the sort IS — the state aria-sort used to announce
-                from the vanished headers. */}
+                not. The aria-label carries the current choice so a screen
+                reader hears what the sort IS, not just "Sort by" — the state
+                aria-sort used to announce from the vanished headers. */}
             <FilterSelect
               aria-label={activeSortCol ? `Sort by: ${activeSortCol.header}` : 'Sort by'}
               className="w-full"

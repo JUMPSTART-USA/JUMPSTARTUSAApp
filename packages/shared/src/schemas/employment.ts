@@ -21,6 +21,7 @@ export const employerSchema = z.object({
   city: optionalTrimmed,
   state: z.enum(US_STATES).optional(), // postal address state — NOT the chapter
   zip: optionalTrimmed,
+  website: optionalTrimmed,
   // Chapter (§7.2): optional at the pipe — the service stamps a scoped
   // creator's chapter and requires a pick from all-chapters users.
   chapterState: z.enum(CHAPTER_STATES).optional(),

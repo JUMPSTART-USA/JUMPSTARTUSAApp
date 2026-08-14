@@ -11,6 +11,7 @@ export interface Employer {
   /** Postal address state — NOT the chapter (§7.2). */
   state: string | null;
   zip: string | null;
+  website: string | null;
   /** Chapter the employer belongs to (§7.2). */
   chapterState: string;
   industry: string | null;

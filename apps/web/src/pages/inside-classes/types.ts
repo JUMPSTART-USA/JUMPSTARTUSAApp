@@ -57,7 +57,10 @@ export interface InsideClassDetail {
   }>;
 }
 
-export type AttendanceStatus = 'present' | 'absent' | 'excused';
+// Re-exported from shared so rows type-match what the API now accepts
+// (includes 'late'); the vocabulary lives in one place.
+export type { AttendanceStatus } from '@jumpstart/shared';
+import type { AttendanceStatus } from '@jumpstart/shared';
 
 export interface ClassSession {
   id: string;

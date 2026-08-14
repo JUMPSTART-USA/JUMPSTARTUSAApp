@@ -6,12 +6,16 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '@jumpstart/database';
 import { AuditService } from '../../audit/audit.service';
+import { applyMailingSameRule } from '../../common/mailing.util';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
  * Scalars an admin may explicitly pull from the loser during a merge.
  * Consent flags are deliberately absent — they merge conservatively (below)
- * and cannot be overridden.
+ * and cannot be overridden. mailingSameAsPrimary is also absent: the flag
+ * travels with the mailing block (group default below) and the final state is
+ * always normalized through applyMailingSameRule, so overrides cannot leave
+ * the flag and the mailing columns contradicting each other.
  */
 export const MERGEABLE_PERSON_FIELDS = [
   'firstName',
@@ -25,15 +29,46 @@ export const MERGEABLE_PERSON_FIELDS = [
   'preferredLanguage',
   'primaryPhone',
   'primaryEmail',
+  'facebookUrl',
+  'instagramUrl',
+  'twitterUrl',
+  'linkedinUrl',
+  'tiktokUrl',
+  'youtubeUrl',
   'addressLine1',
   'addressLine2',
   'city',
   'state',
   'zip',
+  'mailingAddressLine1',
+  'mailingAddressLine2',
+  'mailingCity',
+  'mailingState',
+  'mailingZip',
   'deceasedAt',
 ] as const;
 export type MergeablePersonField = (typeof MERGEABLE_PERSON_FIELDS)[number];
 export type FieldOverrides = Record<string, 'winner' | 'loser'>;
+
+/** Fill-if-empty carry-over (deceasedAt rule generalized): values that exist
+ *  only on the loser must not silently disappear with its tombstone. */
+const FILL_IF_EMPTY_FIELDS = [
+  'facebookUrl',
+  'instagramUrl',
+  'twitterUrl',
+  'linkedinUrl',
+  'tiktokUrl',
+  'youtubeUrl',
+] as const;
+
+const MAILING_BLOCK_FIELDS = [
+  'mailingSameAsPrimary',
+  'mailingAddressLine1',
+  'mailingAddressLine2',
+  'mailingCity',
+  'mailingState',
+  'mailingZip',
+] as const;
 
 const PERSON_SELECT = {
   id: true,
@@ -48,11 +83,26 @@ const PERSON_SELECT = {
   preferredLanguage: true,
   primaryPhone: true,
   primaryEmail: true,
+  facebookUrl: true,
+  instagramUrl: true,
+  twitterUrl: true,
+  linkedinUrl: true,
+  tiktokUrl: true,
+  youtubeUrl: true,
   addressLine1: true,
   addressLine2: true,
   city: true,
   state: true,
   zip: true,
+  mailingSameAsPrimary: true,
+  mailingAddressLine1: true,
+  mailingAddressLine2: true,
+  mailingCity: true,
+  mailingState: true,
+  mailingZip: true,
+  // Photo metadata only — photoData bytes never enter snapshots or audit rows.
+  photoMimeType: true,
+  photoFileName: true,
   emailOk: true,
   smsOk: true,
   smsConsentAt: true,
@@ -313,6 +363,41 @@ export class AdminPersonMergeService {
     if (scalarData.deceasedAt === undefined && !winner.deceasedAt && loser.deceasedAt) {
       scalarData.deceasedAt = loser.deceasedAt;
     }
+    // Same rule for social profiles: a handle only the loser had is kept
+    // unless the admin explicitly chose the winner's (empty) value.
+    for (const field of FILL_IF_EMPTY_FIELDS) {
+      if (overrides[field] === undefined && winner[field] === null && loser[field] !== null) {
+        (scalarData as Record<string, unknown>)[field] = loser[field];
+      }
+    }
+    // ...and for the mailing address, which moves as a BLOCK (flag included):
+    // when only the loser had a separate mailing address and the admin touched
+    // none of the mailing fields, the whole block carries over.
+    const mailingOverridden = MERGEABLE_PERSON_FIELDS.some(
+      (f) => f.startsWith('mailing') && overrides[f] !== undefined,
+    );
+    if (
+      !mailingOverridden &&
+      winner.mailingSameAsPrimary &&
+      !loser.mailingSameAsPrimary &&
+      loser.mailingAddressLine1
+    ) {
+      for (const field of MAILING_BLOCK_FIELDS) {
+        (scalarData as Record<string, unknown>)[field] = loser[field];
+      }
+    }
+    // Whatever combination of overrides was chosen, the invariant holds:
+    // an effective mailingSameAsPrimary=true nulls every mailing column.
+    const scalarWithMailingRule = applyMailingSameRule(
+      {
+        ...(scalarData as Record<string, unknown>),
+        mailingSameAsPrimary:
+          ((scalarData as Record<string, unknown>).mailingSameAsPrimary as boolean | undefined) ??
+          winner.mailingSameAsPrimary,
+      },
+      winner.mailingSameAsPrimary,
+      { hasLine2: true },
+    ) as Prisma.PersonUncheckedUpdateInput;
 
     const result = await this.prisma.$transaction(async (tx) => {
       const repointed: Record<string, number> = {};
@@ -347,8 +432,33 @@ export class AdminPersonMergeService {
 
       await tx.person.update({
         where: { id: winner.id },
-        data: { ...scalarData, ...consent, updatedById: userId },
+        data: { ...scalarWithMailingRule, ...consent, updatedById: userId },
       });
+
+      // Fill-if-empty photo carry-over: the loser's bytes become invisible
+      // behind its tombstone, so a photo only the loser had moves to the
+      // winner. photoData is globally omitted — re-selected explicitly here,
+      // and only the metadata ever reaches the audit row.
+      let photoCarried = false;
+      if (!winner.photoMimeType && loser.photoMimeType) {
+        const loserPhoto = await tx.person.findUniqueOrThrow({
+          where: { id: loser.id },
+          select: { photoData: true, photoMimeType: true, photoFileName: true },
+        });
+        if (loserPhoto.photoData) {
+          await tx.person.update({
+            where: { id: winner.id },
+            data: {
+              photoData: loserPhoto.photoData,
+              photoMimeType: loserPhoto.photoMimeType,
+              photoFileName: loserPhoto.photoFileName,
+              updatedById: userId,
+            },
+          });
+          photoCarried = true;
+        }
+      }
+
       await tx.person.update({
         where: { id: loser.id },
         data: { deletedAt: new Date(), updatedById: userId },
@@ -358,7 +468,7 @@ export class AdminPersonMergeService {
         where: { id: winner.id },
         select: PERSON_SELECT,
       });
-      return { repointed, movedProfiles, updatedWinner };
+      return { repointed, movedProfiles, updatedWinner, photoCarried };
     });
 
     // ONE audit row for the whole merge; the loser's tombstone lives in the
@@ -376,6 +486,7 @@ export class AdminPersonMergeService {
         repointCounts: result.repointed,
         movedProfiles: result.movedProfiles,
         fieldOverrides: overrides,
+        photoCarried: result.photoCarried,
       },
     });
 

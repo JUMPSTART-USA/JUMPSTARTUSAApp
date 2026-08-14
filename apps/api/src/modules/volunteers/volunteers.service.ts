@@ -9,6 +9,13 @@ import type {
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
+import { applyMailingSameRule } from '../../common/mailing.util';
+import {
+  CLEAR_PHOTO_COLUMNS,
+  photoColumns,
+  type StoredPhoto,
+  type UploadedPhotoFile,
+} from '../../common/profile-photo.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 import { redactBackgroundCheck } from './screening.service';
@@ -228,7 +235,11 @@ export class VolunteersService {
 
     const created = await this.prisma.$transaction(async (tx) => {
       const person = await tx.person.create({
-        data: { ...input.person, createdById: userId, updatedById: userId },
+        data: {
+          ...applyMailingSameRule(input.person, true, { hasLine2: true }),
+          createdById: userId,
+          updatedById: userId,
+        },
       });
       const profile = await tx.volunteerProfile.create({
         data: {
@@ -264,7 +275,12 @@ export class VolunteersService {
       const person = input.person
         ? await tx.person.update({
             where: { id: existing.personId },
-            data: { ...input.person, updatedById: userId },
+            data: {
+              ...applyMailingSameRule(input.person, existingPerson.mailingSameAsPrimary, {
+                hasLine2: true,
+              }),
+              updatedById: userId,
+            },
           })
         : existingPerson;
       const profile = input.profile
@@ -283,6 +299,74 @@ export class VolunteersService {
       await this.audit.logUpdate(userId, 'volunteer_profile', id, existingProfile, result.profile);
     }
     return { ...result.profile, person: result.person };
+  }
+
+  // ── Profile photo (drug-test photo contract: bytes live on the person row,
+  // the photo GET is the only reader, a new upload replaces the stored one) ──
+
+  async setPhoto(id: string, photo: UploadedPhotoFile, user: AuthenticatedUser) {
+    const existing = await this.findForPhoto(id, user);
+    await this.prisma.person.update({
+      where: { id: existing.personId },
+      data: { ...photoColumns(photo), updatedById: user.id },
+    });
+    // Audit the metadata, never the bytes.
+    await this.audit.logUpdate(user.id, 'person', existing.personId, existing.person, {
+      photoFileName: photo.originalname,
+      photoMimeType: photo.mimetype,
+    });
+    return { hasPhoto: true };
+  }
+
+  async clearPhoto(id: string, user: AuthenticatedUser) {
+    const existing = await this.findForPhoto(id, user);
+    await this.prisma.person.update({
+      where: { id: existing.personId },
+      data: { ...CLEAR_PHOTO_COLUMNS, updatedById: user.id },
+    });
+    await this.audit.logUpdate(user.id, 'person', existing.personId, existing.person, {
+      photoFileName: null,
+      photoMimeType: null,
+    });
+    return { hasPhoto: false };
+  }
+
+  /** The one query allowed to read photoData — streams bytes to the caller. */
+  async getPhoto(id: string, viewer: AuthenticatedUser): Promise<StoredPhoto> {
+    const profile = await this.prisma.volunteerProfile.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        chapterState: true,
+        person: { select: { photoData: true, photoMimeType: true, photoFileName: true } },
+      },
+    });
+    if (!profile) throw new NotFoundException('Volunteer not found');
+    // Chapter scoping (§7.2): the photo is guarded exactly like the record.
+    assertChapterAccess(viewer.chapter, profile.chapterState);
+    const { photoData, photoMimeType, photoFileName } = profile.person;
+    if (!photoData || !photoMimeType) {
+      throw new NotFoundException('This volunteer has no photo');
+    }
+    return {
+      data: Buffer.from(photoData),
+      mimeType: photoMimeType,
+      fileName: photoFileName ?? 'photo',
+    };
+  }
+
+  /** Fetch-for-photo-mutation with the chapter guard (§7.2) applied once. */
+  private async findForPhoto(id: string, user: AuthenticatedUser) {
+    const profile = await this.prisma.volunteerProfile.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        personId: true,
+        chapterState: true,
+        person: { select: { photoFileName: true, photoMimeType: true } },
+      },
+    });
+    if (!profile) throw new NotFoundException('Volunteer not found');
+    assertChapterAccess(user.chapter, profile.chapterState);
+    return profile;
   }
 
   // Soft-deletes the profile only — the person may hold other roles (§5).

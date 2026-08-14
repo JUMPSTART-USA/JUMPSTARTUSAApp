@@ -13,6 +13,7 @@ import { ListToolbar, SearchInput } from '@/components/ui/toolbar';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { P, useListParams } from '@/lib/list-params';
+import { socialHref } from '@/lib/utils';
 import type { Vendor } from '../types';
 import { VendorFormDialog } from './VendorFormDialog';
 
@@ -22,11 +23,44 @@ const columns: Column<Vendor>[] = [
   { key: 'phone', header: 'Phone', render: (v) => v.phone ?? '—' },
   { key: 'email', header: 'Email', render: (v) => v.email ?? '—' },
   {
+    key: 'website',
+    header: 'Website',
+    render: (v) => {
+      if (!v.website) return '—';
+      const href = socialHref(v.website);
+      // Full URLs only — bare domains stay plain text (socialHref's contract).
+      return href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="text-primary underline"
+          // The row's own click opens the edit dialog; the link must not.
+          onClick={(e) => e.stopPropagation()}
+        >
+          {v.website}
+        </a>
+      ) : (
+        v.website
+      );
+    },
+  },
+  {
     // Postal address — the vendor's CHAPTER is the separate column below (§7.2).
     key: 'location',
     header: 'City / State',
     sortKey: 'city',
     render: (v) => [v.city, v.state].filter(Boolean).join(', ') || '—',
+  },
+  {
+    key: 'mailing',
+    header: 'Mailing address',
+    render: (v) =>
+      v.mailingSameAsPrimary
+        ? 'Same as address'
+        : [v.mailingAddressLine1, v.mailingCity, v.mailingState, v.mailingZip]
+            .filter(Boolean)
+            .join(', ') || '—',
   },
   {
     key: 'chapterState',

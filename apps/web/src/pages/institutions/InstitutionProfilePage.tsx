@@ -101,6 +101,20 @@ export function InstitutionProfilePage() {
                     .join(', ') || '—'}
                 </span>
               </InfoItem>
+              <InfoItem label="Mailing address">
+                {institution.mailingSameAsPrimary ? (
+                  'Same as address'
+                ) : (
+                  <>
+                    <span className="block">{institution.mailingAddressLine1 ?? '—'}</span>
+                    <span className="block">
+                      {[institution.mailingCity, institution.mailingState, institution.mailingZip]
+                        .filter(Boolean)
+                        .join(', ') || '—'}
+                    </span>
+                  </>
+                )}
+              </InfoItem>
               <InfoItem label="Main phone">{institution.mainPhone ?? '—'}</InfoItem>
               <InfoItem label="Type">{institution.institutionType ?? '—'}</InfoItem>
               {institution.notes ? (

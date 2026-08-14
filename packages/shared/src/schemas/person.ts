@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { GENDERS, RACES, US_STATES } from '../enums';
 import {
+  clearableTrimmed,
   endNotBeforeStart,
   optionalDate,
   optionalEmail,
@@ -44,11 +45,29 @@ export const personCoreBaseSchema = z.object({
   preferredLanguage: z.string().trim().max(16).default('en'),
   primaryPhone: optionalPhone,
   primaryEmail: optionalEmail,
+  // Social media profiles — full URL or bare handle (SOCIAL_MEDIA_FIELDS).
+  // Clearable (null = clear, '' → null), matching donorSchema: a blanked
+  // input on the edit dialogs must actually remove the stored value.
+  facebookUrl: clearableTrimmed,
+  instagramUrl: clearableTrimmed,
+  twitterUrl: clearableTrimmed,
+  linkedinUrl: clearableTrimmed,
+  tiktokUrl: clearableTrimmed,
+  youtubeUrl: clearableTrimmed,
   addressLine1: optionalTrimmed,
   addressLine2: optionalTrimmed,
   city: optionalTrimmed,
   state: z.enum(US_STATES).optional(),
   zip: optionalTrimmed,
+  // Mailing address — the service nulls the mailing* columns whenever
+  // mailingSameAsPrimary is true, so stale values never linger. Value fields
+  // are clearable (null = clear, '' → null) like the donor's.
+  mailingSameAsPrimary: z.boolean().default(true),
+  mailingAddressLine1: clearableTrimmed,
+  mailingAddressLine2: clearableTrimmed,
+  mailingCity: clearableTrimmed,
+  mailingState: z.enum(US_STATES).nullable().optional(),
+  mailingZip: clearableTrimmed,
   emailOk: z.boolean().default(true),
   smsOk: z.boolean().default(false),
   mailOnly: z.boolean().default(false),

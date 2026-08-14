@@ -1,34 +1,18 @@
-import { Children, isValidElement, useMemo, type ReactNode } from 'react';
-import { SelectMenu, type SelectMenuOption } from '@/components/ui/select-menu';
-import { nodeText } from '@/lib/utils';
-
-/** Read <option> children (including the arrays .map() produces) into options. */
-function optionsFromChildren(children: ReactNode): SelectMenuOption[] {
-  const out: SelectMenuOption[] = [];
-  Children.toArray(children).forEach((child) => {
-    if (!isValidElement<{ value?: string | number; children?: ReactNode }>(child)) return;
-    if (child.type === 'option') {
-      const label = nodeText(child.props.children);
-      out.push({ value: child.props.value !== undefined ? String(child.props.value) : label, label });
-    } else if (child.props.children) {
-      out.push(...optionsFromChildren(child.props.children));
-    }
-  });
-  return out;
-}
+import type { ReactNode } from 'react';
+import { DARK_SELECT, Select } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 /**
- * Page-level filter dropdown: keeps the familiar `<option>` children of a
- * native <select> but renders through SelectMenu, whose menu lives in the page.
+ * Page-level filter dropdown — a native <select> that hands `onChange` the
+ * VALUE, not the event (the one difference from <Select>).
  *
- * Native popups on macOS are anchored to the selected row, so a control that
- * ends up near the top of the window — a list toolbar parked under the sticky
- * header, for instance — opens its popup off the top of the screen and strands
- * every option above the selected one. Page-level filters are exposed to that;
- * form fields inside dialogs are not, and keep the native <select> (better on
- * touch, and they sit mid-screen with room both ways).
- *
- * Difference from <Select>: `onChange` hands you the value, not an event.
+ * History, so nobody re-adds the workaround blindly: a macOS beta anchored a
+ * native select's popup so the selected row sat over the control, which opened
+ * the popup off the top of the screen for controls parked near the viewport
+ * top — the header switchers and these toolbar filters. PRs #38/#39 replaced
+ * them with an in-page listbox (SelectMenu) to sidestep that. The OS fix
+ * shipped, and every menu is back on the native control so all menus in the
+ * app look and operate alike (and type-ahead works again).
  */
 export function FilterSelect({
   value,
@@ -47,30 +31,22 @@ export function FilterSelect({
   disabled?: boolean;
   children: ReactNode;
 }) {
-  const options = useMemo(() => optionsFromChildren(children), [children]);
   return (
-    <SelectMenu
-      value={value}
-      options={options}
-      onChange={onChange}
+    <Select
       aria-label={ariaLabel}
-      className={className}
-      dark={dark}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={cn(dark && DARK_SELECT, className)}
       disabled={disabled}
-    />
+    >
+      {children}
+    </Select>
   );
 }
 
 /**
  * The label for an <option> standing in for a filter value the loaded option list
  * does not contain — or null when no stand-in is needed.
- *
- * Returns a LABEL, not an element, and the caller must render the <option>
- * itself as a DIRECT child of FilterSelect. That control reads its children with
- * `child.type === 'option'` (above), so an <option> wrapped in a
- * component of your own is invisible to it: the menu silently omits the value and
- * the button falls back to the first option. Measured — the first version of this
- * was a component and the select still read "All campaigns".
  *
  * Why a stand-in is needed at all: filters like these come from the URL, and the
  * option lists behind them are both capped (pageSize: 200) and CHAPTER-SCOPED. A

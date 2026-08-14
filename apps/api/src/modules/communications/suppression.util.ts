@@ -9,6 +9,15 @@ export interface SuppressionPerson {
   smsConsentAt: Date | null;
   primaryPhone: string | null;
   addressLine1: string | null;
+  /** A separate mailing address counts as an address for the letter channel. */
+  mailingSameAsPrimary: boolean;
+  mailingAddressLine1: string | null;
+}
+
+/** Letters can go to the primary address or a separate mailing address. */
+function hasMailableAddress(person: SuppressionPerson): boolean {
+  if (person.addressLine1) return true;
+  return !person.mailingSameAsPrimary && !!person.mailingAddressLine1;
 }
 
 /**
@@ -37,7 +46,7 @@ export function suppressionReason(person: SuppressionPerson, channel: CommChanne
     }
     if (!person.primaryPhone) return 'Person has no phone number on file';
   }
-  if (channel === 'letter' && !person.addressLine1) {
+  if (channel === 'letter' && !hasMailableAddress(person)) {
     return 'Person has no mailing address on file';
   }
   return null;
@@ -62,6 +71,15 @@ export function channelConsentWhere(channel: CommChannel): Prisma.PersonWhereInp
           primaryPhone: { not: null },
         }
       : {}),
-    ...(channel === 'letter' ? { addressLine1: { not: null } } : {}),
+    ...(channel === 'letter'
+      ? {
+          // Mirrors hasMailableAddress. The sole caller wraps this object in
+          // an AND array, so the OR cannot collide with audience filters.
+          OR: [
+            { addressLine1: { not: null } },
+            { mailingSameAsPrimary: false, mailingAddressLine1: { not: null } },
+          ],
+        }
+      : {}),
   };
 }

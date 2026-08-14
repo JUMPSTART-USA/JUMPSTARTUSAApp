@@ -3,8 +3,8 @@ import { forwardRef } from 'react';
 import type { FieldError } from 'react-hook-form';
 import { FormField } from '@/components/FormField';
 import { Badge } from '@/components/ui/badge';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Select } from '@/components/ui/input';
-import { SelectMenu } from '@/components/ui/select-menu';
 import { useAuth } from '@/lib/auth';
 import { useChapterScope } from '@/lib/chapter-scope';
 
@@ -89,19 +89,14 @@ export function ChapterFilterSelect({
 }) {
   const { user } = useAuth();
   if (user?.chapter) return <ChapterScopeBadge />;
-  // SelectMenu, not a native <select>: a toolbar parked under the sticky header
-  // sits near the top of the window, where a macOS popup anchored to the
-  // selected row opens off-screen (see components/ui/select-menu.tsx).
   return (
-    <SelectMenu
-      aria-label={label}
-      value={value}
-      onChange={onChange}
-      className={className}
-      options={[
-        { value: '', label: 'All chapters' },
-        ...CHAPTER_STATES.map((s) => ({ value: s, label: CHAPTER_NAMES[s] })),
-      ]}
-    />
+    <FilterSelect aria-label={label} value={value} onChange={onChange} className={className}>
+      <option value="">All chapters</option>
+      {CHAPTER_STATES.map((s) => (
+        <option key={s} value={s}>
+          {CHAPTER_NAMES[s]}
+        </option>
+      ))}
+    </FilterSelect>
   );
 }

@@ -14,6 +14,13 @@ import type {
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
+import { applyMailingSameRule } from '../../common/mailing.util';
+import {
+  CLEAR_PHOTO_COLUMNS,
+  photoColumns,
+  type StoredPhoto,
+  type UploadedPhotoFile,
+} from '../../common/profile-photo.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 import {
@@ -446,7 +453,12 @@ export class DonorsService {
     }
 
     const donor = await this.prisma.donor.create({
-      data: { ...data, chapterState, createdById: userId, updatedById: userId },
+      data: {
+        ...applyMailingSameRule(data, true),
+        chapterState,
+        createdById: userId,
+        updatedById: userId,
+      },
     });
     if (donor.isHeadOfHousehold && donor.householdId) {
       await this.clearOtherHeads(donor.householdId, donor.id, userId);
@@ -476,7 +488,7 @@ export class DonorsService {
     const updated = await this.prisma.donor.update({
       where: { id },
       data: {
-        ...input,
+        ...applyMailingSameRule(input, existing.mailingSameAsPrimary),
         // Leaving or changing household clears the head flag unless explicitly set.
         ...(input.householdId === null ||
         (changingHousehold && input.isHeadOfHousehold === undefined)
@@ -490,6 +502,66 @@ export class DonorsService {
     }
     await this.audit.logUpdate(userId, 'donor', id, existing, updated);
     return updated;
+  }
+
+  // ── Profile photo (drug-test photo contract: bytes live on the donor row,
+  // the photo GET is the only reader, a new upload replaces the stored one) ──
+
+  async setPhoto(id: string, photo: UploadedPhotoFile, user: AuthenticatedUser) {
+    const existing = await this.get(id, user); // 404 + chapter check
+    await this.prisma.donor.update({
+      where: { id },
+      data: { ...photoColumns(photo), updatedById: user.id },
+    });
+    // Audit the metadata, never the bytes.
+    await this.audit.logUpdate(
+      user.id,
+      'donor',
+      id,
+      { photoFileName: existing.photoFileName, photoMimeType: existing.photoMimeType },
+      { photoFileName: photo.originalname, photoMimeType: photo.mimetype },
+    );
+    return { hasPhoto: true };
+  }
+
+  async clearPhoto(id: string, user: AuthenticatedUser) {
+    const existing = await this.get(id, user); // 404 + chapter check
+    await this.prisma.donor.update({
+      where: { id },
+      data: { ...CLEAR_PHOTO_COLUMNS, updatedById: user.id },
+    });
+    await this.audit.logUpdate(
+      user.id,
+      'donor',
+      id,
+      { photoFileName: existing.photoFileName, photoMimeType: existing.photoMimeType },
+      { photoFileName: null, photoMimeType: null },
+    );
+    return { hasPhoto: false };
+  }
+
+  /** The one query allowed to read photoData — streams bytes to the caller. */
+  async getPhoto(id: string, viewer: AuthenticatedUser): Promise<StoredPhoto> {
+    const donor = await this.prisma.donor.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        chapterState: true,
+        photoData: true,
+        photoMimeType: true,
+        photoFileName: true,
+      },
+    });
+    if (!donor) throw new NotFoundException('Donor not found');
+    // Chapter scoping (§7.2): the photo is guarded exactly like the record.
+    assertChapterAccess(viewer.chapter, donor.chapterState);
+    if (!donor.photoData || !donor.photoMimeType) {
+      throw new NotFoundException('This donor has no photo');
+    }
+    return {
+      data: Buffer.from(donor.photoData),
+      mimeType: donor.photoMimeType,
+      fileName: donor.photoFileName ?? 'photo',
+    };
   }
 
   // Donations keep their donorId — the donor simply disappears from lists.
