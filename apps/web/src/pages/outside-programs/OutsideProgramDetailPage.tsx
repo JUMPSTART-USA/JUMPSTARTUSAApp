@@ -166,7 +166,7 @@ export function OutsideProgramDetailPage() {
       <Tabs defaultValue="roster">
         <TabsList>
           <TabsTrigger value="roster">Roster ({program.enrollments.length})</TabsTrigger>
-          <TabsTrigger value="sessions">Sessions ({sessionsQuery.data?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="sessions">Sessions &amp; attendance ({sessionsQuery.data?.length ?? 0})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="roster" className="space-y-3">

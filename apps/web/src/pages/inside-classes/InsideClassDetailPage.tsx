@@ -116,7 +116,7 @@ export function InsideClassDetailPage() {
       <Tabs defaultValue="roster">
         <TabsList>
           <TabsTrigger value="roster">Roster ({insideClass.enrollments.length})</TabsTrigger>
-          <TabsTrigger value="sessions">Sessions</TabsTrigger>
+          <TabsTrigger value="sessions">Sessions &amp; attendance</TabsTrigger>
           <TabsTrigger value="volunteers">
             Volunteers ({insideClass.volunteerAssignments.length})
           </TabsTrigger>
