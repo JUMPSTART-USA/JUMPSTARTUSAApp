@@ -14,6 +14,8 @@ export interface Me {
   actualRoles: RoleKey[];
   /** Set while an administrator is previewing the app as another role. */
   viewAsRole: RoleKey | null;
+  /** Whether the account has confirmed a TOTP authenticator (drives /account). */
+  totpEnabled: boolean;
   chapter: string | null;
   /** Real default chapter (first scope row), ignoring any preview. */
   actualChapter: string | null;

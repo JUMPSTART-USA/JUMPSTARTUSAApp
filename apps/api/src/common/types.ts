@@ -11,6 +11,8 @@ export interface AuthenticatedUser {
   permissions: Set<string>;
   /** The account's real roles — differs from `roles` only during a "view as role" preview. */
   actualRoles: RoleKey[];
+  /** Whether the account has confirmed a TOTP authenticator (drives /account). */
+  totpEnabled: boolean;
   /** Set while an administrator is previewing the app as another role. */
   viewAsRole: RoleKey | null;
   personId: string | null;

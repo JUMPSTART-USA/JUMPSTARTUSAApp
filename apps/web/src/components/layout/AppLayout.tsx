@@ -27,6 +27,7 @@ import {
   Menu,
   School,
   Settings,
+  UserRound,
   Users,
   UsersRound,
   X,
@@ -489,6 +490,17 @@ export function AppLayout() {
               <div className="mt-0.5 text-[11px] font-medium text-gold">{chapterLabel}</div>
             )}
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-white/70 hover:bg-white/10 hover:text-white"
+            onClick={() => {
+              setNavOpen(false);
+              navigate('/account');
+            }}
+          >
+            <UserRound className="h-4 w-4" /> My account
+          </Button>
           <Button
             variant="ghost"
             size="sm"

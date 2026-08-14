@@ -108,6 +108,7 @@ export class SessionAuthGuard implements CanActivate {
       roles: effectiveRoles,
       permissions,
       actualRoles: roles,
+      totpEnabled: user.totpEnabled,
       viewAsRole,
       personId: user.personId,
       chapter: viewChapter ?? scopedChapters[0] ?? null,
