@@ -3,6 +3,7 @@ import type { Prisma } from '@jumpstart/database';
 import type { ListQuery, VendorInput } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
+import { applyMailingSameRule } from '../../common/mailing.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
@@ -78,7 +79,12 @@ export class VendorsService {
     // get theirs stamped, all-chapters users must pick one.
     const chapterState = resolveCreateChapter(user.chapter, input.chapterState);
     const vendor = await this.prisma.vendor.create({
-      data: { ...input, chapterState, createdById: userId, updatedById: userId },
+      data: {
+        ...applyMailingSameRule(input, true),
+        chapterState,
+        createdById: userId,
+        updatedById: userId,
+      },
     });
     await this.audit.logCreate(userId, 'vendor', vendor.id, vendor);
     return vendor;
@@ -91,7 +97,7 @@ export class VendorsService {
     assertChapterAccess(user.chapter, input.chapterState);
     const updated = await this.prisma.vendor.update({
       where: { id },
-      data: { ...input, updatedById: userId },
+      data: { ...applyMailingSameRule(input, existing.mailingSameAsPrimary), updatedById: userId },
     });
     await this.audit.logUpdate(userId, 'vendor', id, existing, updated);
     return updated;

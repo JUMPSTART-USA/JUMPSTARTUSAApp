@@ -8,6 +8,7 @@ import {
   FINAL_ASSESSMENTS,
   INSIDE_CLASS_TYPES,
   PROGRAM_TYPES,
+  US_STATES,
 } from '../enums';
 import {
   endNotBeforeStart,
@@ -20,6 +21,14 @@ import {
   uuid,
 } from './common';
 
+// ── Session attendance ──────────────────────────────────────────────────────
+// One list drives the API's attendance endpoints (inside sessions and outside
+// sessions), the session grids, and the attendance reports. Stored as a plain
+// string column (vocabulary, not a database enum). 'late' counts as attended
+// in attendance-rate stats.
+export const ATTENDANCE_STATUSES = ['present', 'late', 'absent', 'excused'] as const;
+export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
+
 // ── Institutions ────────────────────────────────────────────────────────────
 
 export const institutionSchema = z.object({
@@ -31,6 +40,14 @@ export const institutionSchema = z.object({
   // chapter states.
   state: z.enum(CHAPTER_STATES),
   zip: optionalTrimmed,
+  // Mailing address — the service nulls the mailing* columns whenever
+  // mailingSameAsPrimary is true, so stale values never linger. Mail can go
+  // anywhere (PO boxes included), so mailingState is any US state.
+  mailingSameAsPrimary: z.boolean().default(true),
+  mailingAddressLine1: optionalTrimmed,
+  mailingCity: optionalTrimmed,
+  mailingState: z.enum(US_STATES).optional(),
+  mailingZip: optionalTrimmed,
   mainPhone: optionalPhone,
   notes: optionalTrimmed,
   active: z.boolean().default(true),

@@ -7,6 +7,7 @@ import {
 import type { Prisma } from '@jumpstart/database';
 import {
   ENROLLMENT_EXIT_STATUSES,
+  type AttendanceStatus,
   type BatchEnrollInput,
   type ClassCloseOutInput,
   type ClassStatus,
@@ -39,7 +40,7 @@ export interface InsideSessionInput {
 
 export interface AttendanceRowInput {
   enrollmentId: string;
-  status: 'present' | 'absent' | 'excused';
+  status: AttendanceStatus;
   notes?: string;
 }
 

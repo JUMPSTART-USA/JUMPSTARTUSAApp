@@ -8,6 +8,13 @@ export interface Institution {
   city: string | null;
   state: string;
   zip: string | null;
+  /** Mailing address — the API nulls the mailing columns while "same as" is set. */
+  mailingSameAsPrimary: boolean;
+  mailingAddressLine1: string | null;
+  mailingCity: string | null;
+  /** Any US state — mail can go anywhere, unlike `state`, which IS the chapter (§7.2). */
+  mailingState: string | null;
+  mailingZip: string | null;
   mainPhone: string | null;
   notes: string | null;
   active: boolean;

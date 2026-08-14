@@ -22,6 +22,7 @@ const baseParamsSchema = z.object({
   state: z.enum(CHAPTER_STATES).optional(),
   status: z.string().trim().max(40).optional(),
   insideClassId: uuid.optional(),
+  outsideProgramId: uuid.optional(),
   institutionId: uuid.optional(),
   from: optionalDate,
   to: optionalDate,

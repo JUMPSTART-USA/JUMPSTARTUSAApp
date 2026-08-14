@@ -56,6 +56,20 @@ export interface Donor {
   /** Postal address state — NOT the chapter. */
   state: string | null;
   zip: string | null;
+  /** Mailing address — nulled server-side while mailingSameAsPrimary is true. */
+  mailingSameAsPrimary: boolean;
+  mailingAddressLine1: string | null;
+  mailingCity: string | null;
+  mailingState: string | null;
+  mailingZip: string | null;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
+  twitterUrl: string | null;
+  linkedinUrl: string | null;
+  tiktokUrl: string | null;
+  youtubeUrl: string | null;
+  /** Non-null means a photo is stored — the bytes stream from /donors/:id/photo. */
+  photoMimeType: string | null;
   /** Chapter the donor belongs to (§7.2). */
   chapterState: string;
   status: string;
@@ -406,6 +420,13 @@ export interface Vendor {
   /** Postal address state — NOT the chapter. */
   state: string | null;
   zip: string | null;
+  /** Mailing address — the API nulls the mailing columns while "same as" is set. */
+  mailingSameAsPrimary: boolean;
+  mailingAddressLine1: string | null;
+  mailingCity: string | null;
+  mailingState: string | null;
+  mailingZip: string | null;
+  website: string | null;
   /** Chapter the vendor belongs to (§7.2). */
   chapterState: string;
   servicesProvided: string | null;

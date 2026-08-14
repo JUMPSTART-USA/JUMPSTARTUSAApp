@@ -1,4 +1,4 @@
-import { donorSchema, DONOR_TYPES, US_STATES } from '@jumpstart/shared';
+import { donorSchema, DONOR_TYPES, SOCIAL_MEDIA_FIELDS, US_STATES } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, Select, Textarea } from '@/components/ui/input';
+import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
 import { FormError, Notice } from '@/components/ui/notice';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { api, ApiError } from '@/lib/api';
@@ -36,6 +36,18 @@ interface DonorFormValues {
   /** Postal address state — NOT the chapter. */
   state: string;
   zip: string;
+  /** Mailing address — fields disabled (and cleared server-side) while "same as" is checked. */
+  mailingSameAsPrimary: boolean;
+  mailingAddressLine1: string;
+  mailingCity: string;
+  mailingState: string;
+  mailingZip: string;
+  facebookUrl: string;
+  instagramUrl: string;
+  twitterUrl: string;
+  linkedinUrl: string;
+  tiktokUrl: string;
+  youtubeUrl: string;
   /** Chapter (§7.2) — the API stamps scoped users' own chapter. */
   chapterState: string;
   status: string;
@@ -54,6 +66,17 @@ function buildDefaults(donor?: Donor): DonorFormValues {
     city: donor?.city ?? '',
     state: donor?.state ?? '',
     zip: donor?.zip ?? '',
+    mailingSameAsPrimary: donor?.mailingSameAsPrimary ?? true,
+    mailingAddressLine1: donor?.mailingAddressLine1 ?? '',
+    mailingCity: donor?.mailingCity ?? '',
+    mailingState: donor?.mailingState ?? '',
+    mailingZip: donor?.mailingZip ?? '',
+    facebookUrl: donor?.facebookUrl ?? '',
+    instagramUrl: donor?.instagramUrl ?? '',
+    twitterUrl: donor?.twitterUrl ?? '',
+    linkedinUrl: donor?.linkedinUrl ?? '',
+    tiktokUrl: donor?.tiktokUrl ?? '',
+    youtubeUrl: donor?.youtubeUrl ?? '',
     chapterState: donor?.chapterState ?? '',
     status: donor?.status ?? 'active',
     personId: donor?.personId ?? undefined,
@@ -89,11 +112,13 @@ export function DonorFormDialog({
     reset,
     setError,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<DonorFormValues>({
     resolver: formResolver<DonorFormValues>(donorSchema),
     defaultValues: buildDefaults(donor),
   });
+  const mailingSame = watch('mailingSameAsPrimary');
 
   useEffect(() => {
     if (open) {
@@ -120,6 +145,16 @@ export function DonorFormDialog({
             city: values.city ?? null,
             state: values.state ?? null,
             zip: values.zip ?? null,
+            mailingAddressLine1: values.mailingAddressLine1 ?? null,
+            mailingCity: values.mailingCity ?? null,
+            mailingState: values.mailingState ?? null,
+            mailingZip: values.mailingZip ?? null,
+            facebookUrl: values.facebookUrl ?? null,
+            instagramUrl: values.instagramUrl ?? null,
+            twitterUrl: values.twitterUrl ?? null,
+            linkedinUrl: values.linkedinUrl ?? null,
+            tiktokUrl: values.tiktokUrl ?? null,
+            youtubeUrl: values.youtubeUrl ?? null,
             notes: values.notes ?? null,
             personId: values.personId ?? null,
           })
@@ -296,6 +331,53 @@ export function DonorFormDialog({
               <FormField label="ZIP" error={errors.zip}>
                 <Input inputMode="numeric" {...register('zip')} />
               </FormField>
+            </div>
+          </div>
+
+          {/* Mailing address: inputs stay visible but disabled while "same as" is
+              checked; the API also nulls the mailing columns whenever it is set. */}
+          <div className="space-y-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox {...register('mailingSameAsPrimary')} /> Mailing address is the same as the
+              address above
+            </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                label="Mailing address"
+                error={errors.mailingAddressLine1}
+                className="sm:col-span-2"
+              >
+                <Input {...register('mailingAddressLine1')} disabled={mailingSame} />
+              </FormField>
+              <FormField label="Mailing city" error={errors.mailingCity}>
+                <Input {...register('mailingCity')} disabled={mailingSame} />
+              </FormField>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Mailing state" error={errors.mailingState}>
+                  <Select {...register('mailingState')} disabled={mailingSame}>
+                    <option value="">Select…</option>
+                    {US_STATES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField label="Mailing ZIP" error={errors.mailingZip}>
+                  <Input inputMode="numeric" {...register('mailingZip')} disabled={mailingSame} />
+                </FormField>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-3 text-sm font-medium">Social media</p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {SOCIAL_MEDIA_FIELDS.map((f) => (
+                <FormField key={f.key} label={f.label} error={errors[f.key]}>
+                  <Input {...register(f.key)} placeholder="URL or handle" />
+                </FormField>
+              ))}
             </div>
           </div>
 

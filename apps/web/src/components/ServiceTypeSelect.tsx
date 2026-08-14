@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState, type InputHTMLAttributes, type Ref } from 'react';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Input } from '@/components/ui/input';
-import { SelectMenu } from '@/components/ui/select-menu';
 import { api } from '@/lib/api';
 
 /**
@@ -36,7 +36,7 @@ export function ServiceTypeSelect({
 
   return (
     <div className="space-y-2">
-      <SelectMenu
+      <FilterSelect
         aria-label={label}
         value={otherMode ? '__other__' : value}
         onChange={(next) => {
@@ -48,12 +48,15 @@ export function ServiceTypeSelect({
             onChange(next);
           }
         }}
-        options={[
-          { value: '', label: 'Select a service…' },
-          ...types.map((t) => ({ value: t, label: t })),
-          { value: '__other__', label: 'Other…' },
-        ]}
-      />
+      >
+        <option value="">Select a service…</option>
+        {types.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+        <option value="__other__">Other…</option>
+      </FilterSelect>
       {otherMode ? <Input placeholder="Describe the service" {...otherInputProps} /> : null}
     </div>
   );

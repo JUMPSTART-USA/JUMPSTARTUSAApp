@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { ProfilePhotoCard } from '@/components/ProfilePhotoCard';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
@@ -15,10 +16,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { CHAPTER_NAMES, OFFENSE_TYPE_LABELS, RACE_LABELS } from '@jumpstart/shared';
+import {
+  CHAPTER_NAMES,
+  OFFENSE_TYPE_LABELS,
+  RACE_LABELS,
+  SOCIAL_MEDIA_FIELDS,
+} from '@jumpstart/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { formatDate, humanize } from '@/lib/utils';
+import { formatDate, fullName, humanize, socialHref } from '@/lib/utils';
 import {
   AddressDialog,
   ConsentDialog,
@@ -73,6 +79,12 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
   const [deleteLocationTarget, setDeleteLocationTarget] = useState<InsideLocationRow | null>(null);
   const person = participant.person;
 
+  // Only services with a value are listed; socialHref links full URLs only.
+  const socialEntries = SOCIAL_MEDIA_FIELDS.flatMap((f) => {
+    const value = person[f.key];
+    return value ? [{ key: f.key, label: f.label, value }] : [];
+  });
+
   const historyQuery = useQuery({
     queryKey: ['participants', participant.id, 'status-history'],
     queryFn: () => api.get<StatusHistoryRow[]>(`/participants/${participant.id}/status-history`),
@@ -116,50 +128,110 @@ export function OverviewTab({ participant }: { participant: ParticipantDetail })
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Person</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DescriptionList>
-            <InfoItem label="Date of birth">{formatDate(person.dateOfBirth)}</InfoItem>
-            <InfoItem label="Gender">{humanize(person.gender)}</InfoItem>
-            <InfoItem label="Race">
-              {RACE_LABELS[person.race as keyof typeof RACE_LABELS] ?? humanize(person.race)}
-            </InfoItem>
-            <InfoItem label="Preferred language">{orDash(person.preferredLanguage)}</InfoItem>
-            <InfoItem label="Phone">{orDash(person.primaryPhone)}</InfoItem>
-            <InfoItem label="Email">{orDash(person.primaryEmail)}</InfoItem>
-            <InfoItem label="Mailing address">
-              {person.addressLine1 ? (
-                <span>
-                  {person.addressLine1}
-                  {person.addressLine2 ? <>, {person.addressLine2}</> : null}
-                  <br />
-                  {[person.city, person.state].filter(Boolean).join(', ')} {person.zip}
+      <div className="space-y-4">
+        <ProfilePhotoCard
+          photoPath={`/participants/${participant.id}/photo`}
+          personName={fullName(person)}
+          hasPhoto={person.photoMimeType != null}
+          canEdit={canEdit}
+          onChanged={() =>
+            void queryClient.invalidateQueries({ queryKey: ['participants', participant.id] })
+          }
+        />
+        <Card>
+          <CardHeader>
+            <CardTitle>Person</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DescriptionList>
+              <InfoItem label="Date of birth">{formatDate(person.dateOfBirth)}</InfoItem>
+              <InfoItem label="Gender">{humanize(person.gender)}</InfoItem>
+              <InfoItem label="Race">
+                {RACE_LABELS[person.race as keyof typeof RACE_LABELS] ?? humanize(person.race)}
+              </InfoItem>
+              <InfoItem label="Preferred language">{orDash(person.preferredLanguage)}</InfoItem>
+              <InfoItem label="Phone">{orDash(person.primaryPhone)}</InfoItem>
+              <InfoItem label="Email">{orDash(person.primaryEmail)}</InfoItem>
+              <InfoItem label="Address">
+                {person.addressLine1 ? (
+                  <span>
+                    {person.addressLine1}
+                    {person.addressLine2 ? <>, {person.addressLine2}</> : null}
+                    <br />
+                    {[person.city, person.state].filter(Boolean).join(', ')} {person.zip}
+                  </span>
+                ) : (
+                  dash
+                )}
+              </InfoItem>
+              <InfoItem label="Mailing address">
+                {person.mailingSameAsPrimary ? (
+                  'Same as address'
+                ) : person.mailingAddressLine1 ||
+                  person.mailingAddressLine2 ||
+                  person.mailingCity ||
+                  person.mailingState ||
+                  person.mailingZip ? (
+                  <span>
+                    {[person.mailingAddressLine1, person.mailingAddressLine2]
+                      .filter(Boolean)
+                      .join(', ')}
+                    <br />
+                    {[person.mailingCity, person.mailingState].filter(Boolean).join(', ')}{' '}
+                    {person.mailingZip}
+                  </span>
+                ) : (
+                  dash
+                )}
+              </InfoItem>
+              <InfoItem label="Social media" className="sm:col-span-2">
+                {socialEntries.length === 0 ? (
+                  dash
+                ) : (
+                  <span className="flex flex-col gap-0.5 break-all">
+                    {socialEntries.map((s) => {
+                      const href = socialHref(s.value);
+                      return (
+                        <span key={s.key}>
+                          <span className="text-muted-foreground">{s.label}:</span>{' '}
+                          {href ? (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-primary underline"
+                            >
+                              {s.value}
+                            </a>
+                          ) : (
+                            s.value
+                          )}
+                        </span>
+                      );
+                    })}
+                  </span>
+                )}
+              </InfoItem>
+              <InfoItem label="Contact preferences" className="sm:col-span-2">
+                <span className="inline-flex flex-wrap gap-1">
+                  {person.doNotContact ? <Badge variant="destructive">Do not contact</Badge> : null}
+                  {person.mailOnly ? <Badge variant="warning">Mail only</Badge> : null}
+                  {person.emailOk ? <Badge variant="outline">Email OK</Badge> : null}
+                  {person.smsOk ? (
+                    <Badge variant="outline">
+                      SMS OK
+                      {person.smsConsentAt ? ` (since ${formatDate(person.smsConsentAt)})` : ''}
+                    </Badge>
+                  ) : null}
                 </span>
-              ) : (
-                dash
-              )}
-            </InfoItem>
-            <InfoItem label="Contact preferences" className="sm:col-span-2">
-              <span className="inline-flex flex-wrap gap-1">
-                {person.doNotContact ? <Badge variant="destructive">Do not contact</Badge> : null}
-                {person.mailOnly ? <Badge variant="warning">Mail only</Badge> : null}
-                {person.emailOk ? <Badge variant="outline">Email OK</Badge> : null}
-                {person.smsOk ? (
-                  <Badge variant="outline">
-                    SMS OK{person.smsConsentAt ? ` (since ${formatDate(person.smsConsentAt)})` : ''}
-                  </Badge>
-                ) : null}
-              </span>
-            </InfoItem>
-            {person.deceasedAt ? (
-              <InfoItem label="Deceased">{formatDate(person.deceasedAt)}</InfoItem>
-            ) : null}
-          </DescriptionList>
-        </CardContent>
-      </Card>
+              </InfoItem>
+              {person.deceasedAt ? (
+                <InfoItem label="Deceased">{formatDate(person.deceasedAt)}</InfoItem>
+              ) : null}
+            </DescriptionList>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>

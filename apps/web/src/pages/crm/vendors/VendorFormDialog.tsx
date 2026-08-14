@@ -33,6 +33,13 @@ interface VendorFormValues {
   /** Postal address state — NOT the chapter. */
   state?: string;
   zip?: string;
+  /** Mailing address — fields disabled (and cleared server-side) while "same as" is checked. */
+  mailingSameAsPrimary: boolean;
+  mailingAddressLine1?: string;
+  mailingCity?: string;
+  mailingState?: string;
+  mailingZip?: string;
+  website?: string;
   /** Chapter (§7.2) — the API stamps scoped users' own chapter. */
   chapterState?: string;
   servicesProvided?: string;
@@ -73,6 +80,12 @@ export function VendorFormDialog({
               city: vendor.city ?? '',
               state: vendor.state ?? '',
               zip: vendor.zip ?? '',
+              mailingSameAsPrimary: vendor.mailingSameAsPrimary ?? true,
+              mailingAddressLine1: vendor.mailingAddressLine1 ?? '',
+              mailingCity: vendor.mailingCity ?? '',
+              mailingState: vendor.mailingState ?? '',
+              mailingZip: vendor.mailingZip ?? '',
+              website: vendor.website ?? '',
               chapterState: vendor.chapterState,
               servicesProvided: vendor.servicesProvided ?? '',
               isReferralPartner: vendor.isReferralPartner,
@@ -80,7 +93,13 @@ export function VendorFormDialog({
               notes: vendor.notes ?? '',
             }
           : // Chapter (§7.2): scoped users never see the picker — theirs is preset.
-            { name: '', isReferralPartner: false, active: true, chapterState: chapter ?? '' },
+            {
+              name: '',
+              mailingSameAsPrimary: true,
+              isReferralPartner: false,
+              active: true,
+              chapterState: chapter ?? '',
+            },
       );
       setFormError(null);
       setConfirmDeleteOpen(false);
@@ -100,6 +119,11 @@ export function VendorFormDialog({
             city: values.city ?? null,
             state: values.state ?? null,
             zip: values.zip ?? null,
+            mailingAddressLine1: values.mailingAddressLine1 ?? null,
+            mailingCity: values.mailingCity ?? null,
+            mailingState: values.mailingState ?? null,
+            mailingZip: values.mailingZip ?? null,
+            website: values.website ?? null,
             servicesProvided: values.servicesProvided ?? null,
             notes: values.notes ?? null,
           })
@@ -121,6 +145,7 @@ export function VendorFormDialog({
   });
 
   const optional = { setValueAs: (v: unknown) => (v === '' ? undefined : v) };
+  const mailingSame = form.watch('mailingSameAsPrimary');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,6 +182,11 @@ export function VendorFormDialog({
           <FormField label="Email" error={form.formState.errors.email}>
             <Input type="email" {...form.register('email', optional)} />
           </FormField>
+          {/* Free text in the schema — a bare domain is accepted, so no type="url"
+              (this form has no noValidate to switch native URL checking off). */}
+          <FormField label="Website" error={form.formState.errors.website}>
+            <Input {...form.register('website', optional)} placeholder="https://…" />
+          </FormField>
           <FormField label="Address" error={form.formState.errors.addressLine1}>
             <Input {...form.register('addressLine1', optional)} />
           </FormField>
@@ -177,6 +207,39 @@ export function VendorFormDialog({
             <FormField label="ZIP" error={form.formState.errors.zip}>
               <Input inputMode="numeric" {...form.register('zip', optional)} />
             </FormField>
+          </div>
+          {/* Mailing address: inputs stay visible but disabled while "same as" is
+              checked; the API also nulls the mailing columns whenever it is set. */}
+          <div className="space-y-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox {...form.register('mailingSameAsPrimary')} /> Mailing address is the same
+              as the address above
+            </label>
+            <FormField label="Mailing address" error={form.formState.errors.mailingAddressLine1}>
+              <Input {...form.register('mailingAddressLine1', optional)} disabled={mailingSame} />
+            </FormField>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <FormField label="Mailing city" error={form.formState.errors.mailingCity}>
+                <Input {...form.register('mailingCity', optional)} disabled={mailingSame} />
+              </FormField>
+              <FormField label="Mailing state" error={form.formState.errors.mailingState}>
+                <Select {...form.register('mailingState', optional)} disabled={mailingSame}>
+                  <option value="">—</option>
+                  {US_STATES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Mailing ZIP" error={form.formState.errors.mailingZip}>
+                <Input
+                  inputMode="numeric"
+                  {...form.register('mailingZip', optional)}
+                  disabled={mailingSame}
+                />
+              </FormField>
+            </div>
           </div>
           <FormField label="Services provided" error={form.formState.errors.servicesProvided}>
             <Textarea rows={2} {...form.register('servicesProvided', optional)} />

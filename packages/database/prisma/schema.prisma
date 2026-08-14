@@ -549,12 +549,34 @@ model Person {
   primaryPhone String?
   primaryEmail String?
 
-  // Current mailing address (history in PersonAddress)
+  // Social media profiles — full URL or bare handle, free text
+  facebookUrl  String?
+  instagramUrl String?
+  twitterUrl   String? // X
+  linkedinUrl  String?
+  tiktokUrl    String?
+  youtubeUrl   String?
+
+  // Current home address (history in PersonAddress)
   addressLine1 String?
   addressLine2 String?
   city         String?
   state        String?
   zip          String?
+
+  // Mailing address. mailingSameAsPrimary=true means "use the address above";
+  // the mailing* columns are kept null while it is set.
+  mailingSameAsPrimary Boolean @default(true)
+  mailingAddressLine1  String?
+  mailingAddressLine2  String?
+  mailingCity          String?
+  mailingState         String?
+  mailingZip           String?
+
+  // Profile photo stored inline (same pattern as DrugTest.photoData)
+  photoData     Bytes?
+  photoMimeType String?
+  photoFileName String?
 
   // Communication preferences & consent (TCPA: smsConsentAt is the timestamp
   // explicit SMS opt-in was recorded; STOP handling clears smsOk)
@@ -1052,14 +1074,21 @@ model Session {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Institution {
-  id              String  @id @default(uuid())
-  name            String
-  institutionType String? // state prison, federal, county jail, transition center…
-  addressLine1    String?
-  city            String?
-  state           String // indexed — drives regional filtering everywhere
-  zip             String?
-  mainPhone       String?
+  id                   String  @id @default(uuid())
+  name                 String
+  institutionType      String? // state prison, federal, county jail, transition center…
+  addressLine1         String?
+  city                 String?
+  state                String // indexed — drives regional filtering everywhere
+  zip                  String?
+  // Mailing address. mailingSameAsPrimary=true means "use the address above";
+  // the mailing* columns are kept null while it is set.
+  mailingSameAsPrimary Boolean @default(true)
+  mailingAddressLine1  String?
+  mailingCity          String?
+  mailingState         String?
+  mailingZip           String?
+  mainPhone            String?
 
   notes  String?
   active Boolean @default(true)
@@ -1197,7 +1226,7 @@ model SessionAttendance {
   session      InsideClassSession    @relation(fields: [sessionId], references: [id])
   enrollmentId String
   enrollment   InsideClassEnrollment @relation(fields: [enrollmentId], references: [id])
-  status       String // present | absent | excused
+  status       String // present | late | absent | excused
   notes        String?
 
   createdAt DateTime @default(now())
@@ -1513,7 +1542,7 @@ model OutsideSessionAttendance {
   session      OutsideProgramSession    @relation(fields: [sessionId], references: [id])
   enrollmentId String
   enrollment   OutsideProgramEnrollment @relation(fields: [enrollmentId], references: [id])
-  status       String // present | absent | excused
+  status       String // present | late | absent | excused
   notes        String?
 
   createdAt DateTime @default(now())
@@ -2332,27 +2361,45 @@ model MentorSessionLog {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Donor {
-  id                String     @id @default(uuid())
-  donorType         DonorType  @default(individual)
-  name              String
-  contactPerson     String?
-  phone             String?
-  email             String?
-  addressLine1      String?
-  city              String?
-  state             String? // postal address state — NOT the chapter
-  zip               String?
+  id                   String     @id @default(uuid())
+  donorType            DonorType  @default(individual)
+  name                 String
+  contactPerson        String?
+  phone                String?
+  email                String?
+  addressLine1         String?
+  city                 String?
+  state                String? // postal address state — NOT the chapter
+  zip                  String?
+  // Mailing address. mailingSameAsPrimary=true means "use the address above";
+  // the mailing* columns are kept null while it is set.
+  mailingSameAsPrimary Boolean    @default(true)
+  mailingAddressLine1  String?
+  mailingCity          String?
+  mailingState         String?
+  mailingZip           String?
+  // Social media profiles — full URL or bare handle, free text
+  facebookUrl          String?
+  instagramUrl         String?
+  twitterUrl           String? // X
+  linkedinUrl          String?
+  tiktokUrl            String?
+  youtubeUrl           String?
+  // Profile photo stored inline (same pattern as DrugTest.photoData)
+  photoData            Bytes?
+  photoMimeType        String?
+  photoFileName        String?
   // Chapter column (§7.2): donors live anywhere; the chapter that stewards
   // the relationship is stamped at create — docs/chapter-scoping.md.
-  chapterState      String
-  status            String     @default("active") // active | lapsed | inactive
-  personId          String? // set when a donor is also a volunteer/alumnus (§5)
-  person            Person?    @relation(fields: [personId], references: [id])
-  householdId       String?
-  household         Household? @relation(fields: [householdId], references: [id])
+  chapterState         String
+  status               String     @default("active") // active | lapsed | inactive
+  personId             String? // set when a donor is also a volunteer/alumnus (§5)
+  person               Person?    @relation(fields: [personId], references: [id])
+  householdId          String?
+  household            Household? @relation(fields: [householdId], references: [id])
   // Head of household drives addressing on household statements/mailings.
-  isHeadOfHousehold Boolean    @default(false)
-  notes             String?
+  isHeadOfHousehold    Boolean    @default(false)
+  notes                String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -2757,21 +2804,29 @@ model EventRegistration {
 // Vendors double as the referral-partner directory (§6.5) and fleet service
 // vendors (§6.10).
 model Vendor {
-  id                String  @id @default(uuid())
-  name              String
-  contactPerson     String?
-  phone             String?
-  email             String?
-  addressLine1      String?
-  city              String?
-  state             String? // postal address state — NOT the chapter
-  zip               String?
+  id                   String  @id @default(uuid())
+  name                 String
+  contactPerson        String?
+  phone                String?
+  email                String?
+  addressLine1         String?
+  city                 String?
+  state                String? // postal address state — NOT the chapter
+  zip                  String?
+  // Mailing address. mailingSameAsPrimary=true means "use the address above";
+  // the mailing* columns are kept null while it is set.
+  mailingSameAsPrimary Boolean @default(true)
+  mailingAddressLine1  String?
+  mailingCity          String?
+  mailingState         String?
+  mailingZip           String?
+  website              String?
   // Chapter column (§7.2) — stamped at create; docs/chapter-scoping.md.
-  chapterState      String
-  servicesProvided  String?
-  isReferralPartner Boolean @default(false)
-  active            Boolean @default(true)
-  notes             String?
+  chapterState         String
+  servicesProvided     String?
+  isReferralPartner    Boolean @default(false)
+  active               Boolean @default(true)
+  notes                String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -2801,6 +2856,7 @@ model Employer {
   city          String?
   state         String? // postal address state — NOT the chapter (was the chapter pre-§7.2 enforcement)
   zip           String?
+  website       String?
   // Chapter column (§7.2) — stamped at create; docs/chapter-scoping.md.
   chapterState  String
   industry      String?

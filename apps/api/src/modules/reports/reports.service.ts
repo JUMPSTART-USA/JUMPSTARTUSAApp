@@ -25,6 +25,7 @@ import {
   type RecurringGiftStatus,
 } from '@jumpstart/shared';
 import { assertChapterAccess } from '../../common/chapter.util';
+import { effectiveMailingAddress } from '../../common/mailing.util';
 import { hasPerm, type AuthenticatedUser } from '../../common/types';
 import { pledgeComputed } from '../crm/giving.util';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -53,6 +54,7 @@ export interface ReportParams {
   state?: string;
   status?: string;
   insideClassId?: string;
+  outsideProgramId?: string;
   institutionId?: string;
   from?: Date;
   to?: Date;
@@ -137,6 +139,19 @@ export class ReportsService {
       run: (p) => this.insideClassCompletions(p),
     },
     {
+      key: 'inside-class-attendance',
+      name: 'Inside Class Attendance',
+      permission: 'inside_classes.read',
+      params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
+        { name: 'institutionId', label: 'Institution', type: 'uuid' },
+        { name: 'insideClassId', label: 'Inside Class', type: 'uuid' },
+        { name: 'from', label: 'Sessions from', type: 'date' },
+        { name: 'to', label: 'Sessions to', type: 'date' },
+      ],
+      run: (p, u) => this.insideClassAttendance(p, u),
+    },
+    {
       key: 'institution-activity',
       name: 'Institution Activity',
       permission: 'institutions.read',
@@ -153,6 +168,19 @@ export class ReportsService {
         { name: 'status', label: 'Status', type: 'enum', values: ENROLLMENT_STATUSES },
       ],
       run: (p) => this.outsideProgramEnrollment(p),
+    },
+    {
+      key: 'outside-program-attendance',
+      name: 'Outside Program Attendance',
+      permission: 'outside_programs.read',
+      params: [
+        { name: 'state', label: 'Chapter', type: 'enum', values: CHAPTER_STATES },
+        { name: 'programType', label: 'Program Type', type: 'enum', values: PROGRAM_TYPES },
+        { name: 'outsideProgramId', label: 'Outside Program', type: 'uuid' },
+        { name: 'from', label: 'Sessions from', type: 'date' },
+        { name: 'to', label: 'Sessions to', type: 'date' },
+      ],
+      run: (p, u) => this.outsideProgramAttendance(p, u),
     },
     {
       key: 'housing-occupancy',
@@ -487,6 +515,298 @@ export class ReportsService {
         leftEarlyDate: fmtDate(e.leftEarlyDate),
         leftEarlyReason: e.leftEarlyReason ?? null,
       })),
+    };
+  }
+
+  // ── Attendance stats — present + late count as attended; the rate is over
+  // MARKED rows only (unmarked sessions are reported, never guessed) ─────────
+
+  private static tallyAttendance(statuses: string[]) {
+    const t = { present: 0, late: 0, absent: 0, excused: 0 };
+    for (const s of statuses) if (s in t) t[s as keyof typeof t] += 1;
+    const marked = t.present + t.late + t.absent + t.excused;
+    const rate = marked > 0 ? Math.round(((t.present + t.late) / marked) * 100) : null;
+    return { ...t, marked, rate };
+  }
+
+  /**
+   * Two granularities from one report: no class selected → one row per class
+   * (aggregate), a class selected → one row per enrolled participant.
+   */
+  private async insideClassAttendance(
+    p: ReportParams,
+    user: AuthenticatedUser,
+  ): Promise<ReportResult> {
+    const sessionRange = dateRange(p.from, p.to);
+
+    if (p.insideClassId) {
+      const cls = await this.prisma.insideClass.findFirst({
+        where: { id: p.insideClassId, deletedAt: null },
+        select: {
+          name: true,
+          institution: { select: { name: true, state: true } },
+          sessions: {
+            where: sessionRange ? { sessionDate: sessionRange } : undefined,
+            select: { id: true },
+          },
+        },
+      });
+      if (!cls) throw new NotFoundException('Inside class not found');
+      // Chapter scoping (§7.2): a scoped user cannot pull another chapter's
+      // attendance by id — the class's chapter is its institution's state.
+      assertChapterAccess(user.chapter, cls.institution.state);
+
+      const sessionIds = new Set(cls.sessions.map((s) => s.id));
+      const enrollments = await this.prisma.insideClassEnrollment.findMany({
+        where: { insideClassId: p.insideClassId, deletedAt: null },
+        orderBy: { enrollmentDate: 'asc' },
+        select: {
+          completionStatus: true,
+          participantProfile: {
+            select: {
+              participantNumber: true,
+              person: { select: { firstName: true, lastName: true } },
+            },
+          },
+          attendance: { select: { sessionId: true, status: true } },
+        },
+      });
+
+      const sessionsHeld = sessionIds.size;
+      return {
+        columns: [
+          { key: 'institution', label: 'Institution' },
+          { key: 'className', label: 'Class' },
+          { key: 'participantNumber', label: 'Participant ID' },
+          { key: 'name', label: 'Name' },
+          { key: 'enrollmentStatus', label: 'Enrollment Status' },
+          { key: 'sessionsHeld', label: 'Sessions Held' },
+          { key: 'present', label: 'Present' },
+          { key: 'late', label: 'Late' },
+          { key: 'absent', label: 'Absent' },
+          { key: 'excused', label: 'Excused' },
+          { key: 'notMarked', label: 'Not Marked' },
+          { key: 'attendanceRate', label: 'Attendance %' },
+        ],
+        rows: enrollments.map((e) => {
+          const t = ReportsService.tallyAttendance(
+            e.attendance.filter((a) => sessionIds.has(a.sessionId)).map((a) => a.status),
+          );
+          return {
+            institution: cls.institution.name,
+            className: cls.name,
+            participantNumber: e.participantProfile.participantNumber,
+            name: personName(e.participantProfile.person),
+            enrollmentStatus: e.completionStatus,
+            sessionsHeld,
+            present: t.present,
+            late: t.late,
+            absent: t.absent,
+            excused: t.excused,
+            notMarked: Math.max(0, sessionsHeld - t.marked),
+            attendanceRate: t.rate,
+          };
+        }),
+      };
+    }
+
+    const classes = await this.prisma.insideClass.findMany({
+      where: {
+        deletedAt: null,
+        // Chapter scoping (§7.2): a class's chapter is its institution's state.
+        ...(p.state ? { institution: { state: p.state } } : {}),
+        ...(p.institutionId ? { institutionId: p.institutionId } : {}),
+      },
+      orderBy: [{ startDate: 'desc' }],
+      select: {
+        name: true,
+        status: true,
+        institution: { select: { name: true, state: true } },
+        _count: { select: { enrollments: { where: { deletedAt: null } } } },
+        sessions: {
+          where: sessionRange ? { sessionDate: sessionRange } : undefined,
+          // Withdrawn (soft-deleted) enrollments' marks are excluded so the
+          // summary tallies agree with the roster count beside them and with
+          // the per-participant drill-down, which queries live enrollments.
+          select: {
+            attendance: {
+              where: { enrollment: { deletedAt: null } },
+              select: { status: true },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      columns: [
+        { key: 'institution', label: 'Institution' },
+        { key: 'className', label: 'Class' },
+        { key: 'classStatus', label: 'Class Status' },
+        { key: 'roster', label: 'Roster' },
+        { key: 'sessionsHeld', label: 'Sessions Held' },
+        { key: 'present', label: 'Present' },
+        { key: 'late', label: 'Late' },
+        { key: 'absent', label: 'Absent' },
+        { key: 'excused', label: 'Excused' },
+        { key: 'attendanceRate', label: 'Attendance %' },
+      ],
+      rows: classes.map((c) => {
+        const t = ReportsService.tallyAttendance(
+          c.sessions.flatMap((s) => s.attendance.map((a) => a.status)),
+        );
+        return {
+          institution: c.institution.name,
+          className: c.name,
+          classStatus: c.status,
+          roster: c._count.enrollments,
+          sessionsHeld: c.sessions.length,
+          present: t.present,
+          late: t.late,
+          absent: t.absent,
+          excused: t.excused,
+          attendanceRate: t.rate,
+        };
+      }),
+    };
+  }
+
+  /** Outside mirror of insideClassAttendance — same two granularities. */
+  private async outsideProgramAttendance(
+    p: ReportParams,
+    user: AuthenticatedUser,
+  ): Promise<ReportResult> {
+    const sessionRange = dateRange(p.from, p.to);
+
+    if (p.outsideProgramId) {
+      const program = await this.prisma.outsideProgram.findFirst({
+        where: { id: p.outsideProgramId, deletedAt: null },
+        select: {
+          name: true,
+          programType: true,
+          state: true,
+          sessions: {
+            where: sessionRange ? { sessionDate: sessionRange } : undefined,
+            select: { id: true },
+          },
+        },
+      });
+      if (!program) throw new NotFoundException('Outside program not found');
+      // Chapter scoping (§7.2): the program carries its own chapter column.
+      assertChapterAccess(user.chapter, program.state);
+
+      const sessionIds = new Set(program.sessions.map((s) => s.id));
+      const enrollments = await this.prisma.outsideProgramEnrollment.findMany({
+        where: { outsideProgramId: p.outsideProgramId, deletedAt: null },
+        orderBy: { enrollmentDate: 'asc' },
+        select: {
+          status: true,
+          participantProfile: {
+            select: {
+              participantNumber: true,
+              person: { select: { firstName: true, lastName: true } },
+            },
+          },
+          attendance: { select: { sessionId: true, status: true } },
+        },
+      });
+
+      const sessionsHeld = sessionIds.size;
+      return {
+        columns: [
+          { key: 'program', label: 'Program' },
+          { key: 'programType', label: 'Program Type' },
+          { key: 'participantNumber', label: 'Participant ID' },
+          { key: 'name', label: 'Name' },
+          { key: 'enrollmentStatus', label: 'Enrollment Status' },
+          { key: 'sessionsHeld', label: 'Sessions Held' },
+          { key: 'present', label: 'Present' },
+          { key: 'late', label: 'Late' },
+          { key: 'absent', label: 'Absent' },
+          { key: 'excused', label: 'Excused' },
+          { key: 'notMarked', label: 'Not Marked' },
+          { key: 'attendanceRate', label: 'Attendance %' },
+        ],
+        rows: enrollments.map((e) => {
+          const t = ReportsService.tallyAttendance(
+            e.attendance.filter((a) => sessionIds.has(a.sessionId)).map((a) => a.status),
+          );
+          return {
+            program: program.name,
+            programType: program.programType,
+            participantNumber: e.participantProfile.participantNumber,
+            name: personName(e.participantProfile.person),
+            enrollmentStatus: e.status,
+            sessionsHeld,
+            present: t.present,
+            late: t.late,
+            absent: t.absent,
+            excused: t.excused,
+            notMarked: Math.max(0, sessionsHeld - t.marked),
+            attendanceRate: t.rate,
+          };
+        }),
+      };
+    }
+
+    const programs = await this.prisma.outsideProgram.findMany({
+      where: {
+        deletedAt: null,
+        // Chapter scoping (§7.2): the program's own chapter column.
+        ...(p.state ? { state: p.state } : {}),
+        ...(p.programType ? { programType: p.programType } : {}),
+      },
+      orderBy: { name: 'asc' },
+      select: {
+        name: true,
+        programType: true,
+        status: true,
+        _count: { select: { enrollments: { where: { deletedAt: null } } } },
+        sessions: {
+          where: sessionRange ? { sessionDate: sessionRange } : undefined,
+          // Withdrawn (soft-deleted) enrollments' marks are excluded so the
+          // summary tallies agree with the roster count beside them and with
+          // the per-participant drill-down, which queries live enrollments.
+          select: {
+            attendance: {
+              where: { enrollment: { deletedAt: null } },
+              select: { status: true },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      columns: [
+        { key: 'program', label: 'Program' },
+        { key: 'programType', label: 'Program Type' },
+        { key: 'programStatus', label: 'Program Status' },
+        { key: 'roster', label: 'Roster' },
+        { key: 'sessionsHeld', label: 'Sessions Held' },
+        { key: 'present', label: 'Present' },
+        { key: 'late', label: 'Late' },
+        { key: 'absent', label: 'Absent' },
+        { key: 'excused', label: 'Excused' },
+        { key: 'attendanceRate', label: 'Attendance %' },
+      ],
+      rows: programs.map((c) => {
+        const t = ReportsService.tallyAttendance(
+          c.sessions.flatMap((s) => s.attendance.map((a) => a.status)),
+        );
+        return {
+          program: c.name,
+          programType: c.programType,
+          programStatus: c.status,
+          roster: c._count.enrollments,
+          sessionsHeld: c.sessions.length,
+          present: t.present,
+          late: t.late,
+          absent: t.absent,
+          excused: t.excused,
+          attendanceRate: t.rate,
+        };
+      }),
     };
   }
 
@@ -1235,6 +1555,11 @@ export class ReportsService {
             city: true,
             state: true,
             zip: true,
+            mailingSameAsPrimary: true,
+            mailingAddressLine1: true,
+            mailingCity: true,
+            mailingState: true,
+            mailingZip: true,
           },
         },
       },
@@ -1252,10 +1577,12 @@ export class ReportsService {
     for (const d of donations) {
       let s = byDonor.get(d.donor.id);
       if (!s) {
-        const cityLine = [d.donor.city, [d.donor.state, d.donor.zip].filter(Boolean).join(' ')]
+        // Statements are MAILED — address them like letters do (§ mailing.util).
+        const to = effectiveMailingAddress(d.donor);
+        const cityLine = [to.city, [to.state, to.zip].filter(Boolean).join(' ')]
           .filter(Boolean)
           .join(', ');
-        const address = [d.donor.addressLine1, cityLine].filter(Boolean).join(', ');
+        const address = [to.addressLine1, cityLine].filter(Boolean).join(', ');
         s = {
           donor: d.donor.name,
           address: address || null,

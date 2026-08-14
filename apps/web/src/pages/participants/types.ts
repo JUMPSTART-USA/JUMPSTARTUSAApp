@@ -120,6 +120,21 @@ export interface PersonDetail {
   city: string | null;
   state: string | null;
   zip: string | null;
+  /** Mailing address — null fields + flag true means "use the address above". */
+  mailingSameAsPrimary: boolean;
+  mailingAddressLine1: string | null;
+  mailingAddressLine2: string | null;
+  mailingCity: string | null;
+  mailingState: string | null;
+  mailingZip: string | null;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
+  twitterUrl: string | null;
+  linkedinUrl: string | null;
+  tiktokUrl: string | null;
+  youtubeUrl: string | null;
+  /** Set when a profile photo is stored — the bytes come from the photo endpoint. */
+  photoMimeType: string | null;
   emailOk: boolean;
   smsOk: boolean;
   smsConsentAt: string | null;

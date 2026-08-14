@@ -660,6 +660,20 @@ export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 export const USER_STATUSES = ['invited', 'active', 'deactivated'] as const;
 export type UserStatus = (typeof USER_STATUSES)[number];
 
+// ── Social media profiles ───────────────────────────────────────────────────
+// One list drives the schema fields, the form inputs, and the detail-page
+// links for persons (participants/volunteers) and donors. Values are free
+// text: a full URL or a bare handle, whichever staff have on hand.
+export const SOCIAL_MEDIA_FIELDS = [
+  { key: 'facebookUrl', label: 'Facebook' },
+  { key: 'instagramUrl', label: 'Instagram' },
+  { key: 'twitterUrl', label: 'X (Twitter)' },
+  { key: 'linkedinUrl', label: 'LinkedIn' },
+  { key: 'tiktokUrl', label: 'TikTok' },
+  { key: 'youtubeUrl', label: 'YouTube' },
+] as const;
+export type SocialMediaKey = (typeof SOCIAL_MEDIA_FIELDS)[number]['key'];
+
 export const US_STATES = [
   'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
   'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',

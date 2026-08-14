@@ -188,14 +188,16 @@ describe('what the verify pass forced', () => {
   /**
    * A sort key no column claims (a stale or hand-edited link) must not make
    * the select display the first column as if it were the active sort — the
-   * exact SelectMenu fallback failure filter-select.tsx documents. And with no
-   * ACTIVE sort there is no direction button: it would announce "Sorted
-   * ascending" over an unsorted list. Mutation: gate the placeholder on
-   * `!state.sortBy` alone, or render the button unconditionally.
+   * exact unmatched-value fallback failure filter-select.tsx documents. And
+   * with no ACTIVE sort there is no direction button: it would announce
+   * "Sorted ascending" over an unsorted list. Mutation: gate the placeholder
+   * on `!state.sortBy` alone, or render the button unconditionally.
    */
   it('shows the placeholder, and no direction button, for an unmatched sort key', () => {
     mount({ state: { ...LIST_STATE, sortBy: 'nonsense' } });
-    expect(screen.getByRole('button', { name: 'Sort by' }).textContent).toContain('Sort…');
+    const select = screen.getByRole('combobox', { name: 'Sort by' }) as HTMLSelectElement;
+    expect(select.value).toBe('');
+    expect(select.options[select.selectedIndex]?.textContent).toBe('Sort…');
     expect(screen.queryByRole('button', { name: /Sorted/ })).toBeNull();
   });
 });
@@ -203,10 +205,9 @@ describe('what the verify pass forced', () => {
 describe('sorting, rehoused from the vanished column headers', () => {
   it('drives the same list state and resets to page 1', () => {
     const { onStateChange } = mount({ state: { ...LIST_STATE, page: 3 } });
-    // FilterSelect is the kit's SelectMenu, not a native select: open the
-    // listbox, then choose the option.
-    fireEvent.click(screen.getByRole('button', { name: /Sort by/ }));
-    fireEvent.click(screen.getByRole('option', { name: 'Intake' }));
+    fireEvent.change(screen.getByRole('combobox', { name: /Sort by/ }), {
+      target: { value: 'intake' },
+    });
     expect(onStateChange).toHaveBeenCalledWith({
       page: 1,
       pageSize: 25,

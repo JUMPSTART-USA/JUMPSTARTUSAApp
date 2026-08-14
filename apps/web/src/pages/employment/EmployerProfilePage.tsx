@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/table';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { formatDate, humanize } from '@/lib/utils';
+import { formatDate, humanize, socialHref } from '@/lib/utils';
 import { EmployerFormDialog } from './EmployerFormDialog';
 import { EmploymentFormDialog } from './EmploymentFormDialog';
 import { EmploymentStatusBadge, HiringStatusBadge } from './shared';
@@ -131,6 +131,23 @@ export function EmployerProfilePage() {
               </InfoItem>
               <InfoItem label="Phone">{employer.phone}</InfoItem>
               <InfoItem label="Email">{employer.email}</InfoItem>
+              <InfoItem label="Website">
+                {employer.website ? (
+                  // Full URLs only — bare domains stay plain text (socialHref's contract).
+                  socialHref(employer.website) ? (
+                    <a
+                      href={socialHref(employer.website) ?? undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary underline"
+                    >
+                      {employer.website}
+                    </a>
+                  ) : (
+                    employer.website
+                  )
+                ) : null}
+              </InfoItem>
             </DescriptionList>
             {employer.notes ? (
               <div className="border-t pt-3">

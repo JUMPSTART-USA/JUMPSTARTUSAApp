@@ -31,6 +31,21 @@ const CLEARABLE_PROFILE = new Set<keyof ParticipantFormValues['profile']>([
   'assignedCaseManagerId',
 ]);
 
+/** Person fields with clearable schema variants — blanking one clears it. */
+const CLEARABLE_PERSON = new Set<keyof ParticipantFormValues['person']>([
+  'facebookUrl',
+  'instagramUrl',
+  'twitterUrl',
+  'linkedinUrl',
+  'tiktokUrl',
+  'youtubeUrl',
+  'mailingAddressLine1',
+  'mailingAddressLine2',
+  'mailingCity',
+  'mailingState',
+  'mailingZip',
+]);
+
 type DirtyMap = { [k: string]: boolean | undefined };
 
 /** Only send changed fields; '' on a clearable field becomes null. */
@@ -45,9 +60,12 @@ function buildUpdatePayload(
       person[key] = value;
       continue;
     }
-    // Person partial schema treats undefined as "no change" and has no
-    // clearable variants — a blanked text field is simply not sent.
-    if (value === '') continue;
+    // The legacy person text fields have no clearable variants — a blanked
+    // one is simply not sent; the social/mailing fields DO clear (null).
+    if (value === '') {
+      if (CLEARABLE_PERSON.has(key)) person[key] = null;
+      continue;
+    }
     person[key] = value;
   }
 

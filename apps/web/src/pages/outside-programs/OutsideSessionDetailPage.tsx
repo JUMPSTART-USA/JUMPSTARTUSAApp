@@ -1,3 +1,4 @@
+import { ATTENDANCE_STATUSES, type AttendanceStatus } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -24,12 +25,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, fullName, humanize } from '@/lib/utils';
 import { SessionFormDialog } from './SessionFormDialog';
-import type {
-  AttendanceStatus,
-  OutsideProgramDetail,
-  OutsideSessionDetail,
-} from './types';
-import { ATTENDANCE_STATUSES } from './types';
+import type { OutsideProgramDetail, OutsideSessionDetail } from './types';
 import { BackLink } from '@/components/BackLink';
 
 interface RowState {

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,8 +8,13 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ALUMNI_STATUSES,
   CHAPTER_STATES,
@@ -44,6 +50,11 @@ import {
 import { z } from 'zod';
 import { CurrentUser, RequirePermission } from '../../common/decorators';
 import { zodBody, zodQuery } from '../../common/pipes/zod-validation.pipe';
+import {
+  profilePhotoUpload,
+  sendPhoto,
+  type UploadedPhotoFile,
+} from '../../common/profile-photo.util';
 import type { AuthenticatedUser } from '../../common/types';
 import { ParticipantSubresourcesService } from './participant-subresources.service';
 import { ParticipantTimelineService } from './participant-timeline.service';
@@ -166,6 +177,36 @@ export class ParticipantsController {
   @RequirePermission('participants.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.participants.softDelete(id, user);
+  }
+
+  // ── Profile photo ──────────────────────────────────────────────────────────
+
+  @Put(':id/photo')
+  @RequirePermission('participants.update')
+  @UseInterceptors(profilePhotoUpload())
+  setPhoto(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() photo: UploadedPhotoFile | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!photo) throw new BadRequestException('Attach the photo as the "photo" field');
+    return this.participants.setPhoto(id, photo, user);
+  }
+
+  @Get(':id/photo')
+  @RequirePermission('participants.read')
+  async getPhoto(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    sendPhoto(res, await this.participants.getPhoto(id, user));
+  }
+
+  @Delete(':id/photo')
+  @RequirePermission('participants.update')
+  clearPhoto(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.participants.clearPhoto(id, user);
   }
 
   @Get(':id/timeline')

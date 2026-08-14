@@ -35,6 +35,21 @@ export interface PersonFull extends PersonBasics {
   addressLine1?: string | null;
   addressLine2?: string | null;
   zip?: string | null;
+  /** Mailing columns are nulled server-side whenever mailingSameAsPrimary is true. */
+  mailingSameAsPrimary: boolean;
+  mailingAddressLine1: string | null;
+  mailingAddressLine2: string | null;
+  mailingCity: string | null;
+  mailingState: string | null;
+  mailingZip: string | null;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
+  twitterUrl: string | null;
+  linkedinUrl: string | null;
+  tiktokUrl: string | null;
+  youtubeUrl: string | null;
+  /** Photo bytes never ride in JSON — the <img> loads from the photo endpoint. */
+  photoMimeType: string | null;
   emailOk?: boolean;
   smsOk?: boolean;
   doNotContact?: boolean;

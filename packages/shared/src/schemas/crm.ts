@@ -85,6 +85,20 @@ export const donorSchema = z.object({
   city: clearableTrimmed,
   state: clearableState, // postal address state — NOT the chapter
   zip: clearableTrimmed,
+  // Mailing address — the service nulls the mailing* columns whenever
+  // mailingSameAsPrimary is true, so stale values never linger.
+  mailingSameAsPrimary: z.boolean().default(true),
+  mailingAddressLine1: clearableTrimmed,
+  mailingCity: clearableTrimmed,
+  mailingState: clearableState,
+  mailingZip: clearableTrimmed,
+  // Social media profiles — full URL or bare handle (SOCIAL_MEDIA_FIELDS)
+  facebookUrl: clearableTrimmed,
+  instagramUrl: clearableTrimmed,
+  twitterUrl: clearableTrimmed,
+  linkedinUrl: clearableTrimmed,
+  tiktokUrl: clearableTrimmed,
+  youtubeUrl: clearableTrimmed,
   chapterState,
   status: z.enum(['active', 'lapsed', 'inactive']).default('active'),
   personId: clearableUuid, // null = unlink the person
@@ -360,6 +374,14 @@ export const vendorSchema = z.object({
   city: clearableTrimmed,
   state: clearableState, // postal address state — NOT the chapter
   zip: clearableTrimmed,
+  // Mailing address — the service nulls the mailing* columns whenever
+  // mailingSameAsPrimary is true, so stale values never linger.
+  mailingSameAsPrimary: z.boolean().default(true),
+  mailingAddressLine1: clearableTrimmed,
+  mailingCity: clearableTrimmed,
+  mailingState: clearableState,
+  mailingZip: clearableTrimmed,
+  website: clearableTrimmed,
   chapterState,
   servicesProvided: clearableTrimmed,
   isReferralPartner: z.boolean().default(false),

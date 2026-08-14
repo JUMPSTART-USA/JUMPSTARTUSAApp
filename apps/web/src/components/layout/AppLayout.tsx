@@ -38,8 +38,8 @@ import { useRecordScreenHistory } from '@/components/BackLink';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useIdleExpiryWarning } from '@/lib/session-activity';
 import { Button } from '@/components/ui/button';
+import { DARK_SELECT, Select } from '@/components/ui/input';
 import { useCurrentPageTitle } from '@/components/ui/page-header';
-import { SelectMenu } from '@/components/ui/select-menu';
 import { PageLoader } from '@/components/ui/spinner';
 import { api, ApiError } from '@/lib/api';
 import { useAuth, type Me, type ViewAsChange } from '@/lib/auth';
@@ -110,6 +110,58 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
   },
 ];
 
+/**
+ * Applying a view-as change reloads the whole SPA, so it must happen on the
+ * value the user SETTLES on — not on the first change event.
+ *
+ * macOS Safari steps a closed <select> with the arrow keys and with trackpad
+ * scroll, firing `change` for EVERY option it passes. Navigating on the first
+ * one meant stepping from the bottom option only ever moved one place before
+ * the reload threw the rest away. Keep the pending value locally so the
+ * control still responds instantly, and commit once the user pauses.
+ *
+ * (These switchers are native selects again: the macOS beta bug that anchored
+ * their popup off the top of the screen — the reason SelectMenu existed, PRs
+ * #38/#39 — was fixed in the OS release, and all menus now share the native
+ * control. See components/ui/filter-select.tsx for the history.)
+ */
+const VIEW_AS_COMMIT_MS = 450;
+
+function usePendingSelect(
+  committed: string,
+  /** Resolves false when the apply FAILED — the select snaps back to committed. */
+  commit: (value: string) => Promise<boolean>,
+) {
+  const [value, setValue] = useState(committed);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A ref, not the closure value: the snap-back fires after an async round
+  // trip and must read the committed value CURRENT at that moment.
+  const committedRef = useRef(committed);
+  committedRef.current = committed;
+
+  // Re-sync when the server-side value changes (a successful apply reloads
+  // the SPA; a failed one resolves false below and snaps back explicitly —
+  // `committed` itself never changes on failure, so an effect can't catch it).
+  useEffect(() => setValue(committed), [committed]);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  return {
+    value,
+    onChange: (next: string) => {
+      setValue(next);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => {
+        void commit(next).then((ok) => {
+          // Snap back so the control shows the real state, and so re-picking
+          // the same option fires a change event again (retry would otherwise
+          // be a no-op on a native select already displaying that value).
+          if (!ok) setValue(committedRef.current);
+        });
+      }, VIEW_AS_COMMIT_MS);
+    },
+  };
+}
+
 /** Admin "view as role" switcher (§7.1) — the API applies and enforces the choice. */
 function RoleSwitcher({
   user,
@@ -118,36 +170,32 @@ function RoleSwitcher({
   dark,
 }: {
   user: Me;
-  /** Fire-and-forget: AppLayout's applyViewAs owns error handling. */
-  viewAs: (change: ViewAsChange) => void;
+  /** AppLayout's applyViewAs owns error handling; false = failed, snap back. */
+  viewAs: (change: ViewAsChange) => Promise<boolean>;
   className?: string;
   dark?: boolean;
 }) {
+  const select = usePendingSelect(user.viewAsRole ?? '', (next) =>
+    viewAs({ role: (next || null) as RoleKey | null }),
+  );
   return (
-    <SelectMenu
+    <Select
       aria-label="View as role"
-      value={user.viewAsRole ?? ''}
-      onChange={(next) => viewAs({ role: (next || null) as RoleKey | null })}
-      className={className}
-      dark={dark}
-      options={[
-        { value: '', label: 'My access (Administrator)' },
-        ...ROLE_KEYS.filter((role) => role !== 'admin').map((role) => ({
-          value: role,
-          label: ROLE_NAMES[role],
-        })),
-      ]}
-    />
+      value={select.value}
+      onChange={(e) => select.onChange(e.target.value)}
+      className={cn(dark && DARK_SELECT, className)}
+    >
+      <option value="">My access (Administrator)</option>
+      {ROLE_KEYS.filter((role) => role !== 'admin').map((role) => (
+        <option key={role} value={role}>
+          {ROLE_NAMES[role]}
+        </option>
+      ))}
+    </Select>
   );
 }
 
-/**
- * Chapter switcher (§7.2) — shown only when the account may view more than one.
- *
- * Uses SelectMenu rather than a native <select>: pinned ~10px below the top of
- * the window, a native popup opens upward off-screen once a low option is
- * selected, stranding the options above it (see components/ui/select-menu.tsx).
- */
+/** Chapter switcher (§7.2) — shown only when the account may view more than one. */
 function ChapterSwitcher({
   user,
   viewAs,
@@ -155,31 +203,33 @@ function ChapterSwitcher({
   dark,
 }: {
   user: Me;
-  /** Fire-and-forget: AppLayout's applyViewAs owns error handling. */
-  viewAs: (change: ViewAsChange) => void;
+  /** AppLayout's applyViewAs owns error handling; false = failed, snap back. */
+  viewAs: (change: ViewAsChange) => Promise<boolean>;
   className?: string;
   dark?: boolean;
 }) {
+  const select = usePendingSelect(user.viewChapter ?? '', (next) =>
+    viewAs({ chapter: (next || null) as ChapterState | null }),
+  );
   const defaultLabel = user.actualChapter
     ? `${CHAPTER_NAMES[user.actualChapter as ChapterState] ?? user.actualChapter} (default)`
     : 'All chapters';
   return (
-    <SelectMenu
+    <Select
       aria-label="Viewing chapter"
-      value={user.viewChapter ?? ''}
-      onChange={(next) => viewAs({ chapter: (next || null) as ChapterState | null })}
-      className={className}
-      dark={dark}
-      options={[
-        { value: '', label: defaultLabel },
-        ...(user.allowedChapters ?? CHAPTER_STATES)
-          .filter((state) => state !== user.actualChapter)
-          .map((state) => ({
-            value: state,
-            label: CHAPTER_NAMES[state as ChapterState] ?? state,
-          })),
-      ]}
-    />
+      value={select.value}
+      onChange={(e) => select.onChange(e.target.value)}
+      className={cn(dark && DARK_SELECT, className)}
+    >
+      <option value="">{defaultLabel}</option>
+      {(user.allowedChapters ?? CHAPTER_STATES)
+        .filter((state) => state !== user.actualChapter)
+        .map((state) => (
+          <option key={state} value={state}>
+            {CHAPTER_NAMES[state as ChapterState] ?? state}
+          </option>
+        ))}
+    </Select>
   );
 }
 
@@ -269,17 +319,23 @@ export function AppLayout() {
    * an expired session to the login screen — /auth/* is exempt from the API
    * client's global 401 redirect, so it has to be handled here.
    */
-  const applyViewAs = (change: ViewAsChange) => {
+  const applyViewAs = (change: ViewAsChange): Promise<boolean> => {
     setViewAsError(null);
-    void viewAs(change).catch((err: unknown) => {
-      if (err instanceof ApiError && err.status === 401) {
-        window.location.assign('/login');
-        return;
-      }
-      setViewAsError(
-        err instanceof ApiError ? err.message : 'Could not switch view — please try again.',
-      );
-    });
+    return viewAs(change).then(
+      () => true,
+      (err: unknown) => {
+        if (err instanceof ApiError && err.status === 401) {
+          window.location.assign('/login');
+          return true; // navigating away — nothing left to snap back
+        }
+        setViewAsError(
+          err instanceof ApiError ? err.message : 'Could not switch view — please try again.',
+        );
+        // False tells usePendingSelect to snap the switcher back to the real
+        // committed state, so it never displays a preview that is not active.
+        return false;
+      },
+    );
   };
 
   if (!user) {
@@ -493,7 +549,7 @@ export function AppLayout() {
               </span>
               <button
                 type="button"
-                onClick={() => applyViewAs({ role: null, chapter: null })}
+                onClick={() => void applyViewAs({ role: null, chapter: null })}
                 className="ml-auto shrink-0 rounded-md border border-navy-ink/30 px-2.5 py-1 text-xs font-semibold hover:bg-navy-ink/10"
               >
                 Exit preview

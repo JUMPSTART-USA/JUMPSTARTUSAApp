@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   GENDERS,
+  SOCIAL_MEDIA_FIELDS,
   US_STATES,
   VOLUNTEER_STATUSES,
   volunteerUpdateSchema,
@@ -15,6 +16,7 @@ import { useForm, type Resolver } from 'react-hook-form';
 import { useParams } from 'react-router-dom';
 import { P, useListParams } from '@/lib/list-params';
 import { FormField } from '@/components/FormField';
+import { ProfilePhotoCard } from '@/components/ProfilePhotoCard';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, Select, Textarea } from '@/components/ui/input';
+import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { PhoneInput } from '@/components/ui/phone-input';
@@ -36,7 +38,7 @@ import { ErrorState, PageLoader } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { applyApiError, toDateInput } from '@/lib/form';
-import { formatDate, fullName, humanize } from '@/lib/utils';
+import { formatDate, fullName, humanize, socialHref } from '@/lib/utils';
 import { AssignmentsTab } from './tabs/AssignmentsTab';
 import { ChecksTab } from './tabs/ChecksTab';
 import { ClearancesTab } from './tabs/ClearancesTab';
@@ -67,6 +69,7 @@ export function VolunteerDetailPage() {
   const tab = values.tab || 'assignments';
   const { id = '' } = useParams();
   const { can } = useAuth();
+  const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -80,6 +83,10 @@ export function VolunteerDetailPage() {
   if (!data) return null;
 
   const { person } = data;
+  const socials = SOCIAL_MEDIA_FIELDS.flatMap((f) => {
+    const value = person[f.key];
+    return value ? [{ key: f.key, label: f.label, value }] : [];
+  });
 
   return (
     <div className="space-y-4">
@@ -103,6 +110,16 @@ export function VolunteerDetailPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-2">
+        <ProfilePhotoCard
+          photoPath={`/volunteers/${id}/photo`}
+          personName={fullName(person)}
+          hasPhoto={person.photoMimeType != null}
+          canEdit={can('volunteers.update')}
+          onChanged={() =>
+            queryClient.invalidateQueries({ queryKey: ['volunteers', 'detail', id] })
+          }
+        />
+
         <Card>
           <CardHeader>
             <CardTitle>Contact</CardTitle>
@@ -119,11 +136,50 @@ export function VolunteerDetailPage() {
               <InfoItem label="City / State / ZIP">
                 {[person.city, person.state, person.zip].filter(Boolean).join(', ') || null}
               </InfoItem>
+              <InfoItem label="Mailing address" className="sm:col-span-2">
+                {person.mailingSameAsPrimary
+                  ? 'Same as address'
+                  : [
+                      person.mailingAddressLine1,
+                      person.mailingAddressLine2,
+                      person.mailingCity,
+                      person.mailingState,
+                      person.mailingZip,
+                    ]
+                      .filter(Boolean)
+                      .join(', ') || null}
+              </InfoItem>
               <InfoItem label="Date of birth">
                 {person.dateOfBirth ? formatDate(person.dateOfBirth) : null}
               </InfoItem>
               <InfoItem label="Gender">
                 {person.gender ? humanize(person.gender) : null}
+              </InfoItem>
+              <InfoItem label="Social media" className="sm:col-span-2">
+                {socials.length > 0 ? (
+                  <span className="flex flex-wrap gap-x-4 gap-y-1">
+                    {socials.map((s) => {
+                      const href = socialHref(s.value);
+                      return (
+                        <span key={s.key} className="break-all">
+                          {s.label}:{' '}
+                          {href ? (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-primary underline"
+                            >
+                              {s.value}
+                            </a>
+                          ) : (
+                            s.value
+                          )}
+                        </span>
+                      );
+                    })}
+                  </span>
+                ) : null}
               </InfoItem>
             </DescriptionList>
           </CardContent>
@@ -270,6 +326,18 @@ interface VolunteerEditValues {
     city?: string;
     state?: UsState;
     zip?: string;
+    mailingSameAsPrimary?: boolean;
+    mailingAddressLine1?: string;
+    mailingAddressLine2?: string;
+    mailingCity?: string;
+    mailingState?: UsState;
+    mailingZip?: string;
+    facebookUrl?: string;
+    instagramUrl?: string;
+    twitterUrl?: string;
+    linkedinUrl?: string;
+    tiktokUrl?: string;
+    youtubeUrl?: string;
   };
   profile: {
     status?: VolunteerStatus;
@@ -310,6 +378,18 @@ function EditVolunteerDialog({
         city: person.city ?? '',
         state: (person.state ?? undefined) as UsState | undefined,
         zip: person.zip ?? '',
+        mailingSameAsPrimary: person.mailingSameAsPrimary,
+        mailingAddressLine1: person.mailingAddressLine1 ?? '',
+        mailingAddressLine2: person.mailingAddressLine2 ?? '',
+        mailingCity: person.mailingCity ?? '',
+        mailingState: (person.mailingState ?? undefined) as UsState | undefined,
+        mailingZip: person.mailingZip ?? '',
+        facebookUrl: person.facebookUrl ?? '',
+        instagramUrl: person.instagramUrl ?? '',
+        twitterUrl: person.twitterUrl ?? '',
+        linkedinUrl: person.linkedinUrl ?? '',
+        tiktokUrl: person.tiktokUrl ?? '',
+        youtubeUrl: person.youtubeUrl ?? '',
       },
       profile: {
         status: volunteer.status,
@@ -349,9 +429,10 @@ function EditVolunteerDialog({
     });
   });
 
-  const { register, formState } = form;
+  const { register, watch, formState } = form;
   const personErrors = formState.errors.person ?? {};
   const profileErrors = formState.errors.profile ?? {};
+  const mailingSame = watch('person.mailingSameAsPrimary');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -423,6 +504,59 @@ function EditVolunteerDialog({
               <FormField label="ZIP" error={personErrors.zip}>
                 <Input inputMode="numeric" {...register('person.zip')} />
               </FormField>
+            </div>
+            {/* Mailing address: inputs stay visible but disabled while "same as" is
+                checked; the API also nulls the mailing columns whenever it is set. */}
+            <div className="space-y-3 sm:col-span-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox {...register('person.mailingSameAsPrimary')} /> Mailing address is the
+                same as the address above
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField label="Mailing address line 1" error={personErrors.mailingAddressLine1}>
+                  <Input {...register('person.mailingAddressLine1')} disabled={mailingSame} />
+                </FormField>
+                <FormField label="Mailing address line 2" error={personErrors.mailingAddressLine2}>
+                  <Input {...register('person.mailingAddressLine2')} disabled={mailingSame} />
+                </FormField>
+                <FormField label="Mailing city" error={personErrors.mailingCity}>
+                  <Input {...register('person.mailingCity')} disabled={mailingSame} />
+                </FormField>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField label="Mailing state" error={personErrors.mailingState}>
+                    <Select
+                      {...register('person.mailingState', {
+                        setValueAs: (v) => (v === '' ? undefined : v),
+                      })}
+                      disabled={mailingSame}
+                    >
+                      <option value="">—</option>
+                      {US_STATES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField label="Mailing ZIP" error={personErrors.mailingZip}>
+                    <Input
+                      inputMode="numeric"
+                      {...register('person.mailingZip')}
+                      disabled={mailingSame}
+                    />
+                  </FormField>
+                </div>
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="mb-3 text-sm font-medium">Social media</p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                {SOCIAL_MEDIA_FIELDS.map((f) => (
+                  <FormField key={f.key} label={f.label} error={personErrors[f.key]}>
+                    <Input {...register(`person.${f.key}`)} placeholder="URL or handle" />
+                  </FormField>
+                ))}
+              </div>
             </div>
             <FormField label="Volunteer roles" hint="Comma-separated" className="sm:col-span-2">
               <Input value={rolesText} onChange={(e) => setRolesText(e.target.value)} />

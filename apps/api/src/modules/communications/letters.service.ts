@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess } from '../../common/chapter.util';
+import { effectiveMailingAddress } from '../../common/mailing.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 import { createPdf, pdfFooters, pdfHeader, pdfTable, pdfToBuffer, PDF_MARGIN } from '../../common/pdf.util';
@@ -16,6 +17,12 @@ const LETTER_PERSON_SELECT = {
   city: true,
   state: true,
   zip: true,
+  mailingSameAsPrimary: true,
+  mailingAddressLine1: true,
+  mailingAddressLine2: true,
+  mailingCity: true,
+  mailingState: true,
+  mailingZip: true,
 } as const;
 
 interface LetterPerson {
@@ -27,7 +34,20 @@ interface LetterPerson {
   city: string | null;
   state: string | null;
   zip: string | null;
+  mailingSameAsPrimary: boolean;
+  mailingAddressLine1: string | null;
+  mailingAddressLine2: string | null;
+  mailingCity: string | null;
+  mailingState: string | null;
+  mailingZip: string | null;
 }
+
+/**
+ * Where the letter actually goes — the shared chooser in common/mailing.util
+ * (separate mailing address when on file, else primary), so letters and the
+ * giving-statements report can never disagree about where mail is addressed.
+ */
+const mailToAddress = effectiveMailingAddress;
 
 interface LetterRow {
   id: string;
@@ -199,13 +219,16 @@ export class LettersService {
       pdfTable(
         doc,
         ['Name', 'Address', 'City', 'State', 'ZIP'],
-        letters.map((l) => [
-          recipientName(l.person),
-          [l.person.addressLine1, l.person.addressLine2].filter(Boolean).join(', '),
-          l.person.city ?? '',
-          l.person.state ?? '',
-          l.person.zip ?? '',
-        ]),
+        letters.map((l) => {
+          const to = mailToAddress(l.person);
+          return [
+            recipientName(l.person),
+            [to.addressLine1, to.addressLine2].filter(Boolean).join(', '),
+            to.city ?? '',
+            to.state ?? '',
+            to.zip ?? '',
+          ];
+        }),
         [0.28, 0.32, 0.2, 0.08, 0.12],
       );
     }
@@ -221,10 +244,11 @@ function recipientName(p: LetterPerson): string {
 
 /** Mailing address block: name, street line(s), "City, ST ZIP". */
 function addressBlock(p: LetterPerson): string[] {
-  const cityLine = [p.city, [p.state, p.zip].filter(Boolean).join(' ')]
+  const to = mailToAddress(p);
+  const cityLine = [to.city, [to.state, to.zip].filter(Boolean).join(' ')]
     .filter(Boolean)
     .join(', ');
-  return [recipientName(p), p.addressLine1, p.addressLine2, cityLine].filter(
+  return [recipientName(p), to.addressLine1, to.addressLine2, cityLine].filter(
     (line): line is string => Boolean(line),
   );
 }

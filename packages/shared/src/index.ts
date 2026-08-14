@@ -17,6 +17,7 @@ export * from './schemas/fleet';
 export * from './schemas/communications';
 export * from './schemas/auth';
 export * from './schemas/attachments';
+export * from './schemas/profilePhoto';
 export * from './schemas/portal';
 export * from './schemas/publicIntake';
 export * from './schemas/compliance';

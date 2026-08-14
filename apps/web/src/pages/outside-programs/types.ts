@@ -71,8 +71,10 @@ export interface OutsideSession {
   _count?: { attendance: number };
 }
 
-export type AttendanceStatus = 'present' | 'absent' | 'excused';
-export const ATTENDANCE_STATUSES: AttendanceStatus[] = ['present', 'absent', 'excused'];
+// Re-exported from shared so rows type-match what the API now accepts
+// (includes 'late'); the vocabulary lives in one place.
+export { ATTENDANCE_STATUSES, type AttendanceStatus } from '@jumpstart/shared';
+import type { AttendanceStatus } from '@jumpstart/shared';
 
 export interface OutsideSessionDetail extends Omit<OutsideSession, '_count'> {
   outsideProgram: { id: string; name: string };

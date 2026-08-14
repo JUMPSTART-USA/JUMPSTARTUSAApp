@@ -31,6 +31,7 @@ import {
   useInsideClassOptions,
   useInstitutionOptions,
   useOpportunityOptions,
+  useOutsideProgramOptions,
   useParticipantOptions,
   useReportCatalog,
   useVehicleOptions,
@@ -144,6 +145,7 @@ function RunnerInner({ report }: { report: ReportSummary }) {
   const employers = useEmployerOptions(has('employerId'));
   const caseManagers = useCaseManagerOptions(has('caseManagerId'));
   const opportunities = useOpportunityOptions(has('opportunityId'));
+  const outsidePrograms = useOutsideProgramOptions(has('outsideProgramId'));
 
   // Zero-param reports run immediately — there is nothing to fill in.
   useEffect(() => {
@@ -183,6 +185,7 @@ function RunnerInner({ report }: { report: ReportSummary }) {
     employerId: employers,
     caseManagerId: caseManagers,
     opportunityId: opportunities,
+    outsideProgramId: outsidePrograms,
   };
 
   const renderControl = (param: ReportParamDef) => {

@@ -1,4 +1,4 @@
-import { institutionSchema } from '@jumpstart/shared';
+import { institutionSchema, US_STATES } from '@jumpstart/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Checkbox, Input, Textarea } from '@/components/ui/input';
+import { Checkbox, Input, Select, Textarea } from '@/components/ui/input';
 import { FormError } from '@/components/ui/notice';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { api } from '@/lib/api';
@@ -27,6 +27,12 @@ interface InstitutionFormValues {
   city: string;
   state: string;
   zip: string;
+  /** Mailing address — fields disabled (and cleared server-side) while "same as" is checked. */
+  mailingSameAsPrimary: boolean;
+  mailingAddressLine1: string;
+  mailingCity: string;
+  mailingState: string;
+  mailingZip: string;
   mainPhone: string;
   notes: string;
   active: boolean;
@@ -45,6 +51,11 @@ function buildDefaults(
     // (the picker is hidden for them); all-chapters users choose it.
     state: institution?.state ?? chapter ?? '',
     zip: institution?.zip ?? '',
+    mailingSameAsPrimary: institution?.mailingSameAsPrimary ?? true,
+    mailingAddressLine1: institution?.mailingAddressLine1 ?? '',
+    mailingCity: institution?.mailingCity ?? '',
+    mailingState: institution?.mailingState ?? '',
+    mailingZip: institution?.mailingZip ?? '',
     mainPhone: institution?.mainPhone ?? '',
     notes: institution?.notes ?? '',
     active: institution?.active ?? true,
@@ -70,6 +81,7 @@ export function InstitutionFormDialog({
     handleSubmit,
     reset,
     setError,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<InstitutionFormValues>({
     resolver: formResolver<InstitutionFormValues>(institutionSchema),
@@ -82,6 +94,8 @@ export function InstitutionFormDialog({
       setTopError(null);
     }
   }, [open, institution, chapter, reset]);
+
+  const mailingSame = watch('mailingSameAsPrimary');
 
   const mutation = useMutation({
     mutationFn: (values: InstitutionFormValues) =>
@@ -131,6 +145,44 @@ export function InstitutionFormDialog({
               <FormField label="ZIP" error={errors.zip}>
                 <Input inputMode="numeric" {...register('zip')} />
               </FormField>
+            </div>
+          </div>
+
+          {/* Mailing address: inputs stay visible but disabled while "same as" is
+              checked; the API also nulls the mailing columns whenever it is set. */}
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox {...register('mailingSameAsPrimary')} />
+              Mailing address is the same as the address above
+            </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                label="Mailing address"
+                error={errors.mailingAddressLine1}
+                className="sm:col-span-2"
+              >
+                <Input {...register('mailingAddressLine1')} disabled={mailingSame} />
+              </FormField>
+              <FormField label="Mailing city" error={errors.mailingCity}>
+                <Input {...register('mailingCity')} disabled={mailingSame} />
+              </FormField>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Mail can go anywhere (PO boxes included) — any US state,
+                    unlike the facility state above, which IS the chapter (§7.2). */}
+                <FormField label="Mailing state" error={errors.mailingState}>
+                  <Select {...register('mailingState')} disabled={mailingSame}>
+                    <option value="">—</option>
+                    {US_STATES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField label="Mailing ZIP" error={errors.mailingZip}>
+                  <Input inputMode="numeric" {...register('mailingZip')} disabled={mailingSame} />
+                </FormField>
+              </div>
             </div>
           </div>
 

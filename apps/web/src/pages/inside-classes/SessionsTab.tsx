@@ -1,3 +1,4 @@
+import { ATTENDANCE_STATUSES, type AttendanceStatus } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -27,9 +28,11 @@ import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { todayInput } from '@/lib/form';
 import { cn, formatDate, fullName } from '@/lib/utils';
-import type { AttendanceStatus, ClassSession, RosterEnrollment } from './types';
+import type { ClassSession, RosterEnrollment } from './types';
 
-const ATTENDANCE_STATUSES: AttendanceStatus[] = ['present', 'absent', 'excused'];
+// Present and late both count as attended — the session-list tally mirrors the
+// API's attendance-rate rule (reports tallyAttendance).
+const ATTENDED_STATUSES: AttendanceStatus[] = ['present', 'late'];
 
 interface AttendanceRowState {
   status: AttendanceStatus | '';
@@ -359,7 +362,9 @@ export function SessionsTab({
         <div className="grid gap-4 lg:grid-cols-[260px,1fr]">
           <div className="space-y-1">
             {sessions.map((session) => {
-              const presentCount = session.attendance.filter((a) => a.status === 'present').length;
+              const attendedCount = session.attendance.filter((a) =>
+                ATTENDED_STATUSES.includes(a.status),
+              ).length;
               const isSelected = selected?.id === session.id;
               return (
                 <button
@@ -379,7 +384,7 @@ export function SessionsTab({
                   ) : null}
                   <span className="block text-xs text-muted-foreground">
                     {session.attendance.length > 0
-                      ? `${presentCount}/${roster.length} present`
+                      ? `${attendedCount}/${roster.length} attended`
                       : 'Attendance not taken'}
                   </span>
                 </button>

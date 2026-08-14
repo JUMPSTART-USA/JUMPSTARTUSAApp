@@ -58,24 +58,7 @@ ring, login CTA), real status tokens, mobile-first.
 | `EntityPicker` | `@/components/ui/entity-picker` | Generic debounced search-and-pick. |
 | `ChapterSelect` | `@/components/ChapterSelect` | Chapter (state) field on create/edit forms (§7.2): REQUIRED select over the six chapter states, rendered ONLY for all-chapters users — scoped users' records are stamped server-side. Spread `register('chapterState')` into it. |
 | `ChapterFilterSelect` | `@/components/ChapterSelect` | Chapter filter in `ListToolbar`: "All chapters" + the six states, hidden for chapter-scoped users (the API force-filters them). Controlled `value`/`onChange`. |
-| `SelectMenu` | `@/components/ui/select-menu` | Dropdown that renders its menu IN THE PAGE. Use ONLY where a native `<select>` popup would be clipped — controls pinned near the top of the window, like the header's role/chapter switchers: macOS anchors the popup to the selected row, so a low selection opens it off-screen and strands the options above. Native `<Select>` remains correct for form fields in dialogs. |
-
-`SelectMenu` positioning invariants — three things are load-bearing, each one
-paid for with a WebKit bug:
-
-1. The list is **portalled to `<body>`**. As a child of the sticky header it
-   rendered in a Safari tab but was invisible in the installed (Dock) web app:
-   WebKit clips an overflowing child of a composited sticky element.
-2. It is positioned **`absolute` in document coordinates**
-   (`getBoundingClientRect() + scrollY`), never `fixed`. A fixed element gets
-   its own viewport-sized composited layer, and WebKit stops painting those once
-   the window is large enough — the menu vanished above roughly 3354x2274.
-3. Being document-anchored, it **closes on scroll — but only scrolls that start
-   outside the list**, and the highlighted option is revealed with the list's
-   own `scrollTop`, never `scrollIntoView`. `scrollIntoView` walks up to the
-   nearest scrollable ancestor, which for a `<body>` portal is the page: it
-   dragged the page out from under the menu and tripped close-on-scroll, so a
-   menu with more options than fit shut itself as it opened.
+| `FilterSelect` | `@/components/ui/filter-select` | Toolbar/page-level dropdown: native `<select>` that takes `<option>` children and hands `onChange` the VALUE, not the event. Every menu in the app is a native select — the in-page `SelectMenu` workaround (PRs #38/#39) existed for a macOS beta bug that anchored native popups off-screen for controls near the top of the window; the OS fix shipped and the component was removed. Do not re-add an in-page listbox without re-measuring the OS behaviour (history in filter-select.tsx). |
 | `ParticipantPicker, VolunteerPicker` | `@/components/pickers` | Standard pickers (`value`/`onChange` with `{id,label,sublabel?}`). Replace all module-local pickers. |
 
 Form grids: `grid gap-4 sm:grid-cols-2` (never 2 columns on mobile).

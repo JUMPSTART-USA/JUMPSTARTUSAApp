@@ -3,6 +3,7 @@ import type { Prisma } from '@jumpstart/database';
 import type { InstitutionContactInput, InstitutionInput, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess } from '../../common/chapter.util';
+import { applyMailingSameRule } from '../../common/mailing.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hasPerm, type AuthenticatedUser } from '../../common/types';
 
@@ -228,7 +229,7 @@ export class InstitutionsService {
     // Chapter scoping (§7.2): a scoped user cannot create for another chapter.
     assertChapterAccess(user.chapter, input.state);
     const institution = await this.prisma.institution.create({
-      data: { ...input, createdById: userId, updatedById: userId },
+      data: { ...applyMailingSameRule(input, true), createdById: userId, updatedById: userId },
     });
     await this.audit.logCreate(userId, 'institution', institution.id, institution);
     return institution;
@@ -241,7 +242,7 @@ export class InstitutionsService {
     assertChapterAccess(user.chapter, input.state);
     const updated = await this.prisma.institution.update({
       where: { id },
-      data: { ...input, updatedById: userId },
+      data: { ...applyMailingSameRule(input, existing.mailingSameAsPrimary), updatedById: userId },
     });
     await this.audit.logUpdate(userId, 'institution', id, existing, updated);
     return updated;

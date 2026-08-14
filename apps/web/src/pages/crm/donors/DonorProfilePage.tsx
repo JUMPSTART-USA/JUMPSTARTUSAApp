@@ -1,10 +1,11 @@
-import { donorRelationshipSchema, INTERACTION_CHANNEL_LABELS, INTERACTION_PURPOSE_LABELS } from '@jumpstart/shared';
+import { donorRelationshipSchema, INTERACTION_CHANNEL_LABELS, INTERACTION_PURPOSE_LABELS, SOCIAL_MEDIA_FIELDS } from '@jumpstart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleDollarSign, HeartHandshake, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { FormField } from '@/components/FormField';
+import { ProfilePhotoCard } from '@/components/ProfilePhotoCard';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardHeaderRow, CardTitle } from '@/components/ui/card';
@@ -35,7 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, qs, type Paged } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { applyApiError, formResolver, todayInput } from '@/lib/form';
-import { formatDate, formatMoney, fullName, humanize } from '@/lib/utils';
+import { formatDate, formatMoney, fullName, humanize, socialHref } from '@/lib/utils';
 import { DonorPicker, LifecycleBadge, StatTile } from '../shared';
 import type {
   Donation,
@@ -573,6 +574,10 @@ export function DonorProfilePage() {
   const canUpdate = can('donors.update');
   const canCreate = can('donors.create');
   const today = todayInput();
+  const socialLinks = SOCIAL_MEDIA_FIELDS.flatMap((f) => {
+    const value = donor[f.key];
+    return value ? [{ key: f.key, label: f.label, value }] : [];
+  });
 
   return (
     <div className="space-y-4">
@@ -603,32 +608,80 @@ export function DonorProfilePage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Contact</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <DescriptionList columns={1} className="gap-y-3">
-              <InfoItem label="Contact person">{donor.contactPerson ?? '—'}</InfoItem>
-              <InfoItem label="Email">{donor.email ?? '—'}</InfoItem>
-              <InfoItem label="Phone">{donor.phone ?? '—'}</InfoItem>
-              <InfoItem label="Address">
-                {[donor.addressLine1, [donor.city, donor.state].filter(Boolean).join(', '), donor.zip]
-                  .filter(Boolean)
-                  .join(' · ') || '—'}
-              </InfoItem>
-              <InfoItem label="Chapter">
-                <Badge variant="outline">{donor.chapterState}</Badge>
-              </InfoItem>
-              <InfoItem label="Linked person">
-                {donor.person ? fullName(donor.person) : 'Not linked'}
-              </InfoItem>
-              <InfoItem label="Notes">
-                <span className="whitespace-pre-wrap">{donor.notes ?? '—'}</span>
-              </InfoItem>
-            </DescriptionList>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <ProfilePhotoCard
+            photoPath={`/donors/${donor.id}/photo`}
+            personName={donor.name}
+            hasPhoto={donor.photoMimeType != null}
+            canEdit={canUpdate}
+            onChanged={() => void queryClient.invalidateQueries({ queryKey: ['crm', 'donors'] })}
+          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Contact</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DescriptionList columns={1} className="gap-y-3">
+                <InfoItem label="Contact person">{donor.contactPerson ?? '—'}</InfoItem>
+                <InfoItem label="Email">{donor.email ?? '—'}</InfoItem>
+                <InfoItem label="Phone">{donor.phone ?? '—'}</InfoItem>
+                <InfoItem label="Address">
+                  {[donor.addressLine1, [donor.city, donor.state].filter(Boolean).join(', '), donor.zip]
+                    .filter(Boolean)
+                    .join(' · ') || '—'}
+                </InfoItem>
+                <InfoItem label="Mailing address">
+                  {donor.mailingSameAsPrimary
+                    ? 'Same as address'
+                    : [
+                        donor.mailingAddressLine1,
+                        [donor.mailingCity, donor.mailingState].filter(Boolean).join(', '),
+                        donor.mailingZip,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || '—'}
+                </InfoItem>
+                <InfoItem label="Social media">
+                  {socialLinks.length === 0 ? (
+                    '—'
+                  ) : (
+                    <span className="flex flex-wrap gap-x-3 gap-y-1">
+                      {socialLinks.map((s) => {
+                        const href = socialHref(s.value);
+                        return (
+                          <span key={s.key} className="min-w-0">
+                            <span className="text-muted-foreground">{s.label}:</span>{' '}
+                            {href ? (
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="break-all text-primary underline"
+                              >
+                                {s.value}
+                              </a>
+                            ) : (
+                              <span className="break-all">{s.value}</span>
+                            )}
+                          </span>
+                        );
+                      })}
+                    </span>
+                  )}
+                </InfoItem>
+                <InfoItem label="Chapter">
+                  <Badge variant="outline">{donor.chapterState}</Badge>
+                </InfoItem>
+                <InfoItem label="Linked person">
+                  {donor.person ? fullName(donor.person) : 'Not linked'}
+                </InfoItem>
+                <InfoItem label="Notes">
+                  <span className="whitespace-pre-wrap">{donor.notes ?? '—'}</span>
+                </InfoItem>
+              </DescriptionList>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card className="lg:col-span-2">
           <CardHeader>
