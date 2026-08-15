@@ -11,6 +11,7 @@ import { TOTP_REQUIRED_ROLES } from '@jumpstart/shared';
 import { AuditService } from '../audit/audit.service';
 import { loadEnv } from '../config/env';
 import { MailService } from '../mail/mail.service';
+import { PasskeysService, type PasskeyAssertion } from './passkeys.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Roles for which TOTP two-factor is mandatory (§3.1). */
@@ -38,6 +39,10 @@ const sha256 = (value: string) => createHash('sha256').update(value).digest('hex
 
 export interface LoginResult {
   status: 'ok' | 'totp_required';
+  /** totp_required only — internal to the controller, never sent to clients. */
+  userId?: string;
+  totpEnabled?: boolean;
+  passkeyAvailable?: boolean;
   user?: {
     id: string;
     email: string;
@@ -55,6 +60,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    private readonly passkeys: PasskeysService,
   ) {}
 
   async validateLogin(
@@ -62,6 +68,7 @@ export class AuthService {
     password: string,
     totpCode?: string,
     recoveryCode?: string,
+    passkey?: PasskeyAssertion,
   ): Promise<LoginResult> {
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase() },
@@ -105,9 +112,28 @@ export class AuthService {
 
     const roles = user.userRoles.map((ur) => ur.role.key);
     const totpMandatory = roles.some((r) => TOTP_REQUIRED.has(r));
+    const passkeyCount = await this.prisma.webAuthnCredential.count({
+      where: { userId: user.id },
+    });
 
-    if (user.totpEnabled) {
-      if (recoveryCode) {
+    // A passkey is a second factor in its own right — an account holding only
+    // passkeys (no TOTP) still gets the second-factor gate.
+    if (user.totpEnabled || passkeyCount > 0) {
+      if (passkey) {
+        const ok = passkey.challenge
+          ? await this.passkeys.verifyAuthentication(user.id, passkey.response, passkey.challenge)
+          : false;
+        if (!ok) {
+          await this.audit.log({
+            userId: user.id,
+            action: 'login_failed',
+            entityType: 'user',
+            entityId: user.id,
+            metadata: { reason: 'bad_passkey' },
+          });
+          throw new UnauthorizedException('Passkey sign-in failed — try again or use a code');
+        }
+      } else if (recoveryCode) {
         // Lost-authenticator fallback: burn a single-use recovery code.
         const remaining = await this.consumeRecoveryCode(user.id, recoveryCode);
         if (remaining === null) {
@@ -128,9 +154,18 @@ export class AuthService {
           metadata: { event: 'recovery_code_used', remainingRecoveryCodes: remaining },
         });
       } else if (!totpCode) {
-        return { status: 'totp_required' };
+        return {
+          status: 'totp_required',
+          userId: user.id,
+          totpEnabled: user.totpEnabled,
+          passkeyAvailable: passkeyCount > 0,
+        };
       } else {
-        const valid = authenticator.verify({ token: totpCode, secret: user.totpSecret ?? '' });
+        // A 6-digit code only counts when TOTP is actually enrolled — a
+        // passkey-only account must not accept guessed codes.
+        const valid =
+          user.totpEnabled &&
+          authenticator.verify({ token: totpCode, secret: user.totpSecret ?? '' });
         if (!valid) {
           await this.audit.log({
             userId: user.id,
@@ -163,7 +198,7 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         roles,
-        mustSetupTotp: totpMandatory && !user.totpEnabled,
+        mustSetupTotp: totpMandatory && !user.totpEnabled && passkeyCount === 0,
         chapter: user.regionScopes[0]?.state ?? null,
       },
     };

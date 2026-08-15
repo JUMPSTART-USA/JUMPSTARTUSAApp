@@ -83,3 +83,21 @@ export function webOrigins(env: { WEB_ORIGIN: string; WEB_ORIGIN_ALIASES: string
       .filter(Boolean),
   ];
 }
+
+/**
+ * WebAuthn relying-party id — DERIVED from the canonical origin, never its own
+ * setting. A separate RP_ID env var was tried and is exactly the kind of knob
+ * that silently defaults wrong: nothing set it in either deployed environment,
+ * so every browser ceremony would have failed against rpID "localhost" while
+ * the API happily served options. The host of WEB_ORIGIN is correct by
+ * construction everywhere — localhost in dev, the custom domain in prod.
+ *
+ * Consequence worth knowing: passkeys only work on the CANONICAL origin. A
+ * user who arrives on a WEB_ORIGIN_ALIASES host (the old front door kept alive
+ * through a cutover) cannot register or use one there — the browser refuses an
+ * rpID that is not a suffix of the page's own domain. The SPA surfaces that as
+ * guidance rather than a dead button (see passkeysAvailable in /auth/me).
+ */
+export function rpId(env: { WEB_ORIGIN: string }): string {
+  return new URL(env.WEB_ORIGIN).hostname;
+}

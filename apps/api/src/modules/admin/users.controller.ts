@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Req,
   Put,
   Query,
 } from '@nestjs/common';
@@ -22,7 +23,7 @@ import { CHAPTER_STATES,
 import { z } from 'zod';
 import { CurrentUser, RequirePermission } from '../../common/decorators';
 import { zodBody, zodQuery } from '../../common/pipes/zod-validation.pipe';
-import type { AuthenticatedUser } from '../../common/types';
+import type { AuthenticatedRequest, AuthenticatedUser } from '../../common/types';
 import { AdminUsersService } from './users.service';
 
 const listFiltersSchema = listQuerySchema.extend({
@@ -39,6 +40,7 @@ const resetTotpSchema = z.object({
     .trim()
     .regex(/^\d{6}$/)
     .optional(),
+  stepUpPasskeyResponse: z.object({ id: z.string().min(1) }).passthrough().optional(),
 });
 type ResetTotpInput = z.infer<typeof resetTotpSchema>;
 type DeactivateInput = z.infer<typeof deactivateSchema>;
@@ -115,8 +117,15 @@ export class AdminUsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body(zodBody(resetTotpSchema)) body: ResetTotpInput,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.users.resetTotp(id, user.id, body.code);
+    const challenge = req.session.webauthnStepUpChallenge;
+    delete req.session.webauthnStepUpChallenge;
+    return this.users.resetTotp(id, user.id, {
+      code: body.code,
+      passkeyResponse: body.stepUpPasskeyResponse as never,
+      challenge,
+    });
   }
 
   @Get(':id/region-scopes')

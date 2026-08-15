@@ -213,6 +213,12 @@ var apiAppSettings = [
     name: 'WEB_ORIGIN_ALIASES'
     value: customWebOrigin != '' ? 'https://${staticSite.properties.defaultHostname}' : ''
   }
+  {
+    // Passkeys bind to this domain (WebAuthn rpID) — the custom domain when
+    // one exists; 'localhost' otherwise, which disables passkeys in practice.
+    name: 'RP_ID'
+    value: customWebOrigin != '' ? replace(customWebOrigin, 'https://', '') : 'localhost'
+  }
   { name: 'DATABASE_URL', value: '@Microsoft.KeyVault(SecretUri=${secretDatabaseUrl.properties.secretUri})' }
   { name: 'SESSION_SECRET', value: '@Microsoft.KeyVault(SecretUri=${secretSessionSecret.properties.secretUri})' }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }

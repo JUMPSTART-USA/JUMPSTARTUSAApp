@@ -13,6 +13,8 @@ export interface AuthenticatedUser {
   actualRoles: RoleKey[];
   /** Whether the account has confirmed a TOTP authenticator (drives /account). */
   totpEnabled: boolean;
+  /** Registered passkeys — satisfies the second-factor mandate like TOTP. */
+  passkeyCount: number;
   /** True when a TOTP-mandatory role has not enrolled yet (soft nudge, §3.2). */
   mustSetupTotp: boolean;
   /** Set while an administrator is previewing the app as another role. */
@@ -41,6 +43,11 @@ declare module 'express-session' {
     viewAsRole?: RoleKey;
     /** Chapter preview — applied by SessionAuthGuard while the account may view that chapter. */
     viewChapter?: ChapterState;
+    /** Pending WebAuthn challenge — registration (signed-in) or login second factor. */
+    webauthnChallenge?: string;
+    /** Pending step-up assertion challenge — separate slot so proving
+     *  possession never clobbers an in-flight registration challenge. */
+    webauthnStepUpChallenge?: string;
   }
 }
 

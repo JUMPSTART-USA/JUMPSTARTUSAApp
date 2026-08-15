@@ -10,6 +10,7 @@ export interface AdminUser {
   status: UserStatus;
   personId: string | null;
   totpEnabled: boolean;
+  passkeyCount: number;
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;

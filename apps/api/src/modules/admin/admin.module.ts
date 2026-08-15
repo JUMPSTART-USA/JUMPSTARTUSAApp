@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../../auth/auth.module';
 import { AdminAuditLogsController } from './audit-logs.controller';
 import { AdminEmailController } from './email.controller';
 import { AdminAuditLogsService } from './audit-logs.service';
@@ -14,6 +15,7 @@ import { AdminUsersController } from './users.controller';
 import { AdminUsersService } from './users.service';
 
 @Module({
+  imports: [AuthModule],
   controllers: [
     AdminUsersController,
     AdminEmailController,

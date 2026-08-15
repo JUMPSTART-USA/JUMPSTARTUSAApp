@@ -46,6 +46,7 @@ export class SessionAuthGuard implements CanActivate {
           },
         },
         regionScopes: { orderBy: { state: 'asc' } },
+        _count: { select: { webauthnCredentials: true } },
       },
     });
 
@@ -111,9 +112,14 @@ export class SessionAuthGuard implements CanActivate {
       permissions,
       actualRoles: roles,
       totpEnabled: user.totpEnabled,
-      // Soft TOTP mandate (§3.2): computed from the account's REAL roles so a
-      // "view as" preview can neither trigger nor hide the enrollment nudge.
-      mustSetupTotp: !user.totpEnabled && roles.some((r) => TOTP_REQUIRED.has(r)),
+      passkeyCount: user._count.webauthnCredentials,
+      // Soft second-factor mandate (§3.2): a passkey OR TOTP satisfies it.
+      // Computed from the account's REAL roles so a "view as" preview can
+      // neither trigger nor hide the enrollment nudge.
+      mustSetupTotp:
+        !user.totpEnabled &&
+        user._count.webauthnCredentials === 0 &&
+        roles.some((r) => TOTP_REQUIRED.has(r)),
       viewAsRole,
       personId: user.personId,
       chapter: viewChapter ?? scopedChapters[0] ?? null,

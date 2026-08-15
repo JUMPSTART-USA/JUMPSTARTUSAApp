@@ -1,4 +1,3 @@
-import { authenticator } from 'otplib';
 import {
   BadRequestException,
   ConflictException,
@@ -9,7 +8,9 @@ import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
 import type { Prisma, UserStatus } from '@jumpstart/database';
 import type { CreateUserInput, ListQuery, RoleKey, UpdateUserInput } from '@jumpstart/shared';
+import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
 import { AuditService } from '../../audit/audit.service';
+import { PasskeysService } from '../../auth/passkeys.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../../mail/mail.service';
 
@@ -24,6 +25,7 @@ const SORTABLE = new Set(['email', 'firstName', 'lastName', 'status', 'lastLogin
 const USER_ROLES_INCLUDE = {
   userRoles: { include: { role: true } },
   regionScopes: true,
+  _count: { select: { webauthnCredentials: true } },
 } as const;
 type UserWithRoles = Prisma.UserGetPayload<{ include: typeof USER_ROLES_INCLUDE }>;
 
@@ -37,6 +39,7 @@ function toSafeUser(user: UserWithRoles) {
     status: user.status,
     personId: user.personId,
     totpEnabled: user.totpEnabled,
+    passkeyCount: user._count.webauthnCredentials,
     lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
@@ -54,8 +57,9 @@ export class AdminUsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-      private readonly mail: MailService,
-) {}
+    private readonly mail: MailService,
+    private readonly passkeys: PasskeysService,
+  ) {}
 
   async list(query: ListQuery, filters: UserListFilters) {
     const where: Prisma.UserWhereInput = {
@@ -372,27 +376,22 @@ export class AdminUsersService {
    * /account. Admin-gated because this REMOVES a second factor — the audit
    * row is the paper trail.
    */
-  async resetTotp(id: string, userId: string, actingAdminCode?: string) {
+  async resetTotp(
+    id: string,
+    userId: string,
+    stepUp: { code?: string; passkeyResponse?: AuthenticationResponseJSON; challenge?: string },
+  ) {
     const existing = await this.getRaw(id);
-    if (!existing.totpEnabled) {
-      throw new ConflictException('This account does not have two-factor authentication enabled');
+    if (!existing.totpEnabled && existing._count.webauthnCredentials === 0) {
+      throw new ConflictException('This account has no second factor to reset');
     }
 
-    // Step-up (§3.2): removing a second factor demands the ACTING admin's own
-    // current authenticator code — a signed-in-but-unattended admin screen
-    // must not be enough. Skipped only while the admin has no TOTP yet
-    // (bootstrap), which the mustSetupTotp nudge is busy closing.
-    const actingAdmin = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    if (actingAdmin.totpEnabled) {
-      if (!actingAdminCode) {
-        throw new BadRequestException(
-          'Enter the 6-digit code from your own authenticator to authorize this reset',
-        );
-      }
-      if (!authenticator.verify({ token: actingAdminCode, secret: actingAdmin.totpSecret ?? '' })) {
-        throw new BadRequestException('Invalid authentication code');
-      }
-    }
+    // Step-up (§3.2): removing someone's second factor demands proof from the
+    // ACTING admin — a code, or a passkey assertion when that is what they
+    // hold. requireStepUp is the single rule (a passkey-only admin used to
+    // sail through this check entirely). No factor at all = nothing to prove
+    // with, which the mustSetupTotp nudge is busy closing.
+    await this.passkeys.requireStepUp(userId, stepUp);
 
     const [updated] = await this.prisma.$transaction([
       this.prisma.user.update({
@@ -401,16 +400,19 @@ export class AdminUsersService {
         include: USER_ROLES_INCLUDE,
       }),
       this.prisma.totpRecoveryCode.deleteMany({ where: { userId: id } }),
+      this.prisma.webAuthnCredential.deleteMany({ where: { userId: id } }),
     ]);
 
     await this.audit.logUpdate(
       userId,
       'user',
       id,
-      { totpEnabled: true },
-      { totpEnabled: false, event: 'totp_reset_by_admin' },
+      { totpEnabled: existing.totpEnabled, passkeys: existing._count.webauthnCredentials },
+      { totpEnabled: false, passkeys: 0, event: 'second_factor_reset_by_admin' },
     );
-    return toSafeUser(updated);
+    // The include ran inside the same transaction as the deletes, so its
+    // _count still reflects the pre-reset rows — report the real post state.
+    return { ...toSafeUser(updated), passkeyCount: 0 };
   }
 
   // ── Region scopes (§7.2) ──────────────────────────────────────────────────

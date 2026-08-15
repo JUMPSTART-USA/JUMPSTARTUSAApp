@@ -1,3 +1,4 @@
+import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CHAPTER_BRAND, usChapterMap } from '@/assets/brand/chapters';
@@ -11,13 +12,26 @@ import { api, ApiError } from '@/lib/api';
 import { signedOutReason } from '@/lib/session-return';
 import { useAuth } from '@/lib/auth';
 
+/** The second-factor step's entry mode. Passkey leads when one is registered. */
+type SecondFactorMode = 'passkey' | 'totp' | 'recovery';
+
+interface LoginStepResponse {
+  totpRequired?: boolean;
+  /** Whether a 6-digit code is even possible (passkey-only accounts: no). */
+  totpEnabled?: boolean;
+  /** WebAuthn request options when the account has passkeys; null otherwise. */
+  passkeyOptions?: Parameters<typeof startAuthentication>[0]['optionsJSON'] | null;
+  user?: unknown;
+}
+
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [totpRequired, setTotpRequired] = useState(false);
-  /** Lost-authenticator fallback: swaps the code field for a recovery-code one. */
-  const [useRecovery, setUseRecovery] = useState(false);
+  const [totpEnabled, setTotpEnabled] = useState(true);
+  const [passkeyOptions, setPasskeyOptions] = useState<LoginStepResponse['passkeyOptions']>(null);
+  const [mode, setMode] = useState<SecondFactorMode>('totp');
   const [recoveryCode, setRecoveryCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,27 +44,66 @@ export function LoginPage() {
    */
   const expired = signedOutReason() === 'expired';
 
+  const finishLogin = async () => {
+    await refresh();
+    // No navigate() here: App's /login redirect fires as soon as `user` lands
+    // and sends the user to the interrupted path. Racing it only lost.
+    navigate('/');
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const result = await api.post<{ totpRequired?: boolean; user?: unknown }>('/auth/login', {
+      const result = await api.post<LoginStepResponse>('/auth/login', {
         email,
         password,
-        totpCode: !useRecovery && totpCode ? totpCode : undefined,
-        recoveryCode: useRecovery && recoveryCode ? recoveryCode : undefined,
+        totpCode: totpRequired && mode === 'totp' && totpCode ? totpCode : undefined,
+        recoveryCode: totpRequired && mode === 'recovery' && recoveryCode ? recoveryCode : undefined,
       });
       if (result.totpRequired) {
         setTotpRequired(true);
+        setTotpEnabled(result.totpEnabled ?? true);
+        setPasskeyOptions(result.passkeyOptions ?? null);
+        // Only lead with the passkey when this browser can actually run the
+        // ceremony; otherwise the button would be a dead end.
+        setMode(result.passkeyOptions && browserSupportsWebAuthn() ? 'passkey' : 'totp');
         return;
       }
-      await refresh();
-      // No navigate() here: App's /login redirect fires as soon as `user` lands
-      // and sends the user to the interrupted path. Racing it only lost.
-      navigate('/');
+      await finishLogin();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Sign-in failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** The passkey ceremony: browser prompt (Face ID / Touch ID) → assertion → login. */
+  const signInWithPasskey = async () => {
+    if (!passkeyOptions) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const assertion = await startAuthentication({ optionsJSON: passkeyOptions });
+      const result = await api.post<LoginStepResponse>('/auth/login', {
+        email,
+        password,
+        passkeyResponse: assertion,
+      });
+      if (result.totpRequired) {
+        // Server round-trip landed back on the second-factor step (stale
+        // challenge, e.g. after idling here) — fresh options arrive with it.
+        setPasskeyOptions(result.passkeyOptions ?? null);
+        setError('Passkey sign-in did not complete — try again.');
+        return;
+      }
+      await finishLogin();
+    } catch (err) {
+      // NotAllowedError = the user dismissed the browser prompt; not a failure
+      // worth alarming copy.
+      if (err instanceof Error && err.name === 'NotAllowedError') return;
+      setError(err instanceof ApiError ? err.message : 'Passkey sign-in failed');
     } finally {
       setBusy(false);
     }
@@ -131,7 +184,38 @@ export function LoginPage() {
                   />
                 </div>
               </>
-            ) : !useRecovery ? (
+            ) : mode === 'passkey' ? (
+              <div className="space-y-3">
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full"
+                  disabled={busy}
+                  onClick={() => void signInWithPasskey()}
+                >
+                  {busy ? 'Waiting for your passkey…' : 'Sign in with your passkey'}
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">
+                  Your browser will ask for Face ID, Touch ID, or your security key.
+                </p>
+                {totpEnabled ? (
+                  <button
+                    type="button"
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => {
+                      setMode('totp');
+                      setError(null);
+                    }}
+                  >
+                    Use an authenticator code instead
+                  </button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Lost your passkey? An administrator can reset your sign-in.
+                  </p>
+                )}
+              </div>
+            ) : mode === 'totp' ? (
               <div className="space-y-1.5">
                 <Label htmlFor="totp">Authentication code</Label>
                 <Input
@@ -148,16 +232,30 @@ export function LoginPage() {
                 <p className="text-xs text-muted-foreground">
                   Enter the code from your authenticator app.
                 </p>
-                <button
-                  type="button"
-                  className="text-xs text-primary hover:underline"
-                  onClick={() => {
-                    setUseRecovery(true);
-                    setError(null);
-                  }}
-                >
-                  Lost your authenticator? Use a recovery code
-                </button>
+                <div className="flex flex-col items-start gap-1">
+                  {passkeyOptions ? (
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:underline"
+                      onClick={() => {
+                        setMode('passkey');
+                        setError(null);
+                      }}
+                    >
+                      Use your passkey instead
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => {
+                      setMode('recovery');
+                      setError(null);
+                    }}
+                  >
+                    Lost your authenticator? Use a recovery code
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -180,7 +278,7 @@ export function LoginPage() {
                   type="button"
                   className="text-xs text-primary hover:underline"
                   onClick={() => {
-                    setUseRecovery(false);
+                    setMode('totp');
                     setError(null);
                   }}
                 >
@@ -194,9 +292,13 @@ export function LoginPage() {
               </Notice>
             ) : null}
             <FormError message={error} />
-            <Button type="submit" variant="accent" size="lg" className="w-full" disabled={busy}>
-              {busy ? 'Signing in…' : totpRequired ? 'Verify' : 'Sign in'}
-            </Button>
+            {/* The passkey mode has its own button — a submit would send an
+                empty code and burn a throttle slot. */}
+            {!(totpRequired && mode === 'passkey') ? (
+              <Button type="submit" variant="accent" size="lg" className="w-full" disabled={busy}>
+                {busy ? 'Signing in…' : totpRequired ? 'Verify' : 'Sign in'}
+              </Button>
+            ) : null}
           </form>
           </CardContent>
         </Card>

@@ -217,7 +217,7 @@ export function UsersPage() {
               Resend invite
             </Button>
           ) : null}
-          {row.totpEnabled ? (
+          {row.totpEnabled || row.passkeyCount > 0 ? (
             <Button
               variant="outline"
               size="sm"
@@ -763,8 +763,8 @@ function ResetTotpDialog({
             Reset two-factor for {user?.firstName} {user?.lastName}?
           </DialogTitle>
           <DialogDescription>
-            Clears their authenticator and every recovery code. They sign in with just their
-            password until they re-enroll under My account.
+            Clears their authenticator, passkeys, and every recovery code. They sign in with
+            just their password until they re-enroll under My account.
           </DialogDescription>
         </DialogHeader>
         {needsCode ? (
