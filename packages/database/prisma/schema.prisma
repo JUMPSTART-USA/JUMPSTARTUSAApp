@@ -3299,7 +3299,14 @@ model AuditLog {
   entityId   String?
   oldValues  Json?
   newValues  Json?
-  metadata   Json? // export filters, IP, user agent, etc.
+  metadata   Json? // export filters and other per-action detail
+  /**
+   * Where the action came from, captured by AuditRequestContextMiddleware and
+   * read off an AsyncLocalStorage store rather than threaded through ~100 call
+   * sites. Null for actions with no request behind them (jobs, seeds).
+   */
+  ipAddress  String?
+  userAgent  String?
   createdAt  DateTime    @default(now())
 
   @@index([userId, createdAt])

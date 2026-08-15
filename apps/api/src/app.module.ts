@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './audit/audit.module';
+import { AuditRequestContextMiddleware } from './audit/request-context';
 import { AuthModule } from './auth/auth.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { PermissionsGuard } from './common/guards/permissions.guard';
@@ -75,6 +76,11 @@ import { SupportModule } from './modules/support/support.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(OriginCheckMiddleware).forRoutes('*');
+    /**
+     * Context FIRST: it opens the AsyncLocalStorage scope that every audit
+     * write on this request reads from, including the ones written by the
+     * origin check's own rejections.
+     */
+    consumer.apply(AuditRequestContextMiddleware, OriginCheckMiddleware).forRoutes('*');
   }
 }

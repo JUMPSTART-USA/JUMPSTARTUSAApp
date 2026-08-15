@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { AuditAction, Prisma } from '@jumpstart/database';
 import { PrismaService } from '../prisma/prisma.service';
+import { currentAuditContext } from './request-context';
 
 export interface AuditEntry {
   userId?: string | null;
@@ -40,6 +41,9 @@ export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   async log(entry: AuditEntry): Promise<void> {
+    // Picked up from the request the caller is already inside — see
+    // request-context.ts for why this is not a parameter.
+    const { ipAddress, userAgent } = currentAuditContext();
     try {
       await this.prisma.auditLog.create({
         data: {
@@ -50,9 +54,19 @@ export class AuditService {
           oldValues: sanitize(entry.oldValues),
           newValues: sanitize(entry.newValues),
           metadata: sanitize(entry.metadata),
+          ipAddress,
+          userAgent,
         },
       });
     } catch (err) {
+      /**
+       * Still swallowed: auditing must never take the primary operation down.
+       * But a silent failure leaves the log quietly incomplete, which is worse
+       * than a loud one — hence the stable "AUDIT WRITE FAILED" prefix.
+       * Application Insights is wired up in both deployed environments; alert
+       * on that string there, because nobody reads container logs on a normal
+       * day.
+       */
       this.logger.error(
         `AUDIT WRITE FAILED action=${entry.action} entity=${entry.entityType}:${entry.entityId}`,
         err instanceof Error ? err.stack : String(err),

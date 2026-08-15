@@ -1810,3 +1810,60 @@ describe('TOTP codes cannot be replayed', () => {
     expect(replay.body.message).toMatch(/already been used/);
   });
 });
+
+/**
+ * Audit rows record WHERE an action came from.
+ *
+ * schema.prisma claimed metadata held "export filters, IP, user agent" and the
+ * AuditEntry interface had no such fields — nothing ever wrote them. Without a
+ * source, a compromised-account investigation cannot separate the attacker's
+ * actions from the user's own.
+ *
+ * The context rides an AsyncLocalStorage store rather than a parameter, so
+ * what this really pins is that the store survives the await chain from
+ * middleware through guard, controller and service to the Prisma write.
+ */
+describe('audit rows carry the request context', () => {
+  it('records the client address and user agent on a login', async () => {
+    const agent = 'JumpstartSuite/1.0 (audit-context-test)';
+    await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .set('User-Agent', agent)
+      .send(ADMIN)
+      .expect(200);
+
+    const row = await app.get(PrismaService).auditLog.findFirst({
+      where: { action: 'login', userAgent: agent },
+      orderBy: { createdAt: 'desc' },
+      select: { ipAddress: true, userAgent: true, userId: true },
+    });
+
+    expect(row, 'no audit row carried the test user agent').not.toBeNull();
+    expect(row!.userAgent).toBe(agent);
+    // Loopback through supertest, but the point is that SOMETHING resolved.
+    expect(row!.ipAddress).toBeTruthy();
+    expect(row!.userId).toBeTruthy();
+  });
+
+  it('records it on a failed login too, which is the row an investigation wants', async () => {
+    const agent = `JumpstartSuite/1.0 (failed-${randomUUID()})`;
+    await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .set('User-Agent', agent)
+      .send({ email: `ghost-${randomUUID()}@jumpstartusa.org`, password: 'nope' })
+      .expect(401);
+
+    const row = await app.get(PrismaService).auditLog.findFirst({
+      where: { action: 'login_failed', userAgent: agent },
+      select: { ipAddress: true, userId: true },
+    });
+
+    // An unknown account has no userId to attribute to — the address is the
+    // only thing tying a guessing campaign together.
+    expect(row, 'a failed login for an unknown account was not attributed').not.toBeNull();
+    expect(row!.ipAddress).toBeTruthy();
+    expect(row!.userId).toBeNull();
+  });
+});
