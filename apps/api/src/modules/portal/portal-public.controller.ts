@@ -8,7 +8,7 @@ import {
   type PortalMessageInput,
   type TransportRequestInput,
 } from '@jumpstart/shared';
-import { Public } from '../../common/decorators';
+import { Public, SkipOriginCheck } from '../../common/decorators';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import { PortalPublicService } from './portal-public.service';
 
@@ -19,8 +19,12 @@ import { PortalPublicService } from './portal-public.service';
  * a per-token daily submission cap in the service. Unknown/revoked tokens are
  * a bare 404 on every route.
  */
+// @SkipOriginCheck: opened from a link a participant was given, which may be
+// pasted anywhere — there is no SPA origin to match. The unguessable token and
+// the per-token daily cap are the defence.
 @Controller('public/portal')
 @Public()
+@SkipOriginCheck()
 @Throttle({ default: { limit: 10, ttl: 60_000 } })
 export class PortalPublicController {
   constructor(private readonly portal: PortalPublicService) {}

@@ -161,7 +161,7 @@ export class CampaignsService {
     const userId = user.id;
     const existing = await this.get(id, user); // chapter check inside
     // ...and a scoped user cannot move the record to another chapter either.
-    assertChapterAccess(user.chapter, input.chapterState);
+    assertChapterAccess(user.chapter, input.chapterState ?? null);
 
     // The schema's end>=start refinement only sees the payload; a partial
     // update must be checked against the merged record.

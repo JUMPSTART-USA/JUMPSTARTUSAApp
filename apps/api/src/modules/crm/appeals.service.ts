@@ -104,7 +104,7 @@ export class AppealsService {
     if (!found) throw new NotFoundException('Appeal not found');
     // Chapter scoping (§7.2): derived through the linked campaign — a
     // standalone appeal is org-global and passes for everyone.
-    assertChapterAccess(user.chapter, found.campaign?.chapterState);
+    assertChapterAccess(user.chapter, found.campaign?.chapterState ?? null);
     const { campaign: _campaign, ...appeal } = found;
     return appeal;
   }

@@ -144,7 +144,7 @@ export class VehiclesService {
     const userId = user.id;
     const existing = await this.get(id, user); // chapter check inside
     // ...and a scoped user cannot move the vehicle to another chapter either.
-    assertChapterAccess(user.chapter, input.chapterState);
+    assertChapterAccess(user.chapter, input.chapterState ?? null);
     const updated = await this.prisma.vehicle.update({
       where: { id },
       data: { ...input, updatedById: userId },

@@ -174,7 +174,7 @@ export class HouseholdsService {
     const userId = user.id;
     const existing = await this.get(id, user); // 404 + chapter check
     // ...and a scoped user cannot move the household to another chapter either.
-    assertChapterAccess(user.chapter, input.chapterState);
+    assertChapterAccess(user.chapter, input.chapterState ?? null);
     const updated = await this.prisma.household.update({
       where: { id },
       data: { ...input, updatedById: userId },

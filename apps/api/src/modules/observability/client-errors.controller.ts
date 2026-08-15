@@ -23,9 +23,31 @@ const routePattern = z
     'route must not contain a record id',
   );
 
+/**
+ * The refusals `route` already gets, applied to the free-text fields too.
+ *
+ * `message` and `stack` are where a record id or an email address rides in on
+ * an error string — "Participant 3f2a… not found", or an address echoed back
+ * by a failed form. They were capped in length and otherwise unexamined, which
+ * left the PII-free table's guarantee resting on every future caller being
+ * careful.
+ *
+ * Rejecting rather than scrubbing is deliberate: a rejected report is a
+ * missing data point, and a scrubbed one is a silent claim that it was clean.
+ */
+const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const EMAIL_PATTERN = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+
+/** Applied AFTER the string constraints — refine() returns ZodEffects, which
+ *  no longer offers .trim()/.max(). */
+const piiFree = <T extends z.ZodType<string>>(schema: T, label: string) =>
+  schema
+    .refine((v) => !UUID_PATTERN.test(v), `${label} must not contain a record id`)
+    .refine((v) => !EMAIL_PATTERN.test(v), `${label} must not contain an email address`);
+
 const reportSchema = z.object({
-  message: z.string().trim().min(1).max(500),
-  stack: z.string().max(4_000).optional(),
+  message: piiFree(z.string().trim().min(1).max(500), 'message'),
+  stack: piiFree(z.string().max(4_000), 'stack').optional(),
   route: routePattern,
   source: z.enum(['boundary', 'window', 'promise']),
   buildId: z.string().trim().max(100),

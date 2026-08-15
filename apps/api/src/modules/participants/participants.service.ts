@@ -435,7 +435,7 @@ export class ParticipantsService {
     // scoped user cannot move it to another chapter either (person.state is
     // the mailing address — only profile.chapterState is the chapter).
     assertChapterAccess(user.chapter, existing.chapterState);
-    assertChapterAccess(user.chapter, input.profile?.chapterState);
+    assertChapterAccess(user.chapter, input.profile?.chapterState ?? null);
 
     // Chapter move (§7.2): case-management children move with the profile
     // (they derive via chapterState), but facility-derived records — housing,

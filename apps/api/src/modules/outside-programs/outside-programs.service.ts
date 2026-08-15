@@ -154,7 +154,7 @@ export class OutsideProgramsService {
     // Chapter scoping (§7.2): the record must be in the user's chapter, and a
     // scoped user cannot move it to another chapter either.
     assertChapterAccess(user.chapter, existing.state);
-    assertChapterAccess(user.chapter, input.state);
+    assertChapterAccess(user.chapter, input.state ?? null);
     await this.assertStaffLead(input.staffLeadId);
 
     // Merged-state check: the Zod refinement only sees the patch payload.

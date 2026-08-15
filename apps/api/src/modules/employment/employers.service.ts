@@ -152,7 +152,7 @@ export class EmployersService {
     const userId = user.id;
     const existing = await this.get(id, user); // chapter check inside
     // ...and a scoped user cannot move the record to another chapter either.
-    assertChapterAccess(user.chapter, input.chapterState);
+    assertChapterAccess(user.chapter, input.chapterState ?? null);
     const updated = await this.prisma.employer.update({
       where: { id },
       data: { ...input, updatedById: userId },
