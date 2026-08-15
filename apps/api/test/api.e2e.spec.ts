@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { CHAPTER_STATES } from '@jumpstart/shared';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -1439,5 +1439,88 @@ describe('client error reports (§5 phase 5)', () => {
   it('needs audit.read to be READ, even though anyone may write', async () => {
     const cookie = await login(HOUSING);
     await request(server).get('/api/client-errors').set('Cookie', cookie).expect(403);
+  });
+});
+
+/**
+ * Changing your own password must sign out every OTHER session, not just the
+ * browser doing the changing.
+ *
+ * The reset and staff-departure flows always swept sessions; this path only
+ * destroyed its own. That made the most common user-initiated security action —
+ * "I think someone has my password" — the one that left the other party signed
+ * in for the rest of the 12-hour absolute window.
+ *
+ * Runs against a throwaway account: the seeded users are shared by every test
+ * in this file, and a password change that outlived a failure here would break
+ * all of them on the next run.
+ */
+describe('changing a password revokes the account other sessions', () => {
+  const throwaway = {
+    email: `pwtest-${randomUUID()}@jumpstartusa.org`,
+    firstName: 'Password',
+    lastName: 'RotationTest',
+    roles: ['read_only'],
+  };
+  const NEW_PASSWORD = 'RotatedByTheSuite2026!';
+
+  let adminCookie: string;
+  let userId: string;
+  let temporaryPassword: string;
+
+  beforeAll(async () => {
+    adminCookie = await login(ADMIN);
+    const created = await request(server)
+      .post('/api/admin/users')
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send(throwaway)
+      .expect(201);
+    userId = created.body.user.id;
+    temporaryPassword = created.body.temporaryPassword;
+    expect(temporaryPassword).toBeTruthy();
+  });
+
+  afterAll(async () => {
+    // Users are soft-deleted, so deactivation is the strongest cleanup there
+    // is. Reassigns an (empty) caseload to the admin, as the flow requires.
+    if (!userId) return;
+    await request(server)
+      .post(`/api/admin/users/${userId}/deactivate`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ reassignToUserId: (await request(server).get('/api/auth/me').set('Cookie', adminCookie)).body.id })
+      .catch(() => undefined);
+  });
+
+  it('leaves a second session dead while the first is sent to sign in again', async () => {
+    // Two independent sign-ins for the same account: the user's own browser
+    // and, in the scenario this defends against, somebody else's.
+    const sessionA = await login({ email: throwaway.email, password: temporaryPassword });
+    const sessionB = await login({ email: throwaway.email, password: temporaryPassword });
+    expect(sessionA).not.toBe(sessionB);
+
+    // Both are live to begin with — otherwise the assertion below proves nothing.
+    await request(server).get('/api/auth/me').set('Cookie', sessionA).expect(200);
+    await request(server).get('/api/auth/me').set('Cookie', sessionB).expect(200);
+
+    await request(server)
+      .post('/api/auth/change-password')
+      .set('Cookie', sessionA)
+      .set('Origin', ORIGIN)
+      .send({
+        currentPassword: temporaryPassword,
+        password: NEW_PASSWORD,
+        confirmPassword: NEW_PASSWORD,
+      })
+      .expect(200);
+
+    // The whole point: the session that did NOT change the password is dead.
+    await request(server).get('/api/auth/me').set('Cookie', sessionB).expect(401);
+    await request(server).get('/api/auth/me').set('Cookie', sessionA).expect(401);
+
+    // And the new password is the one that works now.
+    const fresh = await login({ email: throwaway.email, password: NEW_PASSWORD });
+    await request(server).get('/api/auth/me').set('Cookie', fresh).expect(200);
   });
 });

@@ -333,8 +333,10 @@ export class AuthController {
     @Body(zodBody(changePasswordSchema)) body: ChangePasswordInput,
     @Req() req: AuthenticatedRequest,
   ) {
+    // Revokes EVERY session for the account, this one included (the service is
+    // the single place that happens). Destroying the request's session object
+    // afterwards is what clears the cookie and sends this browser to sign in.
     await this.authService.changePassword(user.id, body.currentPassword, body.password);
-    // Password change invalidates the current session; sign in again.
     await new Promise<void>((resolve) => req.session.destroy(() => resolve()));
     return { ok: true };
   }

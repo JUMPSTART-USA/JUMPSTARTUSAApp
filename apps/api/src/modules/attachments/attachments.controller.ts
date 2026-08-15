@@ -18,6 +18,7 @@ import {
   attachmentListQuerySchema,
   attachmentUploadSchema,
   isAllowedAttachmentType,
+  isInlineRenderableType,
   MAX_ATTACHMENT_BYTES,
   type AttachmentListQuery,
   type AttachmentUploadInput,
@@ -98,9 +99,24 @@ export class AttachmentsController {
     const file = await this.attachments.download(id, user);
     // Stored filenames come from the browser — keep the header quote-safe.
     const safeName = file.filename.replace(/[^\w.\- ]+/g, '_') || 'file';
-    const inline =
-      file.contentType.startsWith('image/') || file.contentType === 'application/pdf';
+
+    /**
+     * `file.contentType` is the type SNIFFED FROM THE BYTES at upload, not the
+     * string the uploader sent (see AttachmentsService.upload). Echoing the
+     * declared type was half of a stored-script hole; the other half was
+     * `startsWith('image/')`, which sent `image/svg+xml` down the INLINE path —
+     * and an SVG is a document that can carry script.
+     *
+     * Inline is now an explicit, narrow allowlist (rasters + PDF) and
+     * everything else downloads. The two headers are belt and braces on that:
+     * nosniff stops a browser second-guessing the type, and the sandbox policy
+     * means even a file that does somehow render as a document gets a null
+     * origin with no script, so it can reach nothing of this API's.
+     */
+    const inline = isInlineRenderableType(file.contentType);
     res.setHeader('Content-Type', file.contentType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox; frame-ancestors 'none'");
     res.setHeader(
       'Content-Disposition',
       `${inline ? 'inline' : 'attachment'}; filename="${safeName}"`,

@@ -11,6 +11,7 @@ import type { CreateUserInput, ListQuery, RoleKey, UpdateUserInput } from '@jump
 import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
 import { AuditService } from '../../audit/audit.service';
 import { PasskeysService } from '../../auth/passkeys.service';
+import { revokeAllSessions } from '../../auth/sessions.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../../mail/mail.service';
 
@@ -284,9 +285,9 @@ export class AdminUsersService {
         });
 
         // Instant revocation — the reason this app uses server-side sessions,
-        // not JWTs (§3.2). connect-pg-simple stores userId inside the sess JSON.
-        const sessionsRevoked = await tx.$executeRaw`
-          DELETE FROM "session" WHERE sess->>'userId' = ${id}`;
+        // not JWTs (§3.2). Runs on the transaction client so the deactivation
+        // and the revocation land together or not at all.
+        const sessionsRevoked = await revokeAllSessions(tx, id);
 
         const participants = await tx.participantProfile.updateMany({
           where: { assignedCaseManagerId: id, deletedAt: null },
