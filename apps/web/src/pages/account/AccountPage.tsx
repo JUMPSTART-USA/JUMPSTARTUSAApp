@@ -1,6 +1,12 @@
 import { changePasswordSchema, type ChangePasswordInput } from '@jumpstart/shared';
+import {
+  browserSupportsWebAuthn,
+  startAuthentication,
+  startRegistration,
+  type PublicKeyCredentialCreationOptionsJSON,
+} from '@simplewebauthn/browser';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, KeyRound, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Copy, Fingerprint, KeyRound, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -10,9 +16,11 @@ import { Card, CardContent, CardHeaderRow } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { FormError, Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
+import { ErrorState } from '@/components/ui/spinner';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { applyApiError, formResolver } from '@/lib/form';
+import { formatDate } from '@/lib/utils';
 
 /**
  * The one moment recovery codes exist in the clear — shown right after
@@ -321,10 +329,241 @@ function ChangePasswordCard() {
   );
 }
 
+interface PasskeyRow {
+  id: string;
+  label: string;
+  deviceType: string;
+  backedUp: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+/**
+ * Passkeys (§3.2): a second factor in their own right — Face ID / Touch ID
+ * instead of typing a code. Registration is the two-step WebAuthn ceremony;
+ * the challenge rides the session between the calls. Removal demands a
+ * current TOTP code while one is enrolled (same step-up as recovery-code
+ * regeneration).
+ */
+function PasskeysCard() {
+  const { user, refresh } = useAuth();
+  const queryClient = useQueryClient();
+  const [label, setLabel] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
+  const [removing, setRemoving] = useState<PasskeyRow | null>(null);
+  /** One code field serves both add and remove — same step-up rule. */
+  const [stepUpCode, setStepUpCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const supported = browserSupportsWebAuthn();
+
+  const list = useQuery({
+    queryKey: ['auth', 'passkeys'],
+    queryFn: () => api.get<PasskeyRow[]>('/auth/passkeys'),
+  });
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ['auth', 'passkeys'] });
+    void refresh(); // me.passkeyCount drives the mandate banner
+  };
+
+  /**
+   * Step-up proof (§3.2) for adding or removing a factor: a TOTP code when
+   * one is enrolled, otherwise a fresh passkey assertion. Accounts with no
+   * factor yet (first enrollment) need neither — the server agrees.
+   */
+  const stepUpProof = async (): Promise<Record<string, unknown>> => {
+    if (user?.totpEnabled) return { code: stepUpCode };
+    if ((user?.passkeyCount ?? 0) > 0) {
+      const options = await api.post<Parameters<typeof startAuthentication>[0]['optionsJSON']>(
+        '/auth/passkeys/step-up-options',
+      );
+      return { stepUpPasskeyResponse: await startAuthentication({ optionsJSON: options }) };
+    }
+    return {};
+  };
+
+  const register = useMutation({
+    mutationFn: async () => {
+      const proof = await stepUpProof();
+      const options = await api.post<PublicKeyCredentialCreationOptionsJSON>(
+        '/auth/passkeys/registration-options',
+      );
+      const response = await startRegistration({ optionsJSON: options });
+      return api.post('/auth/passkeys/registration-verify', { label, response, ...proof });
+    },
+    onSuccess: () => {
+      setAddOpen(false);
+      setLabel('');
+      setError(null);
+      invalidate();
+    },
+    onError: (err) => {
+      // The user closing the browser prompt is a change of mind, not an error.
+      if (err instanceof Error && err.name === 'NotAllowedError') return;
+      setError(err instanceof ApiError ? err.message : 'Could not add the passkey');
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: async (row: PasskeyRow) =>
+      api.post(`/auth/passkeys/${row.id}/remove`, await stepUpProof()),
+    onSuccess: () => {
+      setRemoving(null);
+      setStepUpCode('');
+      setError(null);
+      invalidate();
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not remove it'),
+  });
+
+  return (
+    <Card>
+      <CardHeaderRow
+        title="Passkeys"
+        description="Sign in with Face ID, Touch ID, or a security key instead of typing a code."
+      />
+      <CardContent className="space-y-4">
+        {list.isError ? <ErrorState error={list.error} onRetry={() => void list.refetch()} /> : null}
+        {!supported ? (
+          <p className="text-sm text-muted-foreground">
+            This browser can&apos;t create passkeys — use an up-to-date Safari, Chrome, or Edge.
+            Existing passkeys are still listed below and can be removed.
+          </p>
+        ) : null}
+          <>
+            {list.data && list.data.length > 0 ? (
+              <ul className="divide-y rounded-md border">
+                {list.data.map((k) => (
+                  <li key={k.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Fingerprint className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{k.label}</span>
+                        {k.backedUp ? (
+                          <span className="text-xs text-muted-foreground">(synced)</span>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Added {formatDate(k.createdAt)}
+                        {k.lastUsedAt ? ` · last used ${formatDate(k.lastUsedAt)}` : ''}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        remove.reset();
+                        setError(null);
+                        setStepUpCode('');
+                        setRemoving(k);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Remove
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : list.data ? (
+              <p className="text-sm text-muted-foreground">No passkeys yet.</p>
+            ) : null}
+
+            {removing ? (
+              <div className="space-y-3 rounded-md border bg-muted/40 p-4">
+                <p className="text-sm font-medium">Remove “{removing.label}”?</p>
+                {user?.totpEnabled ? (
+                  <FormField
+                    label="Your 6-digit code"
+                    hint="From your authenticator — removing a sign-in method needs proof it's you."
+                  >
+                    <Input
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      className="w-32 text-center font-mono"
+                      value={stepUpCode}
+                      onChange={(e) => setStepUpCode(e.target.value.replace(/\D/g, ''))}
+                    />
+                  </FormField>
+                ) : null}
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={
+                      remove.isPending || (user?.totpEnabled ? stepUpCode.length !== 6 : false)
+                    }
+                    onClick={() => remove.mutate(removing)}
+                  >
+                    {remove.isPending ? 'Removing…' : 'Remove passkey'}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setRemoving(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : addOpen ? (
+              <div className="flex flex-wrap items-end gap-2">
+                <FormField label="Name this passkey" hint="e.g. iPhone, 1Password, YubiKey">
+                  <Input
+                    maxLength={60}
+                    className="w-56"
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                  />
+                </FormField>
+                {user?.totpEnabled ? (
+                  <FormField label="Your 6-digit code" hint="Adding a sign-in method needs proof it's you.">
+                    <Input
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      className="w-32 text-center font-mono"
+                      value={stepUpCode}
+                      onChange={(e) => setStepUpCode(e.target.value.replace(/\D/g, ''))}
+                    />
+                  </FormField>
+                ) : null}
+                <div className="flex gap-2 pb-0.5">
+                  <Button
+                    disabled={
+                      label.trim().length === 0 ||
+                      register.isPending ||
+                      (user?.totpEnabled ? stepUpCode.length !== 6 : false)
+                    }
+                    onClick={() => register.mutate()}
+                  >
+                    <Fingerprint className="h-4 w-4" />
+                    {register.isPending ? 'Follow the browser prompt…' : 'Create passkey'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setAddOpen(false);
+                      setError(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : supported ? (
+              <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+                <Fingerprint className="h-4 w-4" /> Add a passkey
+              </Button>
+            ) : null}
+          </>
+        <FormError message={error} />
+      </CardContent>
+    </Card>
+  );
+}
+
 export function AccountPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="My account" />
+      <PasskeysCard />
       <TwoFactorCard />
       <ChangePasswordCard />
     </div>

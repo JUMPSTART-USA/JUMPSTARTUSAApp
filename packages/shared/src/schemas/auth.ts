@@ -13,6 +13,12 @@ export const loginSchema = z.object({
     .optional(),
   /** Single-use fallback for a lost authenticator — punctuation-tolerant. */
   recoveryCode: z.string().trim().min(1).max(20).optional(),
+  /**
+   * WebAuthn assertion from the browser — a passkey standing in for the
+   * 6-digit code. Passed through loosely; @simplewebauthn does the real
+   * verification server-side.
+   */
+  passkeyResponse: z.object({ id: z.string().min(1) }).passthrough().optional(),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 

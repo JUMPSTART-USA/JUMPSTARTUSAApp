@@ -935,9 +935,35 @@ model User {
   supportMessages     SupportMessage[]
   passwordResetTokens PasswordResetToken[]
   totpRecoveryCodes   TotpRecoveryCode[]
+  webauthnCredentials WebAuthnCredential[]
   clientErrors        ClientError[]
 
   @@map("users")
+}
+
+// Passkeys (WebAuthn, §3.2): second-factor credentials. The public key is
+// exactly that — public — so unlike totpSecret nothing here needs hashing;
+// the signature counter guards against cloned authenticators (verified and
+// bumped on every assertion by @simplewebauthn).
+model WebAuthnCredential {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  // Base64url credential id from the authenticator — the lookup key.
+  credentialId String    @unique
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  transports   String[]  @default([])
+  // singleDevice | multiDevice — synced passkeys report multiDevice.
+  deviceType   String
+  backedUp     Boolean   @default(false)
+  // User-facing name, e.g. "iPhone", "1Password" — set at registration.
+  label        String
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+  @@map("webauthn_credentials")
 }
 
 // TOTP recovery codes: single-use fallbacks for a lost authenticator, stored

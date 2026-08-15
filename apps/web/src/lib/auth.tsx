@@ -16,6 +16,8 @@ export interface Me {
   viewAsRole: RoleKey | null;
   /** Whether the account has confirmed a TOTP authenticator (drives /account). */
   totpEnabled: boolean;
+  /** Registered passkeys — satisfies the second-factor mandate like TOTP. */
+  passkeyCount: number;
   /** True when a TOTP-mandatory role has not enrolled yet (soft nudge banner). */
   mustSetupTotp: boolean;
   chapter: string | null;
