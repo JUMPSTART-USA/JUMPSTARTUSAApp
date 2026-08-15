@@ -51,7 +51,9 @@ services:
     depends_on:
       - api
     ports:
-      - "8080:80"
+      # Container side is 8080: the web image runs unprivileged and cannot bind
+      # :80. Host side is unchanged, so WEB_ORIGIN above still matches.
+      - "8080:8080"
 
 volumes:
   pgdata:
