@@ -247,6 +247,24 @@ resource api 'Microsoft.Web/sites@2023-12-01' = {
   }
 }
 
+/**
+ * Settings that must NOT travel with a slot swap.
+ *
+ * Learned the hard way (2026-08-14): WEB_ORIGIN was set by hand on the
+ * production slot after the custom-domain cutover, the next release swapped
+ * the slots, and the pre-cutover value rode back into production — every
+ * state-changing request from app.jumpstartusa.org started answering 403
+ * "Cross-origin request rejected", and the derived WebAuthn rpID went with
+ * it. Sticky settings stay bound to the slot they are set on.
+ */
+resource apiSlotStickySettings 'Microsoft.Web/sites/config@2023-12-01' = if (isProd) {
+  parent: api
+  name: 'slotConfigNames'
+  properties: {
+    appSettingNames: ['WEB_ORIGIN', 'WEB_ORIGIN_ALIASES']
+  }
+}
+
 // Zero-downtime releases in prod: deploy to the slot, warm it, swap.
 resource apiStagingSlot 'Microsoft.Web/sites/slots@2023-12-01' = if (isProd) {
   parent: api
