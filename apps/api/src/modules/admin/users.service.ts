@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -14,6 +15,13 @@ import { PasskeysService } from '../../auth/passkeys.service';
 import { revokeAllSessions } from '../../auth/sessions.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../../mail/mail.service';
+
+/** The acting admin's proof of possession, as passed to PasskeysService. */
+type StepUpProof = {
+  code?: string;
+  passkeyResponse?: AuthenticationResponseJSON;
+  challenge?: string;
+};
 
 export interface UserListFilters {
   status?: UserStatus;
@@ -183,8 +191,42 @@ export class AdminUsersService {
     return { user: toSafeUser(user), temporaryPassword, emailSent: email.sent, emailFrom: email.from };
   }
 
-  async update(id: string, input: UpdateUserInput, userId: string) {
+  async update(
+    id: string,
+    input: UpdateUserInput,
+    userId: string,
+    stepUp: StepUpProof = {},
+  ) {
     const existing = await this.getRaw(id);
+
+    /**
+     * Sensitive edits: the two that can END in a takeover rather than a typo.
+     *
+     * Changing someone's EMAIL then using forgot-password is a complete
+     * account takeover, and it used to need nothing but a signed-in admin
+     * session. Changing ROLES is the privilege-escalation half of the same
+     * problem. Both now demand the acting admin prove possession of their own
+     * second factor — the same bar already applied to adding or removing one.
+     */
+    const changingEmail = !!input.email && input.email !== existing.email;
+    const changingRoles =
+      !!input.roles && !sameSet(input.roles, existing.userRoles.map((ur) => ur.role.key));
+    if (changingEmail || changingRoles) {
+      await this.passkeys.requireStepUp(userId, stepUp);
+    }
+
+    /**
+     * No self-elevation. An account holding admin.users could grant ITSELF the
+     * admin role, so the permission that manages users was quietly the
+     * permission that grants everything. Acting on your own roles at all is
+     * refused: an admin who needs their roles changed asks another admin, and
+     * that leaves two people in the audit log instead of one.
+     */
+    if (changingRoles && id === userId) {
+      throw new ForbiddenException(
+        'You cannot change your own roles — ask another administrator',
+      );
+    }
 
     // The §7.6 departure flow (session revocation + caseload handoff) must not
     // be bypassable through a plain status edit.
@@ -246,6 +288,21 @@ export class AdminUsersService {
         oldValues: { roles: oldSafe.roles },
         newValues: { roles: newSafe.roles },
       });
+      await this.mail.sendRolesChanged(newSafe.email, newSafe.firstName, newSafe.roles);
+    }
+
+    /**
+     * Tell the account holder their address was changed, at the address they
+     * had BEFORE. Audit is detective and nobody reads it daily; the owner is
+     * the one party guaranteed to notice, and the old mailbox is the only one
+     * an attacker performing this takeover does not control.
+     *
+     * NOT the same thing as verifying the new address, which would PREVENT the
+     * takeover rather than report it. That needs a pending-change record and a
+     * confirmation round trip — see the note in the phase 3 commit message.
+     */
+    if (changingEmail) {
+      await this.mail.sendEmailChanged(existing.email, existing.firstName, newSafe.email);
     }
 
     return newSafe;
@@ -404,13 +461,24 @@ export class AdminUsersService {
       this.prisma.webAuthnCredential.deleteMany({ where: { userId: id } }),
     ]);
 
+    /**
+     * The account's second factor is gone, so every live session for it is now
+     * a session standing on a password alone — including any an attacker holds.
+     * Removing the factor without ending them left the weaker state running.
+     */
+    const sessionsRevoked = await revokeAllSessions(this.prisma, id);
+
     await this.audit.logUpdate(
       userId,
       'user',
       id,
       { totpEnabled: existing.totpEnabled, passkeys: existing._count.webauthnCredentials },
-      { totpEnabled: false, passkeys: 0, event: 'second_factor_reset_by_admin' },
+      { totpEnabled: false, passkeys: 0, event: 'second_factor_reset_by_admin', sessionsRevoked },
     );
+    // The person whose protection was just removed is told. This is the
+    // legitimate lost-authenticator rescue most of the time; the one time it
+    // is not, they are the only party who can tell.
+    await this.mail.sendSecondFactorReset(updated.email, updated.firstName);
     // The include ran inside the same transaction as the deletes, so its
     // _count still reflects the pre-reset rows — report the real post state.
     return { ...toSafeUser(updated), passkeyCount: 0 };

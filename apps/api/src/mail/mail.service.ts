@@ -133,6 +133,68 @@ export class MailService {
     return this.send(to, subject, html);
   }
 
+  /**
+   * Sent to the PREVIOUS address when an administrator changes someone's
+   * email. That old mailbox is the one an attacker performing this takeover
+   * does not control, which is the entire point of sending it there.
+   */
+  async sendEmailChanged(
+    previousAddress: string,
+    firstName: string,
+    newAddress: string,
+  ): Promise<{ sent: boolean; from: string }> {
+    const subject = 'The email address on your JUMPSTART USA account was changed';
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>An administrator changed the email address on your JUMPSTART USA
+      Operations Platform account to <strong>${escapeHtml(newAddress)}</strong>.
+      Sign-in and password resets now go to that address.</p>
+      <p>If you did not expect this, contact an administrator immediately — a
+      changed address can be used to take over an account.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(previousAddress, subject, html);
+  }
+
+  /** Sent when an administrator changes which roles an account holds. */
+  async sendRolesChanged(
+    to: string,
+    firstName: string,
+    roles: string[],
+  ): Promise<{ sent: boolean; from: string }> {
+    const subject = 'Your JUMPSTART USA access was changed';
+    const list = roles.length ? roles.join(', ') : 'none';
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>An administrator changed what your account can do. You now hold:
+      <strong>${escapeHtml(list)}</strong>.</p>
+      <p>If that is not what you expected, contact an administrator.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(to, subject, html);
+  }
+
+  /**
+   * Sent when an administrator clears an account's second factor. Usually the
+   * legitimate lost-authenticator rescue; the one time it is not, the account
+   * holder is the only person who can tell.
+   */
+  async sendSecondFactorReset(
+    to: string,
+    firstName: string,
+  ): Promise<{ sent: boolean; from: string }> {
+    const origin = loadEnv().WEB_ORIGIN;
+    const subject = 'Two-factor authentication was reset on your JUMPSTART USA account';
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>An administrator reset the two-factor authentication on your account.
+      Any authenticator app or passkey you had set up no longer works, and you
+      have been signed out everywhere.</p>
+      <p>Sign in at <a href="${origin}/login">${origin}</a> with your password
+      and set two-factor up again from your account page.</p>
+      <p>If you did not ask for this, contact an administrator immediately.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(to, subject, html);
+  }
+
   async sendInvite(
     to: string,
     firstName: string,

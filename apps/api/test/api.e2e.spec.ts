@@ -1867,3 +1867,120 @@ describe('audit rows carry the request context', () => {
     expect(row!.userId).toBeNull();
   });
 });
+
+/**
+ * Admin actions on OTHER people's accounts.
+ *
+ * All of these were audited already, which is the right foundation — but audit
+ * is detective and nobody reads it daily. These are the preventive halves.
+ */
+describe('sensitive admin edits are gated', () => {
+  const throwaway = {
+    email: `admintest-${randomUUID()}@jumpstartusa.org`,
+    firstName: 'Admin',
+    lastName: 'GateTest',
+    roles: ['read_only'],
+  };
+
+  let adminCookie: string;
+  let adminId: string;
+  let userId: string;
+
+  beforeAll(async () => {
+    adminCookie = await login(ADMIN);
+    adminId = (await request(server).get('/api/auth/me').set('Cookie', adminCookie)).body.id;
+    const created = await request(server)
+      .post('/api/admin/users')
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send(throwaway)
+      .expect(201);
+    userId = created.body.user.id;
+  });
+
+  afterAll(async () => {
+    if (!userId) return;
+    await request(server)
+      .post(`/api/admin/users/${userId}/deactivate`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ reassignToUserId: adminId })
+      .catch(() => undefined);
+  });
+
+  it('refuses an admin changing their OWN roles', async () => {
+    // The escalation this closes: admin.users was quietly the permission that
+    // grants everything, because its holder could grant it to themselves.
+    const res = await request(server)
+      .patch(`/api/admin/users/${adminId}`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ roles: ['admin', 'executive'] })
+      .expect(403);
+    expect(res.body.message).toMatch(/cannot change your own roles/i);
+  });
+
+  it('still allows ordinary edits to another account without a code', async () => {
+    // A corrected surname must not demand an authenticator, or the gate
+    // becomes something people route around.
+    await request(server)
+      .patch(`/api/admin/users/${userId}`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ lastName: 'GateTestRenamed' })
+      .expect(200);
+  });
+
+  it('allows a role change on another account when the actor holds no second factor', async () => {
+    // The seeded admin has neither TOTP nor a passkey, so requireStepUp has
+    // nothing to demand — this asserts the gate is conditional, not blanket.
+    const me = await request(server).get('/api/auth/me').set('Cookie', adminCookie).expect(200);
+    expect(me.body.totpEnabled).toBe(false);
+    expect(me.body.passkeyCount).toBe(0);
+
+    const res = await request(server)
+      .patch(`/api/admin/users/${userId}`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ roles: ['read_only', 'fleet_manager'] })
+      .expect(200);
+    expect(res.body.roles).toEqual(expect.arrayContaining(['read_only', 'fleet_manager']));
+  });
+
+  it('revokes the target sessions when their second factor is reset', async () => {
+    const { authenticator } = await import('otplib');
+    // Give the throwaway account a factor to reset, and a live session.
+    const created = await request(server)
+      .post(`/api/admin/users/${userId}/resend-invite`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .expect(201);
+    const cookie = await login({
+      email: throwaway.email,
+      password: created.body.temporaryPassword,
+    });
+    const setup = await request(server)
+      .post('/api/auth/totp/setup')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .expect(201);
+    await request(server)
+      .post('/api/auth/totp/confirm')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ code: authenticator.generate(setup.body.secret) })
+      .expect(201);
+    await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+
+    await request(server)
+      .post(`/api/admin/users/${userId}/reset-totp`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({})
+      .expect(201);
+
+    // Removing the second factor without ending the sessions it protected
+    // would leave the weaker state running.
+    await request(server).get('/api/auth/me').set('Cookie', cookie).expect(401);
+  });
+});

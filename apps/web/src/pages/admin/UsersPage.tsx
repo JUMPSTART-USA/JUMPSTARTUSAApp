@@ -557,6 +557,8 @@ function EditUserDialog({ user, onClose }: { user: AdminUser | null; onClose: ()
 function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [topError, setTopError] = useState<string | null>(null);
+  const [stepUpCode, setStepUpCode] = useState('');
+  const { user: me } = useAuth();
 
   const form = useForm<InviteFormValues>({
     resolver: editResolver,
@@ -570,7 +572,10 @@ function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () =
 
   const update = useMutation({
     mutationFn: (payload: InviteFormValues) =>
-      api.patch<AdminUser>(`/admin/users/${user.id}`, payload),
+      api.patch<AdminUser>(`/admin/users/${user.id}`, {
+        ...payload,
+        ...(stepUpCode ? { code: stepUpCode } : {}),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       onClose();
@@ -579,6 +584,18 @@ function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () =
   });
 
   const { register, formState } = form;
+
+  /**
+   * Changing an email or a role is a takeover-shaped action, so the API asks
+   * the acting admin to prove possession of their own second factor. Watch the
+   * form so the prompt appears as soon as the edit becomes one of those,
+   * rather than after a failed save — the code has a 30-second life and going
+   * to fetch one only once the request has already been refused wastes it.
+   */
+  const watched = form.watch();
+  const isSensitiveEdit =
+    watched.email !== user.email || !sameRoleSet(watched.roles ?? [], user.roles);
+  const needsCode = isSensitiveEdit && (me?.totpEnabled ?? false);
 
   return (
     <Dialog open onOpenChange={(next) => (!next ? onClose() : undefined)}>
@@ -615,13 +632,32 @@ function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () =
             <RoleCheckboxes register={register} />
           </FormField>
 
+          {needsCode ? (
+            <FormField
+              label="Your authenticator code"
+              required
+              hint="Changing an email address or a role needs your own 6-digit code."
+            >
+              <Input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={stepUpCode}
+                onChange={(e) => setStepUpCode(e.target.value.replace(/\D/g, ''))}
+              />
+            </FormField>
+          ) : null}
+
           <FormError message={topError} />
 
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={update.isPending}>
+            <Button
+              type="submit"
+              disabled={update.isPending || (needsCode && stepUpCode.length !== 6)}
+            >
               {update.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
@@ -629,6 +665,11 @@ function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () =
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Order-insensitive role comparison, so re-checking the same boxes is not an edit. */
+function sameRoleSet(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((role) => b.includes(role));
 }
 
 // ── Deactivate (§7.6 departing-staff flow) ───────────────────────────────────
