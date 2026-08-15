@@ -3,6 +3,7 @@ import type { Prisma } from '@jumpstart/database';
 import type { DrugTestInput, DrugTestResult, ListQuery } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess } from '../../common/chapter.util';
+import { photoColumns } from '../../common/profile-photo.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 import { assertParticipant } from './participant.util';
@@ -214,14 +215,14 @@ export class DrugTestsService {
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
+  /**
+   * Delegates to the shared helper instead of keeping a private copy. That copy
+   * stored the uploader's DECLARED mime type, which the photo endpoint then
+   * served straight back inline; the shared one sniffs the bytes and refuses a
+   * file whose contents are not actually a photo.
+   */
   private photoColumns(photo: UploadedPhotoFile) {
-    return {
-      // Copy into a fresh Uint8Array: Prisma's Bytes input is typed
-      // Uint8Array<ArrayBuffer>, while Buffer is Uint8Array<ArrayBufferLike>.
-      photoData: new Uint8Array(photo.buffer),
-      photoMimeType: photo.mimetype,
-      photoFileName: photo.originalname,
-    };
+    return photoColumns(photo);
   }
 
   /** Fetch-for-mutation with the chapter guard (§7.2) applied once. */

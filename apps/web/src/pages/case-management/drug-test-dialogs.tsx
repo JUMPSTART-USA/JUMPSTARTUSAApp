@@ -7,6 +7,7 @@ import {
   DRUG_TEST_TYPE_LABELS,
   DRUG_TEST_TYPES,
   drugTestSchema,
+  PROFILE_PHOTO_ACCEPT,
 } from '@jumpstart/shared';
 import { FormField } from '@/components/FormField';
 import { Button } from '@/components/ui/button';
@@ -215,7 +216,10 @@ export function DrugTestFormDialog({
               <Input
                 ref={fileRef}
                 type="file"
-                accept="image/*"
+                // The shared list, not "image/*": the API refuses SVG (a
+                // document that can carry script), so offering it in the
+                // picker only produces a rejection the user cannot explain.
+                accept={PROFILE_PHOTO_ACCEPT}
                 capture="environment"
                 className="file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-medium"
                 onChange={onPhotoChange}

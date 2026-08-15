@@ -26,6 +26,7 @@ import {
 } from '@jumpstart/shared';
 import { z } from 'zod';
 import { CurrentUser, RequirePermission } from '../../common/decorators';
+import { sendPhoto } from '../../common/profile-photo.util';
 import { zodBody, zodQuery } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedUser } from '../../common/types';
 import {
@@ -149,11 +150,8 @@ export class DrugTestsController {
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ) {
-    const photo = await this.drugTests.getPhoto(id, user.chapter);
-    // Stored filenames come from the browser — keep the header quote-safe.
-    const safeName = photo.fileName.replace(/[^\w.\- ]+/g, '_') || 'photo';
-    res.setHeader('Content-Type', photo.mimeType);
-    res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
-    res.send(photo.data);
+    // Shared with the three profile-photo endpoints, so the quote-safe filename
+    // and the nosniff/sandbox headers are written down in exactly one place.
+    sendPhoto(res, await this.drugTests.getPhoto(id, user.chapter));
   }
 }

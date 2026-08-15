@@ -4,7 +4,7 @@ import type { NextFunction, Request, Response } from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
 import { Pool } from 'pg';
-import { isProduction, loadEnv, webOrigins } from './config/env';
+import { loadEnv, sessionCookieSecure, webOrigins } from './config/env';
 import { SESSION_IDLE_TIMEOUT_MS } from '@jumpstart/shared';
 
 // Re-exported from @jumpstart/shared so the browser's expiry warning counts
@@ -61,7 +61,9 @@ export function configureApp(app: NestExpressApplication): NestExpressApplicatio
       rolling: true, // each request extends the cookie → idle timeout
       cookie: {
         httpOnly: true,
-        secure: isProduction(),
+        // Asked of the ORIGIN, not of the environment name: staging ran
+        // NODE_ENV=staging and so served a non-Secure cookie over real HTTPS.
+        secure: sessionCookieSecure(),
         sameSite: 'lax',
         maxAge: IDLE_TIMEOUT_MS,
       },

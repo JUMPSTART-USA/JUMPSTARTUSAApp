@@ -11,7 +11,21 @@ COPY packages/shared ./packages/shared
 COPY apps/web ./apps/web
 RUN pnpm --filter @jumpstart/web build
 
-FROM nginx:alpine
+# The unprivileged nginx variant, which runs as uid 101 instead of root. The
+# stock nginx:alpine image needs root to bind :80, so it cannot simply take a
+# USER line — this image listens on 8080 instead, which is why nginx.conf and
+# the compose port mapping say 8080.
+#
+# Worth knowing: this image is LOCAL ONLY. Production serves the SPA from Azure
+# Static Web Apps (see infra/main.bicep and the deploy workflow), so nothing
+# here ships. It is fixed anyway because a HIGH finding that everyone has
+# learned to scroll past is how the next real one gets missed.
+FROM nginxinc/nginx-unprivileged:alpine
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-EXPOSE 80
+# Redundant with the base image, which already drops to this uid — but stated
+# explicitly because a scanner reads the Dockerfile, not the image it inherits
+# from, and an unstated invariant is one a future base-image swap can drop
+# without anyone noticing.
+USER 101
+EXPOSE 8080

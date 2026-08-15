@@ -13,6 +13,7 @@ import { loadEnv } from '../config/env';
 import { MailService } from '../mail/mail.service';
 import { PasskeysService, type PasskeyAssertion } from './passkeys.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { revokeAllSessions } from './sessions.util';
 
 /** Roles for which TOTP two-factor is mandatory (§3.1). */
 const TOTP_REQUIRED = new Set<string>(TOTP_REQUIRED_ROLES);
@@ -383,16 +384,26 @@ export class AuthService {
         data: { usedAt: new Date() },
       }),
     ]);
-    await this.prisma.$executeRaw`DELETE FROM "session" WHERE sess->>'userId' = ${row.userId}`;
+    const sessionsRevoked = await revokeAllSessions(this.prisma, row.userId);
     await this.audit.log({
       userId: row.userId,
       action: 'update',
       entityType: 'user',
       entityId: row.userId,
-      metadata: { event: 'password_reset_completed' },
+      metadata: { event: 'password_reset_completed', sessionsRevoked },
     });
   }
 
+  /**
+   * Change your own password, having proven the current one.
+   *
+   * Revokes EVERY session, not just the caller's: the request behind this is
+   * almost always "I think someone else is in my account", and until this
+   * revocation was added it was the one password path that left them there —
+   * reset and staff-departure both swept sessions, this one only destroyed the
+   * tab it was called from. The caller's own session goes with the rest, which
+   * is why the controller sends them back to sign in.
+   */
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const ok = await argon2.verify(user.passwordHash, currentPassword).catch(() => false);
@@ -401,12 +412,13 @@ export class AuthService {
       where: { id: userId },
       data: { passwordHash: await hashPassword(newPassword) },
     });
+    const sessionsRevoked = await revokeAllSessions(this.prisma, userId);
     await this.audit.log({
       userId,
       action: 'update',
       entityType: 'user',
       entityId: userId,
-      metadata: { event: 'password_changed' },
+      metadata: { event: 'password_changed', sessionsRevoked },
     });
   }
 }

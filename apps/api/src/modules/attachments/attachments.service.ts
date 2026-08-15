@@ -1,11 +1,19 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Prisma } from '@jumpstart/database';
-import type {
-  AttachmentEntityType,
-  AttachmentListQuery,
-  AttachmentUploadInput,
-  PermissionKey,
+import {
+  isAllowedAttachmentType,
+  normalizeContentType,
+  type AttachmentEntityType,
+  type AttachmentListQuery,
+  type AttachmentUploadInput,
+  type PermissionKey,
 } from '@jumpstart/shared';
+import { attachmentContentType } from '../../common/file-signature.util';
 import { AuditService } from '../../audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { assertChapterAccess } from '../../common/chapter.util';
@@ -169,6 +177,26 @@ export class AttachmentsService {
     // Chapter scoping (§7.2): no uploading into another chapter's entity.
     assertChapterAccess(user.chapter, entity.chapterState);
 
+    /**
+     * The declared type got the file past multer's filter; the BYTES decide
+     * what gets stored, and therefore what the download later serves. Until
+     * this check existed the uploader chose the Content-Type a browser would
+     * apply to a file other staff opened.
+     */
+    const contentType = attachmentContentType(normalizeContentType(file.mimetype), file.buffer);
+    if (!contentType) {
+      throw new BadRequestException(
+        'That file’s contents do not match its file type — re-save it and try again',
+      );
+    }
+    if (!isAllowedAttachmentType(contentType)) {
+      // The bytes resolved to something off the allowlist — an SVG or an HTML
+      // document relabelled as a PNG on the way in.
+      throw new BadRequestException(
+        'File type not allowed — images, PDF, Office documents, text and CSV only',
+      );
+    }
+
     const created = await this.prisma.attachment.create({
       data: {
         entityType: input.entityType,
@@ -177,7 +205,7 @@ export class AttachmentsService {
         // Uint8Array<ArrayBuffer>, while Buffer is Uint8Array<ArrayBufferLike>.
         data: new Uint8Array(file.buffer),
         filename: input.filename ?? file.originalname,
-        contentType: file.mimetype,
+        contentType,
         sizeBytes: file.size,
         sensitivity: input.sensitivity,
         uploadedById: user.id,

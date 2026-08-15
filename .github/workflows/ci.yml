@@ -5,6 +5,16 @@ on:
     branches: [main]
   pull_request:
 
+# Read-only by default. Nothing in CI needs to write to the repo, and a
+# compromised dependency running in this job gets a token that can do nothing.
+permissions:
+  contents: read
+
+# Every action is pinned to a COMMIT SHA, not a tag. A tag is mutable: whoever
+# controls the action can repoint v4 at new code, and it runs here with this
+# workflow's token and this repository's source. The trailing comment records
+# which release the SHA was, and the github-actions Dependabot config moves
+# these forward.
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -29,11 +39,11 @@ jobs:
       TURNSTILE_DEV_BYPASS: "true"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: pnpm
@@ -58,3 +68,70 @@ jobs:
 
       - name: Build apps
         run: pnpm --filter @jumpstart/api build && pnpm --filter @jumpstart/web build
+
+  # Split from build-and-test so a dependency advisory reads as "dependencies
+  # are vulnerable", not "the build broke" — and so it still reports when the
+  # test job is red.
+  #
+  # NOTE this job gates DEPLOYS: deploy.yml refuses to ship a commit whose CI
+  # run is not green (see its ci-gate). That is deliberate for a HIGH advisory
+  # in a production dependency, but it does mean a newly-disclosed CVE can hold
+  # up a release. The escape hatch is the audit ignore list in package.json,
+  # which requires writing down why — see the uuid entry there for the shape.
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # --prod: a devDependency advisory cannot reach a user, and treating it
+      # as release-blocking is how a gate ends up permanently bypassed.
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
+
+  # Filesystem scan: dependency CVEs, Dockerfile misconfiguration, and secrets
+  # committed to the tree. Deliberately NOT the same thing as the audit above —
+  # this one also reads the Dockerfiles and the source.
+  #
+  # CodeQL would be the natural companion here and is deliberately absent: code
+  # scanning on a PRIVATE repository needs GitHub Advanced Security, which this
+  # organisation does not have. Trivy runs anywhere, so it is what we can
+  # actually have today.
+  vulnerability-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Blocking, and only on CRITICAL. A committed secret or a critical
+      # misconfiguration should stop a release; anything below that is reported
+      # in the step log and triaged by a human, because a scanner that fails
+      # the build on every MEDIUM is a scanner somebody will switch off.
+      - name: Trivy (critical findings block)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Trivy (full report, informational)
+        if: always()
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: HIGH,MEDIUM
+          exit-code: '0'
+          ignore-unfixed: true
