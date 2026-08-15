@@ -145,3 +145,25 @@ run re-checks that CI passed for that commit before touching prod.
   migrations should stay backward-compatible one release in each direction.
 - **Scaling up later**: raise the App Service plan SKU and enable Postgres
   zone-redundant HA in `main.bicep` — both are single-line changes.
+
+## Slot-sticky app settings (prod)
+
+`WEB_ORIGIN` and `WEB_ORIGIN_ALIASES` are declared in `slotConfigNames`
+(main.bicep) so they stay bound to the slot they are set on. They were not,
+once: after the custom-domain cutover the values were set by hand on the
+production slot, the next release swapped slots, and the pre-cutover value
+rode back into production — every write from app.jumpstartusa.org answered
+403, and the WebAuthn rpID (derived from WEB_ORIGIN) moved with it.
+
+If you ever set these with the CLI, use `--slot-settings` (not `--settings`)
+and set them on BOTH slots:
+
+    az webapp config appsettings set -n js-prod-api -g rg-jumpstart-prod \
+      --slot-settings WEB_ORIGIN="https://app.jumpstartusa.org" \
+      WEB_ORIGIN_ALIASES="https://proud-flower-0e1a5cd0f.7.azurestaticapps.net"
+    az webapp config appsettings set -n js-prod-api -g rg-jumpstart-prod --slot staging \
+      --slot-settings WEB_ORIGIN="https://app.jumpstartusa.org" \
+      WEB_ORIGIN_ALIASES="https://proud-flower-0e1a5cd0f.7.azurestaticapps.net"
+
+Verify after any prod release: a POST with `Origin: https://app.jumpstartusa.org`
+must answer 401 (auth), never 403 (origin rejected).
