@@ -15,6 +15,18 @@ param env = 'staging'
 param customWebOrigin = 'https://staging.jumpstartusa.org'
 
 /**
+ * Graph identifiers. Not secrets — a tenant id and an application id — so they
+ * belong in version control rather than hand-set on the App Service, which is
+ * how they came to be invisible to this template in the first place.
+ *
+ * The CLIENT SECRET is not here: it lives in Key Vault as `graph-client-secret`
+ * and the template references it by name.
+ */
+param graphTenantId = 'c45dea2f-d715-4993-a517-f7959689cff1'
+param graphClientId = 'c6ecea3a-252a-47ce-ab5f-1c0402b9113b'
+param emailFrom = 'no-reply@jumpstartusa.org'
+
+/**
  * Secrets are deliberately NOT set here. Empty means "leave whatever is
  * already in Key Vault alone", so this file can be re-applied to change
  * configuration without rotating the session secret, resetting the database
