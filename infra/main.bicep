@@ -11,21 +11,30 @@ param location string = resourceGroup().location
 // Static Web Apps is only offered in a subset of regions.
 param swaLocation string = 'eastus2'
 
+/**
+ * SECRETS ARE OPTIONAL, and an empty value means "this deployment does not
+ * manage that secret" — it is left exactly as it is in Key Vault.
+ *
+ * They used to be required, and infra/README told you to generate fresh random
+ * ones on every deployment. That is correct for the first bootstrap and
+ * actively dangerous afterwards: re-running it would have reset the live
+ * Postgres admin password and rotated SESSION_SECRET, signing every user out.
+ * A template you cannot safely re-run is a template that stops describing
+ * reality, which is how WEB_ORIGIN came to be set by hand (see #97).
+ *
+ * Bootstrap: supply all of them. Re-run to change configuration: supply none.
+ */
 @secure()
-@minLength(16)
-@description('Postgres admin password. Use URL-safe characters only (openssl rand -hex 24) — it is embedded in DATABASE_URL.')
-param postgresAdminPassword string
+@description('Postgres admin password. EMPTY leaves the existing server password and database-url secret untouched. Only set it on first bootstrap, or to deliberately rotate.')
+param postgresAdminPassword string = ''
 
 @secure()
-@minLength(32)
-@description('Express session signing secret (openssl rand -hex 32).')
-param sessionSecret string
+@description('Express session signing secret (openssl rand -hex 32). EMPTY leaves the existing one alone — rotating it signs every user out.')
+param sessionSecret string = ''
 
 @secure()
-@minLength(64)
-@maxLength(64)
-@description('AES-256-GCM key for encrypted columns, 64 hex chars (openssl rand -hex 32). Rotating it makes every stored TOTP secret unreadable and forces enrolled users to re-enroll — treat it like the database password.')
-param encryptionKey string
+@description('AES-256-GCM key for encrypted columns, 64 hex chars (openssl rand -hex 32). EMPTY leaves the existing one alone. Rotating it makes every stored TOTP secret unreadable and forces enrolled users to re-enroll — treat it like the database password.')
+param encryptionKey string = ''
 
 // ── Outbound email (Microsoft Graph, client credentials) ────────────────────
 // Security NOTIFICATIONS ride on this, not just invitations: account lockout,
@@ -146,7 +155,9 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-preview'
   properties: {
     version: '16'
     administratorLogin: pgAdminUser
-    administratorLoginPassword: postgresAdminPassword
+    // null is omitted from the request, so an unspecified password leaves the
+    // live server's password exactly as it is.
+    administratorLoginPassword: empty(postgresAdminPassword) ? null : postgresAdminPassword
     storage: { storageSizeGB: 32, autoGrow: 'Enabled' }
     backup: {
       backupRetentionDays: 14
@@ -201,7 +212,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
 }
 
-resource secretDatabaseUrl 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretDatabaseUrl 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(postgresAdminPassword)) {
   parent: keyVault
   name: 'database-url'
   properties: {
@@ -209,7 +220,7 @@ resource secretDatabaseUrl 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
-resource secretSessionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretSessionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(sessionSecret)) {
   parent: keyVault
   name: 'session-secret'
   properties: {
@@ -217,7 +228,7 @@ resource secretSessionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
-resource secretEncryptionKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretEncryptionKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(encryptionKey)) {
   parent: keyVault
   name: 'encryption-key'
   properties: {
@@ -225,13 +236,11 @@ resource secretEncryptionKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
-// Created unconditionally so the app-setting reference below always resolves;
-// an empty value simply leaves mail unconfigured.
-resource secretGraphClientSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretGraphClientSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(graphClientSecret)) {
   parent: keyVault
   name: 'graph-client-secret'
   properties: {
-    value: empty(graphClientSecret) ? 'unset' : graphClientSecret
+    value: graphClientSecret
   }
 }
 
@@ -254,8 +263,20 @@ resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
   }
 }
 
+/**
+ * The container image. EMPTY means "leave whatever is deployed alone".
+ *
+ * The template used to hardcode the containerapps-helloworld placeholder, on
+ * the reasoning that the first CI deploy overrides it. True at bootstrap, and
+ * a live-environment outage on every re-run after that: what-if showed this
+ * replacing the running API with the placeholder until the next merge to main
+ * happened to re-set it. Same shape of bug as the secrets above — a bootstrap
+ * value re-applied to a running system.
+ */
+@description('Container image for the API, e.g. myacr.azurecr.io/jumpstart-api:sha. EMPTY leaves the currently deployed image untouched — CI owns this after bootstrap.')
+param containerImage string = ''
+
 var apiAppSettings = [
-  // Placeholder image listens on 80 until the first CI deploy overrides the container.
   { name: 'WEBSITES_PORT', value: '3001' }
   { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
   { name: 'API_PORT', value: '3001' }
@@ -286,18 +307,20 @@ var apiAppSettings = [
   // relying-party id from WEB_ORIGIN's host (config/env.ts rpId()) precisely so
   // it cannot drift; a standalone RP_ID here was dead config that read as
   // though it configured passkey binding.
-  { name: 'DATABASE_URL', value: '@Microsoft.KeyVault(SecretUri=${secretDatabaseUrl.properties.secretUri})' }
-  { name: 'SESSION_SECRET', value: '@Microsoft.KeyVault(SecretUri=${secretSessionSecret.properties.secretUri})' }
-  { name: 'ENCRYPTION_KEY', value: '@Microsoft.KeyVault(SecretUri=${secretEncryptionKey.properties.secretUri})' }
+  /**
+   * VaultName/SecretName rather than SecretUri: a SecretUri has to be read off
+   * the secret RESOURCE, which only exists in this deployment when the run is
+   * managing that secret. Referencing by name resolves to the current version
+   * either way, so a configuration-only re-run keeps pointing at the secrets
+   * that are already there.
+   */
+  { name: 'DATABASE_URL', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=database-url)' }
+  { name: 'SESSION_SECRET', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=session-secret)' }
+  { name: 'ENCRYPTION_KEY', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=encryption-key)' }
   { name: 'GRAPH_TENANT_ID', value: graphTenantId }
   { name: 'GRAPH_CLIENT_ID', value: graphClientId }
   { name: 'EMAIL_FROM', value: emailFrom }
-  {
-    name: 'GRAPH_CLIENT_SECRET'
-    value: empty(graphClientSecret)
-      ? ''
-      : '@Microsoft.KeyVault(SecretUri=${secretGraphClientSecret.properties.secretUri})'
-  }
+  { name: 'GRAPH_CLIENT_SECRET', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=graph-client-secret)' }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
 ]
 
@@ -312,7 +335,8 @@ resource api 'Microsoft.Web/sites@2023-12-01' = {
     virtualNetworkSubnetId: '${vnet.id}/subnets/snet-app'
     vnetRouteAllEnabled: true
     siteConfig: {
-      linuxFxVersion: 'DOCKER|mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+      // null is omitted from the request, so the deployed image stays put.
+      linuxFxVersion: empty(containerImage) ? null : 'DOCKER|${containerImage}'
       acrUseManagedIdentityCreds: true
       alwaysOn: true
       healthCheckPath: '/api/health'
@@ -355,7 +379,8 @@ resource apiStagingSlot 'Microsoft.Web/sites/slots@2023-12-01' = if (isProd) {
     virtualNetworkSubnetId: '${vnet.id}/subnets/snet-app'
     vnetRouteAllEnabled: true
     siteConfig: {
-      linuxFxVersion: 'DOCKER|mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+      // null is omitted from the request, so the deployed image stays put.
+      linuxFxVersion: empty(containerImage) ? null : 'DOCKER|${containerImage}'
       acrUseManagedIdentityCreds: true
       alwaysOn: true
       healthCheckPath: '/api/health'
