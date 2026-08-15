@@ -15,9 +15,9 @@
   "dependencies": {
     "@jumpstart/database": "workspace:*",
     "@jumpstart/shared": "workspace:*",
-    "@nestjs/common": "^11.0.0",
-    "@nestjs/core": "^11.0.0",
-    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/common": "^11.1.29",
+    "@nestjs/core": "^11.1.29",
+    "@nestjs/platform-express": "^11.1.29",
     "@nestjs/swagger": "^11.0.0",
     "@nestjs/throttler": "^6.4.0",
     "@simplewebauthn/server": "^13.3.2",
