@@ -10,7 +10,7 @@ import { authenticator } from 'otplib';
 import { TOTP_REQUIRED_ROLES } from '@jumpstart/shared';
 import { AuditService } from '../audit/audit.service';
 import { encryptSecret, totpSecretContext } from '../common/crypto.util';
-import { verifyTotpCode } from '../common/totp.util';
+import { currentTotpStep, verifyTotpCode } from '../common/totp.util';
 import { loadEnv } from '../config/env';
 import { MailService } from '../mail/mail.service';
 import { PasskeysService, type PasskeyAssertion } from './passkeys.service';
@@ -39,6 +39,45 @@ const normalizeRecoveryCode = (raw: string) => raw.toUpperCase().replace(/[^A-Z0
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+
+// ── Per-account lockout ─────────────────────────────────────────────────────
+
+/**
+ * Failures tolerated before the account starts locking. Generous, because a
+ * human mistyping a password three times is ordinary and being locked out of
+ * the system that holds your caseload is not a small thing.
+ */
+const LOCKOUT_THRESHOLD = 6;
+
+/**
+ * Backoff, indexed by how far past the threshold the account is: 1 minute, then
+ * 5, 15, 60. Doubling forever would turn a bad afternoon into a support ticket;
+ * an hour is already long enough that guessing is hopeless — at one attempt an
+ * hour, an 8-character password outlives everyone involved.
+ */
+const LOCKOUT_STEPS_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000];
+
+function lockoutFor(failureCount: number): Date | null {
+  if (failureCount < LOCKOUT_THRESHOLD) return null;
+  const step = Math.min(failureCount - LOCKOUT_THRESHOLD, LOCKOUT_STEPS_MS.length - 1);
+  return new Date(Date.now() + LOCKOUT_STEPS_MS[step]!);
+}
+
+/**
+ * A real argon2 hash of a value nobody can supply, verified against whenever
+ * the account does not exist.
+ *
+ * Without it the unknown-account path returned immediately while a known one
+ * spent ~100ms in argon2id — a reliable account-existence oracle that undid
+ * the deliberate "same failure message whether the account exists or not"
+ * above it. Computed once, lazily, and reused: the cost has to be paid on
+ * every unknown-account attempt, not just the first.
+ */
+let dummyHashPromise: Promise<string> | undefined;
+function dummyHash(): Promise<string> {
+  dummyHashPromise ??= hashPassword(randomBytes(32).toString('hex'));
+  return dummyHashPromise;
+}
 
 export interface LoginResult {
   status: 'ok' | 'totp_required';
@@ -78,8 +117,12 @@ export class AuthService {
       include: { userRoles: { include: { role: true } }, regionScopes: true },
     });
 
-    // Same failure message whether the account exists or not.
+    // Same failure message whether the account exists or not — AND the same
+    // cost. Verifying against a throwaway hash keeps the unknown-account path
+    // as expensive as the real one; returning early here was an account
+    // -existence oracle that made the matching message decorative.
     if (!user || user.deletedAt) {
+      await argon2.verify(await dummyHash(), password).catch(() => false);
       await this.audit.log({
         action: 'login_failed',
         entityType: 'user',
@@ -89,14 +132,38 @@ export class AuthService {
     }
 
     const passwordOk = await argon2.verify(user.passwordHash, password).catch(() => false);
-    if (!passwordOk) {
+
+    /**
+     * Lockout is checked AFTER the password, deliberately.
+     *
+     * Announcing "this account is locked" to someone who did not supply the
+     * password would be the account-existence oracle the dummy hash above
+     * exists to close — six wrong guesses would confirm an address. So a wrong
+     * password gets the same generic answer it always did, and only a caller
+     * who proved they know the password is told why they are not being let in.
+     * The cost is running argon2 during an attack, which the per-IP throttle
+     * already bounds.
+     */
+    const lockedUntil = user.lockedUntil;
+    if (lockedUntil && lockedUntil > new Date()) {
       await this.audit.log({
         userId: user.id,
         action: 'login_failed',
         entityType: 'user',
         entityId: user.id,
-        metadata: { reason: 'bad_password' },
+        metadata: { reason: passwordOk ? 'locked_out' : 'locked_out_bad_password' },
       });
+      if (!passwordOk) throw new UnauthorizedException('Invalid email or password');
+      const minutes = Math.max(1, Math.ceil((lockedUntil.getTime() - Date.now()) / 60_000));
+      throw new UnauthorizedException(
+        `Too many failed sign-in attempts. Try again in ${minutes} minute${
+          minutes === 1 ? '' : 's'
+        }, or reset your password.`,
+      );
+    }
+
+    if (!passwordOk) {
+      await this.registerLoginFailure(user, 'bad_password');
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -127,26 +194,14 @@ export class AuthService {
           ? await this.passkeys.verifyAuthentication(user.id, passkey.response, passkey.challenge)
           : false;
         if (!ok) {
-          await this.audit.log({
-            userId: user.id,
-            action: 'login_failed',
-            entityType: 'user',
-            entityId: user.id,
-            metadata: { reason: 'bad_passkey' },
-          });
+          await this.registerLoginFailure(user, 'bad_passkey');
           throw new UnauthorizedException('Passkey sign-in failed — try again or use a code');
         }
       } else if (recoveryCode) {
         // Lost-authenticator fallback: burn a single-use recovery code.
         const remaining = await this.consumeRecoveryCode(user.id, recoveryCode);
         if (remaining === null) {
-          await this.audit.log({
-            userId: user.id,
-            action: 'login_failed',
-            entityType: 'user',
-            entityId: user.id,
-            metadata: { reason: 'bad_recovery_code' },
-          });
+          await this.registerLoginFailure(user, 'bad_recovery_code');
           throw new UnauthorizedException('Invalid recovery code');
         }
         await this.audit.log({
@@ -166,25 +221,45 @@ export class AuthService {
       } else {
         // A 6-digit code only counts when TOTP is actually enrolled — a
         // passkey-only account must not accept guessed codes.
-        const valid =
-          user.totpEnabled &&
-          verifyTotpCode(user.id, user.totpSecret, totpCode);
+        const valid = user.totpEnabled && verifyTotpCode(user.id, user.totpSecret, totpCode);
         if (!valid) {
-          await this.audit.log({
-            userId: user.id,
-            action: 'login_failed',
-            entityType: 'user',
-            entityId: user.id,
-            metadata: { reason: 'bad_totp' },
-          });
+          await this.registerLoginFailure(user, 'bad_totp');
           throw new UnauthorizedException('Invalid authentication code');
+        }
+
+        /**
+         * Burn the step. otplib's window is 0, so a code that verified belongs
+         * to the CURRENT step — and until this check existed it stayed good for
+         * the rest of that 30 seconds, which is long enough to replay a code
+         * read off a shoulder, a shared screen, or a proxy in front of the SPA.
+         *
+         * The guarded updateMany makes the burn atomic: two logins racing with
+         * the same code cannot both see an un-spent step.
+         */
+        const step = currentTotpStep();
+        const burned = await this.prisma.user.updateMany({
+          where: { id: user.id, OR: [{ lastTotpStep: null }, { lastTotpStep: { lt: step } }] },
+          data: { lastTotpStep: step },
+        });
+        if (burned.count !== 1) {
+          await this.registerLoginFailure(user, 'totp_replay');
+          throw new UnauthorizedException(
+            'That code has already been used — wait for your authenticator to show the next one',
+          );
         }
       }
     }
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date(), ...(user.status === 'invited' ? { status: 'active' } : {}) },
+      data: {
+        lastLoginAt: new Date(),
+        // A good sign-in clears the brute-force state; otherwise yesterday's
+        // typos accumulate until an ordinary day locks somebody out.
+        failedLoginCount: 0,
+        lockedUntil: null,
+        ...(user.status === 'invited' ? { status: 'active' } : {}),
+      },
     });
     await this.audit.log({
       userId: user.id,
@@ -205,6 +280,42 @@ export class AuthService {
         chapter: user.regionScopes[0]?.state ?? null,
       },
     };
+  }
+
+  /**
+   * Record a failed attempt against the ACCOUNT and lock it once the failures
+   * pile up. Audits the same `login_failed` row it always did — that log is
+   * what an investigation reads — and adds the counter the per-IP throttle
+   * could never provide, because a distributed campaign presents as one
+   * attempt from each of a thousand addresses.
+   *
+   * Notifies the account holder the first time a lock is applied. They are the
+   * one party guaranteed to notice that they were not the one guessing.
+   */
+  private async registerLoginFailure(
+    user: { id: string; email: string; firstName: string; failedLoginCount: number },
+    reason: string,
+  ): Promise<void> {
+    const failedLoginCount = user.failedLoginCount + 1;
+    const lockedUntil = lockoutFor(failedLoginCount);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { failedLoginCount, ...(lockedUntil ? { lockedUntil } : {}) },
+    });
+    await this.audit.log({
+      userId: user.id,
+      action: 'login_failed',
+      entityType: 'user',
+      entityId: user.id,
+      metadata: { reason, failedLoginCount, ...(lockedUntil ? { lockedUntil } : {}) },
+    });
+
+    // Only on the transition into a lock, not on every failure past it — an
+    // ongoing attack must not turn into a mailbox full of identical warnings.
+    if (lockedUntil && failedLoginCount === LOCKOUT_THRESHOLD) {
+      await this.mail.sendAccountLocked(user.email, user.firstName, lockedUntil);
+    }
   }
 
   async startTotpSetup(userId: string): Promise<{ otpauthUrl: string; secret: string }> {

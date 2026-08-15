@@ -1634,3 +1634,179 @@ describe('TOTP secrets are encrypted at rest and still verify', () => {
       .expect(401);
   });
 });
+
+/**
+ * Per-account brute-force protection and TOTP replay.
+ *
+ * The throttler is per-IP, so a campaign spread across addresses was unbounded
+ * against one known email — and staff addresses at a nonprofit are public.
+ * Runs against a throwaway account: locking a seeded one out would break every
+ * other test in this file for the rest of the run.
+ */
+describe('account lockout', () => {
+  const throwaway = {
+    email: `locktest-${randomUUID()}@jumpstartusa.org`,
+    firstName: 'Lockout',
+    lastName: 'Test',
+    roles: ['read_only'],
+  };
+  const LOCKOUT_THRESHOLD = 6;
+
+  let adminCookie: string;
+  let userId: string;
+  let password: string;
+
+  beforeAll(async () => {
+    adminCookie = await login(ADMIN);
+    const created = await request(server)
+      .post('/api/admin/users')
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send(throwaway)
+      .expect(201);
+    userId = created.body.user.id;
+    password = created.body.temporaryPassword;
+  });
+
+  afterAll(async () => {
+    if (!userId) return;
+    const me = await request(server).get('/api/auth/me').set('Cookie', adminCookie);
+    await request(server)
+      .post(`/api/admin/users/${userId}/deactivate`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ reassignToUserId: me.body.id })
+      .catch(() => undefined);
+  });
+
+  it('locks after repeated failures and then refuses the CORRECT password', async () => {
+    for (let i = 0; i < LOCKOUT_THRESHOLD; i++) {
+      await request(server)
+        .post('/api/auth/login')
+        .set('Origin', ORIGIN)
+        .send({ email: throwaway.email, password: `wrong-guess-${i}` })
+        .expect(401);
+    }
+
+    // The real credential is now refused — which is the whole point, and is
+    // what a per-IP throttle alone could never do.
+    const locked = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password })
+      .expect(401);
+    expect(locked.body.message).toMatch(/Too many failed sign-in attempts/);
+
+    // ...but only a caller who PROVED they know the password is told why.
+    // Anyone else gets the same generic answer, so six guesses cannot be used
+    // to confirm that an address is registered.
+    const generic = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password: 'still-wrong' })
+      .expect(401);
+    expect(generic.body.message).toBe('Invalid email or password');
+  });
+
+  it('records the lock on the account, not merely in a counter somewhere', async () => {
+    const row = await app.get(PrismaService).user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { failedLoginCount: true, lockedUntil: true },
+    });
+    expect(row.failedLoginCount).toBeGreaterThanOrEqual(LOCKOUT_THRESHOLD);
+    expect(row.lockedUntil).not.toBeNull();
+    expect(row.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('lets the account back in once the lock lapses, and resets the counter', async () => {
+    // Expire the lock rather than waiting a minute for it.
+    await app
+      .get(PrismaService)
+      .user.update({ where: { id: userId }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+
+    const cookie = await login({ email: throwaway.email, password });
+    await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+
+    const row = await app.get(PrismaService).user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { failedLoginCount: true, lockedUntil: true },
+    });
+    // A good sign-in clears the state — otherwise yesterday's typos accumulate
+    // until an ordinary day locks somebody out.
+    expect(row.failedLoginCount).toBe(0);
+    expect(row.lockedUntil).toBeNull();
+  });
+});
+
+describe('TOTP codes cannot be replayed', () => {
+  const throwaway = {
+    email: `replaytest-${randomUUID()}@jumpstartusa.org`,
+    firstName: 'Replay',
+    lastName: 'Test',
+    roles: ['read_only'],
+  };
+
+  let adminCookie: string;
+  let userId: string;
+  let password: string;
+  let secret: string;
+
+  beforeAll(async () => {
+    const { authenticator } = await import('otplib');
+    adminCookie = await login(ADMIN);
+    const created = await request(server)
+      .post('/api/admin/users')
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send(throwaway)
+      .expect(201);
+    userId = created.body.user.id;
+    password = created.body.temporaryPassword;
+
+    const cookie = await login({ email: throwaway.email, password });
+    const setup = await request(server)
+      .post('/api/auth/totp/setup')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .expect(201);
+    secret = setup.body.secret;
+    await request(server)
+      .post('/api/auth/totp/confirm')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ code: authenticator.generate(secret) })
+      .expect(201);
+  });
+
+  afterAll(async () => {
+    if (!userId) return;
+    const me = await request(server).get('/api/auth/me').set('Cookie', adminCookie);
+    await request(server)
+      .post(`/api/admin/users/${userId}/deactivate`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ reassignToUserId: me.body.id })
+      .catch(() => undefined);
+  });
+
+  it('accepts a code once and refuses the same code again', async () => {
+    const { authenticator } = await import('otplib');
+    const code = authenticator.generate(secret);
+
+    const first = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password, totpCode: code })
+      .expect(200);
+    expect(first.body.user?.email).toBe(throwaway.email);
+
+    // The same code, still inside its 30-second window: previously this was a
+    // second valid sign-in.
+    const replay = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password, totpCode: code })
+      .expect(401);
+    expect(replay.body.message).toMatch(/already been used/);
+  });
+});

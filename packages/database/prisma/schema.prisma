@@ -922,6 +922,23 @@ model User {
   totpEnabled Boolean   @default(false)
   lastLoginAt DateTime?
 
+  /**
+   * The TOTP time step most recently SPENT. A code is valid for its whole
+   * 30-second window, so without this a code read off a shoulder, a shared
+   * screen or a proxy can be replayed for the rest of that window. Storing the
+   * step rather than the code means the check is an integer comparison and
+   * never puts a live credential in the database.
+   */
+  lastTotpStep Int?
+
+  /**
+   * Per-ACCOUNT brute-force state. The throttler is per-IP, so a guessing
+   * campaign spread across addresses was unbounded against a single known
+   * email — and staff email addresses at a nonprofit are public.
+   */
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   createdById String?

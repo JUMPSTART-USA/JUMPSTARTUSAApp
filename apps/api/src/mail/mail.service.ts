@@ -101,6 +101,38 @@ export class MailService {
     return this.send(to, subject, html);
   }
 
+  /**
+   * Sent when repeated failures lock an account.
+   *
+   * The point is not the lockout — it is telling the person that somebody has
+   * been trying. The sign-in screen deliberately will not say "this account is
+   * locked" to a caller who did not supply the password, since that would
+   * confirm the address exists; this email is how the real owner finds out.
+   */
+  async sendAccountLocked(
+    to: string,
+    firstName: string,
+    lockedUntil: Date,
+  ): Promise<{ sent: boolean; from: string }> {
+    const origin = loadEnv().WEB_ORIGIN;
+    const subject = 'Your JUMPSTART USA account was temporarily locked';
+    const until = lockedUntil.toLocaleString('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'America/New_York',
+    });
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>There have been several failed sign-in attempts on your account, so we
+      have locked it until <strong>${escapeHtml(until)}</strong> (Eastern).</p>
+      <p><strong>If that was you</strong> — wait until then and try again, or
+      <a href="${origin}/forgot-password">reset your password</a> now.</p>
+      <p><strong>If it was not you</strong>, someone is guessing your password.
+      Reset it, and tell an administrator so they can check the account.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(to, subject, html);
+  }
+
   async sendInvite(
     to: string,
     firstName: string,

@@ -56,7 +56,7 @@ describe('encryptSecret / decryptSecret', () => {
     const parts = sealed.split('.');
     // Flip the last byte of the ciphertext segment.
     const data = Buffer.from(parts[3]!, 'base64url');
-    data[data.length - 1] ^= 0xff;
+    data[data.length - 1] = (data[data.length - 1] ?? 0) ^ 0xff;
     parts[3] = data.toString('base64url');
     expect(() => decryptSecret(parts.join('.'), totpSecretContext(USER))).toThrow();
   });
