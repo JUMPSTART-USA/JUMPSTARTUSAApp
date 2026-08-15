@@ -27,6 +27,27 @@ param sessionSecret string
 @description('AES-256-GCM key for encrypted columns, 64 hex chars (openssl rand -hex 32). Rotating it makes every stored TOTP secret unreadable and forces enrolled users to re-enroll — treat it like the database password.')
 param encryptionKey string
 
+// ── Outbound email (Microsoft Graph, client credentials) ────────────────────
+// Security NOTIFICATIONS ride on this, not just invitations: account lockout,
+// second-factor reset, email and role changes. With it unset the API still
+// runs and every one of those is silently skipped, which is why /api/health
+// reports mail status and the API says so at boot.
+//
+// Needs an Entra app registration with the Mail.Send APPLICATION permission,
+// admin-consented, and a mailbox to send as (EMAIL_FROM).
+@description('Entra tenant id for the Mail.Send app registration. Empty disables outbound email.')
+param graphTenantId string = ''
+
+@description('Entra application (client) id for the Mail.Send app registration.')
+param graphClientId string = ''
+
+@secure()
+@description('Client secret for the Mail.Send app registration. Empty disables outbound email.')
+param graphClientSecret string = ''
+
+@description('Mailbox notifications are sent from. Must exist in the tenant.')
+param emailFrom string = 'no-reply@jumpstartusa.org'
+
 // Custom front-door origin (e.g. https://app.jumpstartusa.org). Empty = the
 // SWA default hostname stays canonical. When set, the default hostname moves
 // to WEB_ORIGIN_ALIASES so both hosts keep working through a cutover.
@@ -204,6 +225,16 @@ resource secretEncryptionKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
+// Created unconditionally so the app-setting reference below always resolves;
+// an empty value simply leaves mail unconfigured.
+resource secretGraphClientSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'graph-client-secret'
+  properties: {
+    value: empty(graphClientSecret) ? 'unset' : graphClientSecret
+  }
+}
+
 // ── Identity for one-off jobs (CI-triggered migration containers) ──────────
 
 resource jobsIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -258,6 +289,15 @@ var apiAppSettings = [
   { name: 'DATABASE_URL', value: '@Microsoft.KeyVault(SecretUri=${secretDatabaseUrl.properties.secretUri})' }
   { name: 'SESSION_SECRET', value: '@Microsoft.KeyVault(SecretUri=${secretSessionSecret.properties.secretUri})' }
   { name: 'ENCRYPTION_KEY', value: '@Microsoft.KeyVault(SecretUri=${secretEncryptionKey.properties.secretUri})' }
+  { name: 'GRAPH_TENANT_ID', value: graphTenantId }
+  { name: 'GRAPH_CLIENT_ID', value: graphClientId }
+  { name: 'EMAIL_FROM', value: emailFrom }
+  {
+    name: 'GRAPH_CLIENT_SECRET'
+    value: empty(graphClientSecret)
+      ? ''
+      : '@Microsoft.KeyVault(SecretUri=${secretGraphClientSecret.properties.secretUri})'
+  }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
 ]
 
