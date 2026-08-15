@@ -23,4 +23,9 @@ RUN pnpm --filter @jumpstart/web build
 FROM nginxinc/nginx-unprivileged:alpine
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+# Redundant with the base image, which already drops to this uid — but stated
+# explicitly because a scanner reads the Dockerfile, not the image it inherits
+# from, and an unstated invariant is one a future base-image swap can drop
+# without anyone noticing.
+USER 101
 EXPOSE 8080
