@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { isProduction } from '../../config/env';
+import { isDevelopment } from '../../config/env';
 
 /**
  * Uniform error envelope. Internal errors never leak stack traces or query
@@ -42,9 +42,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: 500,
-      message: isProduction()
-        ? `Something went wrong. Reference: ${correlationId}`
-        : `${exception instanceof Error ? exception.message : 'Unknown error'} (ref ${correlationId})`,
+      // Detail is a DEVELOPMENT affordance, not a "not production" one. Under
+      // the old test, staging returned raw internal messages to any caller.
+      message: isDevelopment()
+        ? `${exception instanceof Error ? exception.message : 'Unknown error'} (ref ${correlationId})`
+        : `Something went wrong. Reference: ${correlationId}`,
       correlationId,
     });
   }

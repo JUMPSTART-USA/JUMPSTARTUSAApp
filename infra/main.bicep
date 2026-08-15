@@ -161,6 +161,16 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enableRbacAuthorization: true
     enableSoftDelete: true
     softDeleteRetentionInDays: 30
+    /**
+     * ONE-WAY DOOR: purge protection cannot be turned off once it is on, and
+     * the vault (and any deleted secret in it) then cannot be purged before
+     * the 30-day retention elapses. That is the point — it stops a sufficiently
+     * privileged compromise from destroying SESSION_SECRET and the database
+     * credential outright. The cost is that a torn-down environment holds its
+     * vault name for 30 days, so redeploying this template from scratch under
+     * the same name inside that window will fail on the name still being taken.
+     */
+    enablePurgeProtection: true
   }
 }
 
@@ -204,7 +214,21 @@ var apiAppSettings = [
   { name: 'WEBSITES_PORT', value: '3001' }
   { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
   { name: 'API_PORT', value: '3001' }
-  { name: 'NODE_ENV', value: isProd ? 'production' : 'staging' }
+  /**
+   * BOTH deployed environments run the production code path. Staging used to
+   * run NODE_ENV=staging, and because every production protection was gated on
+   * `NODE_ENV === 'production'`, that one string turned three of them off at
+   * once on a public HTTPS host: the Secure cookie flag, the Swagger gate and
+   * the error-detail gate. Staging exists to exercise what production runs.
+   *
+   * APP_ENV carries the "which deployment is this" meaning instead. Nothing in
+   * the API gates behaviour on it — see apps/api/src/config/env.ts.
+   */
+  { name: 'NODE_ENV', value: 'production' }
+  { name: 'APP_ENV', value: isProd ? 'production' : 'staging' }
+  // Swagger publishes the whole API surface and mounts outside the Nest
+  // guards, so it stays off in both deployed environments.
+  { name: 'ENABLE_API_DOCS', value: 'false' }
   {
     name: 'WEB_ORIGIN'
     value: customWebOrigin != '' ? customWebOrigin : 'https://${staticSite.properties.defaultHostname}'
@@ -213,12 +237,10 @@ var apiAppSettings = [
     name: 'WEB_ORIGIN_ALIASES'
     value: customWebOrigin != '' ? 'https://${staticSite.properties.defaultHostname}' : ''
   }
-  {
-    // Passkeys bind to this domain (WebAuthn rpID) — the custom domain when
-    // one exists; 'localhost' otherwise, which disables passkeys in practice.
-    name: 'RP_ID'
-    value: customWebOrigin != '' ? replace(customWebOrigin, 'https://', '') : 'localhost'
-  }
+  // NOTE: there is deliberately no RP_ID setting. The API derives the WebAuthn
+  // relying-party id from WEB_ORIGIN's host (config/env.ts rpId()) precisely so
+  // it cannot drift; a standalone RP_ID here was dead config that read as
+  // though it configured passkey binding.
   { name: 'DATABASE_URL', value: '@Microsoft.KeyVault(SecretUri=${secretDatabaseUrl.properties.secretUri})' }
   { name: 'SESSION_SECRET', value: '@Microsoft.KeyVault(SecretUri=${secretSessionSecret.properties.secretUri})' }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }

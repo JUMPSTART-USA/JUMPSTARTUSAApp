@@ -37,8 +37,12 @@ CMD ["pnpm", "exec", "prisma", "migrate", "deploy"]
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /out ./
-COPY --from=build /app/apps/api/dist ./dist
+# Owned by, and run as, the unprivileged `node` user the base image ships.
+# Nothing here writes to disk at runtime — attachments live in Postgres and
+# migrations run at release time — so read-only ownership is enough.
+COPY --from=build --chown=node:node /out ./
+COPY --from=build --chown=node:node /app/apps/api/dist ./dist
+USER node
 # Prisma migrations run at release time (migrate deploy), not at boot
 EXPOSE 3001
 CMD ["node", "dist/main.js"]

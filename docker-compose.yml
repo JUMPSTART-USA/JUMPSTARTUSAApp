@@ -35,6 +35,10 @@ services:
       WEB_ORIGIN: http://localhost:8080
       API_PORT: 3001
       NODE_ENV: production
+      APP_ENV: development
+      # Local full-stack convenience only. Never set this in a deployed
+      # environment, where the docs are an unauthenticated map of the API.
+      ENABLE_API_DOCS: "true"
       TURNSTILE_DEV_BYPASS: "true"
     ports:
       - "3001:3001"

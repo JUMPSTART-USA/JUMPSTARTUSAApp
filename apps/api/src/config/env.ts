@@ -3,7 +3,32 @@ import { z } from 'zod';
 // Fail fast at boot with a readable message if the environment is misconfigured.
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
+  /**
+   * Which DEPLOYMENT this is — for logs, telemetry and human labelling only.
+   * Deliberately separate from NODE_ENV, which selects the CODE PATH and should
+   * be 'production' everywhere the app is deployed, staging included.
+   *
+   * They used to be one value, and staging ran NODE_ENV=staging. Because every
+   * production protection was gated on `NODE_ENV === 'production'`, that single
+   * string quietly turned three unrelated things off at once on a public HTTPS
+   * host: the session cookie's Secure flag, the Swagger docs gate and the
+   * error-detail gate. Nothing below is gated on APP_ENV — that is the point.
+   */
+  APP_ENV: z.enum(['development', 'test', 'staging', 'production']).optional(),
   API_PORT: z.coerce.number().int().default(3001),
+  /**
+   * Serve the Swagger UI at /api/docs. Defaults OFF, and off is what every
+   * deployed environment gets unless someone opts in on purpose: the docs
+   * publish every route, parameter and schema in the platform, and
+   * SwaggerModule mounts straight onto Express — OUTSIDE the Nest guards, so
+   * nothing checks a session or a permission in front of them.
+   *
+   * Local development opts in for you; see apiDocsEnabled().
+   */
+  ENABLE_API_DOCS: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true'),
   DATABASE_URL: z.string().url(),
   SESSION_SECRET: z
     .string()
@@ -72,7 +97,40 @@ export function loadEnv(): Env {
   return cached;
 }
 
-export const isProduction = () => loadEnv().NODE_ENV === 'production';
+/**
+ * There is deliberately no `isProduction()` here any more.
+ *
+ * Three unrelated security properties used to hang off it, so one environment
+ * variable being 'staging' rather than 'production' turned all three off at
+ * once — silently, on a public HTTPS host. Each now asks the question it
+ * actually cares about, so a new environment can only get one of them wrong.
+ */
+
+/** Development only. Never true in a deployed environment. */
+export const isDevelopment = () => loadEnv().NODE_ENV === 'development';
+
+/**
+ * Mark the session cookie Secure whenever the app is reached over HTTPS —
+ * asked of the ORIGIN, not of the environment name. Every deployed environment
+ * is HTTPS (App Service sets httpsOnly), and local dev over plain HTTP still
+ * gets a usable cookie, which is the only case that needs the exception.
+ */
+export function sessionCookieSecure(): boolean {
+  try {
+    return new URL(loadEnv().WEB_ORIGIN).protocol === 'https:';
+  } catch {
+    return true; // unparseable origin — fail closed
+  }
+}
+
+/** Swagger at /api/docs: explicit opt-in anywhere, automatic in local dev. */
+export const apiDocsEnabled = () => loadEnv().ENABLE_API_DOCS || isDevelopment();
+
+/** Deployment label for logs and telemetry — never a security decision. */
+export const appEnv = () => {
+  const env = loadEnv();
+  return env.APP_ENV ?? env.NODE_ENV;
+};
 
 /** Every origin the API trusts for browser requests: canonical + aliases. */
 export function webOrigins(env: { WEB_ORIGIN: string; WEB_ORIGIN_ALIASES: string }): string[] {
