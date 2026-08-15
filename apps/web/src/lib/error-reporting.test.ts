@@ -108,3 +108,51 @@ describe('sending', () => {
     await Promise.resolve();
   });
 });
+
+/**
+ * The API REFUSES a report carrying a record id or an email address
+ * (client-errors.controller.ts). That refusal is the guarantee; this scrubbing
+ * is what stops a legitimate report being thrown away to satisfy it. If these
+ * two ever disagree, error reporting silently stops working — the SPA ignores
+ * a failed report by design.
+ */
+describe('reports carry nothing the API will refuse', () => {
+  const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+
+  it('strips a record id from the message', () => {
+    const report = buildReport(
+      new Error('Failed to load participant 3f2504e0-4f89-11d3-9a0c-0305e82c3301'),
+      'window',
+      { pathname: '/participants' },
+    );
+    expect(report.message).not.toMatch(UUID);
+    expect(report.message).toContain(':id');
+  });
+
+  it('strips an email address from the message', () => {
+    const report = buildReport(new Error('Invite to mark@jumpstartusa.org failed'), 'window', {
+      pathname: '/admin/users',
+    });
+    expect(report.message).not.toMatch(EMAIL);
+    expect(report.message).toContain(':email');
+  });
+
+  it('strips both from the stack', () => {
+    const error = new Error('boom');
+    error.stack =
+      'Error: boom\n  at load (/participants/3f2504e0-4f89-11d3-9a0c-0305e82c3301)\n' +
+      '  at notify (mark@jumpstartusa.org)';
+    const report = buildReport(error, 'boundary', { pathname: '/participants' });
+    expect(report.stack).not.toMatch(UUID);
+    expect(report.stack).not.toMatch(EMAIL);
+  });
+
+  it('truncates an oversized stack rather than letting the API reject it', () => {
+    const error = new Error('boom');
+    error.stack = `Error: boom\n${'  at somewhere (/very/long/path)\n'.repeat(500)}`;
+    const report = buildReport(error, 'promise', { pathname: '/' });
+    expect(error.stack.length).toBeGreaterThan(4_000);
+    expect(report.stack!.length).toBeLessThanOrEqual(4_000);
+  });
+});

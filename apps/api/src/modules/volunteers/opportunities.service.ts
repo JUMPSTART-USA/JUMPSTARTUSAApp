@@ -223,7 +223,7 @@ export class OpportunitiesService {
     // Chapter scoping (§7.2): the record must be in the user's chapter, and a
     // scoped user cannot move it to another chapter either.
     assertChapterAccess(user.chapter, existing.state);
-    assertChapterAccess(user.chapter, input.state);
+    assertChapterAccess(user.chapter, input.state ?? null);
     await this.assertOpportunityRefs(input, user);
 
     // state is a REQUIRED chapter column — a null from the client means "no

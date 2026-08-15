@@ -170,7 +170,7 @@ export class HousingService {
     // Chapter scoping (§7.2): the record must be in the user's chapter, and a
     // scoped user cannot move it to another chapter either.
     assertChapterAccess(user.chapter, existing.state);
-    assertChapterAccess(user.chapter, input.state);
+    assertChapterAccess(user.chapter, input.state ?? null);
     const updated = await this.prisma.transitionalHome.update({
       where: { id },
       data: { ...input, updatedById: userId },

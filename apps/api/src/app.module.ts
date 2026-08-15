@@ -7,7 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { SessionAuthGuard } from './common/guards/session-auth.guard';
-import { OriginCheckMiddleware } from './common/middleware/origin-check.middleware';
+import { OriginCheckGuard } from './common/guards/origin-check.guard';
 import { HealthController } from './health/health.controller';
 import { AdminModule } from './modules/admin/admin.module';
 import { ObservabilityModule } from './modules/observability/observability.module';
@@ -68,6 +68,9 @@ import { SupportModule } from './modules/support/support.module';
   ],
   controllers: [HealthController],
   providers: [
+    // Order matters: the origin check runs before anything looks at a session,
+    // so a cross-site request is refused without touching the store.
+    { provide: APP_GUARD, useClass: OriginCheckGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: SessionAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
@@ -76,11 +79,9 @@ import { SupportModule } from './modules/support/support.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    /**
-     * Context FIRST: it opens the AsyncLocalStorage scope that every audit
-     * write on this request reads from, including the ones written by the
-     * origin check's own rejections.
-     */
-    consumer.apply(AuditRequestContextMiddleware, OriginCheckMiddleware).forRoutes('*');
+    // Opens the AsyncLocalStorage scope that every audit write on this request
+    // reads from. Still middleware, because it has to wrap everything that
+    // follows — guards included.
+    consumer.apply(AuditRequestContextMiddleware).forRoutes('*');
   }
 }

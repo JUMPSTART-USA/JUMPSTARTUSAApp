@@ -1,12 +1,19 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*", "/assets/*", "/*.{ico,png,svg,txt,webmanifest}", "/sw.js"]
+    "exclude": [
+      "/api/*",
+      "/assets/*",
+      "/*.{ico,png,svg,txt,webmanifest}",
+      "/sw.js"
+    ]
   },
   "routes": [
     {
       "route": "/assets/*",
-      "headers": { "cache-control": "public, max-age=31536000, immutable" }
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
     },
     {
       "route": "/index.html",
@@ -17,16 +24,32 @@
       }
     },
     {
+      "route": "/portal/*",
+      "headers": {
+        "Referrer-Policy": "no-referrer",
+        "cache-control": "no-store",
+        "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; object-src 'none'; upgrade-insecure-requests",
+        "X-Frame-Options": "DENY"
+      }
+    },
+    {
       "route": "/sw.js",
-      "headers": { "cache-control": "no-cache" }
+      "headers": {
+        "cache-control": "no-cache"
+      }
     },
     {
       "route": "/version.txt",
-      "headers": { "cache-control": "no-store" }
+      "headers": {
+        "cache-control": "no-store"
+      }
     },
     {
       "route": "/manifest.webmanifest",
-      "headers": { "cache-control": "no-cache", "content-type": "application/manifest+json" }
+      "headers": {
+        "cache-control": "no-cache",
+        "content-type": "application/manifest+json"
+      }
     }
   ],
   "globalHeaders": {

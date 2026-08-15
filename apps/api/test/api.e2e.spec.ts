@@ -2133,3 +2133,123 @@ describe('invitations', () => {
       .expect(200);
   });
 });
+
+
+/**
+ * The cross-origin check, after it moved from middleware to a guard.
+ *
+ * Two things changed and both are load-bearing: the exemption is route
+ * metadata rather than a string prefix on the raw URL, and a MISSING Origin is
+ * refused rather than waved through.
+ */
+describe('origin check', () => {
+  it('refuses a state-changing request with NO Origin at all', async () => {
+    // Previously allowed, with a note about older agents. Every browser has
+    // sent Origin on state-changing requests for years, so what it actually
+    // allowed was any non-browser client skipping the check by omitting it.
+    const cookie = await login(ADMIN);
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .send({ role: 'fleet_manager' })
+      .expect(403);
+  });
+
+  it('accepts a Referer when Origin is stripped', async () => {
+    // Some privacy tooling removes Origin but not Referer.
+    const cookie = await login(ADMIN);
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Referer', `${ORIGIN}/admin/users`)
+      .send({ role: null })
+      .expect(200);
+  });
+
+  it('does not let a forged Host stand in for a trusted Origin', async () => {
+    // The old check accepted `origin === selfOrigin(req)`, where selfOrigin was
+    // built from the client-supplied Host and X-Forwarded-Proto headers.
+    const cookie = await login(ADMIN);
+    await request(server)
+      .post('/api/auth/view-as')
+      .set('Cookie', cookie)
+      .set('Origin', 'https://evil.example')
+      .set('Host', 'evil.example')
+      .set('X-Forwarded-Proto', 'https')
+      .send({ role: 'fleet_manager' })
+      .expect(403);
+  });
+
+  it('leaves GET alone — the check is for state-changing requests', async () => {
+    const cookie = await login(ADMIN);
+    await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+  });
+
+  it('still exempts the public surfaces, by metadata rather than URL prefix', async () => {
+    // No Origin, no Referer, and it must still work: the WordPress forms and
+    // the participant portal have no SPA origin to send.
+    await request(server)
+      .post('/api/public/referrals')
+      .send({ referrerName: '', referrerEmail: 'not-an-email' })
+      .expect((res) => {
+        // 400 from validation is fine — 403 would mean the exemption broke.
+        expect(res.status).not.toBe(403);
+      });
+  });
+
+  it('does NOT exempt client-errors, which is public but same-origin', async () => {
+    // @Public and @SkipOriginCheck are different things, and the app's only
+    // unauthenticated WRITE is deliberately only the first.
+    await request(server)
+      .post('/api/client-errors')
+      .send({
+        message: 'origin check test',
+        route: '/login',
+        source: 'window',
+        buildId: 'test',
+      })
+      .expect(403);
+  });
+});
+
+
+/** The server half of the PII-free guarantee — see the SPA's scrubbing tests. */
+describe('client-error reports are refused if they carry PII', () => {
+  const base = { route: '/participants/:id', source: 'window', buildId: 'test' };
+
+  it('refuses a record id in the message', async () => {
+    await request(server)
+      .post('/api/client-errors')
+      .set('Origin', ORIGIN)
+      .send({ ...base, message: 'Failed for 3f2504e0-4f89-11d3-9a0c-0305e82c3301' })
+      .expect(400);
+  });
+
+  it('refuses an email address in the message', async () => {
+    await request(server)
+      .post('/api/client-errors')
+      .set('Origin', ORIGIN)
+      .send({ ...base, message: 'Invite to mark@jumpstartusa.org failed' })
+      .expect(400);
+  });
+
+  it('refuses PII in the stack, not only the message', async () => {
+    await request(server)
+      .post('/api/client-errors')
+      .set('Origin', ORIGIN)
+      .send({
+        ...base,
+        message: 'boom',
+        stack: 'at notify (3f2504e0-4f89-11d3-9a0c-0305e82c3301)',
+      })
+      .expect(400);
+  });
+
+  it('still accepts an ordinary scrubbed report', async () => {
+    await request(server)
+      .post('/api/client-errors')
+      .set('Origin', ORIGIN)
+      .send({ ...base, message: 'Failed for :id', stack: 'at load (/participants/:id)' })
+      .expect(204);
+  });
+});

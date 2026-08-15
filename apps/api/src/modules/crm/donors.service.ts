@@ -472,7 +472,7 @@ export class DonorsService {
     const existing = await this.get(id, user); // 404 + chapter check
     // Chapter scoping (§7.2): a scoped user cannot move the donor to another
     // chapter either (the existing-record check above covers the other direction).
-    assertChapterAccess(user.chapter, input.chapterState);
+    assertChapterAccess(user.chapter, input.chapterState ?? null);
     await this.assertPersonExists(input.personId);
     // The donor's household must live in the donor's (possibly new) chapter.
     const nextChapter = input.chapterState ?? existing.chapterState;

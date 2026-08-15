@@ -17,6 +17,22 @@ declare const __BUILD_ID__: string;
 /** Anything that looks like a record id becomes a placeholder. */
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const LONG_NUMBER = /\b\d{4,}\b/g;
+/**
+ * And anything that looks like an address. A failed form or a mail-send error
+ * echoes one back in its message, and an email identifies a person as squarely
+ * as a record id does.
+ *
+ * The API REFUSES a report carrying either (client-errors.controller.ts). That
+ * refusal is the guarantee; this is what keeps a legitimate report from being
+ * thrown away to satisfy it.
+ */
+const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/g;
+
+/** Server cap. Slicing here means a long stack is TRUNCATED, not rejected. */
+const MAX_STACK = 4_000;
+
+/** Every redaction the API demands, in one place. */
+const scrub = (value: string) => value.replace(UUID, ':id').replace(EMAIL, ':email');
 
 /**
  * Turn a live pathname into a route PATTERN.
@@ -67,8 +83,9 @@ export function buildReport(
   return {
     // Redact the message too: "Failed to load /participants/<uuid>" is a common
     // shape, and it would put the id straight back in.
-    message: message.replace(UUID, ':id').slice(0, 500),
-    stack: error instanceof Error && error.stack ? error.stack.replace(UUID, ':id') : undefined,
+    message: scrub(message).slice(0, 500),
+    stack:
+      error instanceof Error && error.stack ? scrub(error.stack).slice(0, MAX_STACK) : undefined,
     route: routePattern(location.pathname),
     source,
     buildId: __BUILD_ID__,

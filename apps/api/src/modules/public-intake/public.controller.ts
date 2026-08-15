@@ -8,7 +8,7 @@ import {
   type PublicVolunteerApplicationInput,
 } from '@jumpstart/shared';
 import { z } from 'zod';
-import { Public } from '../../common/decorators';
+import { Public, SkipOriginCheck } from '../../common/decorators';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import { PublicIntakeService } from './public-intake.service';
 import { TurnstileService } from './turnstile.service';
@@ -25,8 +25,11 @@ type AlumniUpdateBody = z.infer<typeof alumniUpdateBodySchema>;
  * limited, Turnstile-checked before any processing, and every response is a
  * bare { ok: true } — queue internals never leak to the public.
  */
+// @SkipOriginCheck: posted to by the WordPress site, so a same-origin check
+// cannot apply. Turnstile and the rate limits are the defence here (§6.11).
 @Controller('public')
 @Public()
+@SkipOriginCheck()
 @Throttle({ default: { limit: 10, ttl: 60_000 } })
 export class PublicController {
   constructor(

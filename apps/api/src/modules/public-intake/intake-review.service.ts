@@ -233,7 +233,7 @@ export class IntakeReviewService {
         if (!person) throw new BadRequestException('existingPersonId does not match an active person');
         // Chapter scoping (§7.2): no linking this submission to another
         // chapter's volunteer (their profile carries the chapter).
-        assertChapterAccess(user.chapter, person.volunteerProfile?.chapterState);
+        assertChapterAccess(user.chapter, person.volunteerProfile?.chapterState ?? null);
         personId = person.id;
         if (person.volunteerProfile && !person.volunteerProfile.deletedAt) {
           volunteerProfile = person.volunteerProfile; // already a volunteer — just link
@@ -337,7 +337,7 @@ export class IntakeReviewService {
       if (!person) throw new BadRequestException('existingPersonId does not match an active person');
       // Chapter scoping (§7.2): no linking this referral to another chapter's
       // participant (their profile carries the chapter).
-      assertChapterAccess(user.chapter, person.participantProfile?.chapterState);
+      assertChapterAccess(user.chapter, person.participantProfile?.chapterState ?? null);
       if (person.participantProfile && !person.participantProfile.deletedAt) {
         existingProfileId = person.participantProfile.id;
       }

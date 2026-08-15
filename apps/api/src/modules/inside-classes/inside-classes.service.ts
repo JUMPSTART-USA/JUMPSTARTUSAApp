@@ -617,7 +617,16 @@ export class InsideClassesService {
       where: { id: institutionId },
       select: { state: true },
     });
-    assertChapterAccess(userChapter, institution?.state);
+    /**
+     * A MISSING institution is refused rather than skipped. `institution?.state`
+     * gave undefined for a nonexistent id, which the guard read as
+     * "chapter-neutral, allow" — so the chapter check was quietly skipped for
+     * exactly the input that should not have got this far. The write behind it
+     * would have failed on a foreign key anyway, but failing for the right
+     * reason is the difference between a 400 and a 500.
+     */
+    if (!institution) throw new BadRequestException('Unknown institution');
+    assertChapterAccess(userChapter, institution.state);
   }
 
   /** §6.2 cross-field rules, mirrored from the shared Zod schemas for merged-record checks. */

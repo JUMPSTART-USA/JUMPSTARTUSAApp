@@ -12,10 +12,28 @@ import { isChapterState } from '@jumpstart/shared';
  * until staff assign one). Each module derives `recordState` exactly the way
  * its list filter does (own column or the required parent's column).
  */
-export function assertChapterAccess(
-  userChapter: string | null,
-  recordState: string | null | undefined,
-): void {
+export function assertChapterAccess(userChapter: string | null, recordState: string | null): void {
+  /**
+   * `undefined` is refused rather than read as "chapter-neutral".
+   *
+   * The signature used to accept `string | null | undefined`, and undefined
+   * took the same path as null: no chapter on the record, nothing to compare,
+   * allow. That is correct for a genuinely chapter-neutral row and wrong for
+   * the way undefined actually arrives — a caller that forgot to `select` the
+   * parent's chapter column. The guard then silently stopped guarding, with no
+   * type error and no failing test, which is the one failure mode chapter
+   * scoping cannot afford.
+   *
+   * `null` still means chapter-neutral and still passes. The type now makes a
+   * caller say which of the two they mean; this runtime check catches the
+   * `any`-shaped ways undefined can still arrive.
+   */
+  if (recordState === undefined) {
+    throw new Error(
+      'assertChapterAccess received undefined — the caller did not load the ' +
+        'chapter column. Pass null only for a genuinely chapter-neutral record.',
+    );
+  }
   if (userChapter && recordState && recordState !== userChapter) {
     throw new ForbiddenException('Record belongs to another chapter');
   }

@@ -236,7 +236,7 @@ export class ScreeningService {
     if (!person) throw new NotFoundException('Person not found');
     // Chapter scoping (§7.2): same derivation as the list filter
     // (person.volunteerProfile.chapterState).
-    assertChapterAccess(user.chapter, person.volunteerProfile?.chapterState);
+    assertChapterAccess(user.chapter, person.volunteerProfile?.chapterState ?? null);
 
     const check = await this.prisma.backgroundCheck.create({
       data: { ...input, createdById: userId, updatedById: userId },
@@ -259,7 +259,7 @@ export class ScreeningService {
     });
     if (!existing) throw new NotFoundException('Background check not found');
     // Chapter scoping (§7.2): same derivation as the list filter.
-    assertChapterAccess(user.chapter, existing.person.volunteerProfile?.chapterState);
+    assertChapterAccess(user.chapter, existing.person.volunteerProfile?.chapterState ?? null);
     const { person: _person, ...checkOnly } = existing;
 
     const updated = await this.prisma.backgroundCheck.update({

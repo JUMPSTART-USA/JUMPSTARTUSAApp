@@ -239,7 +239,7 @@ export class InstitutionsService {
     const userId = user.id;
     const existing = await this.get(id, user); // chapter check inside
     // ...and a scoped user cannot move the record to another chapter either.
-    assertChapterAccess(user.chapter, input.state);
+    assertChapterAccess(user.chapter, input.state ?? null);
     const updated = await this.prisma.institution.update({
       where: { id },
       data: { ...applyMailingSameRule(input, existing.mailingSameAsPrimary), updatedById: userId },

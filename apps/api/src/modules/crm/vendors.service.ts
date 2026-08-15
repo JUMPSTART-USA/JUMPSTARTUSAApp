@@ -94,7 +94,7 @@ export class VendorsService {
     const userId = user.id;
     const existing = await this.get(id, user); // chapter check inside
     // ...and a scoped user cannot move the record to another chapter either.
-    assertChapterAccess(user.chapter, input.chapterState);
+    assertChapterAccess(user.chapter, input.chapterState ?? null);
     const updated = await this.prisma.vendor.update({
       where: { id },
       data: { ...applyMailingSameRule(input, existing.mailingSameAsPrimary), updatedById: userId },
