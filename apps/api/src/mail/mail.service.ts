@@ -195,23 +195,33 @@ export class MailService {
     return this.send(to, subject, html);
   }
 
+  /**
+   * Invitation. Carries a LINK, not a password.
+   *
+   * It used to email a working temporary password, which then lived in the
+   * recipient's mailbox, the sending mailbox's Sent Items, and every backup of
+   * either — indefinitely, with no expiry. The link is single-use, hashed at
+   * rest, and dead after seven days.
+   *
+   * inviteUrl is built by the caller from WEB_ORIGIN and is not escaped into
+   * the href: it is server-constructed from a hex token, never user input.
+   */
   async sendInvite(
     to: string,
     firstName: string,
-    temporaryPassword: string,
+    inviteUrl: string,
   ): Promise<{ sent: boolean; from: string }> {
-    const origin = loadEnv().WEB_ORIGIN;
     const subject = 'You are invited to the JUMPSTART USA Operations Platform';
     const html = `
       <p>Hi ${escapeHtml(firstName)},</p>
-      <p>An account has been created for you on the JUMPSTART USA Operations Platform.</p>
-      <p>
-        Sign in at <a href="${origin}/login">${origin}</a> with:<br/>
-        Email: <strong>${escapeHtml(to)}</strong><br/>
-        Temporary password: <strong>${escapeHtml(temporaryPassword)}</strong>
-      </p>
-      <p>On first sign-in you will set your own password and enroll two-factor
-      authentication — have an authenticator app ready.</p>
+      <p>An account has been created for you on the JUMPSTART USA Operations
+      Platform, for <strong>${escapeHtml(to)}</strong>.</p>
+      <p>Choose your password here — the link works once and expires in seven
+      days:</p>
+      <p><a href="${inviteUrl}">Set my password</a></p>
+      <p>After that you will enroll two-factor authentication, so have an
+      authenticator app ready.</p>
+      <p>If you were not expecting this, you can ignore this email.</p>
       <p>— JUMPSTART USA</p>`;
     return this.send(to, subject, html);
   }

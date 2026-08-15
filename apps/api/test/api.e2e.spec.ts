@@ -110,6 +110,48 @@ async function cleanUpPortalTestParticipant(cookie: string, link: PortalTestLink
     .expect(200);
 }
 
+
+/**
+ * Create a throwaway account and redeem its invitation, returning working
+ * credentials.
+ *
+ * Invitations replaced temporary passwords: the account is created with a
+ * password nobody knows and CANNOT be signed into until the link is used, so
+ * every test that needs a live login has to walk that path — which also means
+ * these tests exercise the real invite flow rather than a shortcut around it.
+ */
+async function createThrowawayUser(
+  adminCookie: string,
+  overrides: Partial<{ email: string; firstName: string; lastName: string; roles: string[] }> = {},
+): Promise<{ id: string; email: string; password: string }> {
+  const email = overrides.email ?? `throwaway-${randomUUID()}@jumpstartusa.org`;
+  const password = `Throwaway-${randomUUID().slice(0, 12)}!`;
+
+  const created = await request(server)
+    .post('/api/admin/users')
+    .set('Cookie', adminCookie)
+    .set('Origin', ORIGIN)
+    .send({
+      email,
+      firstName: overrides.firstName ?? 'Throwaway',
+      lastName: overrides.lastName ?? 'TestUser',
+      roles: overrides.roles ?? ['read_only'],
+    })
+    .expect(201);
+
+  // The link is returned exactly once; only its hash is stored.
+  expect(created.body.inviteUrl).toContain('/reset-password/');
+  const token = created.body.inviteUrl.split('/reset-password/')[1];
+
+  await request(server)
+    .post('/api/auth/reset-password')
+    .set('Origin', ORIGIN)
+    .send({ token, password, confirmPassword: password })
+    .expect(200);
+
+  return { id: created.body.user.id, email, password };
+}
+
 beforeAll(async () => {
   // NestFactory (not Test.createTestingModule) so configureApp middleware
   // (session store, prefix, origin check) is identical to production.
@@ -1466,19 +1508,13 @@ describe('changing a password revokes the account other sessions', () => {
 
   let adminCookie: string;
   let userId: string;
-  let temporaryPassword: string;
+  let initialPassword: string;
 
   beforeAll(async () => {
     adminCookie = await login(ADMIN);
-    const created = await request(server)
-      .post('/api/admin/users')
-      .set('Cookie', adminCookie)
-      .set('Origin', ORIGIN)
-      .send(throwaway)
-      .expect(201);
-    userId = created.body.user.id;
-    temporaryPassword = created.body.temporaryPassword;
-    expect(temporaryPassword).toBeTruthy();
+    const account = await createThrowawayUser(adminCookie, throwaway);
+    userId = account.id;
+    initialPassword = account.password;
   });
 
   afterAll(async () => {
@@ -1496,8 +1532,8 @@ describe('changing a password revokes the account other sessions', () => {
   it('leaves a second session dead while the first is sent to sign in again', async () => {
     // Two independent sign-ins for the same account: the user's own browser
     // and, in the scenario this defends against, somebody else's.
-    const sessionA = await login({ email: throwaway.email, password: temporaryPassword });
-    const sessionB = await login({ email: throwaway.email, password: temporaryPassword });
+    const sessionA = await login({ email: throwaway.email, password: initialPassword });
+    const sessionB = await login({ email: throwaway.email, password: initialPassword });
     expect(sessionA).not.toBe(sessionB);
 
     // Both are live to begin with — otherwise the assertion below proves nothing.
@@ -1509,7 +1545,7 @@ describe('changing a password revokes the account other sessions', () => {
       .set('Cookie', sessionA)
       .set('Origin', ORIGIN)
       .send({
-        currentPassword: temporaryPassword,
+        currentPassword: initialPassword,
         password: NEW_PASSWORD,
         confirmPassword: NEW_PASSWORD,
       })
@@ -1546,19 +1582,14 @@ describe('TOTP secrets are encrypted at rest and still verify', () => {
   let userId: string;
   let cookie: string;
   let secret: string;
-  let temporaryPassword: string;
+  let password: string;
 
   beforeAll(async () => {
     adminCookie = await login(ADMIN);
-    const created = await request(server)
-      .post('/api/admin/users')
-      .set('Cookie', adminCookie)
-      .set('Origin', ORIGIN)
-      .send(throwaway)
-      .expect(201);
-    userId = created.body.user.id;
-    temporaryPassword = created.body.temporaryPassword;
-    cookie = await login({ email: throwaway.email, password: temporaryPassword });
+    const account = await createThrowawayUser(adminCookie, throwaway);
+    userId = account.id;
+    password = account.password;
+    cookie = await login({ email: throwaway.email, password });
   });
 
   afterAll(async () => {
@@ -1607,7 +1638,7 @@ describe('TOTP secrets are encrypted at rest and still verify', () => {
     const gated = await request(server)
       .post('/api/auth/login')
       .set('Origin', ORIGIN)
-      .send({ email: throwaway.email, password: temporaryPassword })
+      .send({ email: throwaway.email, password })
       .expect(200);
     expect(gated.body.totpRequired).toBe(true);
     expect(gated.body.totpEnabled).toBe(true);
@@ -1618,11 +1649,7 @@ describe('TOTP secrets are encrypted at rest and still verify', () => {
     const signedIn = await request(server)
       .post('/api/auth/login')
       .set('Origin', ORIGIN)
-      .send({
-        email: throwaway.email,
-        password: temporaryPassword,
-        totpCode: authenticator.generate(secret),
-      })
+      .send({ email: throwaway.email, password, totpCode: authenticator.generate(secret) })
       .expect(200);
     expect(signedIn.body.user?.email).toBe(throwaway.email);
 
@@ -1630,7 +1657,7 @@ describe('TOTP secrets are encrypted at rest and still verify', () => {
     await request(server)
       .post('/api/auth/login')
       .set('Origin', ORIGIN)
-      .send({ email: throwaway.email, password: temporaryPassword, totpCode: '000000' })
+      .send({ email: throwaway.email, password, totpCode: '000000' })
       .expect(401);
   });
 });
@@ -1658,14 +1685,9 @@ describe('account lockout', () => {
 
   beforeAll(async () => {
     adminCookie = await login(ADMIN);
-    const created = await request(server)
-      .post('/api/admin/users')
-      .set('Cookie', adminCookie)
-      .set('Origin', ORIGIN)
-      .send(throwaway)
-      .expect(201);
-    userId = created.body.user.id;
-    password = created.body.temporaryPassword;
+    const account = await createThrowawayUser(adminCookie, throwaway);
+    userId = account.id;
+    password = account.password;
   });
 
   afterAll(async () => {
@@ -1754,14 +1776,9 @@ describe('TOTP codes cannot be replayed', () => {
   beforeAll(async () => {
     const { authenticator } = await import('otplib');
     adminCookie = await login(ADMIN);
-    const created = await request(server)
-      .post('/api/admin/users')
-      .set('Cookie', adminCookie)
-      .set('Origin', ORIGIN)
-      .send(throwaway)
-      .expect(201);
-    userId = created.body.user.id;
-    password = created.body.temporaryPassword;
+    const account = await createThrowawayUser(adminCookie, throwaway);
+    userId = account.id;
+    password = account.password;
 
     const cookie = await login({ email: throwaway.email, password });
     const setup = await request(server)
@@ -1889,13 +1906,7 @@ describe('sensitive admin edits are gated', () => {
   beforeAll(async () => {
     adminCookie = await login(ADMIN);
     adminId = (await request(server).get('/api/auth/me').set('Cookie', adminCookie)).body.id;
-    const created = await request(server)
-      .post('/api/admin/users')
-      .set('Cookie', adminCookie)
-      .set('Origin', ORIGIN)
-      .send(throwaway)
-      .expect(201);
-    userId = created.body.user.id;
+    userId = (await createThrowawayUser(adminCookie, throwaway)).id;
   });
 
   afterAll(async () => {
@@ -1950,15 +1961,23 @@ describe('sensitive admin edits are gated', () => {
   it('revokes the target sessions when their second factor is reset', async () => {
     const { authenticator } = await import('otplib');
     // Give the throwaway account a factor to reset, and a live session.
-    const created = await request(server)
+    const reinvited = await request(server)
       .post(`/api/admin/users/${userId}/resend-invite`)
       .set('Cookie', adminCookie)
       .set('Origin', ORIGIN)
       .expect(201);
-    const cookie = await login({
-      email: throwaway.email,
-      password: created.body.temporaryPassword,
-    });
+    // Re-invitation issues a fresh link; redeem it to get a live session.
+    const password = `Reinvited-${randomUUID().slice(0, 12)}!`;
+    await request(server)
+      .post('/api/auth/reset-password')
+      .set('Origin', ORIGIN)
+      .send({
+        token: reinvited.body.inviteUrl.split('/reset-password/')[1],
+        password,
+        confirmPassword: password,
+      })
+      .expect(200);
+    const cookie = await login({ email: throwaway.email, password });
     const setup = await request(server)
       .post('/api/auth/totp/setup')
       .set('Cookie', cookie)
@@ -1982,5 +2001,135 @@ describe('sensitive admin edits are gated', () => {
     // Removing the second factor without ending the sessions it protected
     // would leave the weaker state running.
     await request(server).get('/api/auth/me').set('Cookie', cookie).expect(401);
+  });
+});
+
+/**
+ * Invitations replaced temporary passwords.
+ *
+ * The old flow emailed a working credential in clear and returned it in the
+ * API response. It then lived in the recipient's mailbox, the sending
+ * mailbox's Sent Items, and every backup of either — indefinitely, with no
+ * expiry — so a mailbox compromise was an account compromise.
+ */
+describe('invitations', () => {
+  let adminCookie: string;
+  const created: string[] = [];
+
+  beforeAll(async () => {
+    adminCookie = await login(ADMIN);
+  });
+
+  afterAll(async () => {
+    const me = await request(server).get('/api/auth/me').set('Cookie', adminCookie);
+    for (const id of created) {
+      await request(server)
+        .post(`/api/admin/users/${id}/deactivate`)
+        .set('Cookie', adminCookie)
+        .set('Origin', ORIGIN)
+        .send({ reassignToUserId: me.body.id })
+        .catch(() => undefined);
+    }
+  });
+
+  async function invite() {
+    const email = `invite-${randomUUID()}@jumpstartusa.org`;
+    const res = await request(server)
+      .post('/api/admin/users')
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ email, firstName: 'Invite', lastName: 'Test', roles: ['read_only'] })
+      .expect(201);
+    created.push(res.body.user.id);
+    return { email, body: res.body, token: res.body.inviteUrl.split('/reset-password/')[1] };
+  }
+
+  it('returns a link and no password at all', async () => {
+    const { body } = await invite();
+    expect(body.inviteUrl).toContain('/reset-password/');
+    // The whole point: no credential in the response, under any name. Checked
+    // on the KEYS — the body legitimately contains the string "password", in
+    // the /reset-password/ path of the link itself.
+    const keys = Object.keys(body);
+    expect(keys).toEqual(expect.arrayContaining(['user', 'inviteUrl', 'emailSent']));
+    expect(keys.filter((k) => /password/i.test(k))).toEqual([]);
+    expect(Object.keys(body.user).filter((k) => /password/i.test(k))).toEqual([]);
+  });
+
+  it('stores only the hash, so the link cannot be recovered from the database', async () => {
+    const { token } = await invite();
+    const rows = await app.get(PrismaService).passwordResetToken.findMany({
+      where: { tokenHash: createHash('sha256').update(token).digest('hex') },
+      select: { tokenHash: true, expiresAt: true },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.tokenHash).not.toBe(token);
+    // Seven days, not the one hour a password reset gets.
+    const days = (rows[0]!.expiresAt.getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(6);
+    expect(days).toBeLessThan(8);
+  });
+
+  it('leaves the account impossible to sign into until the link is used', async () => {
+    const { email } = await invite();
+    // There is no password to try, which is the point — but confirm the
+    // account is not sitting there with something guessable either.
+    await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email, password: '' })
+      .expect(400);
+    await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email, password: 'password123456' })
+      .expect(401);
+  });
+
+  it('is single-use', async () => {
+    const { email, token } = await invite();
+    const password = `First-${randomUUID().slice(0, 12)}!`;
+
+    await request(server)
+      .post('/api/auth/reset-password')
+      .set('Origin', ORIGIN)
+      .send({ token, password, confirmPassword: password })
+      .expect(200);
+    await login({ email, password });
+
+    // Replaying the same link must not let someone re-set the password.
+    const second = `Second-${randomUUID().slice(0, 12)}!`;
+    await request(server)
+      .post('/api/auth/reset-password')
+      .set('Origin', ORIGIN)
+      .send({ token, password: second, confirmPassword: second })
+      .expect(400);
+    // ...and the first password still works, so nothing was half-applied.
+    await login({ email, password });
+  });
+
+  it('re-inviting kills the previous link', async () => {
+    const { body, token: first } = await invite();
+
+    const reinvited = await request(server)
+      .post(`/api/admin/users/${body.user.id}/resend-invite`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .expect(201);
+    const second = reinvited.body.inviteUrl.split('/reset-password/')[1];
+    expect(second).not.toBe(first);
+
+    // A lost or intercepted invitation is revoked by simply sending another.
+    const password = `Fresh-${randomUUID().slice(0, 12)}!`;
+    await request(server)
+      .post('/api/auth/reset-password')
+      .set('Origin', ORIGIN)
+      .send({ token: first, password, confirmPassword: password })
+      .expect(400);
+    await request(server)
+      .post('/api/auth/reset-password')
+      .set('Origin', ORIGIN)
+      .send({ token: second, password, confirmPassword: password })
+      .expect(200);
   });
 });

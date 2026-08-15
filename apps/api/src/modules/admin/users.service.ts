@@ -11,10 +11,12 @@ import type { Prisma, UserStatus } from '@jumpstart/database';
 import type { CreateUserInput, ListQuery, RoleKey, UpdateUserInput } from '@jumpstart/shared';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
 import { AuditService } from '../../audit/audit.service';
+import { AuthService } from '../../auth/auth.service';
 import { PasskeysService } from '../../auth/passkeys.service';
 import { revokeAllSessions } from '../../auth/sessions.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../../mail/mail.service';
+import { loadEnv } from '../../config/env';
 
 /** The acting admin's proof of possession, as passed to PasskeysService. */
 type StepUpProof = {
@@ -68,6 +70,7 @@ export class AdminUsersService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly passkeys: PasskeysService,
+    private readonly auth: AuthService,
   ) {}
 
   async list(query: ListQuery, filters: UserListFilters) {
@@ -118,11 +121,18 @@ export class AdminUsersService {
   }
 
   /**
-   * Invite flow within the existing schema (§6.14): the account is created as
-   * 'invited' with a server-generated temporary password, returned ONCE in this
-   * response for the admin to hand off out-of-band. First successful login
-   * flips status to 'active' (AuthService) and the SPA forces a password
-   * change. The temporary password is never stored or logged in clear.
+   * Invite flow (§6.14): the account is created as 'invited' with a password
+   * nobody knows, and an invitation LINK is issued.
+   *
+   * It used to be a temporary password, emailed in clear and returned in this
+   * response. That put a working credential in the recipient's mailbox, in the
+   * sending mailbox's Sent Items, and in every backup of either, indefinitely
+   * and with no expiry — a mailbox compromise was an account compromise. The
+   * link is hashed at rest, single-use, and dies after seven days.
+   *
+   * The URL is still returned once, so the existing hand-off path survives:
+   * outbound email is optional, and an admin who cannot send one reads the
+   * link out instead. What is gone is the long-lived secret.
    */
   async create(input: CreateUserInput, userId: string) {
     const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
@@ -137,9 +147,15 @@ export class AdminUsersService {
       );
     }
 
-    // 12 random bytes → exactly 16 base64url chars, no padding.
-    const temporaryPassword = randomBytes(12).toString('base64url');
-    const passwordHash = await argon2.hash(temporaryPassword, { type: argon2.argon2id });
+    /**
+     * An UNUSABLE password: 32 random bytes hashed and immediately discarded.
+     * The column is NOT NULL and the account must not be signable-into until
+     * the invitation is redeemed, so it gets a hash of something nobody — this
+     * process included, a line later — can produce.
+     */
+    const passwordHash = await argon2.hash(randomBytes(32).toString('hex'), {
+      type: argon2.argon2id,
+    });
 
     const user = await this.prisma.user.create({
       data: {
@@ -159,25 +175,36 @@ export class AdminUsersService {
 
     const safe = toSafeUser(user);
     await this.audit.logCreate(userId, 'user', user.id, safe);
-    // Invite email (Graph). Unconfigured mail keeps the manual hand-off flow.
-    const email = await this.mail.sendInvite(user.email, user.firstName, temporaryPassword);
-    return { user: safe, temporaryPassword, emailSent: email.sent, emailFrom: email.from };
+
+    const inviteUrl = await this.buildInvitationUrl(user.id);
+    // Unconfigured mail keeps the manual hand-off flow — see the doc comment.
+    const email = await this.mail.sendInvite(user.email, user.firstName, inviteUrl);
+    return { user: safe, inviteUrl, emailSent: email.sent, emailFrom: email.from };
+  }
+
+  /** The link an invitation resolves to. Raw token — returned once, never stored. */
+  private async buildInvitationUrl(userId: string): Promise<string> {
+    const token = await this.auth.issueInvitation(userId);
+    return `${loadEnv().WEB_ORIGIN}/reset-password/${token}`;
   }
 
   /**
-   * Re-issue an invite: only for accounts still in 'invited' status. The old
-   * temporary password is unrecoverable by design, so a new one is generated.
+   * Re-issue an invitation: only for accounts that have never signed in.
+   * Issuing a new link kills any outstanding one, so a lost or intercepted
+   * invitation is revoked by simply sending another.
+   *
+   * No longer resets the password hash — there is no password to reset, and
+   * overwriting it would have been the one way to lock out an account that had
+   * in fact already been set up.
    */
   async resendInvite(id: string, userId: string) {
     const existing = await this.getRaw(id);
     if (existing.status !== 'invited') {
       throw new BadRequestException('Only accounts that have never signed in can be re-invited');
     }
-    const temporaryPassword = randomBytes(12).toString('base64url');
-    const passwordHash = await argon2.hash(temporaryPassword, { type: argon2.argon2id });
     const user = await this.prisma.user.update({
       where: { id },
-      data: { passwordHash, updatedById: userId },
+      data: { updatedById: userId },
       include: USER_ROLES_INCLUDE,
     });
     await this.audit.log({
@@ -187,8 +214,9 @@ export class AdminUsersService {
       entityId: id,
       newValues: { resentInvite: true },
     });
-    const email = await this.mail.sendInvite(user.email, user.firstName, temporaryPassword);
-    return { user: toSafeUser(user), temporaryPassword, emailSent: email.sent, emailFrom: email.from };
+    const inviteUrl = await this.buildInvitationUrl(user.id);
+    const email = await this.mail.sendInvite(user.email, user.firstName, inviteUrl);
+    return { user: toSafeUser(user), inviteUrl, emailSent: email.sent, emailFrom: email.from };
   }
 
   async update(

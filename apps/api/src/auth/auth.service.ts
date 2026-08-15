@@ -38,6 +38,13 @@ const normalizeRecoveryCode = (raw: string) => raw.toUpperCase().replace(/[^A-Z0
 /** Reset links die after an hour — long enough for email delivery, no longer. */
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
+/**
+ * Invitations get seven days rather than an hour. A reset is something you
+ * asked for thirty seconds ago; an invitation waits for somebody to start a
+ * job, come back from leave, or read their email on Monday.
+ */
+const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
 // ── Per-account lockout ─────────────────────────────────────────────────────
@@ -316,6 +323,37 @@ export class AuthService {
     if (lockedUntil && failedLoginCount === LOCKOUT_THRESHOLD) {
       await this.mail.sendAccountLocked(user.email, user.firstName, lockedUntil);
     }
+  }
+
+  /**
+   * Mint an invitation link for a newly created (or re-invited) account.
+   *
+   * Reuses the password-reset token table rather than adding a parallel one:
+   * an invitation IS "set a password on this account, once, before this date",
+   * which is exactly what that table already stores — hashed, single-use, with
+   * an expiry — and which /auth/reset-password already redeems correctly,
+   * including burning every outstanding token for the account.
+   *
+   * Returns the raw token, which exists nowhere else. The caller emails it and
+   * shows it to the inviting admin once; after that only its hash survives.
+   */
+  async issueInvitation(userId: string): Promise<string> {
+    const token = randomBytes(32).toString('hex');
+    // Any earlier invitation is dead the moment a new one is issued.
+    await this.prisma.$transaction([
+      this.prisma.passwordResetToken.updateMany({
+        where: { userId, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.passwordResetToken.create({
+        data: {
+          userId,
+          tokenHash: sha256(token),
+          expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
+        },
+      }),
+    ]);
+    return token;
   }
 
   async startTotpSetup(userId: string): Promise<{ otpauthUrl: string; secret: string }> {
