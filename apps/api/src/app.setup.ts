@@ -4,7 +4,7 @@ import type { NextFunction, Request, Response } from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
 import { Pool } from 'pg';
-import { isProduction, loadEnv } from './config/env';
+import { isProduction, loadEnv, webOrigins } from './config/env';
 import { SESSION_IDLE_TIMEOUT_MS } from '@jumpstart/shared';
 
 // Re-exported from @jumpstart/shared so the browser's expiry warning counts
@@ -28,7 +28,7 @@ export function configureApp(app: NestExpressApplication): NestExpressApplicatio
 
   app.use(helmet());
   app.enableCors({
-    origin: [env.WEB_ORIGIN],
+    origin: webOrigins(env),
     credentials: true,
   });
 
