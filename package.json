@@ -19,6 +19,19 @@
     "db:deploy": "pnpm --filter @jumpstart/database migrate:deploy",
     "db:seed": "pnpm --filter @jumpstart/database seed",
     "db:test-db": "pnpm --filter @jumpstart/database test:db",
-    "db:reset": "pnpm --filter @jumpstart/database migrate:reset"
+    "db:reset": "pnpm --filter @jumpstart/database migrate:reset",
+    "audit": "pnpm audit --prod --audit-level=high"
+  },
+  "pnpm": {
+    "overrides": {
+      "brace-expansion@1": "^1.1.18",
+      "brace-expansion@2": "^2.1.4",
+      "js-yaml@5": "^5.2.2"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-w5hq-g745-h8pq"
+      ]
+    }
   }
 }

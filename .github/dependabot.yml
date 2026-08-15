@@ -1,0 +1,44 @@
+version: 2
+
+# Dependency updates. Dependabot ALERTS (the security half) are enabled in the
+# repository settings, not here; this file is what opens the pull requests.
+#
+# Grouped deliberately: a weekly wall of twelve single-package PRs is a wall
+# nobody reads, and the point of this file is that somebody reads it. Security
+# updates are left ungrouped so they arrive on their own and are obvious.
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # One PR per ecosystem-ish group rather than per package.
+    groups:
+      types:
+        patterns: ['@types/*']
+      nest:
+        patterns: ['@nestjs/*']
+      react:
+        patterns: ['react', 'react-dom', '@types/react', '@types/react-dom']
+      radix:
+        patterns: ['@radix-ui/*']
+      tooling:
+        patterns: ['vite', 'vitest', '@vitejs/*', 'typescript', 'tailwindcss', 'postcss', 'autoprefixer']
+      prisma:
+        patterns: ['prisma', '@prisma/*']
+    ignore:
+      # Majors land on purpose, with the release notes open, not on a Monday.
+      # Security advisories still come through regardless of this rule.
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  # The supply chain in front of the supply chain: a compromised action runs
+  # with this workflow's OIDC token. Pinned to SHAs in the workflows, so these
+  # PRs are how the SHAs get moved forward.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
