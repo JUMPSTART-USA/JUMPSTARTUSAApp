@@ -8,10 +8,21 @@
 # Required env: AZURE_RG, ACR_NAME, KEYVAULT_NAME, JOBS_SUBNET_ID,
 #               JOBS_IDENTITY_ID, IMAGE_TAG, JOB_NAME
 # Optional env: JOB_COMMAND (overrides the image CMD)
+#               JOB_NEEDS_ENCRYPTION_KEY=true — also pass ENCRYPTION_KEY, read
+#               from the same vault. Opt-in rather than always: `migrate
+#               deploy` has no business holding the key that decrypts TOTP
+#               secrets, and a job should carry only what it needs.
 set -euo pipefail
 
 DATABASE_URL=$(az keyvault secret show \
   --vault-name "$KEYVAULT_NAME" --name database-url --query value -o tsv)
+
+SECRET_ENV=(DATABASE_URL="$DATABASE_URL")
+if [ "${JOB_NEEDS_ENCRYPTION_KEY:-}" = "true" ]; then
+  ENCRYPTION_KEY=$(az keyvault secret show \
+    --vault-name "$KEYVAULT_NAME" --name encryption-key --query value -o tsv)
+  SECRET_ENV+=(ENCRYPTION_KEY="$ENCRYPTION_KEY")
+fi
 
 cleanup() {
   az container delete -g "$AZURE_RG" -n "$JOB_NAME" --yes >/dev/null 2>&1 || true
@@ -32,7 +43,7 @@ az container create \
   --subnet "$JOBS_SUBNET_ID" \
   --os-type Linux --cpu 1 --memory 1.5 \
   --restart-policy Never \
-  --secure-environment-variables DATABASE_URL="$DATABASE_URL" \
+  --secure-environment-variables "${SECRET_ENV[@]}" \
   ${COMMAND_ARGS[@]+"${COMMAND_ARGS[@]}"} \
   --output none
 
