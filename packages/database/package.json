@@ -11,6 +11,7 @@
     "migrate:deploy": "prisma migrate deploy",
     "migrate:reset": "prisma migrate reset --force",
     "validate": "prisma validate",
+    "encrypt-secrets": "tsx scripts/encrypt-secrets.ts",
     "seed": "tsx prisma/seed.ts",
     "seed:attendance-samples": "tsx prisma/seed-attendance-samples.ts",
     "seed:photo-samples": "tsx prisma/seed-photo-samples.ts",

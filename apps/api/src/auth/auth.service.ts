@@ -9,6 +9,8 @@ import * as argon2 from 'argon2';
 import { authenticator } from 'otplib';
 import { TOTP_REQUIRED_ROLES } from '@jumpstart/shared';
 import { AuditService } from '../audit/audit.service';
+import { encryptSecret, totpSecretContext } from '../common/crypto.util';
+import { verifyTotpCode } from '../common/totp.util';
 import { loadEnv } from '../config/env';
 import { MailService } from '../mail/mail.service';
 import { PasskeysService, type PasskeyAssertion } from './passkeys.service';
@@ -166,7 +168,7 @@ export class AuthService {
         // passkey-only account must not accept guessed codes.
         const valid =
           user.totpEnabled &&
-          authenticator.verify({ token: totpCode, secret: user.totpSecret ?? '' });
+          verifyTotpCode(user.id, user.totpSecret, totpCode);
         if (!valid) {
           await this.audit.log({
             userId: user.id,
@@ -211,7 +213,13 @@ export class AuthService {
       throw new BadRequestException('Two-factor authentication is already enabled');
     }
     const secret = authenticator.generateSecret();
-    await this.prisma.user.update({ where: { id: userId }, data: { totpSecret: secret } });
+    // Encrypted before it touches the database, bound to this user (H-4). The
+    // raw secret leaves here only in the response the enrolling user is looking
+    // at, which is the one place it legitimately has to appear.
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { totpSecret: encryptSecret(secret, totpSecretContext(userId)) },
+    });
     const otpauthUrl = authenticator.keyuri(user.email, 'JUMPSTART USA Platform', secret);
     return { otpauthUrl, secret };
   }
@@ -225,7 +233,7 @@ export class AuthService {
       throw new BadRequestException('Two-factor authentication is already enabled');
     }
     if (!user.totpSecret) throw new BadRequestException('Start two-factor setup first');
-    if (!authenticator.verify({ token: code, secret: user.totpSecret })) {
+    if (!verifyTotpCode(userId, user.totpSecret, code)) {
       throw new BadRequestException('Invalid authentication code');
     }
     // One transaction: the account must never end up totpEnabled with zero
@@ -256,7 +264,7 @@ export class AuthService {
     if (!user.totpEnabled || !user.totpSecret) {
       throw new BadRequestException('Two-factor authentication is not enabled');
     }
-    if (!authenticator.verify({ token: code, secret: user.totpSecret })) {
+    if (!verifyTotpCode(userId, user.totpSecret, code)) {
       throw new BadRequestException('Invalid authentication code');
     }
     const { codes, rows } = await this.mintRecoveryCodes(userId);

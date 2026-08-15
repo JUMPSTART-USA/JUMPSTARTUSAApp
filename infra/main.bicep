@@ -21,6 +21,12 @@ param postgresAdminPassword string
 @description('Express session signing secret (openssl rand -hex 32).')
 param sessionSecret string
 
+@secure()
+@minLength(64)
+@maxLength(64)
+@description('AES-256-GCM key for encrypted columns, 64 hex chars (openssl rand -hex 32). Rotating it makes every stored TOTP secret unreadable and forces enrolled users to re-enroll — treat it like the database password.')
+param encryptionKey string
+
 // Custom front-door origin (e.g. https://app.jumpstartusa.org). Empty = the
 // SWA default hostname stays canonical. When set, the default hostname moves
 // to WEB_ORIGIN_ALIASES so both hosts keep working through a cutover.
@@ -190,6 +196,14 @@ resource secretSessionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
+resource secretEncryptionKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'encryption-key'
+  properties: {
+    value: encryptionKey
+  }
+}
+
 // ── Identity for one-off jobs (CI-triggered migration containers) ──────────
 
 resource jobsIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -243,6 +257,7 @@ var apiAppSettings = [
   // though it configured passkey binding.
   { name: 'DATABASE_URL', value: '@Microsoft.KeyVault(SecretUri=${secretDatabaseUrl.properties.secretUri})' }
   { name: 'SESSION_SECRET', value: '@Microsoft.KeyVault(SecretUri=${secretSessionSecret.properties.secretUri})' }
+  { name: 'ENCRYPTION_KEY', value: '@Microsoft.KeyVault(SecretUri=${secretEncryptionKey.properties.secretUri})' }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
 ]
 

@@ -1524,3 +1524,113 @@ describe('changing a password revokes the account other sessions', () => {
     await request(server).get('/api/auth/me').set('Cookie', fresh).expect(200);
   });
 });
+
+/**
+ * TOTP enrollment against the real database, end to end.
+ *
+ * The unit tests pin the cipher; this pins the WIRING — that what
+ * startTotpSetup writes is ciphertext, and that every reader decrypts it. A
+ * missed call site would not fail loudly: `authenticator.verify` against a
+ * ciphertext-as-secret simply returns false, so two-factor would reject every
+ * correct code and present as "2FA is broken" rather than as an encryption bug.
+ */
+describe('TOTP secrets are encrypted at rest and still verify', () => {
+  const throwaway = {
+    email: `totptest-${randomUUID()}@jumpstartusa.org`,
+    firstName: 'Totp',
+    lastName: 'EncryptionTest',
+    roles: ['read_only'],
+  };
+
+  let adminCookie: string;
+  let userId: string;
+  let cookie: string;
+  let secret: string;
+  let temporaryPassword: string;
+
+  beforeAll(async () => {
+    adminCookie = await login(ADMIN);
+    const created = await request(server)
+      .post('/api/admin/users')
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send(throwaway)
+      .expect(201);
+    userId = created.body.user.id;
+    temporaryPassword = created.body.temporaryPassword;
+    cookie = await login({ email: throwaway.email, password: temporaryPassword });
+  });
+
+  afterAll(async () => {
+    if (!userId) return;
+    const me = await request(server).get('/api/auth/me').set('Cookie', adminCookie);
+    await request(server)
+      .post(`/api/admin/users/${userId}/deactivate`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ reassignToUserId: me.body.id })
+      .catch(() => undefined);
+  });
+
+  it('stores ciphertext, not the secret the user was shown', async () => {
+    const setup = await request(server)
+      .post('/api/auth/totp/setup')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .expect(201);
+    secret = setup.body.secret;
+    expect(secret).toBeTruthy();
+
+    const row = await app
+      .get(PrismaService)
+      .user.findUniqueOrThrow({ where: { id: userId }, select: { totpSecret: true } });
+
+    // The column holds the versioned envelope, and the plaintext appears
+    // nowhere in it.
+    expect(row.totpSecret).toMatch(/^v1\./);
+    expect(row.totpSecret).not.toContain(secret);
+  });
+
+  it('accepts a code generated from that secret, so every reader decrypts', async () => {
+    const { authenticator } = await import('otplib');
+
+    // Reader 1: confirmTotpSetup.
+    await request(server)
+      .post('/api/auth/totp/confirm')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ code: authenticator.generate(secret) })
+      .expect(201);
+
+    // Reader 2: validateLogin, a different call site on the same column.
+    // The password alone now stops at the second-factor gate...
+    const gated = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password: temporaryPassword })
+      .expect(200);
+    expect(gated.body.totpRequired).toBe(true);
+    expect(gated.body.totpEnabled).toBe(true);
+    expect(gated.body.user).toBeUndefined();
+
+    // ...and a code derived from the plaintext the user was shown gets
+    // through, which is only possible if the login path decrypted the column.
+    const signedIn = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({
+        email: throwaway.email,
+        password: temporaryPassword,
+        totpCode: authenticator.generate(secret),
+      })
+      .expect(200);
+    expect(signedIn.body.user?.email).toBe(throwaway.email);
+
+    // A wrong code is still refused — the gate is real, not merely absent.
+    await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password: temporaryPassword, totpCode: '000000' })
+      .expect(401);
+  });
+});

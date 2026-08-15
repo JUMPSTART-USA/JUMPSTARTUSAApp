@@ -32,6 +32,8 @@ services:
     environment:
       DATABASE_URL: postgresql://jumpstart:jumpstart_dev_password@db:5432/jumpstart?schema=public
       SESSION_SECRET: ${SESSION_SECRET:-local-dev-only-secret-do-not-use-in-production}
+      # Local dev only. Deployed environments read this from Key Vault.
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-5c95b52a5fb6aece4065e9b66caad0643c3684b7ab91ab585f6465a0c574f069}
       WEB_ORIGIN: http://localhost:8080
       API_PORT: 3001
       NODE_ENV: production

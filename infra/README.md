@@ -35,13 +35,15 @@ az group create -n rg-jumpstart-prod    -l eastus2
 az deployment group create -g rg-jumpstart-staging \
   -f infra/main.bicep -p infra/staging.bicepparam \
   -p postgresAdminPassword=$(openssl rand -hex 24) \
-  -p sessionSecret=$(openssl rand -hex 32)
+  -p sessionSecret=$(openssl rand -hex 32) \
+  -p encryptionKey=$(openssl rand -hex 32)
 
 # Production
 az deployment group create -g rg-jumpstart-prod \
   -f infra/main.bicep -p infra/prod.bicepparam \
   -p postgresAdminPassword=$(openssl rand -hex 24) \
-  -p sessionSecret=$(openssl rand -hex 32)
+  -p sessionSecret=$(openssl rand -hex 32) \
+  -p encryptionKey=$(openssl rand -hex 32)
 ```
 
 Each deployment prints an `outputs` block — you need those values in step 3.
