@@ -913,9 +913,31 @@ model User {
   personId     String?    @unique
   person       Person?    @relation(fields: [personId], references: [id])
 
-  totpSecret  String? // encrypted at rest by the app layer
+  // AES-256-GCM ciphertext, bound to this user's id as additional
+  // authenticated data — see apps/api/src/common/crypto.util.ts. This comment
+  // used to claim encryption that did not exist anywhere in the codebase; now
+  // it does. Rows written before that are plaintext and tolerated on read
+  // until scripts/encrypt-secrets.ts has run, but nothing writes plaintext.
+  totpSecret  String?
   totpEnabled Boolean   @default(false)
   lastLoginAt DateTime?
+
+  /**
+   * The TOTP time step most recently SPENT. A code is valid for its whole
+   * 30-second window, so without this a code read off a shoulder, a shared
+   * screen or a proxy can be replayed for the rest of that window. Storing the
+   * step rather than the code means the check is an integer comparison and
+   * never puts a live credential in the database.
+   */
+  lastTotpStep Int?
+
+  /**
+   * Per-ACCOUNT brute-force state. The throttler is per-IP, so a guessing
+   * campaign spread across addresses was unbounded against a single known
+   * email — and staff email addresses at a nonprofit are public.
+   */
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -1478,7 +1500,17 @@ model ParticipantPortalToken {
   id                   String             @id @default(uuid())
   participantProfileId String
   participantProfile   ParticipantProfile @relation(fields: [participantProfileId], references: [id])
-  token                String             @unique
+  /**
+   * SHA-256 of the link token, never the token itself — the same posture
+   * password-reset tokens have always had. This is a bearer credential: the
+   * link IS the login, so a plaintext column meant a database read handed over
+   * every participant's portal. The raw token exists only in the response that
+   * issues it, which is why re-copying an existing link is not possible and
+   * staff issue a fresh one instead.
+   */
+  tokenHash            String             @unique
+  /** Links die on their own. Previously they lived until manually revoked. */
+  expiresAt            DateTime
   active               Boolean            @default(true)
   lastUsedAt           DateTime?
   revokedAt            DateTime?
@@ -3267,7 +3299,14 @@ model AuditLog {
   entityId   String?
   oldValues  Json?
   newValues  Json?
-  metadata   Json? // export filters, IP, user agent, etc.
+  metadata   Json? // export filters and other per-action detail
+  /**
+   * Where the action came from, captured by AuditRequestContextMiddleware and
+   * read off an AsyncLocalStorage store rather than threaded through ~100 call
+   * sites. Null for actions with no request behind them (jobs, seeds).
+   */
+  ipAddress  String?
+  userAgent  String?
   createdAt  DateTime    @default(now())
 
   @@index([userId, createdAt])

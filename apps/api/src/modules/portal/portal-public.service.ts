@@ -8,6 +8,10 @@ import { AuditService } from '../../audit/audit.service';
 import { loadEnv } from '../../config/env';
 import { escapeHtml, MailService } from '../../mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { createHash } from 'node:crypto';
+
+/** Matches how the token was stored — see PortalTokensService. */
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
 /**
  * Belt-and-braces on top of the IP throttle: one participant link can create
@@ -22,6 +26,7 @@ const TOKEN_LOOKUP_SELECT = {
   id: true,
   active: true,
   revokedAt: true,
+  expiresAt: true,
   participantProfileId: true,
   participantProfile: {
     select: {
@@ -139,11 +144,22 @@ export class PortalPublicService {
   private async requireToken(rawToken: string) {
     if (!TOKEN_SHAPE.test(rawToken)) throw new NotFoundException();
 
+    // By HASH: the column holds sha256(token), never the token. Still one
+    // indexed equality, so the lookup costs what it always did.
     const token = await this.prisma.participantPortalToken.findUnique({
-      where: { token: rawToken },
+      where: { tokenHash: sha256(rawToken) },
       select: TOKEN_LOOKUP_SELECT,
     });
-    if (!token || !token.active || token.revokedAt || token.participantProfile.deletedAt) {
+    // Expiry joins the existing reasons, and is indistinguishable from them:
+    // every failure here is the same bare 404, so the endpoint never reveals
+    // whether a token existed, was revoked, or simply ran out.
+    if (
+      !token ||
+      !token.active ||
+      token.revokedAt ||
+      token.expiresAt <= new Date() ||
+      token.participantProfile.deletedAt
+    ) {
       throw new NotFoundException();
     }
 

@@ -33,6 +33,21 @@ const envSchema = z.object({
   SESSION_SECRET: z
     .string()
     .min(32, 'SESSION_SECRET must be at least 32 characters — generate with: openssl rand -hex 32'),
+  /**
+   * AES-256-GCM key for the columns holding a live secret — today the TOTP
+   * secret. 32 bytes as hex: openssl rand -hex 32
+   *
+   * REQUIRED, deliberately. An optional key with a silent "encryption off"
+   * fallback is the same shape of bug as the NODE_ENV gate this codebase just
+   * removed: it works everywhere, protects nothing, and nobody finds out.
+   * Rotating it makes existing ciphertext unreadable — see crypto.util.ts.
+   */
+  ENCRYPTION_KEY: z
+    .string()
+    .regex(
+      /^[0-9a-fA-F]{64}$/,
+      'ENCRYPTION_KEY must be 64 hex characters (32 bytes) — generate with: openssl rand -hex 32',
+    ),
   WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
   /**
    * Extra origins the origin-check and CORS accept alongside WEB_ORIGIN —

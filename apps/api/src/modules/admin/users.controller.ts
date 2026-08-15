@@ -45,6 +45,14 @@ const resetTotpSchema = z.object({
 type ResetTotpInput = z.infer<typeof resetTotpSchema>;
 type DeactivateInput = z.infer<typeof deactivateSchema>;
 
+/**
+ * The same proof, carried alongside a user edit. Optional here because the
+ * service only demands it for the SENSITIVE fields (email, roles) — a
+ * corrected surname should not need an authenticator.
+ */
+const updateUserWithStepUpSchema = updateUserSchema.extend(resetTotpSchema.shape);
+type UpdateUserWithStepUp = z.infer<typeof updateUserWithStepUpSchema>;
+
 // One chapter or all: at most one scope row; empty = all chapters (§7.2).
 const regionScopesSchema = z.object({
   states: z.array(z.enum(CHAPTER_STATES)).max(1, 'Assign one chapter, or none for all chapters'),
@@ -77,15 +85,28 @@ export class AdminUsersController {
     return this.users.create(body, user.id);
   }
 
-  /** Role changes go through this PATCH too — no separate roles endpoint. */
+  /**
+   * Role changes go through this PATCH too — no separate roles endpoint.
+   *
+   * Carries an OPTIONAL step-up proof, which the service demands only when the
+   * edit touches email or roles. Everything else stays a plain edit.
+   */
   @Patch(':id')
   @RequirePermission('admin.users')
   update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body(zodBody(updateUserSchema)) body: UpdateUserInput,
+    @Body(zodBody(updateUserWithStepUpSchema)) body: UpdateUserWithStepUp,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.users.update(id, body, user.id);
+    const { code, stepUpPasskeyResponse, ...input } = body;
+    const challenge = req.session.webauthnStepUpChallenge;
+    delete req.session.webauthnStepUpChallenge;
+    return this.users.update(id, input as UpdateUserInput, user.id, {
+      code,
+      passkeyResponse: stepUpPasskeyResponse as never,
+      challenge,
+    });
   }
 
   @Post(':id/deactivate')

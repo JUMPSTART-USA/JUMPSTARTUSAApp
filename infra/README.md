@@ -35,13 +35,35 @@ az group create -n rg-jumpstart-prod    -l eastus2
 az deployment group create -g rg-jumpstart-staging \
   -f infra/main.bicep -p infra/staging.bicepparam \
   -p postgresAdminPassword=$(openssl rand -hex 24) \
-  -p sessionSecret=$(openssl rand -hex 32)
+  -p sessionSecret=$(openssl rand -hex 32) \
+  -p encryptionKey=$(openssl rand -hex 32) \
+  -p graphTenantId=... -p graphClientId=... -p graphClientSecret=... \
+  -p emailFrom=no-reply@jumpstartusa.org
 
 # Production
 az deployment group create -g rg-jumpstart-prod \
   -f infra/main.bicep -p infra/prod.bicepparam \
   -p postgresAdminPassword=$(openssl rand -hex 24) \
-  -p sessionSecret=$(openssl rand -hex 32)
+  -p sessionSecret=$(openssl rand -hex 32) \
+  -p encryptionKey=$(openssl rand -hex 32) \
+  -p graphTenantId=... -p graphClientId=... -p graphClientSecret=... \
+  -p emailFrom=no-reply@jumpstartusa.org
+```
+
+The `graph*` parameters configure outbound email and may be left off on a first
+deployment — the API runs without them. Do not leave them off for long: the
+security NOTIFICATIONS ride on email, so until they are set an account can be
+locked out, have its second factor reset, or have its address changed with the
+person it belongs to told none of it. `GET /api/health` reports
+`mail: "unconfigured"` and the API says so at boot while that is the case.
+
+They need an Entra app registration with the **Mail.Send application**
+permission, admin-consented, plus a real mailbox to send as:
+
+```sh
+az ad app create --display-name jumpstart-mail --query appId -o tsv
+# then, in the portal: API permissions -> Microsoft Graph -> Application
+# permissions -> Mail.Send -> Grant admin consent, and create a client secret.
 ```
 
 Each deployment prints an `outputs` block — you need those values in step 3.

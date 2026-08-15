@@ -110,6 +110,48 @@ async function cleanUpPortalTestParticipant(cookie: string, link: PortalTestLink
     .expect(200);
 }
 
+
+/**
+ * Create a throwaway account and redeem its invitation, returning working
+ * credentials.
+ *
+ * Invitations replaced temporary passwords: the account is created with a
+ * password nobody knows and CANNOT be signed into until the link is used, so
+ * every test that needs a live login has to walk that path — which also means
+ * these tests exercise the real invite flow rather than a shortcut around it.
+ */
+async function createThrowawayUser(
+  adminCookie: string,
+  overrides: Partial<{ email: string; firstName: string; lastName: string; roles: string[] }> = {},
+): Promise<{ id: string; email: string; password: string }> {
+  const email = overrides.email ?? `throwaway-${randomUUID()}@jumpstartusa.org`;
+  const password = `Throwaway-${randomUUID().slice(0, 12)}!`;
+
+  const created = await request(server)
+    .post('/api/admin/users')
+    .set('Cookie', adminCookie)
+    .set('Origin', ORIGIN)
+    .send({
+      email,
+      firstName: overrides.firstName ?? 'Throwaway',
+      lastName: overrides.lastName ?? 'TestUser',
+      roles: overrides.roles ?? ['read_only'],
+    })
+    .expect(201);
+
+  // The link is returned exactly once; only its hash is stored.
+  expect(created.body.inviteUrl).toContain('/reset-password/');
+  const token = created.body.inviteUrl.split('/reset-password/')[1];
+
+  await request(server)
+    .post('/api/auth/reset-password')
+    .set('Origin', ORIGIN)
+    .send({ token, password, confirmPassword: password })
+    .expect(200);
+
+  return { id: created.body.user.id, email, password };
+}
+
 beforeAll(async () => {
   // NestFactory (not Test.createTestingModule) so configureApp middleware
   // (session store, prefix, origin check) is identical to production.
@@ -1466,19 +1508,13 @@ describe('changing a password revokes the account other sessions', () => {
 
   let adminCookie: string;
   let userId: string;
-  let temporaryPassword: string;
+  let initialPassword: string;
 
   beforeAll(async () => {
     adminCookie = await login(ADMIN);
-    const created = await request(server)
-      .post('/api/admin/users')
-      .set('Cookie', adminCookie)
-      .set('Origin', ORIGIN)
-      .send(throwaway)
-      .expect(201);
-    userId = created.body.user.id;
-    temporaryPassword = created.body.temporaryPassword;
-    expect(temporaryPassword).toBeTruthy();
+    const account = await createThrowawayUser(adminCookie, throwaway);
+    userId = account.id;
+    initialPassword = account.password;
   });
 
   afterAll(async () => {
@@ -1496,8 +1532,8 @@ describe('changing a password revokes the account other sessions', () => {
   it('leaves a second session dead while the first is sent to sign in again', async () => {
     // Two independent sign-ins for the same account: the user's own browser
     // and, in the scenario this defends against, somebody else's.
-    const sessionA = await login({ email: throwaway.email, password: temporaryPassword });
-    const sessionB = await login({ email: throwaway.email, password: temporaryPassword });
+    const sessionA = await login({ email: throwaway.email, password: initialPassword });
+    const sessionB = await login({ email: throwaway.email, password: initialPassword });
     expect(sessionA).not.toBe(sessionB);
 
     // Both are live to begin with — otherwise the assertion below proves nothing.
@@ -1509,7 +1545,7 @@ describe('changing a password revokes the account other sessions', () => {
       .set('Cookie', sessionA)
       .set('Origin', ORIGIN)
       .send({
-        currentPassword: temporaryPassword,
+        currentPassword: initialPassword,
         password: NEW_PASSWORD,
         confirmPassword: NEW_PASSWORD,
       })
@@ -1522,5 +1558,578 @@ describe('changing a password revokes the account other sessions', () => {
     // And the new password is the one that works now.
     const fresh = await login({ email: throwaway.email, password: NEW_PASSWORD });
     await request(server).get('/api/auth/me').set('Cookie', fresh).expect(200);
+  });
+});
+
+/**
+ * TOTP enrollment against the real database, end to end.
+ *
+ * The unit tests pin the cipher; this pins the WIRING — that what
+ * startTotpSetup writes is ciphertext, and that every reader decrypts it. A
+ * missed call site would not fail loudly: `authenticator.verify` against a
+ * ciphertext-as-secret simply returns false, so two-factor would reject every
+ * correct code and present as "2FA is broken" rather than as an encryption bug.
+ */
+describe('TOTP secrets are encrypted at rest and still verify', () => {
+  const throwaway = {
+    email: `totptest-${randomUUID()}@jumpstartusa.org`,
+    firstName: 'Totp',
+    lastName: 'EncryptionTest',
+    roles: ['read_only'],
+  };
+
+  let adminCookie: string;
+  let userId: string;
+  let cookie: string;
+  let secret: string;
+  let password: string;
+
+  beforeAll(async () => {
+    adminCookie = await login(ADMIN);
+    const account = await createThrowawayUser(adminCookie, throwaway);
+    userId = account.id;
+    password = account.password;
+    cookie = await login({ email: throwaway.email, password });
+  });
+
+  afterAll(async () => {
+    if (!userId) return;
+    const me = await request(server).get('/api/auth/me').set('Cookie', adminCookie);
+    await request(server)
+      .post(`/api/admin/users/${userId}/deactivate`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ reassignToUserId: me.body.id })
+      .catch(() => undefined);
+  });
+
+  it('stores ciphertext, not the secret the user was shown', async () => {
+    const setup = await request(server)
+      .post('/api/auth/totp/setup')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .expect(201);
+    secret = setup.body.secret;
+    expect(secret).toBeTruthy();
+
+    const row = await app
+      .get(PrismaService)
+      .user.findUniqueOrThrow({ where: { id: userId }, select: { totpSecret: true } });
+
+    // The column holds the versioned envelope, and the plaintext appears
+    // nowhere in it.
+    expect(row.totpSecret).toMatch(/^v1\./);
+    expect(row.totpSecret).not.toContain(secret);
+  });
+
+  it('accepts a code generated from that secret, so every reader decrypts', async () => {
+    const { authenticator } = await import('otplib');
+
+    // Reader 1: confirmTotpSetup.
+    await request(server)
+      .post('/api/auth/totp/confirm')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ code: authenticator.generate(secret) })
+      .expect(201);
+
+    // Reader 2: validateLogin, a different call site on the same column.
+    // The password alone now stops at the second-factor gate...
+    const gated = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password })
+      .expect(200);
+    expect(gated.body.totpRequired).toBe(true);
+    expect(gated.body.totpEnabled).toBe(true);
+    expect(gated.body.user).toBeUndefined();
+
+    // ...and a code derived from the plaintext the user was shown gets
+    // through, which is only possible if the login path decrypted the column.
+    const signedIn = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password, totpCode: authenticator.generate(secret) })
+      .expect(200);
+    expect(signedIn.body.user?.email).toBe(throwaway.email);
+
+    // A wrong code is still refused — the gate is real, not merely absent.
+    await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password, totpCode: '000000' })
+      .expect(401);
+  });
+});
+
+/**
+ * Per-account brute-force protection and TOTP replay.
+ *
+ * The throttler is per-IP, so a campaign spread across addresses was unbounded
+ * against one known email — and staff addresses at a nonprofit are public.
+ * Runs against a throwaway account: locking a seeded one out would break every
+ * other test in this file for the rest of the run.
+ */
+describe('account lockout', () => {
+  const throwaway = {
+    email: `locktest-${randomUUID()}@jumpstartusa.org`,
+    firstName: 'Lockout',
+    lastName: 'Test',
+    roles: ['read_only'],
+  };
+  const LOCKOUT_THRESHOLD = 6;
+
+  let adminCookie: string;
+  let userId: string;
+  let password: string;
+
+  beforeAll(async () => {
+    adminCookie = await login(ADMIN);
+    const account = await createThrowawayUser(adminCookie, throwaway);
+    userId = account.id;
+    password = account.password;
+  });
+
+  afterAll(async () => {
+    if (!userId) return;
+    const me = await request(server).get('/api/auth/me').set('Cookie', adminCookie);
+    await request(server)
+      .post(`/api/admin/users/${userId}/deactivate`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ reassignToUserId: me.body.id })
+      .catch(() => undefined);
+  });
+
+  it('locks after repeated failures and then refuses the CORRECT password', async () => {
+    for (let i = 0; i < LOCKOUT_THRESHOLD; i++) {
+      await request(server)
+        .post('/api/auth/login')
+        .set('Origin', ORIGIN)
+        .send({ email: throwaway.email, password: `wrong-guess-${i}` })
+        .expect(401);
+    }
+
+    // The real credential is now refused — which is the whole point, and is
+    // what a per-IP throttle alone could never do.
+    const locked = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password })
+      .expect(401);
+    expect(locked.body.message).toMatch(/Too many failed sign-in attempts/);
+
+    // ...but only a caller who PROVED they know the password is told why.
+    // Anyone else gets the same generic answer, so six guesses cannot be used
+    // to confirm that an address is registered.
+    const generic = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password: 'still-wrong' })
+      .expect(401);
+    expect(generic.body.message).toBe('Invalid email or password');
+  });
+
+  it('records the lock on the account, not merely in a counter somewhere', async () => {
+    const row = await app.get(PrismaService).user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { failedLoginCount: true, lockedUntil: true },
+    });
+    expect(row.failedLoginCount).toBeGreaterThanOrEqual(LOCKOUT_THRESHOLD);
+    expect(row.lockedUntil).not.toBeNull();
+    expect(row.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('lets the account back in once the lock lapses, and resets the counter', async () => {
+    // Expire the lock rather than waiting a minute for it.
+    await app
+      .get(PrismaService)
+      .user.update({ where: { id: userId }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+
+    const cookie = await login({ email: throwaway.email, password });
+    await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+
+    const row = await app.get(PrismaService).user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { failedLoginCount: true, lockedUntil: true },
+    });
+    // A good sign-in clears the state — otherwise yesterday's typos accumulate
+    // until an ordinary day locks somebody out.
+    expect(row.failedLoginCount).toBe(0);
+    expect(row.lockedUntil).toBeNull();
+  });
+});
+
+describe('TOTP codes cannot be replayed', () => {
+  const throwaway = {
+    email: `replaytest-${randomUUID()}@jumpstartusa.org`,
+    firstName: 'Replay',
+    lastName: 'Test',
+    roles: ['read_only'],
+  };
+
+  let adminCookie: string;
+  let userId: string;
+  let password: string;
+  let secret: string;
+
+  beforeAll(async () => {
+    const { authenticator } = await import('otplib');
+    adminCookie = await login(ADMIN);
+    const account = await createThrowawayUser(adminCookie, throwaway);
+    userId = account.id;
+    password = account.password;
+
+    const cookie = await login({ email: throwaway.email, password });
+    const setup = await request(server)
+      .post('/api/auth/totp/setup')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .expect(201);
+    secret = setup.body.secret;
+    await request(server)
+      .post('/api/auth/totp/confirm')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ code: authenticator.generate(secret) })
+      .expect(201);
+  });
+
+  afterAll(async () => {
+    if (!userId) return;
+    const me = await request(server).get('/api/auth/me').set('Cookie', adminCookie);
+    await request(server)
+      .post(`/api/admin/users/${userId}/deactivate`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ reassignToUserId: me.body.id })
+      .catch(() => undefined);
+  });
+
+  it('accepts a code once and refuses the same code again', async () => {
+    const { authenticator } = await import('otplib');
+    const code = authenticator.generate(secret);
+
+    const first = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password, totpCode: code })
+      .expect(200);
+    expect(first.body.user?.email).toBe(throwaway.email);
+
+    // The same code, still inside its 30-second window: previously this was a
+    // second valid sign-in.
+    const replay = await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: throwaway.email, password, totpCode: code })
+      .expect(401);
+    expect(replay.body.message).toMatch(/already been used/);
+  });
+});
+
+/**
+ * Audit rows record WHERE an action came from.
+ *
+ * schema.prisma claimed metadata held "export filters, IP, user agent" and the
+ * AuditEntry interface had no such fields — nothing ever wrote them. Without a
+ * source, a compromised-account investigation cannot separate the attacker's
+ * actions from the user's own.
+ *
+ * The context rides an AsyncLocalStorage store rather than a parameter, so
+ * what this really pins is that the store survives the await chain from
+ * middleware through guard, controller and service to the Prisma write.
+ */
+describe('audit rows carry the request context', () => {
+  it('records the client address and user agent on a login', async () => {
+    const agent = 'JumpstartSuite/1.0 (audit-context-test)';
+    await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .set('User-Agent', agent)
+      .send(ADMIN)
+      .expect(200);
+
+    const row = await app.get(PrismaService).auditLog.findFirst({
+      where: { action: 'login', userAgent: agent },
+      orderBy: { createdAt: 'desc' },
+      select: { ipAddress: true, userAgent: true, userId: true },
+    });
+
+    expect(row, 'no audit row carried the test user agent').not.toBeNull();
+    expect(row!.userAgent).toBe(agent);
+    // Loopback through supertest, but the point is that SOMETHING resolved.
+    expect(row!.ipAddress).toBeTruthy();
+    expect(row!.userId).toBeTruthy();
+  });
+
+  it('records it on a failed login too, which is the row an investigation wants', async () => {
+    const agent = `JumpstartSuite/1.0 (failed-${randomUUID()})`;
+    await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .set('User-Agent', agent)
+      .send({ email: `ghost-${randomUUID()}@jumpstartusa.org`, password: 'nope' })
+      .expect(401);
+
+    const row = await app.get(PrismaService).auditLog.findFirst({
+      where: { action: 'login_failed', userAgent: agent },
+      select: { ipAddress: true, userId: true },
+    });
+
+    // An unknown account has no userId to attribute to — the address is the
+    // only thing tying a guessing campaign together.
+    expect(row, 'a failed login for an unknown account was not attributed').not.toBeNull();
+    expect(row!.ipAddress).toBeTruthy();
+    expect(row!.userId).toBeNull();
+  });
+});
+
+/**
+ * Admin actions on OTHER people's accounts.
+ *
+ * All of these were audited already, which is the right foundation — but audit
+ * is detective and nobody reads it daily. These are the preventive halves.
+ */
+describe('sensitive admin edits are gated', () => {
+  const throwaway = {
+    email: `admintest-${randomUUID()}@jumpstartusa.org`,
+    firstName: 'Admin',
+    lastName: 'GateTest',
+    roles: ['read_only'],
+  };
+
+  let adminCookie: string;
+  let adminId: string;
+  let userId: string;
+
+  beforeAll(async () => {
+    adminCookie = await login(ADMIN);
+    adminId = (await request(server).get('/api/auth/me').set('Cookie', adminCookie)).body.id;
+    userId = (await createThrowawayUser(adminCookie, throwaway)).id;
+  });
+
+  afterAll(async () => {
+    if (!userId) return;
+    await request(server)
+      .post(`/api/admin/users/${userId}/deactivate`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ reassignToUserId: adminId })
+      .catch(() => undefined);
+  });
+
+  it('refuses an admin changing their OWN roles', async () => {
+    // The escalation this closes: admin.users was quietly the permission that
+    // grants everything, because its holder could grant it to themselves.
+    const res = await request(server)
+      .patch(`/api/admin/users/${adminId}`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ roles: ['admin', 'executive'] })
+      .expect(403);
+    expect(res.body.message).toMatch(/cannot change your own roles/i);
+  });
+
+  it('still allows ordinary edits to another account without a code', async () => {
+    // A corrected surname must not demand an authenticator, or the gate
+    // becomes something people route around.
+    await request(server)
+      .patch(`/api/admin/users/${userId}`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ lastName: 'GateTestRenamed' })
+      .expect(200);
+  });
+
+  it('allows a role change on another account when the actor holds no second factor', async () => {
+    // The seeded admin has neither TOTP nor a passkey, so requireStepUp has
+    // nothing to demand — this asserts the gate is conditional, not blanket.
+    const me = await request(server).get('/api/auth/me').set('Cookie', adminCookie).expect(200);
+    expect(me.body.totpEnabled).toBe(false);
+    expect(me.body.passkeyCount).toBe(0);
+
+    const res = await request(server)
+      .patch(`/api/admin/users/${userId}`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ roles: ['read_only', 'fleet_manager'] })
+      .expect(200);
+    expect(res.body.roles).toEqual(expect.arrayContaining(['read_only', 'fleet_manager']));
+  });
+
+  it('revokes the target sessions when their second factor is reset', async () => {
+    const { authenticator } = await import('otplib');
+    // Give the throwaway account a factor to reset, and a live session.
+    const reinvited = await request(server)
+      .post(`/api/admin/users/${userId}/resend-invite`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .expect(201);
+    // Re-invitation issues a fresh link; redeem it to get a live session.
+    const password = `Reinvited-${randomUUID().slice(0, 12)}!`;
+    await request(server)
+      .post('/api/auth/reset-password')
+      .set('Origin', ORIGIN)
+      .send({
+        token: reinvited.body.inviteUrl.split('/reset-password/')[1],
+        password,
+        confirmPassword: password,
+      })
+      .expect(200);
+    const cookie = await login({ email: throwaway.email, password });
+    const setup = await request(server)
+      .post('/api/auth/totp/setup')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .expect(201);
+    await request(server)
+      .post('/api/auth/totp/confirm')
+      .set('Cookie', cookie)
+      .set('Origin', ORIGIN)
+      .send({ code: authenticator.generate(setup.body.secret) })
+      .expect(201);
+    await request(server).get('/api/auth/me').set('Cookie', cookie).expect(200);
+
+    await request(server)
+      .post(`/api/admin/users/${userId}/reset-totp`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({})
+      .expect(201);
+
+    // Removing the second factor without ending the sessions it protected
+    // would leave the weaker state running.
+    await request(server).get('/api/auth/me').set('Cookie', cookie).expect(401);
+  });
+});
+
+/**
+ * Invitations replaced temporary passwords.
+ *
+ * The old flow emailed a working credential in clear and returned it in the
+ * API response. It then lived in the recipient's mailbox, the sending
+ * mailbox's Sent Items, and every backup of either — indefinitely, with no
+ * expiry — so a mailbox compromise was an account compromise.
+ */
+describe('invitations', () => {
+  let adminCookie: string;
+  const created: string[] = [];
+
+  beforeAll(async () => {
+    adminCookie = await login(ADMIN);
+  });
+
+  afterAll(async () => {
+    const me = await request(server).get('/api/auth/me').set('Cookie', adminCookie);
+    for (const id of created) {
+      await request(server)
+        .post(`/api/admin/users/${id}/deactivate`)
+        .set('Cookie', adminCookie)
+        .set('Origin', ORIGIN)
+        .send({ reassignToUserId: me.body.id })
+        .catch(() => undefined);
+    }
+  });
+
+  async function invite() {
+    const email = `invite-${randomUUID()}@jumpstartusa.org`;
+    const res = await request(server)
+      .post('/api/admin/users')
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .send({ email, firstName: 'Invite', lastName: 'Test', roles: ['read_only'] })
+      .expect(201);
+    created.push(res.body.user.id);
+    return { email, body: res.body, token: res.body.inviteUrl.split('/reset-password/')[1] };
+  }
+
+  it('returns a link and no password at all', async () => {
+    const { body } = await invite();
+    expect(body.inviteUrl).toContain('/reset-password/');
+    // The whole point: no credential in the response, under any name. Checked
+    // on the KEYS — the body legitimately contains the string "password", in
+    // the /reset-password/ path of the link itself.
+    const keys = Object.keys(body);
+    expect(keys).toEqual(expect.arrayContaining(['user', 'inviteUrl', 'emailSent']));
+    expect(keys.filter((k) => /password/i.test(k))).toEqual([]);
+    expect(Object.keys(body.user).filter((k) => /password/i.test(k))).toEqual([]);
+  });
+
+  it('stores only the hash, so the link cannot be recovered from the database', async () => {
+    const { token } = await invite();
+    const rows = await app.get(PrismaService).passwordResetToken.findMany({
+      where: { tokenHash: createHash('sha256').update(token).digest('hex') },
+      select: { tokenHash: true, expiresAt: true },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.tokenHash).not.toBe(token);
+    // Seven days, not the one hour a password reset gets.
+    const days = (rows[0]!.expiresAt.getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(6);
+    expect(days).toBeLessThan(8);
+  });
+
+  it('leaves the account impossible to sign into until the link is used', async () => {
+    const { email } = await invite();
+    // There is no password to try, which is the point — but confirm the
+    // account is not sitting there with something guessable either.
+    await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email, password: '' })
+      .expect(400);
+    await request(server)
+      .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email, password: 'password123456' })
+      .expect(401);
+  });
+
+  it('is single-use', async () => {
+    const { email, token } = await invite();
+    const password = `First-${randomUUID().slice(0, 12)}!`;
+
+    await request(server)
+      .post('/api/auth/reset-password')
+      .set('Origin', ORIGIN)
+      .send({ token, password, confirmPassword: password })
+      .expect(200);
+    await login({ email, password });
+
+    // Replaying the same link must not let someone re-set the password.
+    const second = `Second-${randomUUID().slice(0, 12)}!`;
+    await request(server)
+      .post('/api/auth/reset-password')
+      .set('Origin', ORIGIN)
+      .send({ token, password: second, confirmPassword: second })
+      .expect(400);
+    // ...and the first password still works, so nothing was half-applied.
+    await login({ email, password });
+  });
+
+  it('re-inviting kills the previous link', async () => {
+    const { body, token: first } = await invite();
+
+    const reinvited = await request(server)
+      .post(`/api/admin/users/${body.user.id}/resend-invite`)
+      .set('Cookie', adminCookie)
+      .set('Origin', ORIGIN)
+      .expect(201);
+    const second = reinvited.body.inviteUrl.split('/reset-password/')[1];
+    expect(second).not.toBe(first);
+
+    // A lost or intercepted invitation is revoked by simply sending another.
+    const password = `Fresh-${randomUUID().slice(0, 12)}!`;
+    await request(server)
+      .post('/api/auth/reset-password')
+      .set('Origin', ORIGIN)
+      .send({ token: first, password, confirmPassword: password })
+      .expect(400);
+    await request(server)
+      .post('/api/auth/reset-password')
+      .set('Origin', ORIGIN)
+      .send({ token: second, password, confirmPassword: password })
+      .expect(200);
   });
 });

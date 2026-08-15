@@ -101,23 +101,127 @@ export class MailService {
     return this.send(to, subject, html);
   }
 
+  /**
+   * Sent when repeated failures lock an account.
+   *
+   * The point is not the lockout — it is telling the person that somebody has
+   * been trying. The sign-in screen deliberately will not say "this account is
+   * locked" to a caller who did not supply the password, since that would
+   * confirm the address exists; this email is how the real owner finds out.
+   */
+  async sendAccountLocked(
+    to: string,
+    firstName: string,
+    lockedUntil: Date,
+  ): Promise<{ sent: boolean; from: string }> {
+    const origin = loadEnv().WEB_ORIGIN;
+    const subject = 'Your JUMPSTART USA account was temporarily locked';
+    const until = lockedUntil.toLocaleString('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'America/New_York',
+    });
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>There have been several failed sign-in attempts on your account, so we
+      have locked it until <strong>${escapeHtml(until)}</strong> (Eastern).</p>
+      <p><strong>If that was you</strong> — wait until then and try again, or
+      <a href="${origin}/forgot-password">reset your password</a> now.</p>
+      <p><strong>If it was not you</strong>, someone is guessing your password.
+      Reset it, and tell an administrator so they can check the account.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(to, subject, html);
+  }
+
+  /**
+   * Sent to the PREVIOUS address when an administrator changes someone's
+   * email. That old mailbox is the one an attacker performing this takeover
+   * does not control, which is the entire point of sending it there.
+   */
+  async sendEmailChanged(
+    previousAddress: string,
+    firstName: string,
+    newAddress: string,
+  ): Promise<{ sent: boolean; from: string }> {
+    const subject = 'The email address on your JUMPSTART USA account was changed';
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>An administrator changed the email address on your JUMPSTART USA
+      Operations Platform account to <strong>${escapeHtml(newAddress)}</strong>.
+      Sign-in and password resets now go to that address.</p>
+      <p>If you did not expect this, contact an administrator immediately — a
+      changed address can be used to take over an account.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(previousAddress, subject, html);
+  }
+
+  /** Sent when an administrator changes which roles an account holds. */
+  async sendRolesChanged(
+    to: string,
+    firstName: string,
+    roles: string[],
+  ): Promise<{ sent: boolean; from: string }> {
+    const subject = 'Your JUMPSTART USA access was changed';
+    const list = roles.length ? roles.join(', ') : 'none';
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>An administrator changed what your account can do. You now hold:
+      <strong>${escapeHtml(list)}</strong>.</p>
+      <p>If that is not what you expected, contact an administrator.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(to, subject, html);
+  }
+
+  /**
+   * Sent when an administrator clears an account's second factor. Usually the
+   * legitimate lost-authenticator rescue; the one time it is not, the account
+   * holder is the only person who can tell.
+   */
+  async sendSecondFactorReset(
+    to: string,
+    firstName: string,
+  ): Promise<{ sent: boolean; from: string }> {
+    const origin = loadEnv().WEB_ORIGIN;
+    const subject = 'Two-factor authentication was reset on your JUMPSTART USA account';
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>An administrator reset the two-factor authentication on your account.
+      Any authenticator app or passkey you had set up no longer works, and you
+      have been signed out everywhere.</p>
+      <p>Sign in at <a href="${origin}/login">${origin}</a> with your password
+      and set two-factor up again from your account page.</p>
+      <p>If you did not ask for this, contact an administrator immediately.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(to, subject, html);
+  }
+
+  /**
+   * Invitation. Carries a LINK, not a password.
+   *
+   * It used to email a working temporary password, which then lived in the
+   * recipient's mailbox, the sending mailbox's Sent Items, and every backup of
+   * either — indefinitely, with no expiry. The link is single-use, hashed at
+   * rest, and dead after seven days.
+   *
+   * inviteUrl is built by the caller from WEB_ORIGIN and is not escaped into
+   * the href: it is server-constructed from a hex token, never user input.
+   */
   async sendInvite(
     to: string,
     firstName: string,
-    temporaryPassword: string,
+    inviteUrl: string,
   ): Promise<{ sent: boolean; from: string }> {
-    const origin = loadEnv().WEB_ORIGIN;
     const subject = 'You are invited to the JUMPSTART USA Operations Platform';
     const html = `
       <p>Hi ${escapeHtml(firstName)},</p>
-      <p>An account has been created for you on the JUMPSTART USA Operations Platform.</p>
-      <p>
-        Sign in at <a href="${origin}/login">${origin}</a> with:<br/>
-        Email: <strong>${escapeHtml(to)}</strong><br/>
-        Temporary password: <strong>${escapeHtml(temporaryPassword)}</strong>
-      </p>
-      <p>On first sign-in you will set your own password and enroll two-factor
-      authentication — have an authenticator app ready.</p>
+      <p>An account has been created for you on the JUMPSTART USA Operations
+      Platform, for <strong>${escapeHtml(to)}</strong>.</p>
+      <p>Choose your password here — the link works once and expires in seven
+      days:</p>
+      <p><a href="${inviteUrl}">Set my password</a></p>
+      <p>After that you will enroll two-factor authentication, so have an
+      authenticator app ready.</p>
+      <p>If you were not expecting this, you can ignore this email.</p>
       <p>— JUMPSTART USA</p>`;
     return this.send(to, subject, html);
   }

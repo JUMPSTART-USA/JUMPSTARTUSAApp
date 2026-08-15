@@ -5,6 +5,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { configureApp } from './app.setup';
+import { MailService } from './mail/mail.service';
 import { apiDocsEnabled, appEnv, loadEnv } from './config/env';
 
 async function bootstrap() {
@@ -30,10 +31,31 @@ async function bootstrap() {
   }
 
   await app.listen(env.API_PORT);
-  new Logger('Bootstrap').log(
+  const logger = new Logger('Bootstrap');
+  logger.log(
     `API listening on :${env.API_PORT} (${appEnv()}, NODE_ENV=${env.NODE_ENV})` +
       (docs ? ' — docs at /api/docs' : ' — docs disabled'),
   );
+
+  /**
+   * Say it out loud when outbound email is not configured.
+   *
+   * The API runs perfectly well without it, which is exactly the problem: the
+   * security notifications ride on email, so unconfigured mail means an
+   * account can be locked, have its second factor reset, or have its address
+   * changed, and the person it belongs to is told none of it. A single warn
+   * buried in the send path was not enough to notice; this lists what is
+   * actually switched off.
+   */
+  if (!app.get(MailService).configured()) {
+    logger.warn(
+      'Outbound email is NOT configured (GRAPH_TENANT_ID / GRAPH_CLIENT_ID / ' +
+        'GRAPH_CLIENT_SECRET). These security notifications will be skipped ' +
+        'silently: account lockout, second-factor reset, email change, role ' +
+        'change, password reset, and user invitations. /api/health reports ' +
+        'mail: "unconfigured".',
+    );
+  }
 }
 
 bootstrap().catch((err) => {

@@ -21,7 +21,12 @@ export interface AdminUser {
 
 export interface InviteResult {
   user: AdminUser;
-  temporaryPassword: string;
+  /**
+   * Single-use invitation link, shown ONCE. Only its hash is stored, so this
+   * is the only moment it exists — there is no way to look it up later, and
+   * re-inviting mints a new one (which kills this).
+   */
+  inviteUrl: string;
   emailSent: boolean;
   emailFrom: string | null;
 }

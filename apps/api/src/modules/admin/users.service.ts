@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,10 +11,19 @@ import type { Prisma, UserStatus } from '@jumpstart/database';
 import type { CreateUserInput, ListQuery, RoleKey, UpdateUserInput } from '@jumpstart/shared';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
 import { AuditService } from '../../audit/audit.service';
+import { AuthService } from '../../auth/auth.service';
 import { PasskeysService } from '../../auth/passkeys.service';
 import { revokeAllSessions } from '../../auth/sessions.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../../mail/mail.service';
+import { loadEnv } from '../../config/env';
+
+/** The acting admin's proof of possession, as passed to PasskeysService. */
+type StepUpProof = {
+  code?: string;
+  passkeyResponse?: AuthenticationResponseJSON;
+  challenge?: string;
+};
 
 export interface UserListFilters {
   status?: UserStatus;
@@ -60,6 +70,7 @@ export class AdminUsersService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly passkeys: PasskeysService,
+    private readonly auth: AuthService,
   ) {}
 
   async list(query: ListQuery, filters: UserListFilters) {
@@ -110,11 +121,18 @@ export class AdminUsersService {
   }
 
   /**
-   * Invite flow within the existing schema (§6.14): the account is created as
-   * 'invited' with a server-generated temporary password, returned ONCE in this
-   * response for the admin to hand off out-of-band. First successful login
-   * flips status to 'active' (AuthService) and the SPA forces a password
-   * change. The temporary password is never stored or logged in clear.
+   * Invite flow (§6.14): the account is created as 'invited' with a password
+   * nobody knows, and an invitation LINK is issued.
+   *
+   * It used to be a temporary password, emailed in clear and returned in this
+   * response. That put a working credential in the recipient's mailbox, in the
+   * sending mailbox's Sent Items, and in every backup of either, indefinitely
+   * and with no expiry — a mailbox compromise was an account compromise. The
+   * link is hashed at rest, single-use, and dies after seven days.
+   *
+   * The URL is still returned once, so the existing hand-off path survives:
+   * outbound email is optional, and an admin who cannot send one reads the
+   * link out instead. What is gone is the long-lived secret.
    */
   async create(input: CreateUserInput, userId: string) {
     const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
@@ -129,9 +147,15 @@ export class AdminUsersService {
       );
     }
 
-    // 12 random bytes → exactly 16 base64url chars, no padding.
-    const temporaryPassword = randomBytes(12).toString('base64url');
-    const passwordHash = await argon2.hash(temporaryPassword, { type: argon2.argon2id });
+    /**
+     * An UNUSABLE password: 32 random bytes hashed and immediately discarded.
+     * The column is NOT NULL and the account must not be signable-into until
+     * the invitation is redeemed, so it gets a hash of something nobody — this
+     * process included, a line later — can produce.
+     */
+    const passwordHash = await argon2.hash(randomBytes(32).toString('hex'), {
+      type: argon2.argon2id,
+    });
 
     const user = await this.prisma.user.create({
       data: {
@@ -151,25 +175,36 @@ export class AdminUsersService {
 
     const safe = toSafeUser(user);
     await this.audit.logCreate(userId, 'user', user.id, safe);
-    // Invite email (Graph). Unconfigured mail keeps the manual hand-off flow.
-    const email = await this.mail.sendInvite(user.email, user.firstName, temporaryPassword);
-    return { user: safe, temporaryPassword, emailSent: email.sent, emailFrom: email.from };
+
+    const inviteUrl = await this.buildInvitationUrl(user.id);
+    // Unconfigured mail keeps the manual hand-off flow — see the doc comment.
+    const email = await this.mail.sendInvite(user.email, user.firstName, inviteUrl);
+    return { user: safe, inviteUrl, emailSent: email.sent, emailFrom: email.from };
+  }
+
+  /** The link an invitation resolves to. Raw token — returned once, never stored. */
+  private async buildInvitationUrl(userId: string): Promise<string> {
+    const token = await this.auth.issueInvitation(userId);
+    return `${loadEnv().WEB_ORIGIN}/reset-password/${token}`;
   }
 
   /**
-   * Re-issue an invite: only for accounts still in 'invited' status. The old
-   * temporary password is unrecoverable by design, so a new one is generated.
+   * Re-issue an invitation: only for accounts that have never signed in.
+   * Issuing a new link kills any outstanding one, so a lost or intercepted
+   * invitation is revoked by simply sending another.
+   *
+   * No longer resets the password hash — there is no password to reset, and
+   * overwriting it would have been the one way to lock out an account that had
+   * in fact already been set up.
    */
   async resendInvite(id: string, userId: string) {
     const existing = await this.getRaw(id);
     if (existing.status !== 'invited') {
       throw new BadRequestException('Only accounts that have never signed in can be re-invited');
     }
-    const temporaryPassword = randomBytes(12).toString('base64url');
-    const passwordHash = await argon2.hash(temporaryPassword, { type: argon2.argon2id });
     const user = await this.prisma.user.update({
       where: { id },
-      data: { passwordHash, updatedById: userId },
+      data: { updatedById: userId },
       include: USER_ROLES_INCLUDE,
     });
     await this.audit.log({
@@ -179,12 +214,47 @@ export class AdminUsersService {
       entityId: id,
       newValues: { resentInvite: true },
     });
-    const email = await this.mail.sendInvite(user.email, user.firstName, temporaryPassword);
-    return { user: toSafeUser(user), temporaryPassword, emailSent: email.sent, emailFrom: email.from };
+    const inviteUrl = await this.buildInvitationUrl(user.id);
+    const email = await this.mail.sendInvite(user.email, user.firstName, inviteUrl);
+    return { user: toSafeUser(user), inviteUrl, emailSent: email.sent, emailFrom: email.from };
   }
 
-  async update(id: string, input: UpdateUserInput, userId: string) {
+  async update(
+    id: string,
+    input: UpdateUserInput,
+    userId: string,
+    stepUp: StepUpProof = {},
+  ) {
     const existing = await this.getRaw(id);
+
+    /**
+     * Sensitive edits: the two that can END in a takeover rather than a typo.
+     *
+     * Changing someone's EMAIL then using forgot-password is a complete
+     * account takeover, and it used to need nothing but a signed-in admin
+     * session. Changing ROLES is the privilege-escalation half of the same
+     * problem. Both now demand the acting admin prove possession of their own
+     * second factor — the same bar already applied to adding or removing one.
+     */
+    const changingEmail = !!input.email && input.email !== existing.email;
+    const changingRoles =
+      !!input.roles && !sameSet(input.roles, existing.userRoles.map((ur) => ur.role.key));
+    if (changingEmail || changingRoles) {
+      await this.passkeys.requireStepUp(userId, stepUp);
+    }
+
+    /**
+     * No self-elevation. An account holding admin.users could grant ITSELF the
+     * admin role, so the permission that manages users was quietly the
+     * permission that grants everything. Acting on your own roles at all is
+     * refused: an admin who needs their roles changed asks another admin, and
+     * that leaves two people in the audit log instead of one.
+     */
+    if (changingRoles && id === userId) {
+      throw new ForbiddenException(
+        'You cannot change your own roles — ask another administrator',
+      );
+    }
 
     // The §7.6 departure flow (session revocation + caseload handoff) must not
     // be bypassable through a plain status edit.
@@ -246,6 +316,21 @@ export class AdminUsersService {
         oldValues: { roles: oldSafe.roles },
         newValues: { roles: newSafe.roles },
       });
+      await this.mail.sendRolesChanged(newSafe.email, newSafe.firstName, newSafe.roles);
+    }
+
+    /**
+     * Tell the account holder their address was changed, at the address they
+     * had BEFORE. Audit is detective and nobody reads it daily; the owner is
+     * the one party guaranteed to notice, and the old mailbox is the only one
+     * an attacker performing this takeover does not control.
+     *
+     * NOT the same thing as verifying the new address, which would PREVENT the
+     * takeover rather than report it. That needs a pending-change record and a
+     * confirmation round trip — see the note in the phase 3 commit message.
+     */
+    if (changingEmail) {
+      await this.mail.sendEmailChanged(existing.email, existing.firstName, newSafe.email);
     }
 
     return newSafe;
@@ -404,13 +489,24 @@ export class AdminUsersService {
       this.prisma.webAuthnCredential.deleteMany({ where: { userId: id } }),
     ]);
 
+    /**
+     * The account's second factor is gone, so every live session for it is now
+     * a session standing on a password alone — including any an attacker holds.
+     * Removing the factor without ending them left the weaker state running.
+     */
+    const sessionsRevoked = await revokeAllSessions(this.prisma, id);
+
     await this.audit.logUpdate(
       userId,
       'user',
       id,
       { totpEnabled: existing.totpEnabled, passkeys: existing._count.webauthnCredentials },
-      { totpEnabled: false, passkeys: 0, event: 'second_factor_reset_by_admin' },
+      { totpEnabled: false, passkeys: 0, event: 'second_factor_reset_by_admin', sessionsRevoked },
     );
+    // The person whose protection was just removed is told. This is the
+    // legitimate lost-authenticator rescue most of the time; the one time it
+    // is not, they are the only party who can tell.
+    await this.mail.sendSecondFactorReset(updated.email, updated.firstName);
     // The include ran inside the same transaction as the deletes, so its
     // _count still reflects the pre-reset rows — report the real post state.
     return { ...toSafeUser(updated), passkeyCount: 0 };

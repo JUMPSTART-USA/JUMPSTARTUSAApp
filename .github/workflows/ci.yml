@@ -36,6 +36,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://jumpstart:jumpstart_dev_password@localhost:5432/jumpstart?schema=public
       SESSION_SECRET: ci-only-session-secret-0123456789abcdef0123456789abcdef
+      # CI-only key. Throwaway database, throwaway key.
+      ENCRYPTION_KEY: 267969c4bb473df75fc1c3bfb1f3d474df15641b5e373f7a9d63ebec808fa93e
       TURNSTILE_DEV_BYPASS: "true"
 
     steps:

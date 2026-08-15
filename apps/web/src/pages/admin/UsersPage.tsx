@@ -304,12 +304,12 @@ export function UsersPage() {
                 </Notice>
               ) : (
                 <Notice variant="warning">
-                  No invite email was sent — outbound email is not configured. Hand the
-                  temporary password off out-of-band.
+                  No invite email was sent — outbound email is not configured. Hand this link
+                  over out-of-band.
                 </Notice>
               )}
-              <code className="block rounded-md border bg-muted px-3 py-2 font-mono text-sm">
-                {resendResult.temporaryPassword}
+              <code className="block break-all rounded-md border bg-muted px-3 py-2 font-mono text-sm">
+                {resendResult.inviteUrl}
               </code>
               <DialogFooter>
                 <Button onClick={() => setResendResult(null)}>Done</Button>
@@ -411,9 +411,9 @@ function InviteUserDialog({
     onError: (err) => setTopError(applyApiError(err, form.setError)),
   });
 
-  const copyPassword = async () => {
+  const copyInviteUrl = async () => {
     if (!invited) return;
-    await navigator.clipboard.writeText(invited.temporaryPassword);
+    await navigator.clipboard.writeText(invited.inviteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -434,8 +434,8 @@ function InviteUserDialog({
           <DialogTitle>{invited ? 'User invited' : 'Invite user'}</DialogTitle>
           <DialogDescription>
             {invited
-              ? `${invited.user.firstName} ${invited.user.lastName} (${invited.user.email}) can now sign in.`
-              : 'Creates an invited account with a one-time temporary password to hand off out-of-band.'}
+              ? `${invited.user.firstName} ${invited.user.lastName} (${invited.user.email}) can now set their password.`
+              : 'Creates an account and issues a single-use invitation link. The account cannot be signed into until the link is used.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -448,18 +448,19 @@ function InviteUserDialog({
             ) : (
               <Notice variant="warning">
                 No invite email was sent — outbound email is not configured (see Admin →
-                Settings → Integrations). Hand the temporary password off out-of-band.
+                Settings → Integrations). Hand this link over out-of-band.
               </Notice>
             )}
             <Notice variant="warning">
-              Store this temporary password now — it is shown only this once and is never stored
-              or displayed again. The user must change it at first login.
+              Copy this link now — it is shown only once and only its hash is stored, so it
+              cannot be looked up again. It works once and expires in seven days; re-inviting
+              issues a new one and kills this.
             </Notice>
             <div className="flex items-center gap-2">
-              <code className="flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-sm">
-                {invited.temporaryPassword}
+              <code className="flex-1 break-all rounded-md border bg-muted px-3 py-2 font-mono text-sm">
+                {invited.inviteUrl}
               </code>
-              <Button variant="outline" size="sm" onClick={copyPassword}>
+              <Button variant="outline" size="sm" onClick={copyInviteUrl}>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {copied ? 'Copied' : 'Copy'}
               </Button>
@@ -557,6 +558,8 @@ function EditUserDialog({ user, onClose }: { user: AdminUser | null; onClose: ()
 function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [topError, setTopError] = useState<string | null>(null);
+  const [stepUpCode, setStepUpCode] = useState('');
+  const { user: me } = useAuth();
 
   const form = useForm<InviteFormValues>({
     resolver: editResolver,
@@ -570,7 +573,10 @@ function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () =
 
   const update = useMutation({
     mutationFn: (payload: InviteFormValues) =>
-      api.patch<AdminUser>(`/admin/users/${user.id}`, payload),
+      api.patch<AdminUser>(`/admin/users/${user.id}`, {
+        ...payload,
+        ...(stepUpCode ? { code: stepUpCode } : {}),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       onClose();
@@ -579,6 +585,18 @@ function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () =
   });
 
   const { register, formState } = form;
+
+  /**
+   * Changing an email or a role is a takeover-shaped action, so the API asks
+   * the acting admin to prove possession of their own second factor. Watch the
+   * form so the prompt appears as soon as the edit becomes one of those,
+   * rather than after a failed save — the code has a 30-second life and going
+   * to fetch one only once the request has already been refused wastes it.
+   */
+  const watched = form.watch();
+  const isSensitiveEdit =
+    watched.email !== user.email || !sameRoleSet(watched.roles ?? [], user.roles);
+  const needsCode = isSensitiveEdit && (me?.totpEnabled ?? false);
 
   return (
     <Dialog open onOpenChange={(next) => (!next ? onClose() : undefined)}>
@@ -615,13 +633,32 @@ function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () =
             <RoleCheckboxes register={register} />
           </FormField>
 
+          {needsCode ? (
+            <FormField
+              label="Your authenticator code"
+              required
+              hint="Changing an email address or a role needs your own 6-digit code."
+            >
+              <Input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={stepUpCode}
+                onChange={(e) => setStepUpCode(e.target.value.replace(/\D/g, ''))}
+              />
+            </FormField>
+          ) : null}
+
           <FormError message={topError} />
 
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={update.isPending}>
+            <Button
+              type="submit"
+              disabled={update.isPending || (needsCode && stepUpCode.length !== 6)}
+            >
               {update.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
@@ -629,6 +666,11 @@ function EditUserDialogInner({ user, onClose }: { user: AdminUser; onClose: () =
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Order-insensitive role comparison, so re-checking the same boxes is not an edit. */
+function sameRoleSet(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((role) => b.includes(role));
 }
 
 // ── Deactivate (§7.6 departing-staff flow) ───────────────────────────────────

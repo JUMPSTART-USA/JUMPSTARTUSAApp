@@ -7,8 +7,8 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
-import { authenticator } from 'otplib';
 import { AuditService } from '../audit/audit.service';
+import { verifyTotpCode } from '../common/totp.util';
 import { loadEnv, rpId } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -226,7 +226,7 @@ export class PasskeysService {
       return;
     }
     if (proof.code && hasTotp) {
-      if (!authenticator.verify({ token: proof.code, secret: user.totpSecret ?? '' })) {
+      if (!verifyTotpCode(userId, user.totpSecret, proof.code)) {
         throw new BadRequestException('Invalid authentication code');
       }
       return;
