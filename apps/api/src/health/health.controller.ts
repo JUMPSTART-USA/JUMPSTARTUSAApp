@@ -18,18 +18,27 @@ export class HealthController {
       status: 'ok',
       time: new Date().toISOString(),
       /**
-       * Reported because outbound email is a SECURITY dependency, not merely a
-       * convenience: account-lockout warnings, second-factor resets, and email
-       * and role changes all reach the account holder through it. Unconfigured
-       * mail means every one of those is silently skipped, and the person who
-       * would notice an attack on their account is the person who hears
-       * nothing.
+       * Outbound email is a SECURITY dependency, not a convenience:
+       * account-lockout warnings, second-factor resets, and email and role
+       * changes all reach the account holder through it.
        *
-       * Deliberately NOT folded into `status`: mail being unconfigured must
-       * not fail the App Service health probe and pull a working API out of
-       * rotation.
+       * This used to report `configured` — which only meant three environment
+       * variables were non-empty. It said "configured" for weeks while every
+       * send failed with a 401, because the stored client secret was a secret
+       * ID rather than a secret value. A health check that reports presence
+       * and calls it health is worse than none: it answers the question you
+       * meant to ask with the one it can cheaply compute.
+       *
+       * `sendPath` is the real answer — a client-credentials token really
+       * acquired from Entra. Coarse on purpose: this endpoint is public, and
+       * the AADSTS detail describes the tenant's identity configuration, so it
+       * goes to the log instead.
+       *
+       * Deliberately NOT folded into `status`: broken mail must not fail the
+       * App Service probe and pull a working API out of rotation. It is a
+       * thing to fix, not a reason to take the platform down.
        */
-      mail: this.mail.configured() ? 'configured' : 'unconfigured',
+      mail: this.mail.health(),
     };
   }
 }
