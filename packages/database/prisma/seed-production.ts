@@ -10,14 +10,33 @@
  *
  *   CONFIRM_RESET=yes pnpm --filter @jumpstart/database seed:production
  *
+ * THIS SCRIPT PRINTS NO CREDENTIAL, EVER.
+ *
+ * It used to generate a temporary password and log it. That output does not
+ * vanish with the terminal: this runs as a container job, so it landed in
+ * Azure Container Instance logs and stayed there — a live production
+ * administrator password, readable by anyone with Reader on the resource
+ * group, found three weeks after the fact still sitting in a completed
+ * container. Same shape as the invite flow that used to email a temporary
+ * password, in a place nobody thought to look.
+ *
+ * Two ways in, neither of which writes a secret anywhere a log can reach:
+ *
+ *   ADMIN_PASSWORD set — used as given. Pass it the way DATABASE_URL is
+ *     passed (--secure-environment-variables), not on a command line.
+ *
+ *   ADMIN_PASSWORD unset — the account is created with a password nobody
+ *     knows, and the operator uses "Forgot password" on the sign-in page. The
+ *     reset link is hashed at rest, single-use and expires in an hour, and it
+ *     goes to the admin's mailbox rather than to a log. Needs outbound email
+ *     configured; GET /api/health reports whether it is.
+ *
  * Env:
  *   CONFIRM_RESET     required, literal "yes"
  *   ADMIN_EMAIL       default mark@jumpstartusa.org
  *   ADMIN_FIRST_NAME  default Mark
  *   ADMIN_LAST_NAME   default Pitto
- *   ADMIN_PASSWORD    optional — when omitted, a random temporary password is
- *                     generated and printed ONCE below. Change it after the
- *                     first sign-in either way.
+ *   ADMIN_PASSWORD    optional — see above. Never printed either way.
  */
 import { randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
@@ -55,8 +74,14 @@ async function main() {
   const adminEmail = process.env.ADMIN_EMAIL ?? 'mark@jumpstartusa.org';
   const firstName = process.env.ADMIN_FIRST_NAME ?? 'Mark';
   const lastName = process.env.ADMIN_LAST_NAME ?? 'Pitto';
-  const generated = !process.env.ADMIN_PASSWORD;
-  const password = process.env.ADMIN_PASSWORD ?? randomBytes(18).toString('base64url');
+  const supplied = process.env.ADMIN_PASSWORD;
+  /**
+   * With no password supplied the account gets an UNUSABLE one: 32 random
+   * bytes hashed and immediately discarded. Nothing — not this process a line
+   * later — can produce the plaintext, so there is no credential to leak and
+   * the only way in is the password-reset flow.
+   */
+  const password = supplied ?? randomBytes(32).toString('hex');
 
   await prisma.$executeRawUnsafe(
     `TRUNCATE TABLE ${TABLES.map((t) => `"${t}"`).join(', ')} RESTART IDENTITY CASCADE`,
@@ -95,11 +120,15 @@ async function main() {
   console.log('Production reset complete.');
   console.log(`  Roles: ${ROLE_KEYS.length}, permissions: ${ALL_PERMISSIONS.length}`);
   console.log(`  Admin account: ${adminEmail}`);
-  if (generated) {
-    console.log(`  Temporary password (shown once — change after first sign-in): ${password}`);
+  if (supplied) {
+    console.log('  Password: the ADMIN_PASSWORD you supplied. Nothing was printed or stored in clear.');
   } else {
-    console.log('  Password: as provided via ADMIN_PASSWORD — change it if it was shared.');
+    console.log('  Password: NONE set — the account cannot be signed into yet, by design.');
+    console.log(`  Next: open the sign-in page, choose "Forgot password", and enter ${adminEmail}.`);
+    console.log('        The link is emailed, single-use and expires in an hour.');
+    console.log('        (No outbound email? Re-run with ADMIN_PASSWORD set as a secure variable.)');
   }
+  console.log('  Then enroll a second factor at /account — admin is a TOTP-required role.');
 }
 
 main()
