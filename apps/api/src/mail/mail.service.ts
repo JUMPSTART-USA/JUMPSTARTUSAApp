@@ -19,16 +19,107 @@ export const EMAIL_FROM_SETTING_KEY = 'email.fromAddress';
 
 const GRAPH_SCOPE = 'https://graph.microsoft.com/.default';
 
+/**
+ * How the send path looks from the outside. Deliberately coarse — /api/health
+ * is public, and the underlying AADSTS codes describe the tenant's identity
+ * configuration. The detail goes to the log, which is where an operator can
+ * see it and an anonymous caller cannot.
+ */
+export type SendPathStatus = 'ok' | 'failing' | 'unconfigured' | 'unknown';
+
+export interface MailHealth {
+  configured: boolean;
+  sendPath: SendPathStatus;
+  checkedAt: string | null;
+}
+
+/**
+ * Re-probe at most this often. The App Service health probe hits /api/health
+ * about once a minute; without a floor, a BROKEN credential would mean a
+ * failed token request to Entra every single time, which is both noise and a
+ * good way to get throttled.
+ */
+const PROBE_INTERVAL_MS = 5 * 60 * 1000;
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private token: { value: string; expiresAt: number } | null = null;
+  private sendPath: SendPathStatus = 'unknown';
+  private lastProbeAt: number | null = null;
+  private probing: Promise<void> | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
   configured(): boolean {
     const env = loadEnv();
     return Boolean(env.GRAPH_TENANT_ID && env.GRAPH_CLIENT_ID && env.GRAPH_CLIENT_SECRET);
+  }
+
+  /**
+   * What /api/health reports. Returns the LAST KNOWN result and never waits on
+   * the network.
+   *
+   * That matters more than it looks: healthCheckPath decides whether App
+   * Service keeps an instance in rotation, so a health endpoint that blocks on
+   * a call to Entra would turn an Entra slowdown into an outage of this app.
+   * The probe is kicked off in the background when the cached answer is stale.
+   */
+  health(): MailHealth {
+    if (!this.configured()) {
+      return { configured: false, sendPath: 'unconfigured', checkedAt: null };
+    }
+    const stale = this.lastProbeAt === null || Date.now() - this.lastProbeAt > PROBE_INTERVAL_MS;
+    if (stale) void this.probeSendPath();
+    return {
+      configured: true,
+      sendPath: this.sendPath,
+      checkedAt: this.lastProbeAt ? new Date(this.lastProbeAt).toISOString() : null,
+    };
+  }
+
+  /**
+   * Actually exercise the send path, as far as can be done without sending
+   * anything: acquire a client-credentials token from Entra.
+   *
+   * This is the check that was missing. `configured()` only asks whether three
+   * environment variables are non-empty, and it answered "configured"
+   * throughout an outage in which every send failed with a 401 — the stored
+   * client secret was a secret ID rather than a secret value. Presence is not
+   * function, and health should report the difference.
+   *
+   * It stops at the token deliberately. Going further would mean sending mail
+   * on a timer, and a health check with a side effect that lands in somebody's
+   * inbox is a health check people switch off. A valid token proves tenant,
+   * client id and secret; Mail.Send consent and the sender mailbox are checked
+   * by the first real send, which now logs loudly when it fails.
+   */
+  async probeSendPath(): Promise<SendPathStatus> {
+    if (!this.configured()) {
+      this.sendPath = 'unconfigured';
+      this.lastProbeAt = Date.now();
+      return this.sendPath;
+    }
+    // Collapse concurrent probes — several health hits must not each call out.
+    this.probing ??= (async () => {
+      try {
+        await this.accessToken();
+        if (this.sendPath !== 'ok') this.logger.log('Graph send path OK (token acquired).');
+        this.sendPath = 'ok';
+      } catch (err) {
+        this.sendPath = 'failing';
+        // The detail lives HERE, not in the public health response.
+        this.logger.error(
+          'MAIL SEND PATH FAILING — every security notification is being dropped: ' +
+            (err instanceof Error ? err.message : String(err)),
+        );
+      } finally {
+        this.lastProbeAt = Date.now();
+        this.probing = null;
+      }
+    })();
+    await this.probing;
+    return this.sendPath;
   }
 
   /** Admin-assigned From account, falling back to the EMAIL_FROM env default. */
@@ -76,11 +167,18 @@ export class MailService {
       if (res.status !== 202) {
         const body = await res.text();
         this.logger.error(`Graph sendMail failed (${res.status}): ${body.slice(0, 300)}`);
+        // A real send is better evidence than any probe — record what it found.
+        this.sendPath = 'failing';
+        this.lastProbeAt = Date.now();
         return { sent: false, from };
       }
+      this.sendPath = 'ok';
+      this.lastProbeAt = Date.now();
       return { sent: true, from };
     } catch (err) {
       this.logger.error('Graph sendMail error', err instanceof Error ? err.stack : String(err));
+      this.sendPath = 'failing';
+      this.lastProbeAt = Date.now();
       return { sent: false, from };
     }
   }

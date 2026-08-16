@@ -47,14 +47,32 @@ async function bootstrap() {
    * buried in the send path was not enough to notice; this lists what is
    * actually switched off.
    */
-  if (!app.get(MailService).configured()) {
+  const mail = app.get(MailService);
+  const DISABLED_BY_NO_MAIL =
+    'account lockout, second-factor reset, email change, role change, ' +
+    'password reset, and user invitations';
+  if (!mail.configured()) {
     logger.warn(
       'Outbound email is NOT configured (GRAPH_TENANT_ID / GRAPH_CLIENT_ID / ' +
-        'GRAPH_CLIENT_SECRET). These security notifications will be skipped ' +
-        'silently: account lockout, second-factor reset, email change, role ' +
-        'change, password reset, and user invitations. /api/health reports ' +
-        'mail: "unconfigured".',
+        `GRAPH_CLIENT_SECRET). These are silently skipped: ${DISABLED_BY_NO_MAIL}.`,
     );
+  } else {
+    /**
+     * Probe at boot, and do it WITHOUT blocking the listen above — a slow
+     * Entra must not delay the app becoming healthy.
+     *
+     * Configuration being present is not the same as it working: the
+     * credential can be wrong or expired, which is exactly what happened and
+     * went unnoticed for weeks because nothing ever exercised it.
+     */
+    void mail.probeSendPath().then((status) => {
+      if (status === 'ok') return;
+      logger.error(
+        'Outbound email is configured but NOT WORKING — a token could not be ' +
+          `acquired from Entra. These are being dropped: ${DISABLED_BY_NO_MAIL}. ` +
+          'See the MailService error above for the reason.',
+      );
+    });
   }
 }
 
