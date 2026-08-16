@@ -14,8 +14,23 @@
 #               secrets, and a job should carry only what it needs.
 set -euo pipefail
 
+# Migrations and seeds run as app_migrator — the only role permitted to change
+# the schema (docs/database-roles.md). An environment that has not had the
+# least-privilege roles applied has no migrator-database-url secret and falls
+# back to database-url, which is still the administrator credential there.
+#
+# The fallback is announced rather than silent: once an environment has been
+# converted, seeing this line again means DDL is about to run on the API's own
+# credential, which is precisely what the role split exists to prevent.
 DATABASE_URL=$(az keyvault secret show \
-  --vault-name "$KEYVAULT_NAME" --name database-url --query value -o tsv)
+  --vault-name "$KEYVAULT_NAME" --name migrator-database-url --query value -o tsv 2>/dev/null || true)
+
+if [ -z "$DATABASE_URL" ]; then
+  echo "NOTE: no migrator-database-url secret in $KEYVAULT_NAME — falling back to database-url."
+  echo "      Least-privilege roles are not applied in this environment (docs/database-roles.md)."
+  DATABASE_URL=$(az keyvault secret show \
+    --vault-name "$KEYVAULT_NAME" --name database-url --query value -o tsv)
+fi
 
 SECRET_ENV=(DATABASE_URL="$DATABASE_URL")
 if [ "${JOB_NEEDS_ENCRYPTION_KEY:-}" = "true" ]; then
