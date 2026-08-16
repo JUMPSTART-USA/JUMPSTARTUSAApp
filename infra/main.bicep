@@ -29,6 +29,14 @@ param swaLocation string = 'eastus2'
 param postgresAdminPassword string = ''
 
 @secure()
+@description('Password for the app_runtime role (docs/database-roles.md). When set, database-url is written as the app_runtime credential INSTEAD of the administrator one. EMPTY leaves database-url alone.')
+param appRuntimePassword string = ''
+
+@secure()
+@description('Password for the app_migrator role (docs/database-roles.md). When set, writes the migrator-database-url secret that the migration job reads. EMPTY leaves it alone.')
+param appMigratorPassword string = ''
+
+@secure()
 @description('Express session signing secret (openssl rand -hex 32). EMPTY leaves the existing one alone — rotating it signs every user out.')
 param sessionSecret string = ''
 
@@ -212,11 +220,42 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
 }
 
-resource secretDatabaseUrl 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(postgresAdminPassword)) {
+/*
+ * The API's credential. Once the least-privilege roles are applied
+ * (docs/database-roles.md) this should be app_runtime, which holds DML on the
+ * application tables and cannot rewrite audit_logs or change any shape.
+ *
+ * appRuntimePassword WINS over postgresAdminPassword: supplying an admin
+ * password to rotate the server must not silently demote the API back to
+ * running as the administrator. Supply neither and the secret is left alone,
+ * so a hand-set value survives ordinary deployments.
+ */
+var databaseUrlValue = !empty(appRuntimePassword)
+  ? 'postgresql://app_runtime:${appRuntimePassword}@${postgres.properties.fullyQualifiedDomainName}:5432/${pgDatabase}?schema=public&sslmode=require'
+  : 'postgresql://${pgAdminUser}:${postgresAdminPassword}@${postgres.properties.fullyQualifiedDomainName}:5432/${pgDatabase}?schema=public&sslmode=require'
+
+resource secretDatabaseUrl 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(postgresAdminPassword) || !empty(appRuntimePassword)) {
   parent: keyVault
   name: 'database-url'
   properties: {
-    value: 'postgresql://${pgAdminUser}:${postgresAdminPassword}@${postgres.properties.fullyQualifiedDomainName}:5432/${pgDatabase}?schema=public&sslmode=require'
+    value: databaseUrlValue
+  }
+}
+
+/*
+ * The migration and seed jobs' credential — the ONLY role that may change the
+ * schema. Kept separate from database-url on purpose: if the two were one
+ * secret, the API would hold DDL and the whole exercise would be theatre.
+ *
+ * .github/scripts/run-migration-job.sh prefers this secret and falls back to
+ * database-url when it is absent, so an environment that has not had the roles
+ * applied yet keeps working unchanged.
+ */
+resource secretMigratorDatabaseUrl 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(appMigratorPassword)) {
+  parent: keyVault
+  name: 'migrator-database-url'
+  properties: {
+    value: 'postgresql://app_migrator:${appMigratorPassword}@${postgres.properties.fullyQualifiedDomainName}:5432/${pgDatabase}?schema=public&sslmode=require'
   }
 }
 

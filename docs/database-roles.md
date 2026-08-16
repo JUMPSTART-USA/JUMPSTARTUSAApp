@@ -46,13 +46,48 @@ Run the script as the administrator, against the `jumpstart` database:
 psql "$ADMIN_DATABASE_URL" -v app_password="'<runtime-password>'" -v migrator_password="'<migrator-password>'" -f packages/database/scripts/least-privilege-roles.sql
 ```
 
+**That command cannot run from a laptop, and not from the migrate image either.**
+The database has no public endpoint, and `apps/api/Dockerfile`'s migrate stage
+is `node:24-alpine` with no `postgresql-client` — there is no psql in this
+system that can reach the server. Use a one-off container in the jobs subnet
+built on an image that *does* ship psql:
+
+```bash
+az container create -g "$AZURE_RG" -n apply-db-roles \
+  --image postgres:16-alpine \
+  --subnet "$JOBS_SUBNET_ID" --assign-identity "$JOBS_IDENTITY_ID" \
+  --os-type Linux --cpu 1 --memory 1.5 --restart-policy Never \
+  --secure-environment-variables ADMIN_DATABASE_URL="$ADMIN_URL" SQL_B64="$SQL_B64" \
+  --command-line "sh -c 'echo \$SQL_B64 | base64 -d > /tmp/r.sql && psql \"\$ADMIN_DATABASE_URL\" -v app_password=\"'\\''<runtime-pw>'\\''\" -v migrator_password=\"'\\''<migrator-pw>'\\''\" -f /tmp/r.sql'"
+```
+
+(`SQL_B64` is the script base64-encoded locally. Unlike the Node job container,
+psql has no workspace to resolve against, so `/tmp` is fine here.)
+
 It is idempotent — re-running rotates the passwords and re-applies the grants.
 It prints the resulting `audit_logs` privileges; expect exactly `INSERT` and
 `SELECT`.
 
 Then repoint the connection strings. In Key Vault, `database-url` becomes the
-`app_runtime` credential, and the migration job gets `app_migrator`. Both are
-referenced from `infra/main.bicep`.
+`app_runtime` credential, and the migration job gets `app_migrator`.
+
+**This part is not yet wired up, and is the real work of applying this
+runbook.** As of 2026-08-16 `infra/main.bicep` defines exactly one database
+secret — `database-url` (built from the *admin* credential) — and
+`.github/scripts/run-migration-job.sh` reads that same secret for migrations.
+So repointing `database-url` at `app_runtime` would hand the migration job a
+role with no DDL, and the next release would fail on its first `CREATE TABLE`.
+Applying this requires, in one change:
+
+1. A second Key Vault secret (`migrator-database-url`) in `infra/main.bicep`.
+2. `run-migration-job.sh` reading that secret instead of `database-url`.
+3. Both secrets set for an environment *before* its next deploy.
+
+Note `database-url` is currently *derived* from `postgresAdminPassword` in the
+template; it is only written when that param is non-empty (empty means "leave
+Key Vault alone"), so a hand-set `app_runtime` value survives ordinary
+deployments — but passing an admin password again would overwrite it back to
+the administrator credential.
 
 ## Order matters
 
@@ -64,6 +99,26 @@ job's credential in the same release as the API's. A migration running as
 Future migrations are covered: `ALTER DEFAULT PRIVILEGES` grants `app_runtime`
 DML on tables `app_migrator` creates later. Without that line the next migration
 would silently lock the API out of its own new table.
+
+**Existing tables are covered by an ownership transfer, which grants alone
+cannot replace.** Postgres requires *ownership* for `ALTER TABLE`, `CREATE
+INDEX` and `DROP`; `GRANT ALL ON SCHEMA public` only permits creating new
+objects. Every table was created by `prisma migrate` running as the
+administrator, so the administrator owned all of them, and an earlier version of
+this script stopped at the grant. Verified against a real database: without the
+transfer, `ALTER TABLE audit_logs ADD COLUMN` as `app_migrator` fails with
+`must be owner of table audit_logs` — and essentially every migration alters
+something that already exists, so the *next* release after applying this would
+have broken. The script now reassigns tables, sequences and views at the end,
+and adds the administrator to `app_migrator` so it keeps the rights needed to
+re-run the script (on Azure the administrator is not a superuser, only a member
+of `azure_pg_admin`).
+
+Verified end to end on a throwaway database carrying the real schema: the script
+applies cleanly twice, `app_migrator` can run every migration DDL,
+`app_runtime` keeps `SELECT`/`INSERT` on `audit_logs` while `UPDATE`/`DELETE`
+and all DDL are refused, and a table `app_migrator` creates afterwards is
+immediately writable by `app_runtime`.
 
 If a future feature genuinely needs to modify an audit row, that is a design
 conversation, not a grant — the answer is almost certainly a new row.
