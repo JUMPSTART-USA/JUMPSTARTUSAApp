@@ -123,21 +123,38 @@ immediately writable by `app_runtime`.
 If a future feature genuinely needs to modify an audit row, that is a design
 conversation, not a grant — the answer is almost certainly a new row.
 
-## Still open: certificate verification
+## Certificate verification: measured, and deliberately staying at `require`
 
-`DATABASE_URL` uses `sslmode=require`, which encrypts but does **not** verify the
-server certificate — so it protects against passive interception and not against
-an active attacker inside the VNet. `verify-full` is the correct setting.
+An earlier version of this section claimed `sslmode=require` encrypts but does
+not verify the server certificate, and named `verify-full` as the correct
+setting. For this stack that is half wrong, and the "obvious fix" would have
+made security worse. `DATABASE_URL` is parsed by **two clients with different
+sslmode semantics** (measured 2026-08-17, pg 8.23 / Prisma 6.19):
 
-It is deliberately not changed here. Getting it wrong takes the API down with a
-connection error, the right CA bundle depends on what Azure is currently serving,
-and it cannot be tested anywhere except against the real server. The steps:
+| `sslmode=`    | node-postgres (session pool, one-off scripts)          | Prisma (ORM, migrations)                                     |
+| ------------- | ------------------------------------------------------ | ------------------------------------------------------------ |
+| `require`     | alias for `verify-full`: TLS + CA + hostname verified  | TLS mandatory, certificate not verified                       |
+| `verify-full` | full verification                                      | **unrecognized — silent fallback to `prefer`, plaintext OK**  |
 
-1. Confirm which root Azure Database for PostgreSQL presents in this region.
-2. Bundle it into the API image, or confirm Node's built-in CA store already
-   contains it.
-3. Change `sslmode=require` to `sslmode=verify-full` in the Key Vault secret.
-4. Deploy to **staging** and confirm the API connects before touching production.
+So `require` is the strongest setting the shared URL supports: pg verifies
+fully, Prisma at least refuses plaintext. Pinning `verify-full` would keep pg
+exactly where it already is and silently downgrade every Prisma connection —
+the API's ORM traffic and the migrations — to plaintext-permitted. Proven
+empirically against a server with TLS disabled: Prisma with `sslmode=require`
+refuses to connect; with `sslmode=verify-full` it connects happily in
+plaintext. Unknown *values* of a known key do not error, they fall back.
 
-The database is already on a private VNet with no public access, so this is
-defence in depth rather than an open door.
+Two futures to watch, both covered:
+
+- **pg v9 adopts libpq semantics**, where `require` stops verifying. The
+  tripwire test `apps/api/test/pg-sslmode-tripwire.spec.ts` pins the major at
+  8 and fails the build with instructions when someone bumps it: give the
+  session pool in `app.setup.ts` explicit `ssl` options (independent of the
+  URL), prove a staging connection still verifies, then retire the pin.
+- **Prisma may learn `verify-full`** in a future major. When its changelog
+  says so, re-run the measurement above against the real Azure server —
+  nothing else proves it — and only then change the vault secrets.
+
+The database remains on a private VNet with no public endpoint, so what
+`require` leaves open on the Prisma side is an active man-in-the-middle
+already inside the VNet — defence in depth, not an open door.

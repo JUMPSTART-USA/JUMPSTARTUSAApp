@@ -26,7 +26,8 @@
     "overrides": {
       "brace-expansion@1": "^1.1.18",
       "brace-expansion@2": "^2.1.4",
-      "js-yaml@5": "^5.2.2"
+      "js-yaml@5": "^5.2.2",
+      "deepmerge-ts@<8": "^8.0.1"
     },
     "auditConfig": {
       "ignoreGhsas": [
