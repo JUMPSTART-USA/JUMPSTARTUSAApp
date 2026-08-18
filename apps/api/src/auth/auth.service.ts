@@ -298,7 +298,33 @@ export class AuthService {
    * their temporary password (admin invite flow, §6.14) — the first successful
    * login activates the account in completeSuccessfulLogin.
    */
-  private async assertAccountUsable(user: { id: string; status: string }): Promise<void> {
+  private async assertAccountUsable(user: {
+    id: string;
+    status: string;
+    signInSuspendedAt: Date | null;
+  }): Promise<void> {
+    /**
+     * Suspension is checked FIRST and separately from status: a suspended
+     * account is otherwise perfectly ordinary, so reporting it as "not active"
+     * would send the user to an administrator asking to be un-deactivated,
+     * which is a different action with different consequences.
+     *
+     * Both sign-in paths reach this, which is the point of it being here — a
+     * suspension that only blocked passwords would be no suspension at all now
+     * that a passkey alone can open a session.
+     */
+    if (user.signInSuspendedAt) {
+      await this.audit.log({
+        userId: user.id,
+        action: 'login_failed',
+        entityType: 'user',
+        entityId: user.id,
+        metadata: { reason: 'sign_in_suspended' },
+      });
+      throw new ForbiddenException(
+        'Sign-in for this account is suspended. Contact an administrator.',
+      );
+    }
     if (user.status !== 'active' && user.status !== 'invited') {
       await this.audit.log({
         userId: user.id,

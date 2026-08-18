@@ -149,6 +149,63 @@ export class AdminUsersController {
     });
   }
 
+  /**
+   * Issue a password-reset link. Step-up proofed like reset-totp: the link it
+   * returns can set the account's password, so it is a route to acting as that
+   * user.
+   */
+  @Post(':id/reset-password')
+  @RequirePermission('admin.users')
+  resetPassword(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(zodBody(resetTotpSchema)) body: ResetTotpInput,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const challenge = req.session.webauthnStepUpChallenge;
+    delete req.session.webauthnStepUpChallenge;
+    return this.users.resetPassword(id, user.id, {
+      code: body.code,
+      passkeyResponse: body.stepUpPasskeyResponse as never,
+      challenge,
+    });
+  }
+
+  /** Lost-phone rescue that keeps the authenticator app: passkeys only. */
+  @Post(':id/remove-passkeys')
+  @RequirePermission('admin.users')
+  removePasskeys(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(zodBody(resetTotpSchema)) body: ResetTotpInput,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const challenge = req.session.webauthnStepUpChallenge;
+    delete req.session.webauthnStepUpChallenge;
+    return this.users.removePasskeys(id, user.id, {
+      code: body.code,
+      passkeyResponse: body.stepUpPasskeyResponse as never,
+      challenge,
+    });
+  }
+
+  /**
+   * Close the door without touching anything else. No step-up: this changes
+   * ACCESS, not how the account is secured, and it is reversible — the same
+   * bar deactivate/reactivate already sit at.
+   */
+  @Post(':id/suspend-sign-in')
+  @RequirePermission('admin.users')
+  suspendSignIn(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.users.suspendSignIn(id, user.id);
+  }
+
+  @Post(':id/restore-sign-in')
+  @RequirePermission('admin.users')
+  restoreSignIn(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.users.restoreSignIn(id, user.id);
+  }
+
   @Get(':id/region-scopes')
   @RequirePermission('admin.users')
   getRegionScopes(@Param('id', ParseUUIDPipe) id: string) {

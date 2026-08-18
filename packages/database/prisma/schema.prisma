@@ -939,6 +939,22 @@ model User {
   failedLoginCount Int       @default(0)
   lockedUntil      DateTime?
 
+  /**
+   * Sign-in suspension: set = this account cannot sign in, null = it can.
+   *
+   * Deliberately NOT a `status` value. `deactivated` means "this person has
+   * left" and carries caseload reassignment with it; suspension is the much
+   * smaller idea of temporarily closing the door while everything else about
+   * the account — status, roles, assignments, history — stays exactly as it
+   * was. Keeping them orthogonal means a suspended `invited` account is still
+   * invited when it comes back.
+   *
+   * A timestamp rather than a boolean because "since when" is the question
+   * anyone asks second.
+   */
+  signInSuspendedAt   DateTime?
+  signInSuspendedById String?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   createdById String?

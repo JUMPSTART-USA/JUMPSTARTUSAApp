@@ -51,6 +51,7 @@ function toSafeUser(user: UserWithRoles) {
     personId: user.personId,
     totpEnabled: user.totpEnabled,
     passkeyCount: user._count.webauthnCredentials,
+    signInSuspendedAt: user.signInSuspendedAt,
     lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
@@ -72,6 +73,168 @@ export class AdminUsersService {
     private readonly passkeys: PasskeysService,
     private readonly auth: AuthService,
   ) {}
+
+  /**
+   * Send a user a password-reset link (§3.1).
+   *
+   * Issues a LINK rather than setting a password, for the same reason
+   * invitations do: a password an administrator chooses is a password an
+   * administrator knows, and it would then live in whatever channel carried
+   * it. This mints a single-use token, kills any outstanding one, and ends
+   * every session the user currently holds — an admin reaching for this is
+   * usually responding to a lost password or a suspected compromise, and both
+   * want existing sessions gone.
+   *
+   * Step-up required: the returned link can set the account's password, so
+   * this is a route to acting as that user. An unattended admin screen must
+   * not be enough.
+   */
+  async resetPassword(id: string, actingUserId: string, proof: StepUpProof) {
+    const existing = await this.getRaw(id);
+    if (existing.status === 'deactivated') {
+      throw new ConflictException('Reactivate this account before resetting its password');
+    }
+    await this.passkeys.requireStepUp(actingUserId, proof);
+
+    const resetUrl = await this.buildInvitationUrl(id);
+    const sessionsRevoked = await revokeAllSessions(this.prisma, id);
+
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: { updatedById: actingUserId },
+      include: USER_ROLES_INCLUDE,
+    });
+    await this.audit.log({
+      userId: actingUserId,
+      action: 'update',
+      entityType: 'user',
+      entityId: id,
+      // The token itself is never logged — only that a reset was issued.
+      newValues: { passwordResetIssued: true, sessionsRevoked },
+    });
+    const email = await this.mail.sendPasswordReset(user.email, user.firstName, resetUrl);
+    return {
+      user: toSafeUser(user),
+      resetUrl,
+      sessionsRevoked,
+      emailSent: email.sent,
+      emailFrom: email.from,
+    };
+  }
+
+  /**
+   * Remove every passkey from an account, leaving TOTP and recovery codes
+   * alone (§3.2).
+   *
+   * Distinct from resetTotp, which clears every second factor at once. The
+   * common case is narrower than that: a lost or replaced phone whose owner
+   * still has their authenticator app. Clearing TOTP too would force them to
+   * re-enroll a factor that never stopped working.
+   *
+   * Sessions are revoked because a passkey may be what is holding one open.
+   */
+  async removePasskeys(id: string, actingUserId: string, proof: StepUpProof) {
+    const existing = await this.getRaw(id);
+    if (existing._count.webauthnCredentials === 0) {
+      throw new ConflictException('This account has no passkeys to remove');
+    }
+    await this.passkeys.requireStepUp(actingUserId, proof);
+
+    const removed = existing._count.webauthnCredentials;
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        data: { updatedById: actingUserId },
+        include: USER_ROLES_INCLUDE,
+      }),
+      this.prisma.webAuthnCredential.deleteMany({ where: { userId: id } }),
+    ]);
+    const sessionsRevoked = await revokeAllSessions(this.prisma, id);
+
+    await this.audit.log({
+      userId: actingUserId,
+      action: 'update',
+      entityType: 'user',
+      entityId: id,
+      oldValues: { passkeys: removed },
+      newValues: { passkeys: 0, sessionsRevoked },
+    });
+    const email = await this.mail.sendPasskeysRemoved(updated.email, updated.firstName, removed);
+    return {
+      user: { ...toSafeUser(updated), passkeyCount: 0 },
+      removed,
+      sessionsRevoked,
+      emailSent: email.sent,
+    };
+  }
+
+  /**
+   * Suspend sign-in: close the door, change nothing else (§3.2).
+   *
+   * Deliberately lighter than deactivate. Deactivation means somebody has left
+   * and hands their caseload to a named colleague; suspension leaves
+   * participants, tasks, roles and status exactly where they are, so restoring
+   * is genuinely the inverse rather than an approximation of it.
+   */
+  async suspendSignIn(id: string, actingUserId: string) {
+    if (id === actingUserId) {
+      throw new BadRequestException('You cannot suspend your own sign-in');
+    }
+    const existing = await this.getRaw(id);
+    if (existing.signInSuspendedAt) {
+      throw new ConflictException('Sign-in for this account is already suspended');
+    }
+    if (existing.status === 'deactivated') {
+      throw new ConflictException('This account is already deactivated');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: {
+        signInSuspendedAt: new Date(),
+        signInSuspendedById: actingUserId,
+        updatedById: actingUserId,
+      },
+      include: USER_ROLES_INCLUDE,
+    });
+    // Suspension that left live sessions running would not be a suspension.
+    const sessionsRevoked = await revokeAllSessions(this.prisma, id);
+
+    await this.audit.log({
+      userId: actingUserId,
+      action: 'update',
+      entityType: 'user',
+      entityId: id,
+      oldValues: { signInSuspended: false },
+      newValues: { signInSuspended: true, sessionsRevoked },
+    });
+    const email = await this.mail.sendSignInSuspended(updated.email, updated.firstName);
+    return { user: toSafeUser(updated), sessionsRevoked, emailSent: email.sent };
+  }
+
+  /** Undo a suspension. The account returns to whatever it was before. */
+  async restoreSignIn(id: string, actingUserId: string) {
+    const existing = await this.getRaw(id);
+    if (!existing.signInSuspendedAt) {
+      throw new ConflictException('Sign-in for this account is not suspended');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { signInSuspendedAt: null, signInSuspendedById: null, updatedById: actingUserId },
+      include: USER_ROLES_INCLUDE,
+    });
+    await this.audit.log({
+      userId: actingUserId,
+      action: 'update',
+      entityType: 'user',
+      entityId: id,
+      oldValues: { signInSuspended: true },
+      newValues: { signInSuspended: false },
+    });
+    const email = await this.mail.sendSignInRestored(updated.email, updated.firstName);
+    return { user: toSafeUser(updated), emailSent: email.sent };
+  }
 
   async list(query: ListQuery, filters: UserListFilters) {
     const where: Prisma.UserWhereInput = {
