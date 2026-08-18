@@ -25,6 +25,20 @@ vi.mock('@simplewebauthn/server', async (importOriginal) => {
       verified: true,
       authenticationInfo: { newCounter: 1, credentialID: 'stub', userVerified: true },
     })),
+    verifyRegistrationResponse: vi.fn(async () => ({
+      verified: true,
+      registrationInfo: {
+        credential: {
+          id: `reg-cred-${Math.random().toString(36).slice(2)}`,
+          publicKey: new Uint8Array([1, 2, 3]),
+          counter: 0,
+          transports: ['internal'],
+        },
+        credentialDeviceType: 'multiDevice',
+        credentialBackedUp: true,
+        userVerified: true,
+      },
+    })),
   };
 });
 
@@ -195,5 +209,73 @@ describe('only an eligible credential can sign in passwordless', () => {
     // replaying assertions at it.
     expect(Number(after.counter)).toBe(0);
     expect(after.lastUsedAt).toBeNull();
+  });
+});
+
+/**
+ * Registration-side eligibility recording — the Safari case.
+ *
+ * Staging, 2026-08-18: a passkey freshly enrolled from Safari recorded
+ * discoverable:null and was refused passwordless, because WebKit creates
+ * discoverable credentials and then does not report the credProps extension.
+ * The options now REQUIRE residentKey, so a verified ceremony proves
+ * discoverability by spec — silence must record true, while an explicit
+ * answer (even a non-conformant rk:false) is still believed verbatim.
+ */
+describe('registration records discoverability by construction', () => {
+  async function register(clientExtensionResults: Record<string, unknown> | undefined) {
+    const user = await prisma.user.create({
+      data: {
+        email: `reg-${randomUUID()}@example.test`,
+        passwordHash: await hashPassword(randomUUID()),
+        firstName: 'Reg',
+        lastName: 'Probe',
+        status: 'active',
+      },
+    });
+    // No existing factor, so requireStepUp demands nothing.
+    await passkeys.verifyRegistration(
+      user.id,
+      'Probe key',
+      { id: 'x', response: {}, ...(clientExtensionResults ? { clientExtensionResults } : {}) } as never,
+      'challenge',
+    );
+    const row = await prisma.webAuthnCredential.findFirstOrThrow({ where: { userId: user.id } });
+    return row;
+  }
+
+  it('records discoverable=true when the client reports nothing (Safari)', async () => {
+    const row = await register(undefined);
+    expect(row.discoverable).toBe(true);
+    expect(row.userVerified).toBe(true);
+  });
+
+  it('believes an explicit rk:true', async () => {
+    const row = await register({ credProps: { rk: true } });
+    expect(row.discoverable).toBe(true);
+  });
+
+  it('believes an explicit rk:false over the construction default', async () => {
+    // A non-conformant client that says "not resident" is recorded as such —
+    // the fallback fills silence, it never overrides an answer.
+    const row = await register({ credProps: { rk: false } });
+    expect(row.discoverable).toBe(false);
+  });
+
+  it('asks for required residentKey and UV in the options it mints', async () => {
+    const user = await prisma.user.create({
+      data: {
+        email: `regopt-${randomUUID()}@example.test`,
+        passwordHash: await hashPassword(randomUUID()),
+        firstName: 'Reg',
+        lastName: 'Opts',
+        status: 'active',
+      },
+    });
+    const options = await passkeys.registrationOptions(user.id);
+    // The whole fix: success under these options IS the discoverability proof.
+    expect(options.authenticatorSelection?.residentKey).toBe('required');
+    expect(options.authenticatorSelection?.userVerification).toBe('required');
+    expect(options.extensions?.credProps).toBe(true);
   });
 });
