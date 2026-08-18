@@ -80,8 +80,30 @@ async function seedCredential(discoverable: boolean | null, userVerified: boolea
   return { user, credential };
 }
 
+/**
+ * An assertion with NO user handle. Kept because some authenticators omit it,
+ * but note what it does NOT exercise — see `assertionFor` below.
+ */
 const assertion = (id: string) =>
   ({ id, response: {} }) as unknown as AuthenticationResponseJSON;
+
+/**
+ * A REALISTIC assertion: carries the user handle, base64url-encoded, exactly as
+ * @simplewebauthn/browser returns it (`userHandle?: Base64URLString`).
+ *
+ * The fixture above hid a deny-all bug for a whole release. registrationOptions
+ * passes the raw UTF-8 user id as userID, the browser hands it back encoded, and
+ * the service compared the two directly — never equal, so every passwordless
+ * sign-in was refused. With `response: {}` the check short-circuited on
+ * `if (handle)` and never ran, so the gate tests passed while the feature was
+ * unusable. Found by a human trying it on staging, which is the wrong way to
+ * find it.
+ */
+const assertionFor = (id: string, userId: string) =>
+  ({
+    id,
+    response: { userHandle: Buffer.from(userId, 'utf8').toString('base64url') },
+  }) as unknown as AuthenticationResponseJSON;
 
 describe('only an eligible credential can sign in passwordless', () => {
   it('accepts one that is discoverable AND user-verified', async () => {
@@ -125,6 +147,38 @@ describe('only an eligible credential can sign in passwordless', () => {
         'challenge',
       ),
     ).toBeNull();
+  });
+
+  it('accepts a realistic assertion carrying the base64url user handle', async () => {
+    // The regression test for the deny-all: this is the shape a real browser
+    // sends, and it must resolve to the owner rather than being refused.
+    const { user, credential } = await seedCredential(true, true);
+    const result = await passkeys.verifyDiscoverableAuthentication(
+      assertionFor(credential.credentialId, user.id),
+      'challenge',
+    );
+    expect(result).toBe(user.id);
+  });
+
+  it('still refuses a handle belonging to someone else', async () => {
+    // The check the decode exists to preserve — decoding must not weaken it.
+    const { credential } = await seedCredential(true, true);
+    const other = await seedCredential(true, true);
+    expect(
+      await passkeys.verifyDiscoverableAuthentication(
+        assertionFor(credential.credentialId, other.user.id),
+        'challenge',
+      ),
+    ).toBeNull();
+  });
+
+  it('refuses an unreadable handle rather than guessing', async () => {
+    const { credential } = await seedCredential(true, true);
+    const bad = {
+      id: credential.credentialId,
+      response: { userHandle: '!!!not-base64url!!!' },
+    } as unknown as AuthenticationResponseJSON;
+    expect(await passkeys.verifyDiscoverableAuthentication(bad, 'challenge')).toBeNull();
   });
 
   it('does not touch the signature counter when it refuses', async () => {

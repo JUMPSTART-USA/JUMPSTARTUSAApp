@@ -289,9 +289,24 @@ export class PasskeysService {
      * this service encodes the user id there (see registrationOptions). If it
      * disagrees with the credential row's owner, something is wrong enough that
      * the right answer is no answer.
+     *
+     * DECODE FIRST. registrationOptions passes the raw UTF-8 bytes of the user
+     * id as userID, but the browser hands the handle back BASE64URL-encoded
+     * (`userHandle?: Base64URLString`). Comparing the two directly is never
+     * equal, so this rejected every passwordless sign-in that carried a
+     * handle — which is all of them, since a discoverable credential always
+     * returns one. The check was silently inverted into a deny-all.
      */
     const handle = response.response?.userHandle;
-    if (handle && handle !== credential.userId) return null;
+    if (handle) {
+      let decoded: string;
+      try {
+        decoded = Buffer.from(handle, 'base64url').toString('utf8');
+      } catch {
+        return null; // Unreadable handle: refuse rather than guess.
+      }
+      if (decoded !== credential.userId) return null;
+    }
 
     await this.prisma.webAuthnCredential.update({
       where: { id: credential.id },
