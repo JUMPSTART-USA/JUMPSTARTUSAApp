@@ -51,6 +51,9 @@ export function UsersPage() {
   const [resendResult, setResendResult] = useState<InviteResult | null>(null);
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [deactivateUser, setDeactivateUser] = useState<AdminUser | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<AdminUser | null>(null);
+  const [removePasskeysUser, setRemovePasskeysUser] = useState<AdminUser | null>(null);
+  const [issuedLink, setIssuedLink] = useState<string | null>(null);
   const [resetTotpUser, setResetTotpUser] = useState<AdminUser | null>(null);
 
   const canWrite = can('admin.users');
@@ -97,6 +100,46 @@ export function UsersPage() {
     },
   });
 
+  /**
+   * Issue a password-reset LINK. The admin never sees or sets a password —
+   * same contract as invitations. Step-up proofed, so it shares the 2FA
+   * confirm dialog.
+   */
+  const resetPassword = useMutation({
+    mutationFn: ({ id, code }: { id: string; code?: string }) =>
+      api.post<{ resetUrl: string; emailSent: boolean }>(
+        `/admin/users/${id}/reset-password`,
+        code ? { code } : {},
+      ),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      setResetPasswordUser(null);
+      // Shown once, like an invitation link — mail may be unconfigured.
+      setIssuedLink(res.resetUrl);
+    },
+  });
+
+  /** Lost phone, authenticator app intact: passkeys only, TOTP untouched. */
+  const removePasskeys = useMutation({
+    mutationFn: ({ id, code }: { id: string; code?: string }) =>
+      api.post<AdminUser>(`/admin/users/${id}/remove-passkeys`, code ? { code } : {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      setRemovePasskeysUser(null);
+    },
+  });
+
+  /** Close the door, change nothing else. Reversible, so no confirm dialog. */
+  const suspendSignIn = useMutation({
+    mutationFn: (id: string) => api.post<AdminUser>(`/admin/users/${id}/suspend-sign-in`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
+  });
+
+  const restoreSignIn = useMutation({
+    mutationFn: (id: string) => api.post<AdminUser>(`/admin/users/${id}/restore-sign-in`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
+  });
+
   // One chapter or all (§7.2): empty list = every chapter (admin/executive).
   const setChapter = useMutation({
     mutationFn: ({ id, chapter }: { id: string; chapter: string }) =>
@@ -136,7 +179,22 @@ export function UsersPage() {
       key: 'status',
       header: 'Status',
       sortKey: 'status',
-      render: (row) => <StatusBadge status={row.status} />,
+      /**
+       * Suspension sits BESIDE the status rather than replacing it — the two
+       * are orthogonal, and collapsing them would hide that a suspended
+       * account is still, say, invited. Without this the row offers "Restore
+       * sign-in" with nothing on screen explaining why.
+       */
+      render: (row) => (
+        <div className="flex flex-wrap items-center gap-1">
+          <StatusBadge status={row.status} />
+          {row.signInSuspendedAt ? (
+            <Badge variant="warning" title={`Suspended ${formatDate(row.signInSuspendedAt)}`}>
+              Sign-in suspended
+            </Badge>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: 'roles',
@@ -228,6 +286,53 @@ export function UsersPage() {
             >
               Reset 2FA
             </Button>
+          ) : null}
+          {row.status !== 'deactivated' ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                resetPassword.reset();
+                setResetPasswordUser(row);
+              }}
+            >
+              Reset password
+            </Button>
+          ) : null}
+          {row.passkeyCount > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                removePasskeys.reset();
+                setRemovePasskeysUser(row);
+              }}
+            >
+              Remove passkeys
+            </Button>
+          ) : null}
+          {/* Suspension is reversible and touches nothing else, so it needs no
+              confirm step — unlike Deactivate, which reassigns a caseload. */}
+          {row.status !== 'deactivated' && row.id !== me?.id ? (
+            row.signInSuspendedAt ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={restoreSignIn.isPending}
+                onClick={() => restoreSignIn.mutate(row.id)}
+              >
+                Restore sign-in
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={suspendSignIn.isPending}
+                onClick={() => suspendSignIn.mutate(row.id)}
+              >
+                Suspend sign-in
+              </Button>
+            )
           ) : null}
           {row.status === 'deactivated' ? (
             <Button
@@ -334,8 +439,12 @@ export function UsersPage() {
       <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
       <EditUserDialog user={editUser} onClose={() => setEditUser(null)} />
       <DeactivateUserDialog user={deactivateUser} onClose={() => setDeactivateUser(null)} />
-      <ResetTotpDialog
+      <StepUpConfirmDialog
         user={resetTotpUser}
+        title="Reset two-factor"
+        description="Clears their authenticator, passkeys, and every recovery code. They sign in with just their password until they re-enroll under My account."
+        confirmLabel="Reset 2FA"
+        hint="From your own authenticator — authorizes the reset."
         needsCode={me?.totpEnabled ?? false}
         isPending={resetTotp.isPending}
         error={resetTotp.error ? resetTotp.error.message : null}
@@ -344,6 +453,55 @@ export function UsersPage() {
         }
         onClose={() => setResetTotpUser(null)}
       />
+      <StepUpConfirmDialog
+        user={resetPasswordUser}
+        title="Send a password reset"
+        description="Emails them a single-use link to choose a new password, and signs them out everywhere. Their current password keeps working until they use the link."
+        confirmLabel="Send reset link"
+        hint="From your own authenticator — authorizes the reset."
+        needsCode={me?.totpEnabled ?? false}
+        isPending={resetPassword.isPending}
+        error={resetPassword.error ? resetPassword.error.message : null}
+        onConfirm={(code) =>
+          resetPasswordUser ? resetPassword.mutate({ id: resetPasswordUser.id, code }) : undefined
+        }
+        onClose={() => setResetPasswordUser(null)}
+      />
+      <StepUpConfirmDialog
+        user={removePasskeysUser}
+        title="Remove passkeys"
+        description="Deletes every passkey on the account and signs them out everywhere. Their authenticator app and recovery codes are left alone — use Reset 2FA to clear those too."
+        confirmLabel="Remove passkeys"
+        hint="From your own authenticator — authorizes the removal."
+        needsCode={me?.totpEnabled ?? false}
+        isPending={removePasskeys.isPending}
+        error={removePasskeys.error ? removePasskeys.error.message : null}
+        onConfirm={(code) =>
+          removePasskeysUser
+            ? removePasskeys.mutate({ id: removePasskeysUser.id, code })
+            : undefined
+        }
+        onClose={() => setRemovePasskeysUser(null)}
+      />
+      {/* The link is shown ONCE, for the case where mail is unconfigured or
+          the user cannot reach their inbox. */}
+      <Dialog open={issuedLink !== null} onOpenChange={(next) => (!next ? setIssuedLink(null) : undefined)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Password reset link</DialogTitle>
+            <DialogDescription>
+              Emailed to them already. Copy it only if you need to hand it over another way — it
+              works once, and this is the only time it is shown.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="break-all rounded-md border bg-muted/40 p-2 font-mono text-xs">
+            {issuedLink}
+          </p>
+          <DialogFooter>
+            <Button onClick={() => setIssuedLink(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -775,8 +933,20 @@ function DeactivateUserDialogInner({ user, onClose }: { user: AdminUser; onClose
  * signed-in-but-unattended screen must not be enough. ConfirmDialog can't
  * host an input (description renders inside a <p>), hence the bespoke dialog.
  */
-function ResetTotpDialog({
+/**
+ * Confirm an action that changes how someone else's account is secured.
+ *
+ * One dialog for all three (reset 2FA, reset password, remove passkeys)
+ * because the mechanics are identical — the acting admin proves possession
+ * with their own code — and only the wording differs. Three copies would have
+ * drifted the moment one of them learned something the others did not.
+ */
+function StepUpConfirmDialog({
   user,
+  title,
+  description,
+  confirmLabel,
+  hint,
   needsCode,
   isPending,
   error,
@@ -784,6 +954,10 @@ function ResetTotpDialog({
   onClose,
 }: {
   user: AdminUser | null;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  hint: string;
   needsCode: boolean;
   isPending: boolean;
   error: string | null;
@@ -802,15 +976,12 @@ function ResetTotpDialog({
       <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>
-            Reset two-factor for {user?.firstName} {user?.lastName}?
+            {title} for {user?.firstName} {user?.lastName}?
           </DialogTitle>
-          <DialogDescription>
-            Clears their authenticator, passkeys, and every recovery code. They sign in with
-            just their password until they re-enroll under My account.
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         {needsCode ? (
-          <FormField label="Your 6-digit code" hint="From your own authenticator — authorizes the reset.">
+          <FormField label="Your 6-digit code" hint={hint}>
             <Input
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -831,7 +1002,7 @@ function ResetTotpDialog({
             disabled={isPending || (needsCode && code.length !== 6)}
             onClick={() => onConfirm(needsCode ? code : undefined)}
           >
-            {isPending ? 'Working…' : 'Reset 2FA'}
+            {isPending ? 'Working…' : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

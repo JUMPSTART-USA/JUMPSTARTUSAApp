@@ -294,6 +294,72 @@ export class MailService {
   }
 
   /**
+   * An administrator removed the account's passkeys.
+   *
+   * Says what still works, because the whole point of this action (as opposed
+   * to a full second-factor reset) is that the authenticator app was never
+   * the problem.
+   */
+  async sendPasskeysRemoved(
+    to: string,
+    firstName: string,
+    removed: number,
+  ): Promise<{ sent: boolean; from: string }> {
+    const origin = loadEnv().WEB_ORIGIN;
+    const subject = 'Passkeys were removed from your JUMPSTART USA account';
+    const plural = removed === 1 ? 'passkey was' : `${removed} passkeys were`;
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>An administrator removed ${plural} removed from your account, and you
+      have been signed out everywhere. Any authenticator app and recovery codes
+      you had set up still work.</p>
+      <p>Sign in at <a href="${origin}/login">${origin}</a> and add a passkey
+      again from your account page whenever you are ready.</p>
+      <p>If you did not ask for this, contact an administrator immediately.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(to, subject, html);
+  }
+
+  /**
+   * Sign-in suspended by an administrator.
+   *
+   * Deliberately does not speculate about why. The person who suspended the
+   * account knows the reason and can give it; an email guessing at it would
+   * be wrong as often as right, and this one may be read by someone who is
+   * simply on leave.
+   */
+  async sendSignInSuspended(
+    to: string,
+    firstName: string,
+  ): Promise<{ sent: boolean; from: string }> {
+    const subject = 'Sign-in to your JUMPSTART USA account is suspended';
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>An administrator has suspended sign-in to your account, and you have
+      been signed out everywhere. Your account and your work are unchanged —
+      nothing has been deleted or reassigned.</p>
+      <p>Contact an administrator when you need access restored.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(to, subject, html);
+  }
+
+  /** Sign-in restored after a suspension. */
+  async sendSignInRestored(
+    to: string,
+    firstName: string,
+  ): Promise<{ sent: boolean; from: string }> {
+    const origin = loadEnv().WEB_ORIGIN;
+    const subject = 'Sign-in to your JUMPSTART USA account is restored';
+    const html = `
+      <p>Hi ${escapeHtml(firstName)},</p>
+      <p>An administrator has restored sign-in to your account. Everything is
+      as you left it.</p>
+      <p>Sign in at <a href="${origin}/login">${origin}</a>.</p>
+      <p>— JUMPSTART USA</p>`;
+    return this.send(to, subject, html);
+  }
+
+  /**
    * Invitation. Carries a LINK, not a password.
    *
    * It used to email a working temporary password, which then lived in the

@@ -11,6 +11,9 @@ export interface AdminUser {
   personId: string | null;
   totpEnabled: boolean;
   passkeyCount: number;
+  /** Set = sign-in is suspended. Orthogonal to status: a suspended account
+   *  keeps its status, roles and assignments. */
+  signInSuspendedAt: string | null;
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
