@@ -72,18 +72,30 @@ export class PasskeysService {
         id: c.credentialId,
         transports: c.transports as AuthenticatorTransport[],
       })),
-      authenticatorSelection: {
-        residentKey: 'preferred',
-        userVerification: 'preferred',
-      },
       /**
-       * credProps asks the authenticator to report whether it actually stored a
-       * DISCOVERABLE credential. Still 'preferred' rather than 'required':
-       * demanding it would reject security keys that are fine as a second
-       * factor, which is what most enrollments are. So we take what we are
-       * given and record what it turned out to be — passwordless eligibility is
-       * then a fact about the credential rather than a hope about the request.
+       * REQUIRED, not preferred — and that switch is what makes eligibility
+       * knowable at all. The 'preferred' + record-what-credProps-says design
+       * foundered on WebKit: Safari creates discoverable, user-verified
+       * credentials in iCloud Keychain and then does not report credProps, so
+       * every Mac enrollment recorded "unknown" and was refused passwordless
+       * (measured on staging, 2026-08-18 — discoverable:null,
+       * userVerified:true). Recording only what is reported was right;
+       * expecting WebKit to report was not.
+       *
+       * With residentKey REQUIRED the spec does the reporting for us: a
+       * conformant client either creates a discoverable credential or fails
+       * the ceremony, so success itself proves discoverability. Same for
+       * userVerification. The cost is that authenticators which cannot do
+       * resident keys or UV (old U2F-era security keys) can no longer enroll —
+       * accepted deliberately: every credential in both environments is a
+       * platform authenticator, and TOTP remains for anything exotic.
        */
+      authenticatorSelection: {
+        residentKey: 'required',
+        userVerification: 'required',
+      },
+      // Still requested: a client that DOES report gets its answer recorded
+      // verbatim, including a non-conformant rk:false (see verifyRegistration).
       extensions: { credProps: true },
     });
   }
@@ -110,11 +122,11 @@ export class PasskeysService {
       // here would only mask a misconfiguration.
       expectedOrigin: env.WEB_ORIGIN,
       expectedRPID: rpId(env),
-      // The options ask for UV 'preferred'; the library REQUIRES it unless
-      // told otherwise, which would reject the very authenticators the
-      // ceremony invited. This is a second factor behind a password, so
-      // possession is the property being proven.
-      requireUserVerification: false,
+      // The options demand UV, so verification demands it too — a passkey
+      // enrolled here must be able to stand alone at sign-in (§3.2
+      // passwordless), and possession-only enrollment would quietly produce
+      // second-factor-grade credentials that LOOK passwordless-ready.
+      requireUserVerification: true,
     }).catch((err: Error) => {
       throw new BadRequestException(`Passkey registration failed: ${err.message}`);
     });
@@ -125,12 +137,14 @@ export class PasskeysService {
     const { credential, credentialDeviceType, credentialBackedUp, userVerified } =
       verification.registrationInfo;
     /**
-     * `rk` is only present when the authenticator implements credProps. Absent
-     * means UNKNOWN, not false — and unknown is stored as null so it can never
-     * be mistaken for a positive answer later. Undefined would silently become
-     * "no value" on the column; `?? null` makes the intent explicit.
+     * Discoverability, by report or by construction. A client that implements
+     * credProps gets believed verbatim — including a non-conformant rk:false,
+     * which stays false. A client that stays silent (WebKit) falls back to the
+     * spec's guarantee: residentKey was REQUIRED in the options, so a ceremony
+     * that verified is a discoverable credential. The old `?? null` fallback
+     * predates that requirement, when silence genuinely meant unknown.
      */
-    const rk = response.clientExtensionResults?.credProps?.rk;
+    const rk = response.clientExtensionResults?.credProps?.rk ?? true;
     const row = await this.prisma.webAuthnCredential.create({
       data: {
         userId,
@@ -140,7 +154,7 @@ export class PasskeysService {
         transports: credential.transports ?? [],
         deviceType: credentialDeviceType,
         backedUp: credentialBackedUp,
-        discoverable: rk ?? null,
+        discoverable: rk,
         userVerified,
         label,
       },
