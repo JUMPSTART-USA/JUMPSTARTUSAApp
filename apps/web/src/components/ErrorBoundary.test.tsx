@@ -1,7 +1,14 @@
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import {
+  createMemoryRouter,
+  MemoryRouter,
+  Route,
+  RouterProvider,
+  Routes,
+  useNavigate,
+} from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ErrorBoundary } from './ErrorBoundary';
+import { ErrorBoundary, RouteErrorElement } from './ErrorBoundary';
 
 /**
  * The behaviour these cover is the reason the boundary exists at all, and none of
@@ -128,5 +135,51 @@ describe('ErrorBoundary', () => {
 
     // Without the resetKey the URL changes while the content column stays dead.
     expect(await screen.findByText('recovered')).toBeTruthy();
+  });
+});
+
+/**
+ * The data router doorway.
+ *
+ * These exist because the app shipped for weeks with a router that had NO
+ * errorElement: React Router then substitutes its own developer-facing screen
+ * and catches route render errors BEFORE any React boundary above
+ * RouterProvider can see them. Every test above passed throughout — they only
+ * ever exercised the React boundary — while a real user meeting a new deploy
+ * was shown "Hey developer 👋" and never reloaded. Seen on staging 2026-08-18.
+ */
+describe('RouteErrorElement (data router)', () => {
+  function renderRoute(error: Error) {
+    const router = createMemoryRouter(
+      [{ path: '/', element: <Boom error={error} />, errorElement: <RouteErrorElement /> }],
+      { initialEntries: ['/'] },
+    );
+    return render(<RouterProvider router={router} />);
+  }
+
+  it('shows our screen, never React Router default developer message', () => {
+    renderRoute(new Error('something broke'));
+    expect(screen.getByRole('button', { name: /reload/i })).toBeTruthy();
+    // The tell-tale of the default element. If this ever appears, the route
+    // lost its errorElement again.
+    expect(document.body.textContent).not.toMatch(/Hey developer/i);
+    expect(document.body.textContent).not.toMatch(/errorElement/i);
+  });
+
+  it('treats a chunk failure as a new deploy and reloads once', () => {
+    renderRoute(chunkError());
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reload twice for the same tab', () => {
+    renderRoute(chunkError());
+    renderRoute(chunkError());
+    // One-shot guard: a genuinely broken deploy must not reload forever.
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('explains the situation rather than showing a raw stack', () => {
+    renderRoute(chunkError());
+    expect(screen.getByText(/new version of the app was released/i)).toBeTruthy();
   });
 });

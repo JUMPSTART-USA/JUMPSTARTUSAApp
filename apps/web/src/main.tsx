@@ -10,7 +10,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
-import { RootErrorBoundary } from './components/ErrorBoundary';
+import { RootErrorBoundary, RouteErrorElement } from './components/ErrorBoundary';
 import { AuthProvider } from './lib/auth';
 import { installGlobalErrorReporting } from './lib/error-reporting';
 import './index.css';
@@ -44,7 +44,19 @@ const queryClient = new QueryClient({
  * fetches through React Query, and mixing the two ways of loading is how a
  * codebase ends up with data arriving from two places at once.
  */
-const router = createBrowserRouter([{ path: '*', element: <App /> }]);
+const router = createBrowserRouter([
+  {
+    path: '*',
+    element: <App />,
+    /**
+     * REQUIRED, not optional polish. A data router with no errorElement
+     * substitutes its own developer-facing screen and swallows the error before
+     * RootErrorBoundary can see it — which meant a stale tab meeting a new
+     * deploy was told to "provide an errorElement" instead of being reloaded.
+     */
+    errorElement: <RouteErrorElement />,
+  },
+]);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
