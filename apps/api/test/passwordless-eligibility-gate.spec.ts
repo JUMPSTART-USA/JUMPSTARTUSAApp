@@ -28,15 +28,18 @@ vi.mock('@simplewebauthn/server', async (importOriginal) => {
   };
 });
 
-const { AppModule } = await import('../src/app.module');
-const { configureApp } = await import('../src/app.setup');
-const { hashPassword } = await import('../src/auth/auth.service');
-const { PasskeysService } = await import('../src/auth/passkeys.service');
-const { PrismaService } = await import('../src/prisma/prisma.service');
+// Static imports: vitest hoists the vi.mock above them, so the service still
+// picks up the stubbed verifier. (Top-level await is not available here — this
+// package typechecks as CommonJS.)
+import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/app.setup';
+import { hashPassword } from '../src/auth/auth.service';
+import { PasskeysService } from '../src/auth/passkeys.service';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 let app: NestExpressApplication;
-let prisma: InstanceType<typeof PrismaService>;
-let passkeys: InstanceType<typeof PasskeysService>;
+let prisma: PrismaService;
+let passkeys: PasskeysService;
 
 beforeAll(async () => {
   app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: false });

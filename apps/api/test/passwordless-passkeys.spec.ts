@@ -5,8 +5,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
-import { hashPassword } from '../src/auth/auth.service';
-import { AuthService } from '../src/auth/auth.service';
+import { AuthService, hashPassword } from '../src/auth/auth.service';
 import { isPasswordlessReady } from '../src/auth/passkeys.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -50,7 +49,7 @@ afterAll(async () => {
 async function userWithCredential(opts: {
   discoverable: boolean | null;
   userVerified: boolean | null;
-  status?: string;
+  status?: 'invited' | 'active' | 'deactivated';
   lockedUntil?: Date | null;
   deletedAt?: Date | null;
 }) {
