@@ -334,6 +334,14 @@ interface PasskeyRow {
   label: string;
   deviceType: string;
   backedUp: boolean;
+  /**
+   * Whether this passkey can sign in on its own, with no password. Requires the
+   * authenticator to have stored a discoverable credential AND verified the
+   * user. Passkeys added before the app started recording that read false —
+   * the properties can't be recovered after enrollment, so the honest fix is
+   * to add the passkey again.
+   */
+  passwordlessReady: boolean;
   createdAt: string;
   lastUsedAt: string | null;
 }
@@ -447,6 +455,16 @@ function PasskeysCard() {
                         Added {formatDate(k.createdAt)}
                         {k.lastUsedAt ? ` · last used ${formatDate(k.lastUsedAt)}` : ''}
                       </p>
+                      {/* Says what to DO, not what the flag is: "not
+                          passwordless-ready" tells nobody how to fix it. */}
+                      {k.passwordlessReady ? (
+                        <p className="text-xs text-success">Can sign in without a password</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Password still required with this passkey. Remove and add it again to
+                          sign in without one.
+                        </p>
+                      )}
                     </div>
                     <Button
                       variant="ghost"

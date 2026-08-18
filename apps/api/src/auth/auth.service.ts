@@ -174,18 +174,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // 'invited' users may log in with their temporary password (admin invite
-    // flow, §6.14) — first successful login activates the account below.
-    if (user.status !== 'active' && user.status !== 'invited') {
-      await this.audit.log({
-        userId: user.id,
-        action: 'login_failed',
-        entityType: 'user',
-        entityId: user.id,
-        metadata: { reason: `status_${user.status}` },
-      });
-      throw new ForbiddenException('This account is not active');
-    }
+    await this.assertAccountUsable(user);
 
     const roles = user.userRoles.map((ur) => ur.role.key);
     const totpMandatory = roles.some((r) => TOTP_REQUIRED.has(r));
@@ -257,6 +246,101 @@ export class AuthService {
       }
     }
 
+    return this.completeSuccessfulLogin(user, roles, {
+      mustSetupTotp: totpMandatory && !user.totpEnabled && passkeyCount === 0,
+    });
+  }
+
+  /**
+   * Sign in with a passkey and nothing else (§3.2, passwordless).
+   *
+   * Deliberately NOT a branch inside validateLogin: there is no email, no
+   * password and no dummy-hash timing to match, and threading four unused
+   * arguments through that method to skip most of it would make both paths
+   * harder to read. What it must NOT do is re-implement the account guards —
+   * every check that stands between a correct credential and a session lives in
+   * assertAccountUsable/assertNotLockedOut, and both paths call them.
+   *
+   * The credential has already been verified by the caller, which is also what
+   * resolved this userId; a caller reaching here has proven possession and user
+   * verification. So unlike the password path there is no oracle to protect
+   * against — the failures below are all reported plainly.
+   */
+  async validatePasswordlessLogin(userId: string): Promise<LoginResult> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { userRoles: { include: { role: true } }, regionScopes: true },
+    });
+    // A credential outliving its user is not an expected state; it is also not
+    // worth explaining to whoever is holding it.
+    if (!user || user.deletedAt) {
+      throw new UnauthorizedException('Passkey sign-in failed');
+    }
+
+    this.assertNotLockedOut(user);
+    await this.assertAccountUsable(user);
+
+    const roles = user.userRoles.map((ur) => ur.role.key);
+    /**
+     * mustSetupTotp is false by construction: the credential that got us here
+     * is discoverable AND user-verified, which is possession plus verification
+     * — the two factors the mandate exists to require. An account signing in
+     * this way has already met it.
+     */
+    return this.completeSuccessfulLogin(user, roles, {
+      mustSetupTotp: false,
+      method: 'passkey_passwordless',
+    });
+  }
+
+  /**
+   * Status gate shared by both sign-in paths. 'invited' users may sign in with
+   * their temporary password (admin invite flow, §6.14) — the first successful
+   * login activates the account in completeSuccessfulLogin.
+   */
+  private async assertAccountUsable(user: { id: string; status: string }): Promise<void> {
+    if (user.status !== 'active' && user.status !== 'invited') {
+      await this.audit.log({
+        userId: user.id,
+        action: 'login_failed',
+        entityType: 'user',
+        entityId: user.id,
+        metadata: { reason: `status_${user.status}` },
+      });
+      throw new ForbiddenException('This account is not active');
+    }
+  }
+
+  /**
+   * Lockout gate for a caller who has ALREADY proven something (a correct
+   * password, or a verified passkey assertion). It can therefore say why, which
+   * the pre-proof path deliberately cannot — see the oracle note in
+   * validateLogin.
+   */
+  private assertNotLockedOut(user: { lockedUntil: Date | null }): void {
+    if (!user.lockedUntil || user.lockedUntil <= new Date()) return;
+    const minutes = Math.max(1, Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000));
+    throw new UnauthorizedException(
+      `Too many failed sign-in attempts. Try again in ${minutes} minute${
+        minutes === 1 ? '' : 's'
+      }, or reset your password.`,
+    );
+  }
+
+  /** The one place a session is granted: clear brute-force state, activate an
+   *  invited account, audit, and shape the session user. */
+  private async completeSuccessfulLogin(
+    user: {
+      id: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      status: string;
+      regionScopes: { state: string }[];
+    },
+    roles: string[],
+    opts: { mustSetupTotp: boolean; method?: string },
+  ): Promise<LoginResult> {
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -273,6 +357,9 @@ export class AuthService {
       action: 'login',
       entityType: 'user',
       entityId: user.id,
+      // Absent for the password path, which is what every existing login row
+      // looks like; present only when a new method needs distinguishing.
+      ...(opts.method ? { metadata: { method: opts.method } } : {}),
     });
 
     return {
@@ -283,7 +370,7 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         roles,
-        mustSetupTotp: totpMandatory && !user.totpEnabled && passkeyCount === 0,
+        mustSetupTotp: opts.mustSetupTotp,
         chapter: user.regionScopes[0]?.state ?? null,
       },
     };
