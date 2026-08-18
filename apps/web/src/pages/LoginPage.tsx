@@ -109,6 +109,37 @@ export function LoginPage() {
     }
   };
 
+  /**
+   * Passwordless: no email, no password. The authenticator offers whatever it
+   * holds for this site, so the server is never told who is signing in until
+   * the assertion proves it.
+   *
+   * Hidden entirely when the browser can't run WebAuthn — an account may still
+   * have no passwordless-ready credential, but that is not knowable from here
+   * without asking the server about an address, which is exactly what this
+   * flow exists to avoid. A generic failure is the honest answer.
+   */
+  const signInPasswordless = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const options =
+        await api.post<Parameters<typeof startAuthentication>[0]['optionsJSON']>(
+          '/auth/passkeys/discoverable-options',
+          {},
+        );
+      const assertion = await startAuthentication({ optionsJSON: options });
+      await api.post('/auth/passkeys/passwordless-login', { passkeyResponse: assertion });
+      await finishLogin();
+    } catch (err) {
+      // Dismissing the browser prompt is a choice, not an error.
+      if (err instanceof Error && err.name === 'NotAllowedError') return;
+      setError(err instanceof ApiError ? err.message : 'Passkey sign-in failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen">
       {/*
@@ -298,6 +329,29 @@ export function LoginPage() {
               <Button type="submit" variant="accent" size="lg" className="w-full" disabled={busy}>
                 {busy ? 'Signing in…' : totpRequired ? 'Verify' : 'Sign in'}
               </Button>
+            ) : null}
+
+            {/* Passwordless entry: offered only before the second-factor step,
+                and only where the ceremony can actually run. type="button" is
+                load-bearing — inside a <form> a bare <button> submits it. */}
+            {!totpRequired && browserSupportsWebAuthn() ? (
+              <>
+                <div className="flex items-center gap-3" aria-hidden="true">
+                  <span className="h-px flex-1 bg-border" />
+                  <span className="text-xs text-muted-foreground">or</span>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  disabled={busy}
+                  onClick={() => void signInPasswordless()}
+                >
+                  {busy ? 'Waiting for your passkey…' : 'Sign in with a passkey'}
+                </Button>
+              </>
             ) : null}
           </form>
           </CardContent>

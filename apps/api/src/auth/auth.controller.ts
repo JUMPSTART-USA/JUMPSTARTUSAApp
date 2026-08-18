@@ -56,6 +56,17 @@ type PasskeyRegisterInput = z.infer<typeof passkeyRegisterSchema>;
 /** POST (not DELETE): removal carries the step-up proof in the body. */
 const passkeyRemoveSchema = z.object({ ...stepUpProofSchema });
 type PasskeyRemoveInput = z.infer<typeof passkeyRemoveSchema>;
+
+/**
+ * A passwordless sign-in body: the assertion and nothing else. No email —
+ * taking one would make this endpoint answer "is this an account?".
+ * `passthrough` because the WebAuthn response shape belongs to the browser;
+ * @simplewebauthn validates its contents, this only pins the envelope.
+ */
+const passwordlessLoginSchema = z.object({
+  passkeyResponse: z.object({ id: z.string().min(1) }).passthrough(),
+});
+type PasswordlessLoginInput = z.infer<typeof passwordlessLoginSchema>;
 const viewAsSchema = z.object({
   role: z.enum(ROLE_KEYS).nullable().optional(),
   chapter: z.enum(CHAPTER_STATES).nullable().optional(),
@@ -131,6 +142,62 @@ export class AuthController {
     } catch {
       /* ignore — the original error is what the caller must see */
     }
+  }
+
+  /**
+   * Start a passwordless sign-in. Public, takes NO body — see
+   * discoverableAuthenticationOptions for why an identifier here would be an
+   * account-existence oracle.
+   *
+   * Throttled like login: it mints a challenge and touches the session, so it
+   * is the same kind of unauthenticated work.
+   */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('passkeys/discoverable-options')
+  @HttpCode(200)
+  async passkeyDiscoverableOptions(@Req() req: AuthenticatedRequest) {
+    const options = await this.passkeys.discoverableAuthenticationOptions();
+    req.session.webauthnChallenge = options.challenge;
+    return options;
+  }
+
+  /**
+   * Finish a passwordless sign-in: the assertion alone stands in for email,
+   * password and second factor.
+   *
+   * Mirrors the password path's session handling exactly — consume the
+   * challenge before verifying so a failure cannot be replayed, regenerate the
+   * session id on privilege change, and mark the second factor satisfied
+   * (an eligible credential is possession + user verification).
+   */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('passkeys/passwordless-login')
+  @HttpCode(200)
+  async passkeyPasswordlessLogin(
+    @Body(zodBody(passwordlessLoginSchema)) body: PasswordlessLoginInput,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const challenge = req.session.webauthnChallenge;
+    delete req.session.webauthnChallenge;
+    if (!challenge) throw new UnauthorizedException('Start the passkey sign-in again');
+
+    const userId = await this.passkeys.verifyDiscoverableAuthentication(
+      body.passkeyResponse as unknown as PasskeyAssertion['response'],
+      challenge,
+    );
+    // One answer for no-such-credential, not-eligible and bad-signature.
+    if (!userId) throw new UnauthorizedException('Passkey sign-in failed');
+
+    const result = await this.authService.validatePasswordlessLogin(userId);
+    await new Promise<void>((resolve, reject) =>
+      req.session.regenerate((err) => (err ? reject(err) : resolve())),
+    );
+    req.session.userId = result.user!.id;
+    req.session.totpVerified = true;
+    (req.session as unknown as { loginAt: number }).loginAt = Date.now();
+    return { user: result.user };
   }
 
   @Post('logout')

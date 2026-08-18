@@ -14,6 +14,21 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const RP_NAME = 'JUMPSTART USA Platform';
 
+/**
+ * Can this credential stand alone as a sign-in?
+ *
+ * Both properties must be POSITIVELY known. A credential enrolled before these
+ * columns existed reads null on both and is not eligible — the properties are
+ * not recoverable after the ceremony, and guessing would quietly turn a
+ * two-factor login into a one-factor one. The owner re-enrolls instead.
+ */
+export function isPasswordlessReady(c: {
+  discoverable: boolean | null;
+  userVerified: boolean | null;
+}): boolean {
+  return c.discoverable === true && c.userVerified === true;
+}
+
 /** What the login flow hands over: the browser assertion + session challenge. */
 export interface PasskeyAssertion {
   response: AuthenticationResponseJSON;
@@ -61,6 +76,15 @@ export class PasskeysService {
         residentKey: 'preferred',
         userVerification: 'preferred',
       },
+      /**
+       * credProps asks the authenticator to report whether it actually stored a
+       * DISCOVERABLE credential. Still 'preferred' rather than 'required':
+       * demanding it would reject security keys that are fine as a second
+       * factor, which is what most enrollments are. So we take what we are
+       * given and record what it turned out to be — passwordless eligibility is
+       * then a fact about the credential rather than a hope about the request.
+       */
+      extensions: { credProps: true },
     });
   }
 
@@ -98,7 +122,15 @@ export class PasskeysService {
       throw new BadRequestException('Passkey registration could not be verified');
     }
 
-    const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
+    const { credential, credentialDeviceType, credentialBackedUp, userVerified } =
+      verification.registrationInfo;
+    /**
+     * `rk` is only present when the authenticator implements credProps. Absent
+     * means UNKNOWN, not false — and unknown is stored as null so it can never
+     * be mistaken for a positive answer later. Undefined would silently become
+     * "no value" on the column; `?? null` makes the intent explicit.
+     */
+    const rk = response.clientExtensionResults?.credProps?.rk;
     const row = await this.prisma.webAuthnCredential.create({
       data: {
         userId,
@@ -108,6 +140,8 @@ export class PasskeysService {
         transports: credential.transports ?? [],
         deviceType: credentialDeviceType,
         backedUp: credentialBackedUp,
+        discoverable: rk ?? null,
+        userVerified,
         label,
       },
     });
@@ -186,6 +220,87 @@ export class PasskeysService {
       },
     });
     return true;
+  }
+
+  /**
+   * Options for a PASSWORDLESS sign-in. Takes no identifier and returns no
+   * allowCredentials, so the authenticator offers whatever it holds for this
+   * RP and the browser never tells us who is trying.
+   *
+   * That is the whole enumeration argument: the second-factor flow can safely
+   * allowlist a user's credentials because a correct password already proved
+   * who they are, but doing the same here would need an email up front and
+   * would answer "is this an account?" to anyone who asked. There is no such
+   * question to answer if we never take the address.
+   *
+   * userVerification is REQUIRED, unlike the second-factor options: with no
+   * password in front of it, the gesture has to be the second factor itself.
+   */
+  async discoverableAuthenticationOptions() {
+    const env = loadEnv();
+    return generateAuthenticationOptions({
+      rpID: rpId(env),
+      userVerification: 'required',
+    });
+  }
+
+  /**
+   * Verify a passwordless assertion and say WHOSE it was.
+   *
+   * The sibling of verifyAuthentication, which takes a userId because the
+   * password already established one. Here the credential id is the only
+   * identifier available, so it is looked up across all users — then the
+   * eligibility gate runs before any signature work, because an ineligible
+   * credential must not be able to sign in this way no matter how valid its
+   * signature is.
+   *
+   * Returns the owning userId, or null. Callers get one undifferentiated null
+   * for "no such credential", "not eligible" and "bad signature": each of the
+   * three is an oracle if reported separately.
+   */
+  async verifyDiscoverableAuthentication(
+    response: AuthenticationResponseJSON,
+    expectedChallenge: string,
+  ): Promise<string | null> {
+    const env = loadEnv();
+    const credential = await this.prisma.webAuthnCredential.findUnique({
+      where: { credentialId: response.id },
+    });
+    if (!credential || !isPasswordlessReady(credential)) return null;
+
+    const verification = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: env.WEB_ORIGIN, // canonical only — see verifyRegistration
+      expectedRPID: rpId(env),
+      // Not negotiable here: this assertion IS the authentication.
+      requireUserVerification: true,
+      credential: {
+        id: credential.credentialId,
+        publicKey: new Uint8Array(credential.publicKey),
+        counter: Number(credential.counter),
+        transports: credential.transports as AuthenticatorTransport[],
+      },
+    }).catch(() => null);
+    if (!verification?.verified) return null;
+
+    /**
+     * The assertion carries the user handle the credential was created with —
+     * this service encodes the user id there (see registrationOptions). If it
+     * disagrees with the credential row's owner, something is wrong enough that
+     * the right answer is no answer.
+     */
+    const handle = response.response?.userHandle;
+    if (handle && handle !== credential.userId) return null;
+
+    await this.prisma.webAuthnCredential.update({
+      where: { id: credential.id },
+      data: {
+        counter: BigInt(verification.authenticationInfo.newCounter),
+        lastUsedAt: new Date(),
+      },
+    });
+    return credential.userId;
   }
 
   /**
@@ -283,6 +398,8 @@ export class PasskeysService {
     label: string;
     deviceType: string;
     backedUp: boolean;
+    discoverable: boolean | null;
+    userVerified: boolean | null;
     createdAt: Date;
     lastUsedAt: Date | null;
   }) {
@@ -291,6 +408,8 @@ export class PasskeysService {
       label: r.label,
       deviceType: r.deviceType,
       backedUp: r.backedUp,
+      // The one question /account needs answered: can this sign in on its own?
+      passwordlessReady: isPasswordlessReady(r),
       createdAt: r.createdAt,
       lastUsedAt: r.lastUsedAt,
     };

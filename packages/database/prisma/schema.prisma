@@ -981,6 +981,15 @@ model WebAuthnCredential {
   backedUp     Boolean   @default(false)
   // User-facing name, e.g. "iPhone", "1Password" — set at registration.
   label        String
+  // Passwordless eligibility, recorded at registration and NEVER inferred.
+  // NULL means "enrolled before we asked" — the properties cannot be recovered
+  // after the ceremony, so an unknown credential is not eligible and the owner
+  // re-enrolls. Both must be true for a credential to sign in without a
+  // password: discoverable so the authenticator can offer it with no username,
+  // userVerified so the gesture is possession AND a PIN/biometric rather than
+  // possession alone.
+  discoverable Boolean?
+  userVerified Boolean?
   lastUsedAt   DateTime?
   createdAt    DateTime  @default(now())
 
