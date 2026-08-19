@@ -379,6 +379,51 @@ function PasskeysCard() {
    * one is enrolled, otherwise a fresh passkey assertion. Accounts with no
    * factor yet (first enrollment) need neither — the server agrees.
    */
+  /**
+   * Turn a failed WebAuthn ceremony into something the person can act on.
+   *
+   * Every non-API failure used to collapse into "Could not add the passkey",
+   * which is true and useless — it hid the one fact that matters, namely
+   * whether the DEVICE refused or the site did. Reported from the field on an
+   * account with no second factor, where it read as "passkeys need 2FA first"
+   * when the browser had actually declined before the server was ever asked.
+   *
+   * The names come from the WebAuthn spec's DOMExceptions. Enrollment asks for
+   * a discoverable, user-verified credential, so a device with no screen lock
+   * or biometric legitimately cannot comply — that is a setup problem with a
+   * clear remedy, not an error.
+   */
+  const passkeyErrorMessage = (err: unknown): string => {
+    // Keep the real error reachable: the message below is deliberately plain,
+    // and without this the actual DOMException name is gone for good.
+    console.error('Passkey enrollment failed', err);
+    if (err instanceof ApiError) return err.message;
+    const name = err instanceof Error ? err.name : '';
+    switch (name) {
+      case 'ConstraintError':
+      case 'NotSupportedError':
+        return (
+          'This device can\'t create a passkey. It needs a screen lock or biometric — ' +
+          'Windows Hello on a PC, Touch ID or Face ID on Apple, a fingerprint or screen ' +
+          'lock on Android — or a security key. Set one up and try again, or use an ' +
+          'authenticator app below instead.'
+        );
+      case 'InvalidStateError':
+        // excludeCredentials matched: this authenticator is already enrolled.
+        return 'This device already has a passkey for your account.';
+      case 'SecurityError':
+        return (
+          'Passkeys only work on the app\'s own address. Open ' +
+          window.location.host +
+          ' directly rather than through a preview or alias link.'
+        );
+      case 'AbortError':
+        return 'The passkey setup timed out. Try again.';
+      default:
+        return 'Could not add the passkey. Your browser declined the request.';
+    }
+  };
+
   const stepUpProof = async (): Promise<Record<string, unknown>> => {
     if (user?.totpEnabled) return { code: stepUpCode };
     if ((user?.passkeyCount ?? 0) > 0) {
@@ -408,7 +453,7 @@ function PasskeysCard() {
     onError: (err) => {
       // The user closing the browser prompt is a change of mind, not an error.
       if (err instanceof Error && err.name === 'NotAllowedError') return;
-      setError(err instanceof ApiError ? err.message : 'Could not add the passkey');
+      setError(passkeyErrorMessage(err));
     },
   });
 
