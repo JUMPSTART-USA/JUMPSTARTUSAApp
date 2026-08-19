@@ -12,7 +12,7 @@ import {
   type HousingTransferInput,
   type ListQuery,
   type TransitionalHomeInput,
-  type UsState,
+  type ChapterState,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
@@ -20,7 +20,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/types';
 
 export interface HomeListFilters {
-  state?: UsState;
+  state?: ChapterState;
   active?: boolean;
 }
 

@@ -21,7 +21,7 @@ import {
   optionalDate,
   optionalTrimmed,
   requiredDate,
-  US_STATES,
+  CHAPTER_STATES,
   uuid,
   type BatchEnrollInput,
   type ClassCloseOutInput,
@@ -38,7 +38,10 @@ import { InsideClassesService } from './inside-classes.service';
 const listFiltersSchema = listQuerySchema.extend({
   institutionId: uuid.optional(),
   status: z.enum(CLASS_STATUSES).optional(),
-  state: z.enum(US_STATES).optional(),
+  // The chapter filter (§7.2), not a postal address — this entity's state IS
+  // its chapter. It accepted all 50 US_STATES, which was meaningless for the 44
+  // that are not chapters and became a type error once USA joined the list.
+  state: z.enum(CHAPTER_STATES).optional(),
   from: optionalDate,
   to: optionalDate,
 });
