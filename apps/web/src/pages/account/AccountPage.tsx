@@ -347,7 +347,7 @@ interface PasskeyRow {
 }
 
 /**
- * Passkeys (§3.2): a second factor in their own right — Face ID / Touch ID
+ * Passkeys (§3.2): a second factor in their own right — a biometric or screen lock
  * instead of typing a code. Registration is the two-step WebAuthn ceremony;
  * the challenge rides the session between the calls. Removal demands a
  * current TOTP code while one is enrolled (same step-up as recovery-code
@@ -428,14 +428,14 @@ function PasskeysCard() {
     <Card>
       <CardHeaderRow
         title="Passkeys"
-        description="Sign in with Face ID, Touch ID, or a security key instead of typing a code."
+        description="Sign in with your fingerprint, face, or screen lock — or a security key — instead of typing a code."
       />
       <CardContent className="space-y-4">
         {list.isError ? <ErrorState error={list.error} onRetry={() => void list.refetch()} /> : null}
         {!supported ? (
           <p className="text-sm text-muted-foreground">
-            This browser can&apos;t create passkeys — use an up-to-date Safari, Chrome, or Edge.
-            Existing passkeys are still listed below and can be removed.
+            This browser can&apos;t create passkeys — try an up-to-date Chrome, Safari, Edge, or
+            Firefox on any device. Existing passkeys are still listed below and can be removed.
           </p>
         ) : null}
           <>
