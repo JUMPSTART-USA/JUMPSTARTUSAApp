@@ -79,7 +79,7 @@ export function LoginPage() {
     }
   };
 
-  /** The passkey ceremony: browser prompt (Face ID / Touch ID) → assertion → login. */
+  /** The passkey ceremony: browser prompt (biometric / screen lock) → assertion → login. */
   const signInWithPasskey = async () => {
     if (!passkeyOptions) return;
     setBusy(true);
@@ -226,8 +226,14 @@ export function LoginPage() {
                 >
                   {busy ? 'Waiting for your passkey…' : 'Sign in with your passkey'}
                 </Button>
+                {/* Named no platform on purpose. WebAuthn is a standard, and this
+                    prompt is whatever the user's own device uses — Touch ID or
+                    Face ID on Apple, Windows Hello on a PC, fingerprint or screen
+                    lock on Android, or a security key anywhere. Listing only
+                    Apple's names read as "Apple devices only" to everyone else. */}
                 <p className="text-center text-xs text-muted-foreground">
-                  Your browser will ask for Face ID, Touch ID, or your security key.
+                  Your device will ask for your fingerprint, face, or screen lock — or your
+                  security key.
                 </p>
                 {totpEnabled ? (
                   <button
