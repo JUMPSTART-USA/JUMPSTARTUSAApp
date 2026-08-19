@@ -16,7 +16,7 @@ import {
   type InsideClassInput,
   type InsideEnrollmentInput,
   type ListQuery,
-  type UsState,
+  type ChapterState,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess } from '../../common/chapter.util';
@@ -26,7 +26,7 @@ import type { AuthenticatedUser } from '../../common/types';
 export interface InsideClassListFilters {
   institutionId?: string;
   status?: ClassStatus;
-  state?: UsState;
+  state?: ChapterState;
   from?: Date;
   to?: Date;
 }

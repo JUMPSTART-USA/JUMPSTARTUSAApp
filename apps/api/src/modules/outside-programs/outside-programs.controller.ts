@@ -17,7 +17,7 @@ import {
   outsideProgramSchema,
   PROGRAM_TYPES,
   requiredDate,
-  US_STATES,
+  CHAPTER_STATES,
   uuid,
   type ListQuery,
   type OutsideEnrollmentInput,
@@ -38,7 +38,10 @@ import {
 const listFiltersSchema = listQuerySchema.extend({
   programType: z.enum(PROGRAM_TYPES).optional(),
   status: z.enum(['active', 'inactive', 'completed']).optional(),
-  state: z.enum(US_STATES).optional(),
+  // The chapter filter (§7.2), not a postal address — this entity's state IS
+  // its chapter. It accepted all 50 US_STATES, which was meaningless for the 44
+  // that are not chapters and became a type error once USA joined the list.
+  state: z.enum(CHAPTER_STATES).optional(),
   staffLeadId: uuid.optional(),
 });
 type ListFilters = z.infer<typeof listFiltersSchema>;

@@ -1,7 +1,26 @@
 # Chapter scoping (§7.2) — full enforcement design
 
-Every operational record belongs to **exactly one state chapter** (`FL, GA, NC, OH, SC, TX` —
-`CHAPTER_STATES` in `packages/shared/src/chapters.ts`). A user is scoped to one chapter via
+Every operational record belongs to **exactly one chapter** (`FL, GA, NC, OH, SC, TX, USA` —
+`CHAPTER_STATES` in `packages/shared/src/chapters.ts`).
+
+**USA is the national office, and it is a PEER of the state chapters, not a parent.** National
+staff hold their own Development records and are isolated from every state chapter's, exactly
+as the states are isolated from one another. It confers no cross-chapter visibility: a
+USA-scoped user sees USA rows and nothing else. Two consequences worth stating plainly, because
+both are tempting shortcuts:
+
+* **`USA` is not a synonym for all-chapters.** All-chapters is still the ABSENCE of a scope row.
+  Treating USA as "sees everything" would hand national staff every chapter's donor file.
+* **Nationwide reporting does not exist yet.** Rule 4 forces `user.chapter` into every report
+  query, so a USA-scoped user's reports cover USA only. Aggregate national statistics — totals
+  across chapters without exposing another chapter's Development records — is a separate
+  capability, deliberately not built. Do not approximate it by widening USA's scope.
+
+**`PUBLIC_INTAKE_STATES` excludes USA.** The public referral and volunteer-application forms ask
+which chapter should receive the submission; those queues are worked by state chapter staff, so
+a submission routed to the national office would sit where nobody looks. The two lists diverge
+in one direction only — every public option is a chapter, but not every chapter is a public
+option (`national-chapter.spec.ts` pins this). A user is scoped to one chapter via
 `user_region_scopes`, or to **all chapters** when they have no scope row. Administrators are
 **always** all-chapters, regardless of scope rows (enforced in `SessionAuthGuard` and by
 rejecting scope assignment to admins).
@@ -60,6 +79,12 @@ rejecting scope assignment to admins).
 | **Communication** | **new `chapterState` (required)** | stamped at send: `user.chapter ?? recipient chapter` |
 | CommunicationTemplate, OnboardingChecklistTemplate, MentorScreeningTemplate | org-global by design | shared content/config, no PII |
 | Users, roles, support tickets, app settings, audit log | org-global (admin surfaces) | |
+
+Entities whose own `state` IS their chapter (Institution, TransitionalHome, OutsideProgram,
+VolunteerOpportunity) type that column as `ChapterState`, not `UsState`. Three list filters were
+typed `UsState` and accepted all 50 — meaningless for the 44 that are not chapters, and a type
+error the moment USA joined the list, since USA is not a postal state. That mismatch is now
+impossible to reintroduce silently: the compiler rejects it.
 
 ## Cross-chapter dedupe
 

@@ -12,7 +12,7 @@ import {
   type OutsideEnrollmentInput,
   type OutsideProgramInput,
   type ProgramType,
-  type UsState,
+  type ChapterState,
 } from '@jumpstart/shared';
 import { AuditService } from '../../audit/audit.service';
 import { assertChapterAccess, resolveCreateChapter } from '../../common/chapter.util';
@@ -22,7 +22,7 @@ import type { AuthenticatedUser } from '../../common/types';
 export interface OutsideProgramListFilters {
   programType?: ProgramType;
   status?: 'active' | 'inactive' | 'completed';
-  state?: UsState;
+  state?: ChapterState;
   staffLeadId?: string;
 }
 

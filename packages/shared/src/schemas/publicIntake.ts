@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CHAPTER_STATES } from '../chapters';
+import { PUBLIC_INTAKE_STATES } from '../chapters';
 import { REFERRER_TYPES } from '../enums';
 import { optionalDate, optionalEmail, optionalPhone, optionalTrimmed, requiredTrimmed } from './common';
 
@@ -15,7 +15,7 @@ export const publicVolunteerApplicationSchema = z.object({
   city: optionalTrimmed,
   // Which JUMPSTART chapter the applicant is applying to (§7.2) — drives
   // intake-queue chapter scoping, so it is required.
-  state: z.enum(CHAPTER_STATES, { message: 'Select a chapter state' }),
+  state: z.enum(PUBLIC_INTAKE_STATES, { message: 'Select a chapter state' }),
   interestAreas: z.array(z.string().trim().max(100)).max(20).default([]),
   availability: z.string().trim().max(1000).optional(),
   churchAffiliation: z.string().trim().max(200).optional(),
@@ -49,7 +49,7 @@ export const publicReferralSchema = z.object({
   subjectPhone: optionalPhone,
   facilityName: z.string().trim().max(200).optional(),
   // Chapter state serving this referral (§7.2) — required, drives queue scoping.
-  state: z.enum(CHAPTER_STATES, { message: 'Select a chapter state' }),
+  state: z.enum(PUBLIC_INTAKE_STATES, { message: 'Select a chapter state' }),
   expectedReleaseDate: optionalDate,
   needs: requiredTrimmed.pipe(z.string().max(4000)),
   turnstileToken: z.string().max(4096).optional(),
