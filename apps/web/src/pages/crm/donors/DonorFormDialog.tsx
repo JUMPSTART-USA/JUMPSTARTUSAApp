@@ -119,6 +119,19 @@ export function DonorFormDialog({
     defaultValues: buildDefaults(donor),
   });
   const mailingSame = watch('mailingSameAsPrimary');
+  /**
+   * An individual donor is the person, so "contact person" has no meaning for
+   * one. Watched rather than read once, because the type is editable in this
+   * same dialog — the field has to enable and disable as the user changes it.
+   */
+  const isIndividual = watch('donorType') === 'individual';
+
+  useEffect(() => {
+    // Clear rather than merely disable: a value typed under "organization" and
+    // left behind by a switch to "individual" would submit invisibly, since a
+    // disabled input still carries its registered value.
+    if (isIndividual) setValue('contactPerson', '', { shouldDirty: true });
+  }, [isIndividual, setValue]);
 
   useEffect(() => {
     if (open) {
@@ -302,8 +315,21 @@ export function DonorFormDialog({
             </FormField>
             {/* Chapter (§7.2) — hidden for scoped users; the API stamps theirs. */}
             <ChapterSelect error={errors.chapterState} {...register('chapterState')} />
-            <FormField label="Contact person" error={errors.contactPerson}>
-              <Input {...register('contactPerson')} />
+            {/*
+              An individual donor IS the person, so a separate contact person is
+              a contradiction — the field is disabled rather than hidden so the
+              form does not reflow as the type changes, and the hint says why.
+              Any value already typed is cleared on switching to individual, or
+              it would submit invisibly.
+            */}
+            <FormField
+              label="Contact person"
+              error={errors.contactPerson}
+              hint={
+                isIndividual ? 'Not used for individual donors — the donor is the person.' : undefined
+              }
+            >
+              <Input {...register('contactPerson')} disabled={isIndividual} />
             </FormField>
             <FormField label="Phone" error={errors.phone}>
               <PhoneInput {...register('phone')} />

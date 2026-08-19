@@ -72,10 +72,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh: () => queryClient.invalidateQueries({ queryKey: ['auth', 'me'] }),
     viewAs: async (change) => {
       await api.post('/auth/view-as', change);
-      // Everything cached was fetched under the previous role's access; a full
-      // reload restarts the SPA cleanly under the new one (same as logout).
+      /**
+       * Everything cached was fetched under the previous role's access, so a
+       * full reload restarts the SPA cleanly under the new one (same as
+       * logout). RELOAD, though — not assign('/').
+       *
+       * Sending everyone to the dashboard threw away the page they were on,
+       * which is the one thing a chapter switch is usually FOR: comparing the
+       * same list across chapters. Reloading in place keeps the route, the
+       * filters and the scroll position's URL state.
+       *
+       * A detail page for a record outside the new chapter will 404 after
+       * this, and that is the honest answer — it tells the user the record is
+       * not in the chapter they just switched to, where a silent bounce to the
+       * dashboard left them guessing what happened.
+       */
       queryClient.clear();
-      window.location.assign('/');
+      window.location.reload();
     },
   };
 
