@@ -12,6 +12,15 @@ import { SettingsPage } from './SettingsPage';
 import { TemplatesPage } from './TemplatesPage';
 import { UsersPage } from './UsersPage';
 
+/**
+ * Absolute `to` values, not bare segments. Every other module's SubNav sits on a
+ * real index route ('.') so relative links resolve from the module root, but
+ * Admin has no index page — it redirects straight to the first permitted
+ * section, so the browser is always at /admin/<section> and never at /admin.
+ * Relative links then resolved from there and produced /admin/users/roles,
+ * which matches no route: the tab rendered its frame with an empty body and a
+ * reload changed nothing, because the URL itself was wrong.
+ */
 const SECTIONS: { path: string; label: string; permission: PermissionKey }[] = [
   { path: 'users', label: 'Users', permission: 'admin.users' },
   { path: 'roles', label: 'Roles', permission: 'admin.roles' },
@@ -29,7 +38,7 @@ function AdminLayout() {
   return (
     <div className="space-y-4">
       <PageHeader title="Administration" />
-      <SubNav items={visible.map((s) => ({ to: s.path, label: s.label }))} />
+      <SubNav items={visible.map((s) => ({ to: `/admin/${s.path}`, label: s.label }))} />
       <Outlet />
     </div>
   );
@@ -47,7 +56,7 @@ function AdminIndexRedirect() {
       />
     );
   }
-  return <Navigate to={first.path} replace />;
+  return <Navigate to={`/admin/${first.path}`} replace />;
 }
 
 /** Mounted at 'admin/*'. */
@@ -63,7 +72,7 @@ export function AdminRoutes() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="merge" element={<MergePage />} />
-        <Route path="*" element={<Navigate to="." replace />} />
+        <Route path="*" element={<Navigate to="/admin" replace />} />
       </Route>
     </Routes>
   );
