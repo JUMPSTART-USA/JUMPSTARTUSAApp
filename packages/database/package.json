@@ -20,6 +20,7 @@
     "seed:justice-samples": "tsx prisma/seed-justice-samples.ts",
     "seed:production": "tsx prisma/seed-production.ts",
     "seed:institutions": "tsx prisma/seed-institutions.ts",
+    "import:neon": "tsx prisma/import-neon.ts",
     "db:local": "tsx scripts/dev-db.ts",
     "typecheck": "tsc --noEmit",
     "test:db": "tsx scripts/test-db.ts"
