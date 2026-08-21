@@ -24,6 +24,19 @@ if (!window.matchMedia) {
   })) as unknown as typeof window.matchMedia;
 }
 
+/**
+ * ResizeObserver is absent in jsdom. PillOverflow uses it to decide whether a
+ * SubNav's pills are scrolled off-screen, so without this every test that
+ * renders module sub-navigation throws on mount.
+ */
+if (!globalThis.ResizeObserver) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}
+
 /** Vite's `define` supplies this in the app; tests get it here. */
 if (typeof (globalThis as Record<string, unknown>).__BUILD_ID__ === 'undefined') {
   (globalThis as Record<string, unknown>).__BUILD_ID__ = 'test';
