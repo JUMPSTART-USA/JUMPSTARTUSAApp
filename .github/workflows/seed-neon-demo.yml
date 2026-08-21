@@ -1,0 +1,70 @@
+name: Seed Neon demo data
+
+# Loads the pseudonymized NeonCRM dataset (packages/database/prisma/data/
+# neon-demo.csv) into STAGING's database, as a one-off container in the VNet —
+# the same mechanism release migrations and the sample seeders use, because the
+# database has no public endpoint.
+#
+# The dataset carries no real donor identities (see prisma/make-neon-demo.ts for
+# what was replaced), and the importer is additive and idempotent: rows already
+# carrying their [neon:*] provenance tag are skipped, so re-runs are no-ops and
+# staff edits are never overwritten.
+#
+# Deliberately hard-pinned to the staging environment, matching seed-samples.yml:
+# demo data must never reach production, so there is no environment input to get
+# wrong. The importer refuses a production-looking DATABASE_URL on its own too.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: seed-neon-demo-staging
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Same image the release migration job uses (full workspace + tsx), which
+      # is also what puts prisma/data/neon-demo.csv inside the container. ACR
+      # layer caching makes this cheap when the deploy already built this sha.
+      - name: Build + push migration image
+        run: |
+          az acr build --registry "$ACR_NAME" \
+            --image "jumpstart-migrate:$TAG" \
+            --target migrate \
+            --file apps/api/Dockerfile .
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+
+      - name: Load demo dataset (one-off container in the VNet)
+        run: bash .github/scripts/run-migration-job.sh
+        env:
+          AZURE_RG: ${{ vars.AZURE_RG }}
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          KEYVAULT_NAME: ${{ vars.KEYVAULT_NAME }}
+          JOBS_SUBNET_ID: ${{ vars.JOBS_SUBNET_ID }}
+          JOBS_IDENTITY_ID: ${{ vars.JOBS_IDENTITY_ID }}
+          IMAGE_TAG: ${{ github.sha }}
+          JOB_NAME: seed-neon-demo-${{ github.run_number }}
+          # The image's WORKDIR is packages/database; its default CMD runs
+          # migrations — this override runs the importer instead. --allow-remote
+          # is the importer's deliberate "yes, a non-localhost database" gate,
+          # so it belongs here at the call site rather than baked into the
+          # package script, where it would stop being a decision.
+          JOB_COMMAND: pnpm run seed:neon-demo -- --allow-remote
