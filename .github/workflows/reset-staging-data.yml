@@ -1,0 +1,98 @@
+name: Reset staging data
+
+# Empties demo/sample content from STAGING while leaving sign-in intact, as a
+# one-off container in the VNet — the database has no public endpoint, so this
+# is the only way in.
+#
+# Kept: every account and everything sign-in depends on (users, roles,
+# permissions, passkeys, TOTP recovery codes, region scopes), the session store
+# so nobody is logged out, and app_settings plus the three template tables,
+# which hold real configuration rather than sample data.
+#
+# Removed: everything else, including institutions, the audit log, and
+# funds/campaigns/appeals. Reload facilities afterwards with `seed:institutions`
+# if testers need them.
+#
+# Hard-pinned to staging, like seed-samples.yml and seed-neon-demo.yml: there is
+# no environment input to get wrong, and the script refuses a production-looking
+# DATABASE_URL on top of that. Production has its own separate script
+# (seed-production.ts), which is a different operation — it wipes accounts too.
+#
+# Run mode "dry-run" first. It does the whole thing inside the transaction,
+# reports the counts it would leave, then rolls back — a real rehearsal against
+# real data, because TRUNCATE is transactional in Postgres.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'dry-run reports what would be removed and changes nothing'
+        required: true
+        default: dry-run
+        type: choice
+        options: [dry-run, execute]
+      confirm:
+        description: 'To execute, type exactly: RESET STAGING'
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: reset-staging-data
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      TAG: ${{ github.sha }}
+    steps:
+      # Checked before Azure is touched, so a mistyped confirmation costs nothing.
+      - name: Check confirmation
+        if: inputs.mode == 'execute'
+        run: |
+          if [ "$CONFIRM" != "RESET STAGING" ]; then
+            echo "::error::mode=execute requires confirm to be exactly 'RESET STAGING'. Got: '$CONFIRM'"
+            exit 1
+          fi
+          echo "Confirmed — staging content will be removed."
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build + push migration image
+        run: |
+          az acr build --registry "$ACR_NAME" \
+            --image "jumpstart-migrate:$TAG" \
+            --target migrate \
+            --file apps/api/Dockerfile .
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+
+      - name: Reset staging data (one-off container in the VNet)
+        run: bash .github/scripts/run-migration-job.sh
+        env:
+          AZURE_RG: ${{ vars.AZURE_RG }}
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          KEYVAULT_NAME: ${{ vars.KEYVAULT_NAME }}
+          JOBS_SUBNET_ID: ${{ vars.JOBS_SUBNET_ID }}
+          JOBS_IDENTITY_ID: ${{ vars.JOBS_IDENTITY_ID }}
+          IMAGE_TAG: ${{ github.sha }}
+          JOB_NAME: reset-staging-data-${{ github.run_number }}
+          # Flags rather than env vars: run-migration-job.sh forwards only
+          # DATABASE_URL to the container, so the confirmation travels on the
+          # command line instead.
+          JOB_COMMAND: >-
+            pnpm run reset:staging-data --
+            --confirm${{ inputs.mode == 'dry-run' && ' --dry-run' || '' }}
